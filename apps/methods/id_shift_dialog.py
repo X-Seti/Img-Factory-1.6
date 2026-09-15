@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_shift_dialog.py - Version: 2
+#this belongs in apps/methods/id_shift_dialog.py - Version: 3
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Shift Dialog
 
 """id_shift_dialog.py - the real UI for id_reassign.py's own plan/
@@ -18,11 +18,10 @@ from PyQt6.QtWidgets import (
     QPushButton, QListWidget, QFileDialog, QMessageBox, QGroupBox,
 )
 
-from apps.methods.id_reassign import plan_id_shift, apply_id_shift, cascade_ipl_files
-from apps.methods.master_ide_edit import write_source_file
+from apps.methods.id_reassign import plan_id_shift, apply_id_shift_and_write, cascade_ipl_files
 
 
-class IDShiftDialog(QDialog): #vers 3
+class IDShiftDialog(QDialog): #vers 4
     def __init__(self, parent, result, game=None): #vers 2
         super().__init__(parent)
         self.result = result
@@ -190,26 +189,18 @@ class IDShiftDialog(QDialog): #vers 3
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        touched_basenames = apply_id_shift(self.result, self.plan)
+        touched_basenames = apply_id_shift_and_write(self.result, self.plan)
         if not touched_basenames:
-            QMessageBox.warning(self, "Apply Failed", "No files were touched - nothing applied.")
+            QMessageBox.warning(self, "Apply Failed",
+                "No files were touched, or a write failed - nothing applied.")
             return
-
-        write_failures = []
-        for basename in touched_basenames:
-            source_path = next(
-                (p for p in self.result.source_files if os.path.basename(p) == basename), None)
-            if not source_path or not write_source_file(self.result, source_path):
-                write_failures.append(basename)
 
         ipl_paths = self._ipl_paths()
         ipl_results = cascade_ipl_files(ipl_paths, self.plan.id_map) if ipl_paths else {}
         ipl_changed = [p for p, changed in ipl_results.items() if changed]
         ipl_unchanged = [p for p, changed in ipl_results.items() if not changed]
 
-        summary = [f"IDE file(s) written: {', '.join(touched_basenames)}"]
-        if write_failures:
-            summary.append(f"FAILED to write: {', '.join(write_failures)}")
+        summary = [f"IDE file(s) written (incl. any real 2dfx entries): {', '.join(touched_basenames)}"]
         if ipl_changed:
             summary.append(f"IPL file(s) updated: {', '.join(os.path.basename(p) for p in ipl_changed)}")
         if ipl_unchanged:

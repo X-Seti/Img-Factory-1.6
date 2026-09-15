@@ -1,4 +1,4 @@
-#this belongs in apps/methods/id_reassign.py - Version: 7
+#this belongs in apps/methods/id_reassign.py - Version: 9
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Block Reassignment
 
 """id_reassign.py - Move + ID reassignment + cascading (Sep 12 2026,
@@ -19,7 +19,9 @@ anything is written - all-or-nothing, no partial shift."""
 # IDShiftPlan
 # plan_id_shift
 # apply_id_shift
+# apply_id_shift_and_write
 # cascade_ipl_files
+# cascade_2dfx_sections
 # plan_add_ids
 # apply_add_ids
 # FreeIdCollapsePlan
@@ -46,8 +48,43 @@ from typing import Dict, List
 
 from apps.methods.file_backup import backup_file
 
-_EDITABLE_SECTIONS = ("objs", "tobj")
 _IPL_ID_SECTIONS = ("inst", "cars")
+
+# Every section that declares a real model_id sharing the global ID
+# space - NOT just objs/tobj (Sep 12 2026, real bug caught by
+# Keith's own worked example: an anim-section entry, e.g. SFs.ide's
+# real "792,vgegassgn01_lvs,vgegassign,vegasE,150,128", was
+# completely invisible to every shift/collision check here, so a
+# shift could both silently miss moving it AND silently create a
+# real ID collision against it without ever reporting a conflict).
+_ID_DECLARING_SECTIONS = ("objs", "tobj", "anim", "hier", "cars", "peds", "weap")
+
+# Of those, only the sections this app can actually re-serialize a
+# changed model_id back to disk for (write_source_file/write_master_
+# ide have a real verified formatter for objs/tobj/anim only - see
+# master_ide.py's own _format_objs_or_tobj_line/_format_anim_line;
+# hier/cars/peds/weap still go through raw-text passthrough, so
+# their own real model_id can never actually change on disk yet).
+_MOVABLE_SECTIONS = ("objs", "tobj", "anim")
+
+
+def _find_unmovable_in_range(result, min_id: int, max_id: int): #vers 1
+    """Real entries within [min_id, max_id] that declare a real ID
+    but live in a section this app can't yet re-serialize a changed
+    ID for (hier/cars/peds/weap) - moving everything AROUND one of
+    these while leaving it in place would either strand it on a
+    stale ID or collide with whatever the shift moves into its
+    slot. Returns a list of (model_id, model_name, source_ide,
+    section) - callers should refuse the whole plan if this is
+    non-empty rather than silently leaving it unmigrated."""
+    blockers = []
+    for section in _ID_DECLARING_SECTIONS:
+        if section in _MOVABLE_SECTIONS:
+            continue
+        for obj in result.objects_by_section.get(section, []):
+            if min_id <= obj.model_id <= max_id:
+                blockers.append((obj.model_id, obj.model_name, obj.source_ide, section))
+    return blockers
 
 
 @dataclass
@@ -61,24 +98,29 @@ class IDShiftPlan: #vers 1
         return bool(self.moved) and not self.conflicts
 
 
-def plan_id_shift(result, min_id: int, max_id: int, offset: int) -> IDShiftPlan: #vers 1
+def plan_id_shift(result, min_id: int, max_id: int, offset: int) -> IDShiftPlan: #vers 2
     """Dry run only - computes what WOULD move and any real conflicts,
     touches nothing. A conflict is a moved entry's new_id landing on
-    a real ID that stays in place (outside the moved block) - the
-    whole plan is rejected if any conflict exists (plan.ok is False),
-    matching Keith's own "no fallback code - works or doesn't"."""
+    a real ID that stays in place (outside the moved block), OR a
+    real entry inside the range belonging to a section this app
+    can't yet re-serialize (see _find_unmovable_in_range) - either
+    way the whole plan is rejected (plan.ok is False), matching
+    Keith's own "no fallback code - works or doesn't". Collision
+    detection scans every real ID-declaring section (not just objs/
+    tobj), so a shift can never land on top of a real anim/hier/
+    cars/peds/weap entry without being flagged."""
     plan = IDShiftPlan()
     if offset == 0 or min_id > max_id:
         return plan
 
     all_ids: Dict[int, tuple] = {}   # id -> (model_name, source_ide)
-    for section in _EDITABLE_SECTIONS:
+    for section in _ID_DECLARING_SECTIONS:
         for obj in result.objects_by_section.get(section, []):
             all_ids[obj.model_id] = (obj.model_name, obj.source_ide)
 
     stationary_ids = {i: v for i, v in all_ids.items() if not (min_id <= i <= max_id)}
 
-    for section in _EDITABLE_SECTIONS:
+    for section in _MOVABLE_SECTIONS:
         for obj in result.objects_by_section.get(section, []):
             if min_id <= obj.model_id <= max_id:
                 new_id = obj.model_id + offset
@@ -92,23 +134,36 @@ def plan_id_shift(result, min_id: int, max_id: int, offset: int) -> IDShiftPlan:
             conf_name, conf_source = stationary_ids[new_id]
             plan.conflicts.append((new_id, conf_name, conf_source))
 
+    for model_id, model_name, source_ide, section in _find_unmovable_in_range(result, min_id, max_id):
+        plan.conflicts.append((model_id, f"{model_name} (in '{section}' section - "
+                                          f"can't be re-written yet)", source_ide))
+
     return plan
 
 
-def apply_id_shift(result, plan: IDShiftPlan) -> List[str]: #vers 2
+def apply_id_shift(result, plan: IDShiftPlan) -> List[str]: #vers 3
     """Apply an already-planned, conflict-free shift in memory:
-    objs/tobj entries get their real model_id updated; 2dfx entries
-    sharing an old_id (same real model_id, see IDEParser's own 2dfx-
-    stub docstring) get remapped alongside their base object,
-    including their synthetic "2dfx_<id>" display name. Returns the
-    list of real basenames now needing write_source_file(). Refuses
-    (returns []) if plan.ok is False - callers must not apply a
-    plan with real conflicts."""
+    objs/tobj/anim entries get their real model_id updated (the 3
+    sections this app can actually re-serialize - see _MOVABLE_
+    SECTIONS); 2dfx entries sharing an old_id (same real model_id,
+    see IDEParser's own 2dfx-stub docstring) get remapped alongside
+    their base object, including their synthetic "2dfx_<id>" display
+    name. Returns the list of real basenames now needing write_
+    source_file(). Refuses (returns []) if plan.ok is False, or if
+    plan.id_map touches any real entry in a non-movable section
+    (hier/cars/peds/weap) - a defensive backstop in case a caller
+    built id_map some other way than plan_id_shift's own checks."""
     if not plan.ok:
         return []
+    for old_id in plan.id_map:
+        for section in _ID_DECLARING_SECTIONS:
+            if section in _MOVABLE_SECTIONS:
+                continue
+            if any(o.model_id == old_id for o in result.objects_by_section.get(section, [])):
+                return []
 
     touched = set()
-    for section in _EDITABLE_SECTIONS:
+    for section in _MOVABLE_SECTIONS:
         for obj in result.objects_by_section.get(section, []):
             if obj.model_id in plan.id_map:
                 obj.model_id = plan.id_map[obj.model_id]
@@ -151,68 +206,120 @@ def _remap_id_field_line(line: str, id_map: Dict[int, int]): #vers 1
     return f"{prefix_ws}{id_map[old_id]}{sep}{rest.lstrip()}"
 
 
-def cascade_ipl_files(ipl_paths: List[str], id_map: Dict[int, int]) -> Dict[str, bool]: #vers 1
+def _remap_section_ids_in_file(file_path: str, section_names, id_map: Dict[int, int]) -> bool: #vers 1
+    """Shared low-level rewrite - given any real text file (.ipl or
+    .ide both work), substitute ONLY the leading ID field on lines
+    inside any of the given section_names that match id_map, byte-
+    for-byte otherwise. Backs up first. Returns True only if
+    something actually changed and the write succeeded; False for
+    "nothing matched" (not an error) or any real failure."""
+    if not file_path or not os.path.isfile(file_path):
+        return False
+    try:
+        with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+            lines = f.readlines()
+    except Exception:
+        return False
+
+    current_section = None
+    changed = False
+    out_lines = []
+    for raw in lines:
+        stripped = raw.split("#")[0].strip()
+        low = stripped.lower()
+        if low == "end":
+            current_section = None
+            out_lines.append(raw)
+            continue
+        if current_section is None and low in section_names:
+            current_section = low
+            out_lines.append(raw)
+            continue
+        if current_section in section_names:
+            remapped = _remap_id_field_line(raw, id_map)
+            if remapped is not None:
+                out_lines.append(remapped if remapped.endswith("\n") else remapped + "\n")
+                changed = True
+                continue
+        out_lines.append(raw)
+
+    if not changed:
+        return False
+    if backup_file(file_path) is None:
+        return False
+    try:
+        with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+            f.writelines(out_lines)
+        return True
+    except Exception:
+        return False
+
+
+def cascade_ipl_files(ipl_paths: List[str], id_map: Dict[int, int]) -> Dict[str, bool]: #vers 2
     """Rewrite every given real IPL file's own "inst"/"cars" section
     lines whose leading ID field is in id_map - substituting only
     that field, backing up each real file first. Returns a dict of
     ipl_path -> True/False (False = no matching lines found, file
     unchanged, no backup made - not an error)."""
-    results = {}
-    for ipl_path in ipl_paths:
-        if not ipl_path or not os.path.isfile(ipl_path):
-            results[ipl_path] = False
-            continue
-        try:
-            with open(ipl_path, "r", encoding="ascii", errors="ignore") as f:
-                lines = f.readlines()
-        except Exception:
-            results[ipl_path] = False
-            continue
-
-        current_section = None
-        changed = False
-        out_lines = []
-        for raw in lines:
-            stripped = raw.split("#")[0].strip()
-            low = stripped.lower()
-            if low == "end":
-                current_section = None
-                out_lines.append(raw)
-                continue
-            if current_section is None and low in _IPL_ID_SECTIONS:
-                current_section = low
-                out_lines.append(raw)
-                continue
-            if current_section in _IPL_ID_SECTIONS:
-                remapped = _remap_id_field_line(raw, id_map)
-                if remapped is not None:
-                    out_lines.append(remapped if remapped.endswith("\n") else remapped + "\n")
-                    changed = True
-                    continue
-            out_lines.append(raw)
-
-        if not changed:
-            results[ipl_path] = False
-            continue
-
-        if backup_file(ipl_path) is None:
-            results[ipl_path] = False
-            continue
-        try:
-            with open(ipl_path, "w", encoding="ascii", errors="ignore") as f:
-                f.writelines(out_lines)
-            results[ipl_path] = True
-        except Exception:
-            results[ipl_path] = False
-
-    return results
+    return {p: _remap_section_ids_in_file(p, _IPL_ID_SECTIONS, id_map) for p in ipl_paths}
 
 
-def _max_used_id(result) -> int: #vers 1
-    """Highest real declared ID currently loaded (objs/tobj only) -
-    same convention as id_shift_dialog.py's own "To highest loaded
-    ID" button."""
-    all_ids = [obj.model_id for section in _EDITABLE_SECTIONS
+def cascade_2dfx_sections(ide_paths: List[str], id_map: Dict[int, int]) -> Dict[str, bool]: #vers 1
+    """Real bug fix (Sep 12 2026, per Keith's own worked example) -
+    apply_id_shift already updates 2dfx's IN-MEMORY parsed model_id,
+    but write_source_file/write_master_ide always write 2dfx from
+    RAW TEXT passthrough (deliberately, to avoid the original real
+    2dfx-corruption bug - see load_master_ide's own docstring on
+    that), meaning that in-memory update was silently discarded at
+    write time every single time a 2dfx cascade ran, for every real
+    shift this app has ever performed. Same real technique as
+    cascade_ipl_files, applied to a real IDE file's own "2dfx"
+    section instead of an IPL's "inst"/"cars" - substitutes only the
+    leading ID field, every other byte (including the quoted corona
+    strings) stays exactly as it was. Must be called AFTER write_
+    source_file has already written the objs/tobj/anim part for
+    each file, so it operates on the just-written real file, not a
+    stale copy."""
+    return {p: _remap_section_ids_in_file(p, ("2dfx",), id_map) for p in ide_paths}
+
+
+def apply_id_shift_and_write(result, plan: IDShiftPlan) -> List[str]: #vers 1
+    """The real, complete apply step every caller should use instead
+    of doing apply_id_shift() + its own write_source_file() loop by
+    hand (Sep 12 2026 - centralizing this exact sequence is what
+    catches the 2dfx write-back bug uniformly everywhere, rather
+    than needing every dialog's own call site fixed separately).
+    Applies the shift in memory, writes every real touched IDE file
+    (objs/tobj/anim, from parsed data), THEN cascades into each of
+    those same files' own 2dfx section (surgical substitution on the
+    just-written file). Returns the touched real basenames, or []
+    on any failure - never partially applies."""
+    from apps.methods.master_ide_edit import write_source_file
+
+    touched = apply_id_shift(result, plan)
+    if not touched:
+        return []
+    failures = []
+    for basename in touched:
+        source_path = next((p for p in result.source_files
+                             if os.path.basename(p) == basename), None)
+        if not source_path or not write_source_file(result, source_path):
+            failures.append(basename)
+    if failures:
+        return []
+
+    touched_paths = [p for p in result.source_files if os.path.basename(p) in touched]
+    cascade_2dfx_sections(touched_paths, plan.id_map)
+    return touched
+
+
+def _max_used_id(result) -> int: #vers 2
+    """Highest real declared ID currently loaded, across every real
+    ID-declaring section (not just objs/tobj - Sep 12 2026, same
+    real bug fix as plan_id_shift's own broadened scan) - same
+    convention as id_shift_dialog.py's own "To highest loaded ID"
+    button."""
+    all_ids = [obj.model_id for section in _ID_DECLARING_SECTIONS
                for obj in result.objects_by_section.get(section, [])]
     return max(all_ids) if all_ids else -1
 
@@ -232,16 +339,19 @@ def plan_add_ids(result, after_id: int, count: int) -> IDShiftPlan: #vers 1
     return plan_id_shift(result, after_id + 1, max_id, count)
 
 
-def apply_add_ids(result, plan: IDShiftPlan) -> List[str]: #vers 1
-    """Apply a plan_add_ids() plan. A plan with nothing moved (the
-    trivial "nothing above after_id" case) is a valid no-op success,
-    not a refusal - apply_id_shift itself would treat empty-moved as
-    not-ok, so that case is handled here instead."""
+def apply_add_ids(result, plan: IDShiftPlan) -> List[str]: #vers 2
+    """Apply a plan_add_ids() plan - writes every real touched file
+    and cascades 2dfx itself (Sep 12 2026, uses apply_id_shift_and_
+    write so callers never need to remember the 2dfx step). A plan
+    with nothing moved (the trivial "nothing above after_id" case)
+    is a valid no-op success, not a refusal - apply_id_shift itself
+    would treat empty-moved as not-ok, so that case is handled here
+    instead."""
     if not plan.moved:
         return [] if not plan.conflicts else None
     if not plan.ok:
         return None
-    return apply_id_shift(result, plan)
+    return apply_id_shift_and_write(result, plan)
 
 
 @dataclass
@@ -258,15 +368,18 @@ class FreeIdCollapsePlan: #vers 1
         return self.blocking_id is None and len(self.free_ids_found) == self.requested_count
 
 
-def plan_collapse_free_ids(result, start_id: int, count: int) -> FreeIdCollapsePlan: #vers 1
+def plan_collapse_free_ids(result, start_id: int, count: int) -> FreeIdCollapsePlan: #vers 2
     """Dry run only - scans forward from start_id counting real free
     (unassigned) IDs until either count are found, or a real assigned
     ID is hit first (Sep 12 2026, per Keith: "if there are 5 free
     ID's and I delete 6 of them, it won't delete what isn't free...
-    If the 6th is assigned I get a warning"). plan.fully_free is
-    True only when every one of the count IDs scanned was genuinely
-    free - the only case apply_collapse_free_ids will act on."""
-    used = {obj.model_id: obj for section in _EDITABLE_SECTIONS
+    If the 6th is assigned I get a warning"). Scans every real ID-
+    declaring section (not just objs/tobj) so a hier/cars/peds/weap-
+    occupied slot is never wrongly treated as free. plan.fully_free
+    is True only when every one of the count IDs scanned was
+    genuinely free - the only case apply_collapse_free_ids will act
+    on."""
+    used = {obj.model_id: obj for section in _ID_DECLARING_SECTIONS
             for obj in result.objects_by_section.get(section, [])}
     plan = FreeIdCollapsePlan(start_id=start_id, requested_count=count)
     cur = start_id
@@ -282,12 +395,14 @@ def plan_collapse_free_ids(result, start_id: int, count: int) -> FreeIdCollapseP
     return plan
 
 
-def apply_collapse_free_ids(result, plan: FreeIdCollapsePlan) -> List[str]: #vers 1
+def apply_collapse_free_ids(result, plan: FreeIdCollapsePlan) -> List[str]: #vers 2
     """Apply an already-planned free-ID collapse: shift everything
     above the scanned free range DOWN by requested_count, closing
-    the gap. Refuses (returns None) unless plan.fully_free - never
-    partially collapses, and never touches a real assigned entry
-    (that's Delete ID's job, a separate, explicit operation)."""
+    the gap - writes every real touched file and cascades 2dfx
+    itself (Sep 12 2026, uses apply_id_shift_and_write). Refuses
+    (returns None) unless plan.fully_free - never partially
+    collapses, and never touches a real assigned entry (that's
+    Delete ID's job, a separate, explicit operation)."""
     if not plan.fully_free:
         return None
     collapse_from = plan.free_ids_found[-1] + 1
@@ -297,18 +412,22 @@ def apply_collapse_free_ids(result, plan: FreeIdCollapsePlan) -> List[str]: #ver
     shift_plan = plan_id_shift(result, collapse_from, max_id, -plan.requested_count)
     if not shift_plan.ok:
         return None
-    return apply_id_shift(result, shift_plan)
+    return apply_id_shift_and_write(result, shift_plan)
 
 
-def plan_delete_and_collapse(result, start_id: int, count: int) -> List[tuple]: #vers 1
+def plan_delete_and_collapse(result, start_id: int, count: int) -> List[tuple]: #vers 2
     """Dry run only - every real assigned entry within [start_id,
     start_id+count-1] that would actually be deleted (Sep 12 2026,
     per Keith: "until i want to remove lines altogether, removing
     those models" - the explicit escalation past a free-ID collapse
-    refusal). Returns a list of (model_id, model_name, source_ide);
-    empty means every ID in range was already free (equivalent to a
-    plain collapse, no real deletions needed)."""
-    used = {obj.model_id: obj for section in _EDITABLE_SECTIONS
+    refusal). Scans every real ID-declaring section so a hier/cars/
+    peds/weap entry is correctly identified as occupying its slot -
+    remove_entry() itself will then honestly refuse to delete it
+    (objs/tobj only), which is the correct outcome here: apply_
+    delete_and_collapse stops rather than silently treating that
+    slot as cleared. Returns a list of (model_id, model_name,
+    source_ide); empty means every ID in range was already free."""
+    used = {obj.model_id: obj for section in _ID_DECLARING_SECTIONS
             for obj in result.objects_by_section.get(section, [])}
     to_delete = []
     for i in range(start_id, start_id + count):
@@ -318,14 +437,16 @@ def plan_delete_and_collapse(result, start_id: int, count: int) -> List[tuple]: 
     return to_delete
 
 
-def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List[tuple]): #vers 1
-    """Actually remove every real to_delete entry, then collapse the
-    now-fully-free [start_id, start_id+count-1] range by shifting
-    everything above it down by count. Stops and refuses (returns
-    None) on the first real removal failure rather than partially
-    applying. Returns (removed_ide_basenames, shift_touched_
-    basenames) on success."""
-    from apps.methods.master_ide_edit import remove_entry
+def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List[tuple]): #vers 2
+    """Actually remove every real to_delete entry (writing each
+    touched file immediately), then collapse the now-fully-free
+    [start_id, start_id+count-1] range by shifting everything above
+    it down by count - writing that too, and cascading 2dfx itself
+    (Sep 12 2026, uses apply_id_shift_and_write). Stops and refuses
+    (returns None) on the first real removal or write failure rather
+    than partially applying. Returns (removed_ide_basenames,
+    shift_touched_basenames) on success."""
+    from apps.methods.master_ide_edit import remove_entry, write_source_file
 
     removed_files = set()
     for model_id, _model_name, source_ide in to_delete:
@@ -334,6 +455,12 @@ def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List
             return None
         removed_files.add(os.path.basename(source_ide))
 
+    for basename in removed_files:
+        source_path = next((p for p in result.source_files
+                             if os.path.basename(p) == basename), None)
+        if not source_path or not write_source_file(result, source_path):
+            return None
+
     max_id = _max_used_id(result)
     collapse_from = start_id + count
     if collapse_from > max_id:
@@ -341,7 +468,7 @@ def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List
     shift_plan = plan_id_shift(result, collapse_from, max_id, -count)
     if not shift_plan.ok:
         return None
-    shift_touched = apply_id_shift(result, shift_plan)
+    shift_touched = apply_id_shift_and_write(result, shift_plan)
     return sorted(removed_files), shift_touched
 
 
@@ -373,12 +500,16 @@ def plan_insert_relocation(result, incoming_source_ide: str, target_start_id: in
     area... would need a model name check")."""
     incoming_base = os.path.basename(incoming_source_ide)
     incoming = []
+    incoming_unmovable = []
     other_by_id = {}
     other_by_name = {}
-    for section in _EDITABLE_SECTIONS:
+    for section in _ID_DECLARING_SECTIONS:
         for obj in result.objects_by_section.get(section, []):
             if os.path.basename(obj.source_ide) == incoming_base:
-                incoming.append(obj)
+                if section in _MOVABLE_SECTIONS:
+                    incoming.append(obj)
+                else:
+                    incoming_unmovable.append(obj)
             else:
                 other_by_id[obj.model_id] = (obj.model_name, obj.source_ide)
                 other_by_name.setdefault(obj.model_name.lower(), []).append((obj.model_id, obj.source_ide))
@@ -394,20 +525,25 @@ def plan_insert_relocation(result, incoming_source_ide: str, target_start_id: in
             plan.id_conflicts.append((new_id, conf_name, conf_source))
         for existing_id, existing_source in other_by_name.get(obj.model_name.lower(), []):
             plan.name_conflicts.append((obj.model_name, obj.model_id, existing_id, existing_source))
+    for obj in incoming_unmovable:
+        # Sep 12 2026, same real gap as plan_id_shift's own -
+        # the incoming file may itself have hier/cars/peds/weap
+        # entries this app can't yet re-serialize a moved ID for.
+        plan.id_conflicts.append((obj.model_id, f"{obj.model_name} (in '{obj.section}' "
+                                                  f"section - can't be relocated yet)", obj.source_ide))
     return plan
 
 
-def apply_insert_relocation(result, plan: InsertRelocationPlan) -> List[str]: #vers 1
-    """Apply an already-planned, conflict-free relocation. Reuses
-    apply_id_shift directly (it operates purely off plan.id_map, so
-    a real IDShiftPlan built from this plan's own data cascades into
-    2dfx/write-back exactly the same way an ordinary shift does) -
-    refuses (returns []) unless plan.ok, matching every other
-    operation in this module's own all-or-nothing rule."""
+def apply_insert_relocation(result, plan: InsertRelocationPlan) -> List[str]: #vers 2
+    """Apply an already-planned, conflict-free relocation - writes
+    every real touched file and cascades 2dfx itself (Sep 12 2026,
+    uses apply_id_shift_and_write). Refuses (returns []) unless
+    plan.ok, matching every other operation in this module's own
+    all-or-nothing rule."""
     if not plan.ok:
         return []
     shift_plan = IDShiftPlan(moved=list(plan.moved), conflicts=[], id_map=dict(plan.id_map))
-    return apply_id_shift(result, shift_plan)
+    return apply_id_shift_and_write(result, shift_plan)
 
 
 @dataclass
@@ -434,7 +570,7 @@ def plan_prefix_suffix_rename(result, model_ids, prefix: str = "", suffix: str =
     id_set = set(model_ids)
     all_by_id = {}
     all_by_name = {}
-    for section in _EDITABLE_SECTIONS:
+    for section in _ID_DECLARING_SECTIONS:
         for obj in result.objects_by_section.get(section, []):
             all_by_id[obj.model_id] = obj
             all_by_name.setdefault(obj.model_name.lower(), []).append((obj.model_id, obj.source_ide))
@@ -477,12 +613,14 @@ def apply_prefix_suffix_rename(result, plan: RenameRangePlan) -> List[str]: #ver
     return sorted(touched)
 
 
-def find_free_id_gaps(result, min_id: int, max_id: int) -> List[tuple]: #vers 1
+def find_free_id_gaps(result, min_id: int, max_id: int) -> List[tuple]: #vers 2
     """Every real contiguous free (unassigned) ID range within
     [min_id, max_id] - the same real scan plan_collapse_free_ids
-    already does, just reported instead of applied. Returns a list
-    of (gap_start, gap_end) tuples, inclusive, in ascending order."""
-    used_ids = {obj.model_id for section in _EDITABLE_SECTIONS
+    already does, just reported instead of applied. Scans every
+    real ID-declaring section so a hier/cars/peds/weap-occupied ID
+    is never wrongly reported as free. Returns a list of (gap_start,
+    gap_end) tuples, inclusive, in ascending order."""
+    used_ids = {obj.model_id for section in _ID_DECLARING_SECTIONS
                 for obj in result.objects_by_section.get(section, [])}
     gaps = []
     gap_start = None
@@ -498,17 +636,27 @@ def find_free_id_gaps(result, min_id: int, max_id: int) -> List[tuple]: #vers 1
     return gaps
 
 
-def plan_compact_all_gaps(result, min_id: int, max_id: int) -> IDShiftPlan: #vers 1
+def plan_compact_all_gaps(result, min_id: int, max_id: int) -> IDShiftPlan: #vers 2
     """Single holistic plan closing EVERY gap within [min_id, max_id]
     in one pass, instead of one Remove ID/plan_collapse_free_ids at
     a time (Sep 12 2026, per Keith's own "any other use cases"
     follow-up). Every used ID shifts down by however many free IDs
     exist below it within the range - provably conflict-free by
-    construction (new IDs come out strictly increasing, never
-    touching anything outside the range), so plan.conflicts is
-    always empty here; still returned for IDShiftPlan.ok's own
-    uniform check."""
-    used_objs = [obj for section in _EDITABLE_SECTIONS
+    construction PROVIDED every real occupied ID in range is
+    actually movable; a real hier/cars/peds/weap entry in range
+    would break that proof (it can't move, but its slot still
+    counts as "used" for the free-count math), so the whole plan is
+    refused if any real one is found (same as plan_id_shift's own
+    _find_unmovable_in_range check)."""
+    blockers = _find_unmovable_in_range(result, min_id, max_id)
+    if blockers:
+        plan = IDShiftPlan()
+        for model_id, model_name, source_ide, section in blockers:
+            plan.conflicts.append((model_id, f"{model_name} (in '{section}' section - "
+                                              f"can't be re-written yet)", source_ide))
+        return plan
+
+    used_objs = [obj for section in _MOVABLE_SECTIONS
                  for obj in result.objects_by_section.get(section, [])
                  if min_id <= obj.model_id <= max_id]
     used_objs.sort(key=lambda o: o.model_id)
@@ -526,17 +674,25 @@ def plan_compact_all_gaps(result, min_id: int, max_id: int) -> IDShiftPlan: #ver
     return plan
 
 
-def plan_swap_ids(result, id_a: int, id_b: int) -> IDShiftPlan: #vers 1
+def plan_swap_ids(result, id_a: int, id_b: int) -> IDShiftPlan: #vers 2
     """Swap whatever real entries currently occupy id_a and id_b -
-    both must already be assigned (this isn't a move-into-free-space
-    operation, see plan_id_shift/plan_insert_relocation for that).
-    Returns an empty, not-ok plan if either id isn't actually
-    assigned - never guesses which one the caller meant."""
-    all_by_id = {obj.model_id: obj for section in _EDITABLE_SECTIONS
-                 for obj in result.objects_by_section.get(section, [])}
+    both must already be assigned AND belong to a section this app
+    can actually re-serialize (objs/tobj/anim) - this isn't a move-
+    into-free-space operation, see plan_id_shift/plan_insert_
+    relocation for that. Returns an empty, not-ok plan if either id
+    isn't actually assigned, or belongs to a hier/cars/peds/weap
+    entry this app can't yet move - never guesses which one the
+    caller meant."""
+    all_by_id = {}
+    for section in _ID_DECLARING_SECTIONS:
+        for obj in result.objects_by_section.get(section, []):
+            all_by_id[obj.model_id] = (obj, section)
     if id_a not in all_by_id or id_b not in all_by_id or id_a == id_b:
         return IDShiftPlan()
-    obj_a, obj_b = all_by_id[id_a], all_by_id[id_b]
+    obj_a, section_a = all_by_id[id_a]
+    obj_b, section_b = all_by_id[id_b]
+    if section_a not in _MOVABLE_SECTIONS or section_b not in _MOVABLE_SECTIONS:
+        return IDShiftPlan()
     return IDShiftPlan(
         moved=[(id_a, id_b, obj_a.model_name, obj_a.source_ide),
                (id_b, id_a, obj_b.model_name, obj_b.source_ide)],
@@ -608,13 +764,24 @@ def plan_splice_move(result, move_start: int, move_end: int, target_start: int) 
         for old_id in range(move_end + 1, target_start + n):
             id_map[old_id] = old_id - n
 
-    all_by_id = {obj.model_id: obj for section in _EDITABLE_SECTIONS
+    all_by_id = {obj.model_id: obj for section in _MOVABLE_SECTIONS
                  for obj in result.objects_by_section.get(section, [])}
     plan = IDShiftPlan(id_map=id_map)
     for old_id, new_id in id_map.items():
         obj = all_by_id.get(old_id)
         if obj:
             plan.moved.append((old_id, new_id, obj.model_name, obj.source_ide))
+
+    # Same real risk as plan_compact_all_gaps's own proof: the
+    # conflict-free-by-construction guarantee only holds if every
+    # real occupied ID in the combined swept span is actually
+    # movable - a real hier/cars/peds/weap entry anywhere in that
+    # span breaks it (Sep 12 2026, same fix as everywhere else in
+    # this module).
+    span_lo, span_hi = min(id_map), max(id_map)
+    for model_id, model_name, source_ide, section in _find_unmovable_in_range(result, span_lo, span_hi):
+        plan.conflicts.append((model_id, f"{model_name} (in '{section}' section - "
+                                          f"can't be re-written yet)", source_ide))
     return plan
 
 

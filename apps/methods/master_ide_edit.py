@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide_edit.py - Version: 3
+#this belongs in apps/methods/master_ide_edit.py - Version: 4
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Single-Entry Edits
 
 """master_ide_edit.py - safe single-entry operations for Master IDE
@@ -8,15 +8,17 @@ no ID cascading yet"). Edits happen against a loaded MasterIDEResult
 in memory; write_source_file() then backs up and rewrites the one
 real source .ide file that entry belongs to.
 
-Only objs/tobj are editable - every other real section (cars, peds,
-weap, hier, anim, txdp, 2dfx, path) is copied through from the
-original file's own raw text verbatim on write, never reconstructed
-from the generic best-effort formatter write_master_ide's own "Save
-as Master IDE" uses for a brand-new combined file. That generic
-formatter is lossy for anything but objs/tobj (real 2dfx/cars/peds
-lines have entirely different field layouts) - fine for a fresh
-combined output the user reviews before using, not acceptable for
-silently overwriting a real existing file in place."""
+Only objs/tobj/anim are editable (anim added Sep 12 2026, once a
+real verified formatter existed - see master_ide.py's own
+_format_anim_line) - every other real section (cars, peds, weap,
+hier, txdp, 2dfx, path) is copied through from the original file's
+own raw text verbatim on write, never reconstructed from the
+generic best-effort formatter write_master_ide's own "Save as
+Master IDE" uses for a brand-new combined file. That generic
+formatter is lossy for anything but objs/tobj/anim (real 2dfx/
+cars/peds lines have entirely different field layouts) - fine for
+a fresh combined output the user reviews before using, not
+acceptable for silently overwriting a real existing file in place."""
 
 ##Methods list -
 # rename_entry
@@ -30,7 +32,7 @@ import os
 from apps.methods.file_backup import backup_file
 from apps.methods.master_ide import _section_order_and_raw
 
-_EDITABLE_SECTIONS = ("objs", "tobj")
+_EDITABLE_SECTIONS = ("objs", "tobj", "anim")
 
 
 def _find_entries(result, model_id, source_ide=None): #vers 2
@@ -67,28 +69,35 @@ def rename_entry(result, model_id, new_name, source_ide=None): #vers 1
     return None
 
 
-def add_entry(result, section, model_id, model_name, txd_name, source_ide, extra=None): #vers 3
+def add_entry(result, section, model_id, model_name, txd_name, source_ide, extra=None): #vers 4
     """Add a new real entry to the in-memory result, tagged with the
     real source file it will be written back to. Returns None on
     success, or an error string. source_ide must be one of the
     already-loaded real files - never a guessed/new path. section
-    must be objs or tobj - every other real section isn't editable
-    yet (see this module's own docstring). extra must include the
-    real required fields for the section (draw_dist/flags for objs;
-    also time_on/time_off for tobj) - an incomplete extra would
-    write a line with fewer than the real format's minimum fields,
-    which IDEParser itself silently fails to re-parse at all (Sep 12
-    2026 - caught by round-trip testing this module before use)."""
+    must be objs, tobj, or anim (Sep 12 2026, anim added once a real
+    verified formatter existed - see master_ide.py's own _format_
+    anim_line) - every other real section isn't editable yet (see
+    this module's own docstring). extra must include the real
+    required fields for the section (draw_dist/flags for objs; also
+    time_on/time_off for tobj; anim_file/draw_dist/flags for anim) -
+    an incomplete extra would write a line with fewer than the real
+    format's minimum fields, which IDEParser itself silently fails
+    to re-parse at all (Sep 12 2026 - caught by round-trip testing
+    this module before use)."""
     if os.path.basename(source_ide) not in {os.path.basename(p) for p in result.source_files}:
         return f"{source_ide} is not one of the loaded files"
     if section not in _EDITABLE_SECTIONS:
-        return f"Adding entries to '{section}' isn't supported yet - only objs/tobj"
+        return f"Adding entries to '{section}' isn't supported yet - only objs/tobj/anim"
     existing = _find_entries(result, model_id)
     if existing:
         return f"ID {model_id} already used by {existing[0].model_name} - remove or rename it first"
     extra = extra or {}
-    required = ("draw_dist", "flags") if section == "objs" else (
-        "draw_dist", "flags", "time_on", "time_off")
+    if section == "objs":
+        required = ("draw_dist", "flags")
+    elif section == "tobj":
+        required = ("draw_dist", "flags", "time_on", "time_off")
+    else:   # anim
+        required = ("anim_file", "draw_dist", "flags")
     missing = [k for k in required if k not in extra]
     if missing:
         return f"Missing required field(s) for {section}: {', '.join(missing)}"
@@ -116,13 +125,15 @@ def remove_entry(result, model_id, source_ide): #vers 2
     return f"No entry with ID {model_id} in {source_base}"
 
 
-def write_source_file(result, source_path) -> bool: #vers 2
+def write_source_file(result, source_path) -> bool: #vers 3
     """Back up then rewrite ONE real source .ide file with whatever
-    edits are currently in result. objs/tobj are rebuilt from the
-    in-memory objects belonging to this file; every other real
-    section is copied through from the ORIGINAL file's own raw text
-    verbatim (see this module's own docstring for why)."""
-    from apps.methods.master_ide import _format_objs_or_tobj_line
+    edits are currently in result. objs/tobj/anim are rebuilt from
+    the in-memory objects belonging to this file (anim added Sep 12
+    2026 - real verified formatter, see master_ide.py's own
+    _format_anim_line); every other real section is copied through
+    from the ORIGINAL file's own raw text verbatim (see this
+    module's own docstring for why)."""
+    from apps.methods.master_ide import _format_objs_or_tobj_line, _format_anim_line
 
     source_base = os.path.basename(source_path)
     if source_base not in {os.path.basename(p) for p in result.source_files}:
@@ -160,7 +171,10 @@ def write_source_file(result, source_path) -> bool: #vers 2
                 continue
             lines.append(section)
             for obj in file_objs:
-                lines.append(_format_objs_or_tobj_line(obj))
+                if section == 'anim':
+                    lines.append(_format_anim_line(obj))
+                else:
+                    lines.append(_format_objs_or_tobj_line(obj))
             lines.append("end")
             lines.append("")
         else:

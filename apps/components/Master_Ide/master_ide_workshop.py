@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 7
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 8
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -61,7 +61,7 @@ class _MasterIDETable(QTableWidget): #vers 1
             self.drop_callback(selected_rows, target_row, drop_pos)
 
 
-class MasterIDEWorkshop(QWidget): #vers 7
+class MasterIDEWorkshop(QWidget): #vers 8
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -678,7 +678,7 @@ class MasterIDEWorkshop(QWidget): #vers 7
         real block within a single section before touching anything -
         a scattered or mixed-section selection is refused outright,
         never guessed into a "best effort" range."""
-        from apps.methods.id_reassign import validate_contiguous_selection, plan_splice_move, apply_id_shift
+        from apps.methods.id_reassign import validate_contiguous_selection, plan_splice_move, apply_id_shift_and_write
 
         result = validate_contiguous_selection(self._entry_rows, set(selected_rows))
         if isinstance(result, str):
@@ -707,18 +707,9 @@ class MasterIDEWorkshop(QWidget): #vers 7
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        touched = apply_id_shift(self.result, plan)
+        touched = apply_id_shift_and_write(self.result, plan)
         if not touched:
-            QMessageBox.warning(self, "Move Failed", "Could not apply - nothing written.")
-            return
-        failures = []
-        for basename in touched:
-            source_path = next((p for p in self.result.source_files
-                                 if os.path.basename(p) == basename), None)
-            if not source_path or not write_source_file(self.result, source_path):
-                failures.append(basename)
-        if failures:
-            QMessageBox.warning(self, "Write Failed", f"Failed to write: {', '.join(failures)}")
+            QMessageBox.warning(self, "Move Failed", "Could not apply/write - nothing applied.")
             return
         self._reload_after_edit()
 

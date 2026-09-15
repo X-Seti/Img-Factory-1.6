@@ -1,4 +1,4 @@
-#this belongs in apps/methods/master_ide.py - Version: 10
+#this belongs in apps/methods/master_ide.py - Version: 11
 
 ##Methods list -
 # MasterIDEResult
@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List
 
-_EDITABLE_SECTIONS = ("objs", "tobj")   # only sections this app reconstructs from parsed fields
+_EDITABLE_SECTIONS = ("objs", "tobj", "anim")   # sections this app reconstructs from parsed fields
 
 # Base engine declaration files (Sep 12 2026, per Keith's own real
 # files: "default.ide is found in the /data folder, gta3.ide in
@@ -443,6 +443,27 @@ def _format_objs_or_tobj_line(obj) -> str: #vers 1
     return ", ".join(parts)
 
 
+def _format_anim_line(obj) -> str: #vers 1
+    """Rebuild one real anim line - Id, ModelName, TxdName,
+    AnimationName, DrawDistance, Flags, a real 6 fields verified
+    against real SA IDE samples (see IDEParser's own anim-section
+    docstring in gta_dat_parser.py). Added Sep 12 2026 after Keith's
+    own real worked example showed an anim entry (SFs.ide's own
+    BS_building_SFS-style lines) needing to actually shift ID like
+    any other declared object - previously anim was raw-passthrough
+    only, so a shifted ID would update in memory but the written
+    file would silently keep showing the stale original ID."""
+    extra = obj.extra or {}
+    parts = [str(obj.model_id), obj.model_name, obj.txd_name]
+    if 'anim_file' in extra:
+        parts.append(extra['anim_file'])
+    if 'draw_dist' in extra:
+        parts.append(_fmt_num(extra['draw_dist']))
+    if 'flags' in extra:
+        parts.append(str(extra['flags']))
+    return ", ".join(parts)
+
+
 def _fmt_num(val) -> str: #vers 1
     """ IDE files write whole-number draw distances without a
     trailing .0 real example: "299", not "299.0")"""
@@ -451,16 +472,18 @@ def _fmt_num(val) -> str: #vers 1
     return str(val)
 
 
-def write_master_ide(result: MasterIDEResult, output_path: str) -> bool: #vers 2
+def write_master_ide(result: MasterIDEResult, output_path: str) -> bool: #vers 3
     """Write the merged result back out as one real, combined .ide
     file - grouped by section (never mixed), sorted by ID within
-    each group. Only objs/tobj are reconstructed from parsed fields;
-    every other real section (2dfx, cars, peds, weap, hier, anim,
-    txdp) is written from each source file's own pooled RAW lines,
-    sorted numerically by their own leading ID field - never rebuilt
-    from IDEObject.extra, which doesn't retain every real field for
-    those section types (Sep 12 2026, per Keith's own real bug
-    report - see load_master_ide's own docstring)."""
+    each group. objs/tobj/anim are reconstructed from parsed fields
+    (anim added Sep 12 2026 - real, verified 6-field format, see
+    _format_anim_line); every other real section (2dfx, cars, peds,
+    weap, hier, txdp) is written from each source file's own pooled
+    RAW lines, sorted numerically by their own leading ID field -
+    never rebuilt from IDEObject.extra for those, since this app
+    doesn't have a verified formatter for their own real field
+    layouts yet (same reasoning as the original 2dfx bug fix - see
+    load_master_ide's own docstring)."""
     try:
         lines = []
         for section in _EDITABLE_SECTIONS:
@@ -469,7 +492,10 @@ def write_master_ide(result: MasterIDEResult, output_path: str) -> bool: #vers 2
                 continue
             lines.append(section)
             for obj in objs:
-                lines.append(_format_objs_or_tobj_line(obj))
+                if section == 'anim':
+                    lines.append(_format_anim_line(obj))
+                else:
+                    lines.append(_format_objs_or_tobj_line(obj))
             lines.append("end")
             lines.append("")
 

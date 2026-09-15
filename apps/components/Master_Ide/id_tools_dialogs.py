@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/id_tools_dialogs.py - Version: 1
+#this belongs in apps/components/Master_Ide/id_tools_dialogs.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - ID Tools Dialogs
 
 """id_tools_dialogs.py - real UI for id_reassign.py's own Add ID/
@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 from apps.methods.id_reassign import (
     plan_add_ids, apply_add_ids, plan_collapse_free_ids, apply_collapse_free_ids,
     plan_delete_and_collapse, apply_delete_and_collapse, find_free_id_gaps,
-    plan_compact_all_gaps, apply_id_shift, plan_swap_ids, find_usages,
+    plan_compact_all_gaps, apply_id_shift_and_write, plan_swap_ids, find_usages,
     plan_prefix_suffix_rename, apply_prefix_suffix_rename,
     plan_insert_relocation, apply_insert_relocation,
 )
@@ -88,7 +88,7 @@ class AddIDDialog(QDialog): #vers 1
                 f"{self.count_spin.value()} to open the new space. No conflicts.")
             self.apply_btn.setEnabled(True)
 
-    def _on_apply(self): #vers 1
+    def _on_apply(self): #vers 2
         if not self.plan:
             return
         reply = QMessageBox.question(
@@ -98,26 +98,12 @@ class AddIDDialog(QDialog): #vers 1
             return
         touched = apply_add_ids(self.result, self.plan)
         if touched is None:
-            QMessageBox.warning(self, "Add ID Failed", "Plan had real conflicts - nothing applied.")
-            return
-        if not self._write_touched(touched):
+            QMessageBox.warning(self, "Add ID Failed",
+                "Plan had real conflicts, or a write failed - nothing applied.")
             return
         QMessageBox.information(self, "Add ID", f"Reserved {self.count_spin.value()} ID(s). "
                                                   f"File(s) written: {', '.join(touched) or '(none needed)'}")
         self.accept()
-
-    def _write_touched(self, touched): #vers 1
-        from apps.methods.master_ide_edit import write_source_file
-        failures = []
-        for basename in touched:
-            source_path = next((p for p in self.result.source_files
-                                 if os.path.basename(p) == basename), None)
-            if not source_path or not write_source_file(self.result, source_path):
-                failures.append(basename)
-        if failures:
-            QMessageBox.warning(self, "Write Failed", f"Failed to write: {', '.join(failures)}")
-            return False
-        return True
 
 
 class RemoveDeleteIDDialog(QDialog): #vers 1
@@ -208,14 +194,12 @@ class RemoveDeleteIDDialog(QDialog): #vers 1
             return
         touched = apply_collapse_free_ids(self.result, plan)
         if touched is None:
-            QMessageBox.warning(self, "Failed", "Plan was not fully free - nothing applied.")
-            return
-        if not self._write_touched(touched):
+            QMessageBox.warning(self, "Failed", "Plan was not fully free, or a write failed - nothing applied.")
             return
         QMessageBox.information(self, "Collapsed", f"File(s) written: {', '.join(touched) or '(none needed)'}")
         self.accept()
 
-    def _on_delete_through(self): #vers 1
+    def _on_delete_through(self): #vers 2
         from apps.methods.id_reassign import plan_delete_and_collapse as _plan_del
         start, count = self.start_spin.value(), self.count_spin.value()
         to_delete = _plan_del(self.result, start, count)
@@ -233,28 +217,13 @@ class RemoveDeleteIDDialog(QDialog): #vers 1
             return
         result = apply_delete_and_collapse(self.result, start, count, to_delete)
         if result is None:
-            QMessageBox.warning(self, "Failed", "Could not apply - nothing written.")
+            QMessageBox.warning(self, "Failed", "Could not apply/write - nothing applied.")
             return
         removed_files, shift_touched = result
         all_touched = sorted(set(removed_files) | set(shift_touched))
-        if not self._write_touched(all_touched):
-            return
         QMessageBox.information(self, "Deleted && Collapsed",
             f"Removed {len(to_delete)} model(s). File(s) written: {', '.join(all_touched) or '(none needed)'}")
         self.accept()
-
-    def _write_touched(self, touched): #vers 1
-        from apps.methods.master_ide_edit import write_source_file
-        failures = []
-        for basename in touched:
-            source_path = next((p for p in self.result.source_files
-                                 if os.path.basename(p) == basename), None)
-            if not source_path or not write_source_file(self.result, source_path):
-                failures.append(basename)
-        if failures:
-            QMessageBox.warning(self, "Write Failed", f"Failed to write: {', '.join(failures)}")
-            return False
-        return True
 
 
 class IDUtilitiesDialog(QDialog): #vers 1
@@ -280,19 +249,6 @@ class IDUtilitiesDialog(QDialog): #vers 1
         close_row.addStretch()
         close_row.addWidget(close_btn)
         lay.addLayout(close_row)
-
-    def _write_touched(self, touched): #vers 1
-        from apps.methods.master_ide_edit import write_source_file
-        failures = []
-        for basename in touched:
-            source_path = next((p for p in self.result.source_files
-                                 if os.path.basename(p) == basename), None)
-            if not source_path or not write_source_file(self.result, source_path):
-                failures.append(basename)
-        if failures:
-            QMessageBox.warning(self, "Write Failed", f"Failed to write: {', '.join(failures)}")
-            return False
-        return True
 
     def _build_gap_tab(self): #vers 1
         w = QWidget()
@@ -338,13 +294,11 @@ class IDUtilitiesDialog(QDialog): #vers 1
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
-        touched = apply_id_shift(self.result, plan)
-        if not touched and plan.moved:
-            QMessageBox.warning(self, "Failed", "Could not apply - nothing written.")
+        touched = apply_id_shift_and_write(self.result, plan)
+        if not touched:
+            QMessageBox.warning(self, "Failed", "Could not apply/write - nothing applied.")
             return
-        if not self._write_touched(touched):
-            return
-        QMessageBox.information(self, "Compacted", f"File(s) written: {', '.join(touched) or '(none needed)'}")
+        QMessageBox.information(self, "Compacted", f"File(s) written: {', '.join(touched)}")
         self._on_find_gaps()
 
     def _build_swap_tab(self): #vers 1
@@ -376,11 +330,9 @@ class IDUtilitiesDialog(QDialog): #vers 1
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
-        touched = apply_id_shift(self.result, plan)
+        touched = apply_id_shift_and_write(self.result, plan)
         if not touched:
             self.swap_label.setText("Failed - nothing written.")
-            return
-        if not self._write_touched(touched):
             return
         self.swap_label.setText(f"Swapped. File(s) written: {', '.join(touched)}")
 
@@ -546,7 +498,7 @@ class InsertRelocateDialog(QDialog): #vers 1
                 f"No conflicts.")
             self.apply_btn.setEnabled(True)
 
-    def _on_apply(self): #vers 1
+    def _on_apply(self): #vers 2
         if not self.plan:
             return
         reply = QMessageBox.question(
@@ -556,17 +508,7 @@ class InsertRelocateDialog(QDialog): #vers 1
             return
         touched = apply_insert_relocation(self.result, self.plan)
         if not touched:
-            QMessageBox.warning(self, "Failed", "Could not apply - nothing written.")
-            return
-        from apps.methods.master_ide_edit import write_source_file
-        failures = []
-        for basename in touched:
-            source_path = next((p for p in self.result.source_files
-                                 if os.path.basename(p) == basename), None)
-            if not source_path or not write_source_file(self.result, source_path):
-                failures.append(basename)
-        if failures:
-            QMessageBox.warning(self, "Write Failed", f"Failed to write: {', '.join(failures)}")
+            QMessageBox.warning(self, "Failed", "Could not apply/write - nothing applied.")
             return
         QMessageBox.information(self, "Relocated", f"File(s) written: {', '.join(touched)}")
         self.accept()
