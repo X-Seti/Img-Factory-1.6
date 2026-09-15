@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_col_reorder.py - Version: 1
+#this belongs in apps/methods/img_col_reorder.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - IMG/COL Physical Reorder
 
 """img_col_reorder.py - the final Master IDE plan step: physically
@@ -36,12 +36,20 @@ model is reordered."""
 import os
 
 
-def build_id_by_name(result): #vers 1
-    """Real lowercase model_name -> declared ID, from a loaded
-    Master IDE result's own objs/tobj entries."""
+def build_id_by_name(result): #vers 2
+    """Real lowercase model_name -> declared ID, from every section
+    that declares a real DFF model with its own ID - not just objs/
+    tobj (Sep 12 2026, real gap caught by Keith: "anim, tojs the
+    ID" - anim/hier/cars/peds/weap ALL declare real model_id+name
+    pairs with their own real DFF entries too, e.g. SFs.ide's own
+    BS_building_SFS in its anim section). Deliberately excludes only
+    2dfx/txdp - neither has a real declared model ID of its own (see
+    master_ide.py's own _ID_EXCLUDED_SECTIONS for why)."""
     id_by_name = {}
-    for section in ("objs", "tobj"):
-        for obj in result.objects_by_section.get(section, []):
+    for section, objs in result.objects_by_section.items():
+        if section in ("2dfx", "txdp"):
+            continue
+        for obj in objs:
             id_by_name[obj.model_name.lower()] = obj.model_id
     return id_by_name
 
