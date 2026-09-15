@@ -1,4 +1,23 @@
-#this belongs in root /ChangeLog.md - Version: 124
+#this belongs in root /ChangeLog.md - Version: 125
+
+## Sep 12 2026 - Fix real ID-shift engine gaps: anim scope + 2dfx write-back, Build 430.90
+
+Two serious bugs caught by Keith's own complete worked example
+(objs+tobj+anim+2dfx+IPL, +1000 shift). 1) anim was invisible to
+every shift/collision function - new _ID_DECLARING_SECTIONS (broad,
+collision detection) vs _MOVABLE_SECTIONS (objs/tobj/anim, the only
+ones persistable) fixes every plan_*/apply_* function; a hier/cars/
+peds/weap entry inside a shift range is now a refused conflict, not
+silently ignored. New _format_anim_line - real verified 6-field
+format. 2) 2dfx never actually got rewritten to disk during ANY
+cascade - the in-memory update was always discarded at write time
+since 2dfx uses raw-passthrough. New cascade_2dfx_sections (same
+surgical substitution as IPL cascading) + apply_id_shift_and_write
+centralizing apply+write+cascade, used by every apply_* function
+and every dialog call site.
+
+Verified against Keith's own EXACT worked example through the real
+dialog call path - byte-for-byte match after a +1000 shift.
 
 ## Sep 12 2026 - IMG/COL reorder: include anim/hier/cars/peds/weap, Build 429.90
 
