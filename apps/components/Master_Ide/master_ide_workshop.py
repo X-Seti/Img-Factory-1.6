@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 6
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 7
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -61,7 +61,7 @@ class _MasterIDETable(QTableWidget): #vers 1
             self.drop_callback(selected_rows, target_row, drop_pos)
 
 
-class MasterIDEWorkshop(QWidget): #vers 6
+class MasterIDEWorkshop(QWidget): #vers 7
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -183,6 +183,9 @@ class MasterIDEWorkshop(QWidget): #vers 6
         txd_dedup_btn = QPushButton("TXD Duplicate Check...")
         txd_dedup_btn.clicked.connect(self._on_txd_dedup)
         btn_row.addWidget(txd_dedup_btn)
+        reorder_btn = QPushButton("IMG / COL Physical Reorder...")
+        reorder_btn.clicked.connect(self._on_img_col_reorder)
+        btn_row.addWidget(reorder_btn)
         save_btn = QPushButton("Save as Master IDE...")
         save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(save_btn)
@@ -754,6 +757,11 @@ class MasterIDEWorkshop(QWidget): #vers 6
         dlg = TXDDedupDialog(self, master_ide_result=self.result)
         dlg.exec()
         self._reload_after_edit()
+
+    def _on_img_col_reorder(self): #vers 1
+        from apps.components.Master_Ide.img_col_reorder_dialog import IMGColReorderDialog
+        dlg = IMGColReorderDialog(self, self.result)
+        dlg.exec()
 
     def _on_save(self): #vers 1
         total_flags = (len(self.result.collisions) + len(self.result.name_collisions) +
