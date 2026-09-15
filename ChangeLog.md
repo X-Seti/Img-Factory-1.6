@@ -1,4 +1,16 @@
-#this belongs in root /ChangeLog.md - Version: 122
+#this belongs in root /ChangeLog.md - Version: 123
+
+## Sep 12 2026 - IMG/COL physical reorder - final Master IDE plan step, Build 428.90
+
+No new binary-writing code - checked directly that IMGFile.save_
+img_file() (both Version 1 and 2) and COLFile.save_to_file()
+already rebuild from whatever order self.entries/self.models holds
+and read all data into memory before opening for write. plan_img_
+reorder keeps TXD entries at their exact positions, only reorders
+DFF by matched ID. plan_col_reorder reorders every model. New
+IMGColReorderDialog (mandatory Preview before Apply, backup before
+write). Assumptions made without fresh confirmation from Keith -
+flagged plainly, open to correction.
 
 ## Sep 12 2026 - Master IDE: real drag-move UI, Build 427.90
 
