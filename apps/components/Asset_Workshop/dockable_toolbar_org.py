@@ -1,5 +1,5 @@
 """
-apps/components/Txd_Editor/dockable_toolbar.py  — Build 5
+apps/components/Asset_Workshop/dockable_toolbar.py  — Build 5
 
 Key design:
   - NO separate title bar above icons.
@@ -513,7 +513,7 @@ class DockableToolbar(QWidget):
                 lo = item.layout()
                 for j in range(lo.count()):
                     sub = lo.itemAt(j)
-                    if sub and sub.widget() and 'Preview' in type(sub.widget()).__name__:
+                    if sub and sub.widget() and any(x in type(sub.widget()).__name__ for x in ('Preview', 'Viewport', '3D')):
                         lo.removeWidget(self)
                         lo.insertWidget(0 if side == SNAP_LEFT else lo.count(),
                                         self, stretch=0)
@@ -524,7 +524,7 @@ class DockableToolbar(QWidget):
     def _settings_path(self) -> Path:
         cfg = Path.home() / '.config' / 'imgfactory'
         cfg.mkdir(parents=True, exist_ok=True)
-        return cfg / 'txd_toolbar_layout.json'
+        return cfg / 'asset_workshop_toolbar_layout.json'
 
     def save_layout(self):
         try:
