@@ -131,7 +131,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home() /".config"/"imgfactory"/ + _App_name + ".json").read_text()
+                (Path.home() / ".config" / "imgfactory" / (_App_name + ".json")).read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -322,7 +322,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
         if not ok or not name.strip():
             return
-        path = Path.home() /".config"/"imgfactory"/ + _App_name + ".json"
+        path = Path.home() / ".config" / "imgfactory" / (_App_name + ".json")
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -340,7 +340,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         from pathlib import Path
         if not self._mw:
             return
-        path = Path.home() /".config"/"imgfactory"/ + _App_name + ".json"
+        path = Path.home() / ".config" / "imgfactory" / (_App_name + ".json")
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -2846,7 +2846,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() /".config"/"imgfactory"/ + _App_name + ".json"
+            path = Path.home() / ".config" / "imgfactory" / (_App_name + ".json")
             if not path.exists():
                 return
             data = json.loads(path.read_text())
@@ -2866,7 +2866,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                       f"({saved_version} != {self._RIBBON_LAYOUT_VERSION}) - skipping, "
                       f"will save fresh on next change.")
         except Exception as _e:
-            print(f"[" + App_name + "]", _restore_toolbar_state, "error: {_e}")
+            print(f"[{App_name}] _restore_toolbar_state error: {_e}")
         finally:
             # Safety net: restoreState() can leave a ribbon fully hidden
             # (e.g. if it was saved mid-drag, floating off-screen, or
