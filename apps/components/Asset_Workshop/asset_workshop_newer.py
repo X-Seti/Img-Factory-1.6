@@ -644,11 +644,21 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         middle_panel = self._create_middle_panel()
         right_panel = self._create_right_panel()
 
-        # Left panel disabled - just middle (texture list) + right (viewport)
-        main_splitter.addWidget(middle_panel)
-        main_splitter.addWidget(right_panel)
-        main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 1)
+        # Add panels to splitter based on mode
+        if left_panel is not None:  # IMG Factory mode
+            main_splitter.addWidget(left_panel)
+            main_splitter.addWidget(middle_panel)
+            main_splitter.addWidget(right_panel)
+            # Set proportions (2:3:5)
+            main_splitter.setStretchFactor(0, 2)
+            main_splitter.setStretchFactor(1, 3)
+            main_splitter.setStretchFactor(2, 5)
+        else:  # Standalone mode
+            main_splitter.addWidget(middle_panel)
+            main_splitter.addWidget(right_panel)
+            # Set proportions (1:1)
+            main_splitter.setStretchFactor(0, 1)
+            main_splitter.setStretchFactor(1, 1)
 
         self._main_splitter = main_splitter
         self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
@@ -685,10 +695,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 # - Asset Checker (adapted from asset_workshop_org.py, added into new UI)
 
-    def load_result(self, result): #vers 2
-        """Populate Asset Check with a real AssetCheckResult, building
-        it into the right panel's own viewport on first use - ribbons
-        stay visible, left panel stays disabled."""
+    def load_result(self, result): #vers 1
+        """Populate the Asset Check tab with a real AssetCheckResult,
+        creating that tab on first use."""
         self.result = result
         if self._checker_tab is None:
             self._build_checker_tab()
@@ -696,7 +705,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._populate_columns_view()
         self._populate_merged_view()
         self._populate_cross_reference_view()
-        self._viewport_stack.setCurrentWidget(self._checker_tab)
+        idx = self.txd_tabs.indexOf(self._checker_tab)
+        if idx >= 0:
+            self.txd_tabs.setCurrentIndex(idx)
         all_checked = self._all_checked_names()
         if len(all_checked) > 3:
             from PyQt6.QtCore import QTimer
@@ -734,10 +745,10 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         popup.show()
         QTimer.singleShot(5000, popup.close)
 
-    def _build_checker_tab(self): #vers 2
-        """Build Asset Check: summary/actions row + stacked 4-column/
-        merged/cross-reference views. Added as a page in the right
-        panel's own viewport stack, alongside the texture preview."""
+    def _build_checker_tab(self): #vers 1
+        """Build the Asset Check tab: summary/actions row + stacked
+        4-column/merged/cross-reference views. Added as a tab in the
+        existing txd_tabs QTabWidget, alongside texture editing tabs."""
         tab = QWidget()
         lay = QVBoxLayout(tab)
         lay.setContentsMargins(2, 2, 2, 2)
@@ -784,7 +795,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._checker_stack.addWidget(self.xref_table)
 
         self._checker_tab = tab
-        self._viewport_stack.addWidget(tab)
+        self.txd_tabs.addTab(tab, "Asset Check")
 
     def _refresh_checker_summary(self): #vers 1
         """Rebuild the checker tab's own summary/actions row,
@@ -2837,11 +2848,51 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return self.toolbar
 
 
-    def _create_left_panel(self): #vers 6
-        """Left panel disabled - TXD file list moved out, Asset Check
-        now uses the right panel's own viewport instead."""
-        self.txd_list_widget = None
-        return None
+    def _create_left_panel(self): #vers 5
+        """Create left panel - TXD file list (only in IMG Factory mode)"""
+        # In standalone mode, don't create this panel
+        if self.standalone_mode:
+            self.txd_list_widget = None  # Explicitly set to None
+            return None
+
+        # Only create panel in IMG Factory mode
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setMinimumWidth(200)
+        panel.setMaximumWidth(300)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Header row with search button
+        hdr_row = QHBoxLayout()
+        self._txd_list_header = QLabel("TXD Files")
+        self._txd_list_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        hdr_row.addWidget(self._txd_list_header)
+        hdr_row.addStretch()
+        self.txd_search_btn = QPushButton()
+        self.txd_search_btn.setFixedSize(24, 24)
+        self.txd_search_btn.setIcon(SVGIconFactory.search_icon(16, self._get_icon_color()))
+        self.txd_search_btn.setIconSize(QSize(16, 16))
+        self.txd_search_btn.setToolTip("Search TXD files")
+        self.txd_search_btn.clicked.connect(self._show_txd_search)
+        hdr_row.addWidget(self.txd_search_btn)
+        layout.addLayout(hdr_row)
+
+        # Search box (hidden by default)
+        self.txd_search_box = QLineEdit()
+        self.txd_search_box.setPlaceholderText("Search TXD files...")
+        self.txd_search_box.setVisible(False)
+        self.txd_search_box.textChanged.connect(self._filter_txd_list)
+        layout.addWidget(self.txd_search_box)
+
+        self.txd_list_widget = QListWidget()
+        self.txd_list_widget.setAlternatingRowColors(True)
+        self.txd_list_widget.itemClicked.connect(self._on_txd_selected)
+        layout.addWidget(self.txd_list_widget)
+
+        return panel
+
 
     def _create_middle_panel(self): #vers 5
         """Create middle panel - Texture list with mini toolbar shown in docked mode."""
@@ -2928,11 +2979,11 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return panel
 
 
-    def _create_right_panel(self): #vers 14
+    def _create_right_panel(self): #vers 13
         """Right panel using QMainWindow + QToolBar for native docking.
-        Central widget is a stack: texture preview or Asset Check
-        (load_result swaps pages) - ribbons stay docked to inner_mw
-        either way, unaffected by which page is showing."""
+        Same system as Model/COL Workshop - QMainWindow handles toolbar
+        placement, row stacking, floating, and save/restore natively,
+        replacing the old DockableToolbar panels."""
         icon_color = self._get_icon_color()
 
         panel = QFrame()
@@ -2953,9 +3004,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._inner_mw = inner_mw
 
         self.preview_widget = ZoomablePreview(self)
-        self._viewport_stack = QStackedWidget()
-        self._viewport_stack.addWidget(self.preview_widget)   # page 0
-        inner_mw.setCentralWidget(self._viewport_stack)
+        inner_mw.setCentralWidget(self.preview_widget)
 
         self._build_toolbars(inner_mw, icon_color)
 
