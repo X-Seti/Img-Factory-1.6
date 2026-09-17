@@ -567,6 +567,52 @@ class SVGIconFactory: #vers 8
 
 
     @staticmethod
+    def add_id_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """+ID icon - add a Master IDE model ID"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="12" y="16" font-family="Arial,sans-serif" font-size="9.5" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">+ID</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+    @staticmethod
+    def remove_id_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """-ID icon - remove/delete a Master IDE model ID"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="12" y="16" font-family="Arial,sans-serif" font-size="9.5" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">-ID</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+    @staticmethod
+    def txd_dedup_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """TXD duplicate-check icon - lowercase 'txd' over a green checkmark"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path fill="#2ecc71" opacity="0.4"
+                d="M9,16.2L4.8,12l-1.4,1.4L9,19L21,7l-1.4-1.4L9,16.2z"/>
+            <text x="12" y="15" font-family="Arial,sans-serif" font-size="8" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">txd</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+    @staticmethod
+    def id_utilities_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """ID Utilities icon - 'ID' text with a small spanner badge"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="9" y="15" font-family="Arial,sans-serif" font-size="10.5" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">ID</text>
+            <g transform="translate(12.5,12.5) scale(0.42)">
+                <path fill="currentColor"
+                    d="M22.7,19l-9.1,-9.1c0.9,-2.3 0.4,-5 -1.5,-6.9c-2,-2 -5,-2.4 -7.4,-1.3L9,6l-3,3L1.6,4.7C0.4,7.1 0.9,10.1 2.9,12.1c1.9,1.9 4.6,2.4 6.9,1.5l9.1,9.1C19.1,22.9 19.6,23 20,23s0.9,-0.1 1.2,-0.5l1.2,-1.2C23,20.8 23,19.7 22.7,19z"/>
+            </g>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+    @staticmethod
     def screenshot_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Screenshot/camera icon"""
         svg_data = '''<svg viewBox="0 0 24 24">

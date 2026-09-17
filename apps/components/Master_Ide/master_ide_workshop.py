@@ -20,7 +20,7 @@ import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QPushButton, QFileDialog, QMessageBox, QWidget, QListWidget, QCheckBox,
-    QAbstractItemView, QMainWindow, QToolBar, QSpinBox,
+    QAbstractItemView, QMainWindow, QToolBar, QSpinBox, QComboBox,
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QAction
@@ -176,14 +176,14 @@ class MasterIDEWorkshop(QWidget): #vers 9
         _act(tb_entries, "Add Entry...", icons.add_icon, self._on_add_entry)
         _act(tb_entries, "Insert && Relocate File...", icons.package_icon, self._on_insert_relocate)
         tb_entries.addSeparator()
-        _act(tb_entries, "Add ID...", icons.new_icon, self._on_add_id)
-        _act(tb_entries, "Remove / Delete ID...", icons.delete_icon, self._on_remove_delete_id)
+        _act(tb_entries, "Add ID...", icons.add_id_icon, self._on_add_id)
+        _act(tb_entries, "Remove / Delete ID...", icons.remove_id_icon, self._on_remove_delete_id)
         _act(tb_entries, "Move / Reassign ID Block...", icons.convert_icon, self._on_id_shift)
 
         #    Ribbon: Tools
         tb_tools = _tb("Tools")
-        _act(tb_tools, "ID Utilities...", icons.settings_icon, self._on_id_utilities)
-        _act(tb_tools, "TXD Duplicate Check...", icons.search_icon, self._on_txd_dedup)
+        _act(tb_tools, "ID Utilities...", icons.id_utilities_icon, self._on_id_utilities)
+        _act(tb_tools, "TXD Duplicate Check...", icons.txd_dedup_icon, self._on_txd_dedup)
         _act(tb_tools, "IMG / COL Physical Reorder...", icons.database_icon, self._on_img_col_reorder)
 
         #    Ribbon: Filters
