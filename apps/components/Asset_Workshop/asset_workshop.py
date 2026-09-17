@@ -394,8 +394,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
     # renamed) so a saved layout from an older structure is cleanly
     # rejected by _restore_toolbar_state instead of Qt silently failing
     # to restore it. History: 1 = Transform/Nav/Effects only,
-    # 2 = added merged Name/Format + Mipmaps, 3 = split Name/Format apart.
-    _RIBBON_LAYOUT_VERSION = 3
+    # 2 = added merged Name/Format + Mipmaps, 3 = split Name/Format apart,
+    # 4 = added Asset Check ribbon (Master IDE), 5 = removed Navigation
+    # and Effects ribbons (viewport/background/effects tools dropped),
+    # 6 = removed Name/Format/Mipmaps ribbons and Transform's flip/
+    # rotate/switch/invert/generate-alpha actions.
+    _RIBBON_LAYOUT_VERSION = 6
 
     def _get_ui_color(self, key): #vers 1
         """Return theme-aware QColor. No hardcoded colors."""
@@ -470,7 +474,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.background_mode = 'solid'
         self.placeholder_text = "No texture"
         self.setMinimumSize(200, 200)
-        self.info_bitdepth = QLabel("[32bit]")
 
         # Texture import/export settings
         self.dimension_limiting_enabled = False
@@ -640,12 +643,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Create all panels first
-        left_panel = self._create_left_panel()
-        middle_panel = self._create_middle_panel()
+        #left_panel = self._create_left_panel() # Disabled pane.
+        #middle_panel = self._create_middle_panel()
         right_panel = self._create_right_panel()
 
         # Left panel disabled - just middle (texture list) + right (viewport)
-        main_splitter.addWidget(middle_panel)
+        #main_splitter.addWidget(middle_panel)
         main_splitter.addWidget(right_panel)
         main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 1)
@@ -658,7 +661,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._refresh_icons()
 
         # Connect signals AFTER texture_table is created
-        self._connect_texture_table_signals()
+        #self._connect_texture_table_signals()
 
         # NEW: Status bar at bottom with texture info
         #self.status_bar = self._create_status_bar()
@@ -811,13 +814,14 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._checker_top.addStretch()
         self._checker_top.addWidget(QLabel("View:"))
         self.checker_view_combo = QComboBox()
-        self.checker_view_combo.addItems(["4-Column View", "Merged View", "Cross-Reference Table"])
+        view_items = ["4-Column View", "Merged View", "Cross-Reference Table"]
+        if self.result.ide_path:
+            view_items.append("Master IDE...")
+        self.checker_view_combo.addItems(view_items)
         self.checker_view_combo.currentIndexChanged.connect(self._on_checker_view_changed)
         self._checker_top.addWidget(self.checker_view_combo)
-        if self.result.ide_path:
-            master_ide_btn = QPushButton("Master IDE...")
-            master_ide_btn.clicked.connect(self._on_master_ide)
-            self._checker_top.addWidget(master_ide_btn)
+        if hasattr(self, 'master_ide_ribbon_btn'):
+            self.master_ide_ribbon_btn.setEnabled(bool(self.result.ide_path))
         export_report_btn = QPushButton("Export Full Report...")
         export_report_btn.setToolTip(
             "Export every real missing/extra entry across IMG, COL, and IDE - "
@@ -981,8 +985,27 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as e:
             QMessageBox.warning(self, "Export Failed", str(e))
 
-    def _on_checker_view_changed(self, index): #vers 1
+    def _on_checker_view_changed(self, index): #vers 2
+        """Master IDE isn't a real page in _checker_stack - it opens
+        its own workshop - so route that entry to _on_master_ide and
+        snap the dropdown back to whatever page is actually showing."""
+        if self.checker_view_combo.itemText(index) == "Master IDE...":
+            self._on_master_ide()
+            self.checker_view_combo.blockSignals(True)
+            self.checker_view_combo.setCurrentIndex(self._checker_stack.currentIndex())
+            self.checker_view_combo.blockSignals(False)
+            return
         self._checker_stack.setCurrentIndex(index)
+
+    def _on_master_ide_ribbon(self): #vers 1
+        """Ribbon entry point for Master IDE - routes through the same
+        checker view dropdown as the 4-Column/Merged/Cross-Reference
+        views, so ribbon and dropdown stay in sync."""
+        idx = self.checker_view_combo.findText("Master IDE...")
+        if idx >= 0:
+            self.checker_view_combo.setCurrentIndex(idx)
+        else:
+            self._on_master_ide()
 
     def _on_master_ide(self): #vers 1
         """Open Master IDE Workshop for the same real IDE file(s)."""
@@ -2628,12 +2651,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             'icons': _Qt.ToolButtonStyle.ToolButtonIconOnly,
             'text':  _Qt.ToolButtonStyle.ToolButtonTextOnly,
         }.get(mode, _Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        for tb in (getattr(self, '_tb_transform', None),
-                   getattr(self, '_tb_nav', None),
-                   getattr(self, '_tb_effects', None),
-                   getattr(self, '_tb_name', None),
-                   getattr(self, '_tb_format', None),
-                   getattr(self, '_tb_mipmaps', None)):
+        for tb in (getattr(self, '_tb_asset', None),
+                   getattr(self, '_tb_transform', None)):
             if tb:
                 tb.setToolButtonStyle(style)
 
@@ -2843,6 +2862,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.txd_list_widget = None
         return None
 
+        #Been disabled as this is no longer needed in Asset_Browser
     def _create_middle_panel(self): #vers 5
         """Create middle panel - Texture list with mini toolbar shown in docked mode."""
         panel = QFrame()
@@ -3002,7 +3022,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception:
             pass
         icon_size = QSize(_saved_px, _saved_px)
-        pw = self.preview_widget
         self._ribbon_actions = []
 
         def _tb(name, area=Qt.ToolBarArea.TopToolBarArea): #vers 1
@@ -3043,17 +3062,13 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 setattr(self, attr, act)
             return act
 
-        #    Ribbon 1: Transform                                            
+        #    Ribbon 0: Asset Check
+        tb_asset = _tb("Asset Check")
+        _act(tb_asset, "Master IDE...", self.icon_factory.master_ide_icon,
+             self._on_master_ide_ribbon, enabled=False, attr='master_ide_ribbon_btn')
+
+        #    Ribbon 1: Transform
         tb_xform = _tb("Transform")
-        _act(tb_xform, "Flip Vertical",   self.icon_factory.flip_vert_icon,
-             self._flip_vertical,   enabled=False, attr='flip_vert_btn')
-        _act(tb_xform, "Flip Horizontal", self.icon_factory.flip_horz_icon,
-             self._flip_horizontal, enabled=False, attr='flip_horz_btn')
-        _act(tb_xform, "Rotate CW",       self.icon_factory.rotate_cw_icon,
-             self._rotate_clockwise,        enabled=False, attr='rotate_cw_btn')
-        _act(tb_xform, "Rotate CCW",      self.icon_factory.rotate_ccw_icon,
-             self._rotate_counterclockwise, enabled=False, attr='rotate_ccw_btn')
-        tb_xform.addSeparator()
         _act(tb_xform, "Copy",  self.icon_factory.copy_icon,
              self._copy_texture,  enabled=False, attr='copy_btn')
         _act(tb_xform, "Paste", self.icon_factory.paste_icon,
@@ -3075,160 +3090,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         _act(tb_xform, "Filters", self.icon_factory.filter_icon,
              self._open_filters_dialog, enabled=False, attr='filters_btn')
         tb_xform.addSeparator()
-        _act(tb_xform, "Switch",        self.icon_factory.flip_vert_icon,
-             self.switch_texture_view,      enabled=False, attr='switch_btn')
-        _act(tb_xform, "Invert Alpha",  self.icon_factory.build_icon,
-             self._toggle_alpha_invert,     enabled=False, attr='invert_btn')
-        _act(tb_xform, "Generate Alpha",self.icon_factory.paint_icon,
-             self._generate_alpha_mask,     enabled=False, attr='gen_alpha_btn')
         _act(tb_xform, "Properties",    self.icon_factory.properties_icon,
              self.show_properties,          enabled=False, attr='props_btn')
 
-        #    Ribbon 2: Navigation                                           
-        tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
-        _act(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
-        _act(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
-        _act(tb_nav, "Reset View",    self.icon_factory.reset_icon,    pw.reset_view)
-        _act(tb_nav, "Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window)
-        tb_nav.addSeparator()
-        _act(tb_nav, "Pan Up",    self.icon_factory.arrow_up_icon,    lambda: self._pan_preview(0, -20))
-        _act(tb_nav, "Pan Down",  self.icon_factory.arrow_down_icon,  lambda: self._pan_preview(0, 20))
-        _act(tb_nav, "Pan Left",  self.icon_factory.arrow_left_icon,  lambda: self._pan_preview(-20, 0))
-        _act(tb_nav, "Pan Right", self.icon_factory.arrow_right_icon, lambda: self._pan_preview(20, 0))
-        tb_nav.addSeparator()
-        _act(tb_nav, "Pick Background", self.icon_factory.color_picker_icon,
-             self._pick_background_color)
-        _act(tb_nav, "Resize Texture",  self.icon_factory._resize_icon,
-             self._resize_texture, attr='resize_texture_btn')
-
-        #    Ribbon 3: Effects                                              
-        tb_fx = _tb("Effects", Qt.ToolBarArea.RightToolBarArea)
-        _act(tb_fx, "Colour Adjustments…", self.icon_factory.knob_icon,
-             self._open_colour_adjust)
-        _act(tb_fx, "Seamless Tool…",      self.icon_factory.seamless_icon,
-             self._open_seamless_tool)
-        _act(tb_fx, "Snow Effect…",        self.icon_factory.snow_icon,
-             self._open_snow_tool)
-        _act(tb_fx, "Alpha Coverage…",     self.icon_factory.alpha_coverage_icon,
-             self._open_alpha_coverage)
-        tb_fx.addSeparator()
-        _act(tb_fx, "Checkerboard", self.icon_factory.checkerboard_icon,
-             lambda: pw.set_checkerboard_background())
-        _act(tb_fx, "Black Background", self.icon_factory.settings_icon,
-             lambda: pw.set_background_color(self._get_ui_color('viewport_bg')))
-        _act(tb_fx, "White Background", self.icon_factory.settings_icon,
-             lambda: pw.set_background_color(self._get_ui_color('viewport_bg')))
-
-        #    Ribbon 4: Name                                                 
-        # Replaces the old info_group QGroupBox (name/alpha fields + format/
-        # bitdepth/resize/compress buttons) which duplicated itself between
-        # icons-mode and text-mode with several latent bugs (undefined
-        # 'texture' var, import_btn/export_btn never created in icons mode).
-        # One set of widgets now, QToolBar handles icons/text/both natively.
-        tb_name = _tb("Name", Qt.ToolBarArea.RightToolBarArea)
-
-        self.info_name = QLineEdit()
-        self.info_name.setPlaceholderText("Click to edit...")
-        self.info_name.setReadOnly(True)
-        self.info_name.setMinimumWidth(130)
-        self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
-        self.info_name.returnPressed.connect(self._save_texture_name)
-        self.info_name.editingFinished.connect(self._save_texture_name)
-        self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
-        tb_name.addWidget(self.info_name)
-
-        self.alpha_label = QLabel("Alpha:")
-        self.alpha_label.setStyleSheet("color: red;")
-        self.alpha_label.setVisible(False)
-        self._alpha_label_action = tb_name.addWidget(self.alpha_label)
-
-        self.info_alpha_name = QLineEdit()
-        self.info_alpha_name.setPlaceholderText("Click to edit...")
-        self.info_alpha_name.setReadOnly(True)
-        self.info_alpha_name.setMinimumWidth(100)
-        self.info_alpha_name.setStyleSheet(
-            "color: palette(windowText); padding: 2px; border: 1px solid palette(mid);")
-        self.info_alpha_name.returnPressed.connect(self._save_alpha_name)
-        self.info_alpha_name.editingFinished.connect(self._save_alpha_name)
-        self.info_alpha_name.mousePressEvent = lambda e: self._enable_name_edit(e, True)
-        self.info_alpha_name.setVisible(False)
-        self._info_alpha_name_action = tb_name.addWidget(self.info_alpha_name)
-
-        #    Ribbon 5: Format                                               
-        tb_format = _tb("Format", Qt.ToolBarArea.RightToolBarArea)
-
-        self.format_combo = QComboBox()
-        self.format_combo.addItems(["DXT1", "DXT3", "DXT5", "ARGB8888",
-                                     "ARGB1555", "ARGB4444", "RGB888", "RGB565"])
-        self.format_combo.currentTextChanged.connect(self._change_format)
-        self.format_combo.setEnabled(False)
-        self.format_combo.setMaximumWidth(100)
-        tb_format.addWidget(self.format_combo)
-
-        self.info_bitdepth = QLabel("[32bit]")
-        self.info_bitdepth.setMinimumWidth(50)
-        tb_format.addWidget(self.info_bitdepth)
-        tb_format.addSeparator()
-
-        _act(tb_format, "Change Bit Depth", lambda color=None: self._create_bitdepth_icon(),
-             self._change_bit_depth,  enabled=False, attr='bitdepth_btn')
-        _act(tb_format, "Resize Texture",   lambda color=None: self._create_resize_icon(),
-             self._resize_texture,    enabled=False, attr='resize_btn')
-        _act(tb_format, "AI Upscale",       lambda color=None: self._create_upscale_icon(),
-             self._upscale_texture,   enabled=False, attr='upscale_btn')
-        _act(tb_format, "Compress",         lambda color=None: self._create_compress_icon(),
-             self._compress_texture,  enabled=False, attr='compress_btn')
-        _act(tb_format, "Uncompress",       lambda color=None: self._create_uncompress_icon(),
-             self._uncompress_texture,enabled=False, attr='uncompress_btn')
-        _act(tb_format, "Convert Format",   lambda color=None: self._create_convert_icon(),
-             self._convert_texture,   enabled=False, attr='convert_btn')
-        tb_format.addSeparator()
-        _act(tb_format, "Import",
-             lambda color=None: self._create_import_icon(), self._import_textures,
-             enabled=True, attr='import_btn')
-        _act(tb_format, "Export",
-             lambda color=None: self._create_export_icon(), self.export_selected_texture,
-             enabled=False, attr='export_btn')
-
-        #    Ribbon 6: Mipmaps                                              
-        tb_mips = _tb("Mipmaps", Qt.ToolBarArea.RightToolBarArea)
-
-        self.info_format = QLabel("Mipmaps:")
-        self.info_format.setMinimumWidth(60)
-        tb_mips.addWidget(self.info_format)
-
-        _act(tb_mips, "View Mipmaps",   lambda color=None: self._create_view_icon(),
-             self._open_mipmap_manager,  enabled=False, attr='show_mipmaps_btn')
-        _act(tb_mips, "Generate Mipmaps", lambda color=None: self._create_add_icon(),
-             self._create_mipmaps_dialog, enabled=False, attr='create_mipmaps_btn')
-        _act(tb_mips, "Remove Mipmaps", lambda color=None: self._create_delete_icon(),
-             self._remove_mipmaps,       enabled=False, attr='remove_mipmaps_btn')
-        tb_mips.addSeparator()
-
-        self.info_format_b = QLabel("Bumpmaps:")
-        self.info_format_b.setMinimumWidth(70)
-        tb_mips.addWidget(self.info_format_b)
-
-        _act(tb_mips, "Manage Bumpmaps", lambda color=None: self._create_manage_icon(),
-             self._view_bumpmap,   enabled=False, attr='view_bumpmap_btn')
-        _act(tb_mips, "Export Bumpmap",  lambda color=None: self._create_export_icon(),
-             self._export_bumpmap, enabled=False, attr='export_bumpmap_btn')
-        _act(tb_mips, "Import Bumpmap",  lambda color=None: self._create_import_icon(),
-             self._import_bumpmap, enabled=False, attr='import_bumpmap_btn')
-
         # Store toolbar refs
+        self._tb_asset      = tb_asset
         self._tb_transform = tb_xform
-        self._tb_nav        = tb_nav
-        self._tb_effects     = tb_fx
-        self._tb_name        = tb_name
-        self._tb_format      = tb_format
-        self._tb_mipmaps     = tb_mips
-
-        # Compat lists for _refresh_icons's tip_to_icon walk
-        self._preview_ctrl_view_btns = [e['action'] for e in self._ribbon_actions
-                                         if e['toolbar'] in (tb_nav, tb_fx)]
-        self._preview_ctrl_tool_btns = []
-        self._preview_ctrl_sep       = None
 
         # Apply current icons-vs-text display mode
         self._update_transform_text_panel_visibility()
@@ -3257,6 +3124,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         menu.addSeparator()
         menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
+        menu.addAction("Save Ribbon Config", self._save_toolbar_state)
         menu.addSeparator()
         from PyQt6.QtWidgets import QToolBar as _QTB
         menu.addAction("Lock All Toolbars",
@@ -3343,7 +3211,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / ".config" / "imgfactory" / (_App_name + ".json")
+            path = Path.home() / ".config" / "imgfactory" / "asset_workshop.json"
             if not path.exists():
                 return
             data = json.loads(path.read_text())
@@ -3372,30 +3240,13 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             # so force every one of them visible no matter what happened
             # above. Only position/floating/row is meant to be restorable,
             # never full visibility.
-            for tb in (getattr(self, '_tb_transform', None),
-                       getattr(self, '_tb_nav', None),
-                       getattr(self, '_tb_effects', None),
-                       getattr(self, '_tb_name', None),
-                       getattr(self, '_tb_format', None),
-                       getattr(self, '_tb_mipmaps', None)):
+            for tb in (getattr(self, '_tb_asset', None),
+                       getattr(self, '_tb_transform', None)):
                 if tb is not None:
                     tb.setVisible(True)
                     tb.toggleViewAction().setChecked(True)
 
 # - Rest of the logic for the panels
-
-    def _pan_preview(self, dx, dy): #vers 2
-        """Pan preview by dx, dy pixels - FIXED"""
-        if hasattr(self, 'preview_widget') and self.preview_widget:
-            self.preview_widget.pan(dx, dy)
-
-
-    def _pick_background_color(self): #vers 1
-        """Open color picker for background"""
-        color = QColorDialog.getColor(self.preview_widget.bg_color, self, "Pick Background Color")
-        if color.isValid():
-            self.preview_widget.set_background_color(color)
-
 
     def _set_checkerboard_bg(self): #vers 1
         """Set checkerboard background"""
@@ -4587,8 +4438,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             # Bumpmap row
             ('import_bumpmap_btn',  'import_icon'),
             ('export_bumpmap_btn',  'export_icon'),
-            # Right preview bar
-            ('resize_texture_btn',  '_resize_icon'),
         ]
         for attr, method in _icon_map:
             btn = getattr(self, attr, None)
@@ -4604,34 +4453,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                     btn.setIcon(fn())
                 except Exception:
                     pass
-
-        # Refresh right preview bar icons on theme change
-        try:
-            c2 = self._get_icon_color()
-            tip_to_icon = {
-                'Zoom In': 'zoom_in_icon', 'Zoom Out': 'zoom_out_icon',
-                'Reset View': 'reset_icon', 'Fit to Window': 'fit_icon',
-                'Pan Up': 'arrow_up_icon', 'Pan Down': 'arrow_down_icon',
-                'Pan Left': 'arrow_left_icon', 'Pan Right': 'arrow_right_icon',
-                'Pick Background': 'color_picker_icon',
-                'Resize Texture': '_resize_icon',
-                'Checkerboard': 'checkerboard_icon',
-                'Colour Adjustments…': 'knob_icon',
-                'Seamless Tool…': 'seamless_icon',
-                'Snow Effect…': 'snow_icon',
-                'Alpha Coverage…': 'alpha_coverage_icon',
-            }
-            for btn in getattr(self, '_preview_ctrl_view_btns', []):
-                fn_name = tip_to_icon.get(btn.toolTip())
-                if fn_name:
-                    fn = getattr(self.icon_factory, fn_name, None)
-                    if fn:
-                        try:
-                            btn.setIcon(fn(color=c2))
-                        except Exception:
-                            pass
-        except Exception:
-            pass
 
         # Update middle btn row visibility (may have changed docked state)
         if hasattr(self, '_middle_btn_row'):
@@ -6146,19 +5967,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 
     #Keep function
-    def _enable_name_edit(self, event, is_alpha): #vers 1
-        """Enable name editing on click"""
-        if is_alpha:
-            self.info_alpha_name.setReadOnly(False)
-            self.info_alpha_name.selectAll()
-            self.info_alpha_name.setFocus()
-        else:
-            self.info_name.setReadOnly(False)
-            self.info_name.selectAll()
-            self.info_name.setFocus()
-
-
-    #Keep function
     def _import_alpha_texture(self): #vers 2
         """Import alpha channel - creates alpha if doesn't exist"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -6862,11 +6670,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         """
         # Text panel buttons (via self.X refs)
         transform_attrs = [
-            'flip_vert_btn', 'flip_horz_btn', 'rotate_cw_btn', 'rotate_ccw_btn',
             'copy_btn', 'delete_texture_btn', 'duplicate_texture_btn',
-            'filters_btn', 'paint_btn', 'switch_btn', 'gen_alpha_btn',
-            'props_btn', 'convert_btn', 'compress_btn', 'uncompress_btn',
-            'resize_btn', 'upscale_btn', 'bitdepth_btn',
+            'filters_btn', 'paint_btn', 'props_btn',
         ]
         for attr in transform_attrs:
             btn = getattr(self, attr, None)
@@ -6880,16 +6685,14 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             for btn in icon_panel.findChildren(QPushButton):
                 btn.setEnabled(enabled)
 
-    def _set_selection_buttons_enabled(self, enabled: bool): #vers 1
+    def _set_selection_buttons_enabled(self, enabled: bool): #vers 2
         """Enable/disable buttons that need a texture selected."""
         self._set_transform_buttons_enabled(enabled)
-        for attr in ('export_btn', 'switch_btn', 'invert_btn',
-                     'gen_alpha_btn', 'props_btn'):
-            btn = getattr(self, attr, None)
-            if btn is not None:
-                btn.setEnabled(enabled)
+        btn = getattr(self, 'props_btn', None)
+        if btn is not None:
+            btn.setEnabled(enabled)
 
-    def _on_texture_selected(self): #vers 7
+    def _on_texture_selected(self): #vers 8
         """Handle texture selection"""
         try:
             row = self.texture_table.currentRow()
@@ -6897,50 +6700,14 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             # Invalid selection - disable everything
             if row < 0 or row >= len(self.texture_list):
                 self.selected_texture = None
-                self.export_btn.setEnabled(False)
-                self.switch_btn.setEnabled(False)
-                self.invert_btn.setEnabled(False)
-                self.gen_alpha_btn.setEnabled(False)
 
                 # Disable all optional buttons
-                if hasattr(self, 'switch_btn'):
-                    self.switch_btn.setEnabled(False)
-                if hasattr(self, 'gen_alpha_btn'):
-                    self.gen_alpha_btn.setEnabled(False)
                 if hasattr(self, 'props_btn'):
                     self.props_btn.setEnabled(False)
                 if hasattr(self, 'duplicate_texture_btn'):
                     self.duplicate_texture_btn.setEnabled(False)
                 if hasattr(self, 'delete_texture_btn'):
                     self.delete_texture_btn.setEnabled(False)
-                if hasattr(self, 'resize_btn'):
-                    self.resize_btn.setEnabled(False)
-                if hasattr(self, 'upscale_btn'):
-                    self.upscale_btn.setEnabled(False)
-                if hasattr(self, 'format_combo'):
-                    self.format_combo.setEnabled(False)
-                if hasattr(self, 'compress_btn'):
-                    self.compress_btn.setEnabled(False)
-                if hasattr(self, 'uncompress_btn'):
-                    self.uncompress_btn.setEnabled(False)
-                if hasattr(self, 'bitdepth_btn'):
-                    self.bitdepth_btn.setEnabled(False)
-
-                # Disable mipmap buttons
-                if hasattr(self, 'create_mipmaps_btn'):
-                    self.create_mipmaps_btn.setEnabled(False)
-                if hasattr(self, 'remove_mipmaps_btn'):
-                    self.remove_mipmaps_btn.setEnabled(False)
-                if hasattr(self, 'show_mipmaps_btn'):
-                    self.show_mipmaps_btn.setEnabled(False)
-
-                # Disable bumpmap buttons
-                if hasattr(self, 'view_bumpmap_btn'):
-                    self.view_bumpmap_btn.setEnabled(False)
-                if hasattr(self, 'export_bumpmap_btn'):
-                    self.export_bumpmap_btn.setEnabled(False)
-                if hasattr(self, 'import_bumpmap_btn'):
-                    self.import_bumpmap_btn.setEnabled(False)
 
                 # Disable all transform buttons in both panels
                 self._set_transform_buttons_enabled(False)
@@ -6949,26 +6716,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             # Valid selection - get texture data
             self.selected_texture = self.texture_list[row]
-
-            tex_name = self.selected_texture.get('name', '')
-            has_alpha = self.selected_texture.get('has_alpha', False)
-
-            # Restore saved view state for this texture, or default to Normal
-            saved_state = self.texture_view_states.get(tex_name, 0)
-            self._current_view_state = saved_state
-
-            # Update switch button text
-            state_labels = ["Normal", "Alpha", "Both", "Overlay"]
-            self.switch_btn.setText(state_labels[saved_state])
-            self.switch_btn.setEnabled(True)
-
-            # Enable [Inv] only if in Alpha view and has alpha
-            #self.invert_btn.setEnabled(saved_state == 1 and has_alpha)
-            self.invert_btn.setEnabled((saved_state == 1 or saved_state == 3) and has_alpha)
-
-
-            # Enable [+] button
-            self.gen_alpha_btn.setEnabled(True)
 
             # Check mipmap state
             mipmap_levels = self.selected_texture.get('mipmap_levels', [])
@@ -6990,8 +6737,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 )
 
             # Enable basic buttons
-            self.export_btn.setEnabled(True)
-
             if hasattr(self, 'props_btn'):
                 self.props_btn.setEnabled(True)
             if hasattr(self, 'info_btn'):
@@ -7000,67 +6745,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.duplicate_texture_btn.setEnabled(True)
             if hasattr(self, 'delete_texture_btn'):
                 self.delete_texture_btn.setEnabled(True)
-            if hasattr(self, 'resize_btn'):
-                self.resize_btn.setEnabled(True)
-            if hasattr(self, 'upscale_btn'):
-                self.upscale_btn.setEnabled(True)
-            if hasattr(self, 'format_combo'):
-                self.format_combo.setEnabled(True)
-                # Sync combo to current texture format
-                fmt = self.selected_texture.get('format', '')
-                fmt_map = {  # map stored format names to combo entries
-                    'ARGB8888': 'ARGB8888', 'RGB888': 'RGB888',
-                    'RGB565':   'RGB565',   'ARGB1555': 'ARGB1555',
-                    'ARGB4444': 'ARGB4444', 'RGB555':   'RGB565',
-                    'PAL8':     'ARGB8888', 'PAL4':     'ARGB8888',
-                    'LUM8':     'RGB565',   'A8L8':     'ARGB8888',
-                    'DXT1': 'DXT1', 'DXT2': 'DXT3', 'DXT3': 'DXT3',
-                    'DXT4': 'DXT5', 'DXT5': 'DXT5',
-                    # PS2 native formats — map to nearest PC equivalent for combo display
-                    'PSMT8':        'ARGB8888', 'PSMT4':        'ARGB8888',
-                    'PSMT8-PAL8':   'ARGB8888', 'PSMT4-PAL4':   'ARGB8888',
-                    'PSMCT32':      'ARGB8888', 'PSMCT16':      'ARGB1555',
-                    'PSMCT16S':     'ARGB1555',
-                }
-                combo_text = fmt_map.get(fmt, fmt)
-                idx = self.format_combo.findText(combo_text)
-                if idx >= 0:
-                    self.format_combo.blockSignals(True)
-                    self.format_combo.setCurrentIndex(idx)
-                    self.format_combo.blockSignals(False)
-            if hasattr(self, 'compress_btn'):
-                self.compress_btn.setEnabled(True)
-            if hasattr(self, 'uncompress_btn'):
-                self.uncompress_btn.setEnabled(True)
-            if hasattr(self, 'bitdepth_btn'):
-                self.bitdepth_btn.setEnabled(True)
-
-            if hasattr(self, 'switch_btn'):
-                has_alpha = self.selected_texture.get('has_alpha', False)
-                self.switch_btn.setEnabled(True)  # Always enabled now
-
-            # NEW: Always enable gen_alpha_btn when texture selected
-            if hasattr(self, 'gen_alpha_btn'):
-                self.gen_alpha_btn.setEnabled(True)
-
-            # Mipmap buttons
-            if hasattr(self, 'create_mipmaps_btn'):
-                self.create_mipmaps_btn.setEnabled(not has_mipmaps)
-            if hasattr(self, 'remove_mipmaps_btn'):
-                self.remove_mipmaps_btn.setEnabled(has_mipmaps)
-            if hasattr(self, 'show_mipmaps_btn'):
-                self.show_mipmaps_btn.setEnabled(has_mipmaps)
-
-            # Bumpmap buttons
-            if hasattr(self, 'view_bumpmap_btn'):
-                # ALWAYS enable Manage button so user can generate/import bumpmaps
-                self.view_bumpmap_btn.setEnabled(can_support_bumpmap)
-            if hasattr(self, 'export_bumpmap_btn'):
-                # Only enable export if bumpmap exists
-                self.export_bumpmap_btn.setEnabled(has_bumpmap)
-            if hasattr(self, 'import_bumpmap_btn'):
-                # Only enable import if version supports bumpmaps
-                self.import_bumpmap_btn.setEnabled(can_support_bumpmap)
 
             # Enable all transform buttons in BOTH icon and text panels
             self._set_transform_buttons_enabled(True)
@@ -7293,152 +6977,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate mipmaps: {str(e)}")
-
-
-    def switch_texture_view(self): #vers 5
-        """Cycle through view modes with [Inv] enabled for Alpha AND Overlay"""
-        if not self.selected_texture:
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-
-        tex_name = self.selected_texture.get('name', '')
-        has_alpha = self.selected_texture.get('has_alpha', False)
-
-        # Get current state for this texture
-        current_state = self.texture_view_states.get(tex_name, 0)
-
-        # Cycle to next state
-        next_state = (current_state + 1) % 4
-
-        # Skip alpha/both/overlay states if no alpha
-        if not has_alpha and next_state > 0:
-            QMessageBox.information(self, "No Alpha Channel",
-                "This texture has no alpha channel.\n\n"
-                "Use the [+] button to generate an alpha mask,\n"
-                "or Import → Import Alpha Channel to add one.")
-            next_state = 0
-
-        # Save state for this texture
-        self.texture_view_states[tex_name] = next_state
-        self._current_view_state = next_state
-
-        # Update display
-        self._update_texture_info(self.selected_texture)
-
-        # Update button text
-        state_labels = ["Normal", "Alpha", "Both", "Overlay"]
-        self.switch_btn.setText(state_labels[next_state])
-
-        # MODIFIED: Enable [Inv] for Alpha (1) OR Overlay (3)
-        self.invert_btn.setEnabled((next_state == 1 or next_state == 3) and has_alpha)
-
-        # Log message
-        view_names = {
-            0: "Normal View",
-            1: "Alpha Mask View",
-            2: "Split View (Normal | Alpha)",
-            3: "Overlay View (Normal over Alpha)"
-        }
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Switched to {view_names[next_state]}")
-
-
-    def _generate_alpha_mask(self): #vers 2
-        """Generate alpha mask from texture luminosity"""
-        if not self.selected_texture:
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-
-        # Check if already has alpha
-        if self.selected_texture.get('has_alpha', False):
-            reply = QMessageBox.question(self, "Replace Alpha?",
-                "This texture already has an alpha channel.\n\n"
-                "Replace existing alpha with luminosity-based mask?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-            if reply != QMessageBox.StandardButton.Yes:
-                return
-
-        try:
-            rgba_data = self.selected_texture.get('rgba_data')
-            if not rgba_data:
-                QMessageBox.warning(self, "No Data", "Texture has no image data")
-                return
-
-            width = self.selected_texture.get('width', 0)
-            height = self.selected_texture.get('height', 0)
-
-            if width == 0 or height == 0:
-                QMessageBox.warning(self, "Invalid Size", "Texture has invalid dimensions")
-                return
-
-            # Save undo state
-            self._save_undo_state("Generate alpha mask from luminosity")
-
-            # Generate alpha from luminosity
-            new_rgba = bytearray(rgba_data)
-
-            for i in range(0, len(new_rgba), 4):
-                r = new_rgba[i]
-                g = new_rgba[i + 1]
-                b = new_rgba[i + 2]
-
-                # Calculate luminosity: 0.299*R + 0.587*G + 0.114*B
-                luminosity = int(0.299 * r + 0.587 * g + 0.114 * b)
-                new_rgba[i + 3] = luminosity
-
-            # Update texture
-            self.selected_texture['rgba_data'] = bytes(new_rgba)
-            self.selected_texture['has_alpha'] = True
-
-            # Add alpha name if not present
-            if 'alpha_name' not in self.selected_texture:
-                self.selected_texture['alpha_name'] = self.selected_texture['name'] + 'a'
-
-            # Update format to support alpha
-            current_format = self.selected_texture.get('format', 'DXT1')
-            if current_format in ['DXT1', 'RGB888', 'RGB565']:
-                if 'DXT' in current_format:
-                    self.selected_texture['format'] = 'DXT5'
-                    format_msg = " (format changed to DXT5)"
-                else:
-                    self.selected_texture['format'] = 'ARGB8888'
-                    format_msg = " (format changed to ARGB8888)"
-            else:
-                format_msg = ""
-
-            # Update display
-            self._update_texture_info(self.selected_texture)
-            self._update_table_display()
-            self._mark_as_modified()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"✅ Generated alpha mask from luminosity{format_msg}")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Generation Error", f"Failed to generate alpha mask:\n{str(e)}")
-
-
-    def _toggle_alpha_invert(self): #vers 2
-        """Toggle alpha channel color inversion - WORKS FOR ALPHA AND OVERLAY"""
-        if not self.selected_texture:
-            return
-
-        # Allow invert in Alpha view (1) OR Overlay view (3)
-        if self._current_view_state not in [1, 3]:
-            return
-
-        self._invert_alpha = not self._invert_alpha
-        self.invert_btn.setChecked(self._invert_alpha)
-
-        # Refresh display
-        self._update_texture_info(self.selected_texture)
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            status = "enabled" if self._invert_alpha else "disabled"
-            view_name = "Alpha" if self._current_view_state == 1 else "Overlay"
-            self.main_window.log_message(f"Alpha invert {status} ({view_name} view)")
 
 
     def _show_texture_context_menu(self, position): #vers 2
@@ -10349,44 +9887,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return False
 
 
-    def _save_texture_name(self): #vers 1
-        """Save edited texture name"""
-        if not self.selected_texture:
-            return
-
-        new_name = self.info_name.text().strip()
-        if new_name and new_name != self.selected_texture.get('name', ''):
-            old_name = self.selected_texture.get('name', '')
-            self.selected_texture['name'] = new_name
-            self._save_undo_state(f"Rename texture: {old_name} → {new_name}")
-            self._reload_texture_table()
-            self._mark_as_modified()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Renamed: {old_name} → {new_name}")
-
-        self.info_name.setReadOnly(True)
-
-
-    def _save_alpha_name(self): #vers 1
-        """Save edited alpha name"""
-        if not self.selected_texture or not self.selected_texture.get('has_alpha'):
-            return
-
-        new_alpha_name = self.info_alpha_name.text().strip()
-        if new_alpha_name and new_alpha_name != self.selected_texture.get('alpha_name', ''):
-            old_name = self.selected_texture.get('alpha_name', '')
-            self.selected_texture['alpha_name'] = new_alpha_name
-            self._save_undo_state(f"Rename alpha: {old_name} → {new_alpha_name}")
-            self._reload_texture_table()
-            self._mark_as_modified()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Alpha renamed: {old_name} → {new_alpha_name}")
-
-        self.info_alpha_name.setReadOnly(True)
-
-
     def _force_save_txd(self): #vers 1
         """Force save TXD regardless of modified state (Alt+Shift+S)"""
         if not self.texture_list:
@@ -11865,12 +11365,14 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         dialog.exec()
 
 
-    def _update_texture_info(self, texture): #vers 9
+    def _update_texture_info(self, texture): #vers 10
         """Update texture display with 4-state view support and checkerboard"""
         if not texture:
-            self.info_name.setText("")
-            self.info_alpha_name.setText("")
-            self.info_alpha_name.setVisible(False)
+            if hasattr(self, 'info_name'):
+                self.info_name.setText("")
+            if hasattr(self, 'info_alpha_name'):
+                self.info_alpha_name.setText("")
+                self.info_alpha_name.setVisible(False)
             if hasattr(self, '_info_alpha_name_action'):
                 self._info_alpha_name_action.setVisible(False)
             if hasattr(self, 'alpha_label'):
@@ -11883,14 +11385,16 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Set name
         name = texture.get('name', 'Unknown')
-        self.info_name.setText(name)
+        if hasattr(self, 'info_name'):
+            self.info_name.setText(name)
 
         # Set alpha name if has alpha
         has_alpha = texture.get('has_alpha', False)
         if has_alpha:
             alpha_name = texture.get('alpha_name', name + 'a')
-            self.info_alpha_name.setText(alpha_name)
-            self.info_alpha_name.setVisible(True)
+            if hasattr(self, 'info_alpha_name'):
+                self.info_alpha_name.setText(alpha_name)
+                self.info_alpha_name.setVisible(True)
             if hasattr(self, '_info_alpha_name_action'):
                 self._info_alpha_name_action.setVisible(True)
             if hasattr(self, 'alpha_label'):
@@ -11898,8 +11402,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             if hasattr(self, '_alpha_label_action'):
                 self._alpha_label_action.setVisible(True)
         else:
-            self.info_alpha_name.setText("")
-            self.info_alpha_name.setVisible(False)
+            if hasattr(self, 'info_alpha_name'):
+                self.info_alpha_name.setText("")
+                self.info_alpha_name.setVisible(False)
             if hasattr(self, '_info_alpha_name_action'):
                 self._info_alpha_name_action.setVisible(False)
             if hasattr(self, 'alpha_label'):
@@ -12284,92 +11789,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
     def show_help(self, *a, **kw): pass  #vers 1
     def show_settings_dialog(self, *a, **kw): pass  #vers 1
 
-    def _flip_vertical(self): #vers 3
-        """Flip texture vertically using PIL (fast)."""
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-        try:
-            from PIL import Image
-            tex = self.selected_texture
-            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-            flipped = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-            self._save_undo_state("Flip vertical")
-            tex['rgba_data'] = flipped.tobytes()
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Flipped vertically")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to flip: {str(e)}")
-
-
-    def _flip_horizontal(self): #vers 2
-        """Flip texture horizontally using PIL (fast)."""
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-        try:
-            from PIL import Image
-            tex = self.selected_texture
-            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-            flipped = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-            self._save_undo_state("Flip horizontal")
-            tex['rgba_data'] = flipped.tobytes()
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Flipped horizontally")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to flip: {str(e)}")
-
-
-    def _rotate_clockwise(self): #vers 2
-        """Rotate texture 90° CW using PIL (fast)."""
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-        try:
-            from PIL import Image
-            tex = self.selected_texture
-            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-            rotated = img.transpose(Image.Transpose.ROTATE_270)  # 270 CCW = 90 CW
-            self._save_undo_state("Rotate 90° CW")
-            tex['rgba_data'] = rotated.tobytes()
-            tex['width'], tex['height'] = rotated.width, rotated.height
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rotated 90° CW → {rotated.width}x{rotated.height}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to rotate: {str(e)}")
-
-
-    def _rotate_counterclockwise(self): #vers 2
-        """Rotate texture 90° CCW using PIL (fast)."""
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-        try:
-            from PIL import Image
-            tex = self.selected_texture
-            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-            rotated = img.transpose(Image.Transpose.ROTATE_90)  # 90 CCW
-            self._save_undo_state("Rotate 90° CCW")
-            tex['rgba_data'] = rotated.tobytes()
-            tex['width'], tex['height'] = rotated.width, rotated.height
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rotated 90° CCW → {rotated.width}x{rotated.height}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to rotate: {str(e)}")
-
-
     def _edit_texture_external(self): #vers 2
         """Export texture as PNG to temp file and open in system default image editor."""
         import os, tempfile, subprocess, sys
@@ -12514,16 +11933,11 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.main_window.log_message(f"Refresh error: {str(e)}")
 
 
-    def _rename_texture_shortcut(self): #vers 1
+    def _rename_texture_shortcut(self): #vers 2
         """Rename selected texture via F2 shortcut"""
         if not self.selected_texture:
             return
-
-        # Focus the name input field and enable editing
-        if hasattr(self, 'info_name'):
-            self.info_name.setReadOnly(False)
-            self.info_name.selectAll()
-            self.info_name.setFocus()
+        self._rename_texture(alpha=False)
 
 
     def _rename_texture(self, alpha=False): #vers 2
@@ -12545,7 +11959,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             new_name, ok = QInputDialog.getText(self, "Rename Alpha", "Enter alpha name:", text=alpha_name)
             if ok and new_name and new_name != alpha_name:
                 self.selected_texture['alpha_name'] = new_name
-                self.info_alpha_name.setText(f"Alpha: {new_name}")
+                if hasattr(self, 'info_alpha_name'):
+                    self.info_alpha_name.setText(f"Alpha: {new_name}")
                 self._update_table_display()
                 self._mark_as_modified()  # Mark as modified
                 if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -12554,7 +11969,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             new_name, ok = QInputDialog.getText(self, "Rename Texture", "Enter texture name:", text=current_name)
             if ok and new_name and new_name != current_name:
                 self.selected_texture['name'] = new_name
-                self.info_name.setText(f"Name: {new_name}")
+                if hasattr(self, 'info_name'):
+                    self.info_name.setText(f"Name: {new_name}")
                 self._update_table_display()
                 self._mark_as_modified()  # Mark as modified
                 if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -19098,6 +18514,8 @@ if __name__ == "__main__":
 
         workshop = AssetWorkshop()
         print(App_name + " instance created")
+
+        workshop.load_result(check_assets())
 
         workshop.setWindowTitle(App_name + " - Standalone")
         workshop.resize(1200, 800)

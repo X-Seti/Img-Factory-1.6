@@ -1,14 +1,14 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 8
-# X-Seti - September 12 2026 - IMG Factory 1.6 - Master IDE Workshop
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 9
+# X-Seti - September 17 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
-dockable workshop (Sep 12 2026, per Keith: "it should also be
-standalone, own dockable window, using col style UI"). Same dual-
-mode pattern every workshop here uses (open_col_workshop's own
-shape): embeds as a tab if main_window has one, real standalone
-floating window otherwise, registers in the tool taskbar. The
-button row lives inside a real DockableToolbar (float/collapse/
-drag/dock, its own saved layout) instead of a plain row."""
+dockable workshop. Same dual-mode pattern every workshop here uses
+(open_col_workshop's own shape): embeds as a tab if main_window has
+one, real standalone floating window otherwise, registers in the
+tool taskbar. The button row is a set of icon ribbon toolbars
+(File/Entries/Tools/Filters) docked to an inner QMainWindow, same
+pattern as Asset Workshop's own ribbons, instead of one wide row of
+text buttons."""
 
 ##Methods list -
 # MasterIDEWorkshop
@@ -20,15 +20,16 @@ import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QPushButton, QFileDialog, QMessageBox, QWidget, QListWidget, QCheckBox,
-    QAbstractItemView,
+    QAbstractItemView, QMainWindow, QToolBar, QSpinBox,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QAction
 
 from apps.methods.master_ide import (
     load_master_ide, write_master_ide, collect_ide_paths_from_dat)
 from apps.methods.master_ide_edit import rename_entry, add_entry, remove_entry, write_source_file
 from apps.methods.file_backup import backup_file
-from apps.components.Master_Ide.dockable_toolbar import DockableToolbar
+from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 
 class _MasterIDETable(QTableWidget): #vers 1
@@ -61,7 +62,13 @@ class _MasterIDETable(QTableWidget): #vers 1
             self.drop_callback(selected_rows, target_row, drop_pos)
 
 
-class MasterIDEWorkshop(QWidget): #vers 8
+class MasterIDEWorkshop(QWidget): #vers 9
+    # Bump whenever the set of ribbon toolbars changes, so a saved
+    # layout from an older structure is cleanly rejected instead of
+    # silently failing to restore. History: 1 = File/Entries/Tools/
+    # Filters ribbons (replaced the old DockableToolbar button row).
+    _RIBBON_LAYOUT_VERSION = 1
+
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
@@ -73,6 +80,8 @@ class MasterIDEWorkshop(QWidget): #vers 8
         self.ignore_id_range = None   # (min, max) or None - display/check filter only, never touches saved data
         self._tab_container = None
         self._build_ui()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(400, self._restore_toolbar_state)
 
     def load_ide_paths(self, ide_paths, game=None): #vers 1
         """Load from a plain real .ide path list (single-file or
@@ -96,7 +105,7 @@ class MasterIDEWorkshop(QWidget): #vers 8
         self.game = game
         self._reload_after_edit()
 
-    def _build_ui(self): #vers 1
+    def _build_ui(self): #vers 2
         self._lay = QVBoxLayout(self)
 
         self._top = QHBoxLayout()
@@ -113,16 +122,72 @@ class MasterIDEWorkshop(QWidget): #vers 8
         self.table.customContextMenuRequested.connect(self._on_table_context_menu)
         self.table.drop_callback = self._on_splice_drop
         self._entry_rows = []   # (row_index, model_id, section) for every real entry row, built by _populate
-        self._lay.addWidget(self.table, 1)
 
-        self.toolbar = DockableToolbar(self, self, settings_key='master_ide_toolbar_layout')
-        btn_bar = QWidget()
-        btn_row = QHBoxLayout(btn_bar)
-        btn_row.setContentsMargins(2, 2, 2, 2)
+        self._inner_mw = QMainWindow()
+        self._inner_mw.setWindowFlags(Qt.WindowType.Widget)
+        self._inner_mw.setCentralWidget(self.table)
+        self._build_toolbars()
+        self._lay.addWidget(self._inner_mw, 1)
 
-        load_dat_btn = QPushButton("Load from .dat...")
-        load_dat_btn.clicked.connect(self._on_load_from_dat)
-        btn_row.addWidget(load_dat_btn)
+        self.status_bar = QLabel()
+        self.status_bar.setStyleSheet("padding: 2px 4px;")
+        self._lay.addWidget(self.status_bar)
+
+    def _build_toolbars(self): #vers 1
+        """Ribbon toolbars replacing the old DockableToolbar button
+        row - too many text buttons in one bar, so they're grouped
+        into icon ribbons (File/Entries/Tools/Filters) the same way
+        every other workshop's ribbon is built."""
+        icon_color = None
+        icon_size = QSize(20, 20)
+        icons = SVGIconFactory()
+        mw = self._inner_mw
+
+        def _tb(name): #vers 1
+            tb = QToolBar(name, mw)
+            tb.setObjectName(name)
+            tb.setIconSize(icon_size)
+            tb.setMovable(True)
+            tb.setFloatable(True)
+            tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            tb.customContextMenuRequested.connect(
+                lambda pos, t=tb: self._toolbar_context_menu(t, pos))
+            mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+            return tb
+
+        def _act(tb, name, icon_fn, callback): #vers 1
+            act = QAction(icon_fn(color=icon_color), name, mw)
+            act.setToolTip(name)
+            act.triggered.connect(callback)
+            tb.addAction(act)
+            return act
+
+        #    Ribbon: File
+        tb_file = _tb("File")
+        _act(tb_file, "Load from .dat...", icons.folder_icon, self._on_load_from_dat)
+        _act(tb_file, "Insert IDE File...", icons.import_icon, self._on_insert_ide_file)
+        _act(tb_file, "Remove File...", icons.trash_icon, self._on_remove_file)
+        tb_file.addSeparator()
+        _act(tb_file, "Save as Master IDE...", icons.saveas_icon, self._on_save)
+
+        #    Ribbon: Entries
+        tb_entries = _tb("Entries")
+        _act(tb_entries, "Insert Text...", icons.edit_icon, self._on_insert_text)
+        _act(tb_entries, "Add Entry...", icons.add_icon, self._on_add_entry)
+        _act(tb_entries, "Insert && Relocate File...", icons.package_icon, self._on_insert_relocate)
+        tb_entries.addSeparator()
+        _act(tb_entries, "Add ID...", icons.new_icon, self._on_add_id)
+        _act(tb_entries, "Remove / Delete ID...", icons.delete_icon, self._on_remove_delete_id)
+        _act(tb_entries, "Move / Reassign ID Block...", icons.convert_icon, self._on_id_shift)
+
+        #    Ribbon: Tools
+        tb_tools = _tb("Tools")
+        _act(tb_tools, "ID Utilities...", icons.settings_icon, self._on_id_utilities)
+        _act(tb_tools, "TXD Duplicate Check...", icons.search_icon, self._on_txd_dedup)
+        _act(tb_tools, "IMG / COL Physical Reorder...", icons.database_icon, self._on_img_col_reorder)
+
+        #    Ribbon: Filters
+        tb_filters = _tb("Filters")
         self.ignore_base_chk = QCheckBox("Ignore default.ide/gta3.ide")
         self.ignore_base_chk.setChecked(self.ignore_base_files)
         self.ignore_base_chk.setToolTip(
@@ -131,72 +196,100 @@ class MasterIDEWorkshop(QWidget): #vers 8
             "counting/reassignment starts from the first real world "
             "(generic) IDE file instead.")
         self.ignore_base_chk.toggled.connect(self._on_ignore_base_toggled)
-        btn_row.addWidget(self.ignore_base_chk)
+        tb_filters.addWidget(self.ignore_base_chk)
+        tb_filters.addSeparator()
 
-        from PyQt6.QtWidgets import QSpinBox
         self.ignore_range_chk = QCheckBox("Ignore ID range")
         self.ignore_range_chk.setToolTip(
             "Hide this range from the table and from every check - "
             "display/check only, never touches what Save as Master "
             "IDE actually writes (Sep 12 2026, per Keith: 'ignore "
             "0-1932 so it checks everything after').")
-        btn_row.addWidget(self.ignore_range_chk)
+        tb_filters.addWidget(self.ignore_range_chk)
         self.ignore_range_from = QSpinBox()
         self.ignore_range_from.setRange(0, 999999)
-        btn_row.addWidget(self.ignore_range_from)
-        btn_row.addWidget(QLabel("to"))
+        tb_filters.addWidget(self.ignore_range_from)
+        tb_filters.addWidget(QLabel("to"))
         self.ignore_range_to = QSpinBox()
         self.ignore_range_to.setRange(0, 999999)
         self.ignore_range_to.setValue(1932)
-        btn_row.addWidget(self.ignore_range_to)
-        apply_range_btn = QPushButton("Apply")
-        apply_range_btn.clicked.connect(self._on_apply_ignore_range)
-        btn_row.addWidget(apply_range_btn)
+        tb_filters.addWidget(self.ignore_range_to)
+        _act(tb_filters, "Apply", icons.check_icon, self._on_apply_ignore_range)
 
-        insert_file_btn = QPushButton("Insert IDE File...")
-        insert_file_btn.clicked.connect(self._on_insert_ide_file)
-        btn_row.addWidget(insert_file_btn)
-        insert_text_btn = QPushButton("Insert Text...")
-        insert_text_btn.clicked.connect(self._on_insert_text)
-        btn_row.addWidget(insert_text_btn)
-        remove_file_btn = QPushButton("Remove File...")
-        remove_file_btn.clicked.connect(self._on_remove_file)
-        btn_row.addWidget(remove_file_btn)
-        add_entry_btn = QPushButton("Add Entry...")
-        add_entry_btn.clicked.connect(self._on_add_entry)
-        btn_row.addWidget(add_entry_btn)
-        id_shift_btn = QPushButton("Move / Reassign ID Block...")
-        id_shift_btn.clicked.connect(self._on_id_shift)
-        btn_row.addWidget(id_shift_btn)
-        add_id_btn = QPushButton("Add ID...")
-        add_id_btn.clicked.connect(self._on_add_id)
-        btn_row.addWidget(add_id_btn)
-        remove_id_btn = QPushButton("Remove / Delete ID...")
-        remove_id_btn.clicked.connect(self._on_remove_delete_id)
-        btn_row.addWidget(remove_id_btn)
-        id_utils_btn = QPushButton("ID Utilities...")
-        id_utils_btn.clicked.connect(self._on_id_utilities)
-        btn_row.addWidget(id_utils_btn)
-        insert_relocate_btn = QPushButton("Insert && Relocate File...")
-        insert_relocate_btn.clicked.connect(self._on_insert_relocate)
-        btn_row.addWidget(insert_relocate_btn)
-        txd_dedup_btn = QPushButton("TXD Duplicate Check...")
-        txd_dedup_btn.clicked.connect(self._on_txd_dedup)
-        btn_row.addWidget(txd_dedup_btn)
-        reorder_btn = QPushButton("IMG / COL Physical Reorder...")
-        reorder_btn.clicked.connect(self._on_img_col_reorder)
-        btn_row.addWidget(reorder_btn)
-        save_btn = QPushButton("Save as Master IDE...")
-        save_btn.clicked.connect(self._on_save)
-        btn_row.addWidget(save_btn)
-        btn_row.addStretch()
+    def _toolbar_context_menu(self, toolbar, pos): #vers 1
+        """Right-click context menu on any ribbon toolbar."""
+        from PyQt6.QtWidgets import QMenu, QToolBar as _QTB
+        menu = QMenu(self)
+        menu.addAction("Save Ribbon Config", self._save_toolbar_state)
+        menu.addSeparator()
+        menu.addAction("Lock All Toolbars",
+            lambda: [tb.setMovable(False)
+                     for tb in self._inner_mw.findChildren(_QTB)])
+        menu.addAction("Unlock All Toolbars",
+            lambda: [tb.setMovable(True)
+                     for tb in self._inner_mw.findChildren(_QTB)])
+        menu.exec(toolbar.mapToGlobal(pos))
 
-        self.toolbar.set_content(btn_bar)
-        self._lay.insertWidget(0, self.toolbar)
+    def _save_toolbar_state(self): #vers 1
+        """Save the ribbon layout to master_ide.json."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw is None:
+            return
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'master_ide.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['toolbar_state'] = mw.saveState(self._RIBBON_LAYOUT_VERSION).toHex().data().decode()
+            data['toolbar_state_version'] = self._RIBBON_LAYOUT_VERSION
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data, indent=2))
+            self.status_bar.setText("Ribbon config saved")
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message("Master IDE: Ribbon config saved")
+        except Exception as e:
+            print(f"[Master IDE] _save_toolbar_state error: {e}")
 
-        self.status_bar = QLabel()
-        self.status_bar.setStyleSheet("padding: 2px 4px;")
-        self._lay.addWidget(self.status_bar)
+    def _restore_toolbar_state(self): #vers 1
+        """Restore the ribbon layout from master_ide.json - rejects a
+        saved layout from an older ribbon structure (see
+        _RIBBON_LAYOUT_VERSION) instead of silently failing."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw is None:
+            return
+        try:
+            import json
+            from pathlib import Path
+            from PyQt6.QtCore import QByteArray
+            path = Path.home() / '.config' / 'imgfactory' / 'master_ide.json'
+            if not path.exists():
+                return
+            data = json.loads(path.read_text())
+            state_hex = data.get('toolbar_state')
+            saved_version = data.get('toolbar_state_version')
+            if state_hex and saved_version == self._RIBBON_LAYOUT_VERSION:
+                mw.restoreState(QByteArray.fromHex(state_hex.encode()),
+                                 self._RIBBON_LAYOUT_VERSION)
+        except Exception as e:
+            print(f"[Master IDE] _restore_toolbar_state error: {e}")
+        finally:
+            # Safety net: restoreState() can leave a ribbon fully
+            # hidden with no way to bring it back - force every one
+            # visible no matter what happened above.
+            from PyQt6.QtWidgets import QToolBar as _QTB
+            for tb in mw.findChildren(_QTB):
+                tb.setVisible(True)
+                tb.toggleViewAction().setChecked(True)
+
+    def closeEvent(self, event): #vers 1
+        try:
+            self._save_toolbar_state()
+        except Exception:
+            pass
+        super().closeEvent(event)
 
     def _on_ignore_base_toggled(self, checked): #vers 1
         self.ignore_base_files = checked
@@ -239,20 +332,27 @@ class MasterIDEWorkshop(QWidget): #vers 8
             return items
         return [i for i in items if not all(self._id_ignored(mid) for mid, _ in i.entries)]
 
-    def _refresh_top(self): #vers 2
+    def _refresh_top(self): #vers 3
         """Rebuild the header info/warning/error labels."""
         while self._top.count():
             item = self._top.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        names = ", ".join(os.path.basename(p) for p in self.result.source_files)
         visible_count = sum(
             1 for section, objs in self.result.objects_by_section.items()
             if section not in self.result.raw_section_lines
             for obj in objs if not self._id_ignored(obj.model_id))
         range_note = f" - ignoring {self.ignore_id_range[0]}-{self.ignore_id_range[1]}" \
             if self.ignore_id_range else ""
-        self._top.addWidget(QLabel(f"Merged: {names} ({visible_count} object(s){range_note})"))
+        num_files = len(self.result.source_files)
+        self._top.addWidget(QLabel(
+            f"Merged: {num_files} file{'s' if num_files != 1 else ''} "
+            f"({visible_count} object(s){range_note})"))
+        merged_files_combo = QComboBox()
+        merged_files_combo.addItems(
+            os.path.basename(p) for p in self.result.source_files)
+        merged_files_combo.setToolTip("Every real source file merged into this view")
+        self._top.addWidget(merged_files_combo)
         self._top.addStretch()
 
         for lbl in getattr(self, '_extra_lbls', []):
@@ -296,7 +396,7 @@ class MasterIDEWorkshop(QWidget): #vers 8
 
         for err in self.result.errors:
             lbl = QLabel(f"Error: {err}")
-            self._lay.insertWidget(2, lbl)
+            self._lay.insertWidget(1, lbl)
             self._extra_lbls.append(lbl)
 
         self._refresh_status_bar()
@@ -348,7 +448,7 @@ class MasterIDEWorkshop(QWidget): #vers 8
             lambda: self._show_details_popup(popup_title, [line_fn(i) for i in items]))
         row.addWidget(details_btn)
         row.addStretch()
-        self._lay.insertWidget(2, container)
+        self._lay.insertWidget(1, container)
         self._extra_lbls.append(container)
 
     def _show_details_popup(self, title, lines): #vers 1
