@@ -287,7 +287,7 @@ def check_assets(img_path=None, col_path=None,
     return result
 
 
-def find_game_asset_files(dat_path: str): #vers 3
+def find_game_asset_files(dat_path: str, auto_find_gta3_img: bool = True): #vers 4
     """Resolve a whole game's real IMG/COL/IDE files from its main
     .dat. img_path is now every real IMG archive the .dat actually
     loads (Sep 12 2026, real correction - a real gta_sol.dat showed
@@ -297,14 +297,17 @@ def find_game_asset_files(dat_path: str): #vers 3
     THREE real sources: the .dat's own COLFILE directive, the
     standalone sibling-file convention for each real IMG found, and
     (inside check_assets itself) each IMG's own embedded COL
-    entries. Returns (img_path_or_list, col_path_or_list,
+    entries. auto_find_gta3_img falls back to game_root/models/
+    gta3.img when the .dat declares no IMG/CDIMAGE at all - GTA III/
+    VC's own gta3.img is hard-coded into the engine, never declared
+    in the .dat. Returns (img_path_or_list, col_path_or_list,
     ide_paths_list, game)."""
     from apps.methods.master_ide import (
         collect_ide_paths_from_dat, collect_col_paths_from_dat, collect_img_paths_from_dat)
 
     game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
     ide_paths, game = collect_ide_paths_from_dat(dat_path, game_root)
-    img_paths = collect_img_paths_from_dat(dat_path, game_root, game)
+    img_paths = collect_img_paths_from_dat(dat_path, game_root, game, auto_find_gta3_img)
 
     col_paths = collect_col_paths_from_dat(dat_path, game_root, game)
     for img_path in img_paths:

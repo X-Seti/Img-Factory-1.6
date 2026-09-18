@@ -21,7 +21,15 @@ anything is written - all-or-nothing, no partial shift."""
 # apply_id_shift
 # apply_id_shift_and_write
 # cascade_ipl_files
+# cascade_ipl_rename
 # cascade_2dfx_sections
+# cascade_delete_2dfx
+# find_ipl_usages
+# remove_ipl_lines
+# cascade_path_ids
+# cascade_path_rename
+# find_path_usages
+# remove_path_blocks
 # plan_add_ids
 # apply_add_ids
 # FreeIdCollapsePlan
@@ -264,6 +272,203 @@ def cascade_ipl_files(ipl_paths: List[str], id_map: Dict[int, int]) -> Dict[str,
     return {p: _remap_section_ids_in_file(p, _IPL_ID_SECTIONS, id_map) for p in ipl_paths}
 
 
+def _remap_name_field_line(line: str, model_id: int, old_name: str, new_name: str): #vers 1
+    """If this real line's leading field is model_id AND its second
+    field matches old_name (case-insensitive), return the line with
+    ONLY the name field substituted - every other byte untouched.
+    Returns None if this line doesn't match both the ID and the old
+    name (a renamed entry's own numeric ID never changes, so an ID
+    match alone isn't enough to tell a real placement of THIS model
+    from an unrelated one that happens to share the checked ID)."""
+    stripped = line.strip()
+    if not stripped or stripped.count(",") < 1:
+        return None
+    parts = stripped.split(",", 2)
+    if len(parts) < 2:
+        return None
+    try:
+        line_id = int(parts[0].strip())
+    except ValueError:
+        return None
+    if line_id != model_id or parts[1].strip().lower() != old_name.strip().lower():
+        return None
+    prefix_ws = line[:len(line) - len(line.lstrip())]
+    id_field = parts[0]
+    name_ws = parts[1][:len(parts[1]) - len(parts[1].lstrip())]
+    rest = parts[2] if len(parts) > 2 else ""
+    return f"{prefix_ws}{id_field},{name_ws}{new_name},{rest}" if rest else \
+           f"{prefix_ws}{id_field},{name_ws}{new_name}"
+
+
+def _remap_names_in_file(file_path: str, section_names, model_id: int,
+                          old_name: str, new_name: str) -> bool: #vers 1
+    """Same shared scan as _remap_section_ids_in_file, substituting
+    only the model-name field (via _remap_name_field_line) instead
+    of the ID field. Backs up first. Returns True only if something
+    actually changed and the write succeeded."""
+    if not file_path or not os.path.isfile(file_path):
+        return False
+    try:
+        with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+            lines = f.readlines()
+    except Exception:
+        return False
+
+    current_section = None
+    changed = False
+    out_lines = []
+    for raw in lines:
+        stripped = raw.split("#")[0].strip()
+        low = stripped.lower()
+        if low == "end":
+            current_section = None
+            out_lines.append(raw)
+            continue
+        if current_section is None and low in section_names:
+            current_section = low
+            out_lines.append(raw)
+            continue
+        if current_section in section_names:
+            remapped = _remap_name_field_line(raw, model_id, old_name, new_name)
+            if remapped is not None:
+                out_lines.append(remapped if remapped.endswith("\n") else remapped + "\n")
+                changed = True
+                continue
+        out_lines.append(raw)
+
+    if not changed:
+        return False
+    if backup_file(file_path) is None:
+        return False
+    try:
+        with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+            f.writelines(out_lines)
+        return True
+    except Exception:
+        return False
+
+
+def cascade_ipl_rename(ipl_paths: List[str], model_id: int, old_name: str,
+                        new_name: str) -> Dict[str, bool]: #vers 1
+    """Rewrite every given real IPL file's own "inst"/"cars" lines
+    whose ID+name match this renamed entry, substituting only the
+    model-name field. A rename never changes the numeric ID, so
+    unlike cascade_ipl_files this is keyed on ID+old-name together,
+    not id_map. Returns ipl_path -> True/False (False = no matching
+    lines found, not an error)."""
+    return {p: _remap_names_in_file(p, _IPL_ID_SECTIONS, model_id, old_name, new_name)
+            for p in ipl_paths}
+
+
+def _remove_id_lines_in_file(file_path: str, section_names, model_ids) -> bool: #vers 1
+    """Shared scan - drop every line inside the given section_names
+    whose leading ID field is in model_ids, backing up first. Same
+    section-tracking approach as _remap_section_ids_in_file. Returns
+    True only if a line was actually dropped and the write
+    succeeded."""
+    if not file_path or not os.path.isfile(file_path):
+        return False
+    try:
+        with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+            lines = f.readlines()
+    except Exception:
+        return False
+
+    current_section = None
+    changed = False
+    out_lines = []
+    for raw in lines:
+        stripped = raw.split("#")[0].strip()
+        low = stripped.lower()
+        if low == "end":
+            current_section = None
+            out_lines.append(raw)
+            continue
+        if current_section is None and low in section_names:
+            current_section = low
+            out_lines.append(raw)
+            continue
+        if current_section in section_names and stripped:
+            first = stripped.split(",", 1)[0].strip()
+            try:
+                line_id = int(first)
+            except ValueError:
+                line_id = None
+            if line_id is not None and line_id in model_ids:
+                changed = True
+                continue
+        out_lines.append(raw)
+
+    if not changed:
+        return False
+    if backup_file(file_path) is None:
+        return False
+    try:
+        with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+            f.writelines(out_lines)
+        return True
+    except Exception:
+        return False
+
+
+def cascade_delete_2dfx(ide_paths: List[str], model_ids) -> Dict[str, bool]: #vers 1
+    """Remove every real 2dfx line attached to a deleted model_id -
+    a deleted objs/tobj entry leaves its own 2dfx effects (coronas,
+    lights, etc, keyed on the same numeric ID) orphaned otherwise.
+    model_ids may be a single int or any collection of ints. Returns
+    ide_path -> True/False (False = nothing matched, not an error)."""
+    ids = {model_ids} if isinstance(model_ids, int) else set(model_ids)
+    return {p: _remove_id_lines_in_file(p, ("2dfx",), ids) for p in ide_paths}
+
+
+def find_ipl_usages(ipl_paths: List[str], model_id: int) -> List[dict]: #vers 1
+    """Read-only scan (no write, no backup) of every given real IPL
+    file's own "inst"/"cars" lines for a real placement of model_id -
+    used to warn before Remove/Delete ID leaves these orphaned.
+    Returns a list of {ipl_path, line_no, model_name}."""
+    usages = []
+    for path in ipl_paths:
+        if not path or not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="ascii", errors="ignore") as f:
+                lines = f.readlines()
+        except Exception:
+            continue
+        current_section = None
+        for line_no, raw in enumerate(lines, start=1):
+            stripped = raw.split("#")[0].strip()
+            low = stripped.lower()
+            if low == "end":
+                current_section = None
+                continue
+            if current_section is None and low in _IPL_ID_SECTIONS:
+                current_section = low
+                continue
+            if current_section in _IPL_ID_SECTIONS and stripped:
+                parts = stripped.split(",", 2)
+                try:
+                    line_id = int(parts[0].strip())
+                except (ValueError, IndexError):
+                    continue
+                if line_id == model_id:
+                    usages.append({
+                        'ipl_path': path, 'line_no': line_no,
+                        'model_name': parts[1].strip() if len(parts) > 1 else '',
+                    })
+    return usages
+
+
+def remove_ipl_lines(ipl_paths: List[str], model_ids) -> Dict[str, bool]: #vers 1
+    """Remove every real "inst"/"cars" line placing a deleted
+    model_id - offered after find_ipl_usages warns the user which
+    files/lines would be affected. model_ids may be a single int or
+    any collection of ints. Returns ipl_path -> True/False (False =
+    nothing matched, not an error)."""
+    ids = {model_ids} if isinstance(model_ids, int) else set(model_ids)
+    return {p: _remove_id_lines_in_file(p, _IPL_ID_SECTIONS, ids) for p in ipl_paths}
+
+
 def cascade_2dfx_sections(ide_paths: List[str], id_map: Dict[int, int]) -> Dict[str, bool]: #vers 1
     """Real bug fix (Sep 12 2026, per Keith's own worked example) -
     apply_id_shift already updates 2dfx's IN-MEMORY parsed model_id,
@@ -283,7 +488,207 @@ def cascade_2dfx_sections(ide_paths: List[str], id_map: Dict[int, int]) -> Dict[
     return {p: _remap_section_ids_in_file(p, ("2dfx",), id_map) for p in ide_paths}
 
 
-def apply_id_shift_and_write(result, plan: IDShiftPlan) -> List[str]: #vers 1
+# GTA III/VC's own IDE "path" section is genuinely shaped differently
+# from every other section here (Sep 17 2026, per Keith's own real
+# comnbtm.ide example: "car, 2084, custom_rd4_ug" then N indented
+# numeric node rows, no per-block "end") - the header's ID is its
+# SECOND field, not the first, so none of the leading-field helpers
+# above ever match it at all (they safely no-op on it, never crash,
+# but also never cascade it). GTA SA doesn't use this IDE path-header
+# form - its own path nodes live in the IPL's own "path" section as
+# plain numeric rows with no ID/name header - so this is GTA III/VC-
+# only and deliberately never touches SA's "path" section.
+import re
+_PATH_HEADER_RE = re.compile(
+    r'^(?P<indent>[ \t]*)(?P<kind>car|ped)(?P<sep1>[ \t]*,[ \t]*)'
+    r'(?P<id>-?\d+)(?P<sep2>[ \t]*,[ \t]*)(?P<name>.*)$', re.IGNORECASE)
+
+
+def _remap_path_header_id_line(line: str, id_map: Dict[int, int]): #vers 1
+    """If this real "path" section header line's own ID field (2nd
+    position - "car"/"ped", ID, ModelName) is in id_map, return the
+    line with ONLY that field substituted. Returns None otherwise."""
+    m = _PATH_HEADER_RE.match(line.rstrip("\n"))
+    if not m:
+        return None
+    old_id = int(m.group("id"))
+    if old_id not in id_map:
+        return None
+    return (f"{m.group('indent')}{m.group('kind')}{m.group('sep1')}"
+            f"{id_map[old_id]}{m.group('sep2')}{m.group('name')}")
+
+
+def _remap_path_header_name_line(line: str, model_id: int, old_name: str, new_name: str): #vers 1
+    """Same as _remap_path_header_id_line but for a rename - matches
+    on ID+old-name together (a rename never changes the ID), only
+    substituting the ModelName field."""
+    m = _PATH_HEADER_RE.match(line.rstrip("\n"))
+    if not m:
+        return None
+    if int(m.group("id")) != model_id or m.group("name").strip().lower() != old_name.strip().lower():
+        return None
+    return (f"{m.group('indent')}{m.group('kind')}{m.group('sep1')}"
+            f"{m.group('id')}{m.group('sep2')}{new_name}")
+
+
+def _scan_path_section(file_path: str, line_fn): #vers 1
+    """Shared scan of a real IDE file's own "path" section only -
+    calls line_fn(raw_line) for every line inside that section
+    (header AND indented node rows both passed through; line_fn
+    returns a replacement string or None to keep it unchanged), and
+    writes back + backs up first if anything actually changed.
+    Returns True/False the same way every other cascade helper here
+    does."""
+    if not file_path or not os.path.isfile(file_path):
+        return False
+    try:
+        with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+            lines = f.readlines()
+    except Exception:
+        return False
+
+    in_path_section = False
+    changed = False
+    out_lines = []
+    for raw in lines:
+        stripped = raw.split("#")[0].strip()
+        low = stripped.lower()
+        if not in_path_section:
+            if low == "path":
+                in_path_section = True
+            out_lines.append(raw)
+            continue
+        if low == "end":
+            in_path_section = False
+            out_lines.append(raw)
+            continue
+        remapped = line_fn(raw)
+        if remapped is not None:
+            out_lines.append(remapped if remapped.endswith("\n") else remapped + "\n")
+            changed = True
+        else:
+            out_lines.append(raw)
+
+    if not changed:
+        return False
+    if backup_file(file_path) is None:
+        return False
+    try:
+        with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+            f.writelines(out_lines)
+        return True
+    except Exception:
+        return False
+
+
+def cascade_path_ids(ide_paths: List[str], id_map: Dict[int, int]) -> Dict[str, bool]: #vers 1
+    """Rewrite every real "path" section header's own ID field
+    (GTA III/VC only - see the module note above) for every real ID
+    in id_map. Indented node rows never carry a model ID, so they're
+    always left untouched."""
+    return {p: _scan_path_section(p, lambda line: _remap_path_header_id_line(line, id_map))
+            for p in ide_paths}
+
+
+def cascade_path_rename(ide_paths: List[str], model_id: int, old_name: str,
+                         new_name: str) -> Dict[str, bool]: #vers 1
+    """Rewrite every real "path" section header's own ModelName
+    field for a renamed entry (GTA III/VC only)."""
+    return {p: _scan_path_section(
+                p, lambda line: _remap_path_header_name_line(line, model_id, old_name, new_name))
+            for p in ide_paths}
+
+
+def find_path_usages(ide_paths: List[str], model_id: int) -> List[dict]: #vers 1
+    """Read-only scan for real "path" section headers referencing
+    model_id (GTA III/VC only) - used to warn before Remove/Delete
+    ID leaves an orphaned path block. Returns a list of {ide_path,
+    line_no, model_name}."""
+    usages = []
+    for path in ide_paths:
+        if not path or not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="ascii", errors="ignore") as f:
+                lines = f.readlines()
+        except Exception:
+            continue
+        in_path_section = False
+        for line_no, raw in enumerate(lines, start=1):
+            stripped = raw.split("#")[0].strip()
+            low = stripped.lower()
+            if not in_path_section:
+                if low == "path":
+                    in_path_section = True
+                continue
+            if low == "end":
+                in_path_section = False
+                continue
+            m = _PATH_HEADER_RE.match(raw.rstrip("\n"))
+            if m and int(m.group("id")) == model_id:
+                usages.append({'ide_path': path, 'line_no': line_no, 'model_name': m.group("name").strip()})
+    return usages
+
+
+def remove_path_blocks(ide_paths: List[str], model_ids) -> Dict[str, bool]: #vers 1
+    """Remove every real "path" block (header + all its indented
+    node rows) for a deleted model_id (GTA III/VC only) - offered
+    after find_path_usages warns the user. model_ids may be a
+    single int or any collection of ints."""
+    ids = {model_ids} if isinstance(model_ids, int) else set(model_ids)
+
+    def _process(file_path: str) -> bool:
+        if not file_path or not os.path.isfile(file_path):
+            return False
+        try:
+            with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+                lines = f.readlines()
+        except Exception:
+            return False
+
+        in_path_section = False
+        skipping = False
+        changed = False
+        out_lines = []
+        for raw in lines:
+            stripped = raw.split("#")[0].strip()
+            low = stripped.lower()
+            if not in_path_section:
+                if low == "path":
+                    in_path_section = True
+                out_lines.append(raw)
+                continue
+            if low == "end":
+                in_path_section = False
+                skipping = False
+                out_lines.append(raw)
+                continue
+            m = _PATH_HEADER_RE.match(raw.rstrip("\n"))
+            if m:
+                skipping = int(m.group("id")) in ids
+                if skipping:
+                    changed = True
+                    continue
+            elif skipping:
+                changed = True
+                continue
+            out_lines.append(raw)
+
+        if not changed:
+            return False
+        if backup_file(file_path) is None:
+            return False
+        try:
+            with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+                f.writelines(out_lines)
+            return True
+        except Exception:
+            return False
+
+    return {p: _process(p) for p in ide_paths}
+
+
+def apply_id_shift_and_write(result, plan: IDShiftPlan) -> List[str]: #vers 2
     """The real, complete apply step every caller should use instead
     of doing apply_id_shift() + its own write_source_file() loop by
     hand (Sep 12 2026 - centralizing this exact sequence is what
@@ -291,8 +696,9 @@ def apply_id_shift_and_write(result, plan: IDShiftPlan) -> List[str]: #vers 1
     than needing every dialog's own call site fixed separately).
     Applies the shift in memory, writes every real touched IDE file
     (objs/tobj/anim, from parsed data), THEN cascades into each of
-    those same files' own 2dfx section (surgical substitution on the
-    just-written file). Returns the touched real basenames, or []
+    those same files' own 2dfx AND path sections (surgical
+    substitution on the just-written file; path is GTA III/VC only,
+    a no-op elsewhere). Returns the touched real basenames, or []
     on any failure - never partially applies."""
     from apps.methods.master_ide_edit import write_source_file
 
@@ -308,8 +714,16 @@ def apply_id_shift_and_write(result, plan: IDShiftPlan) -> List[str]: #vers 1
     if failures:
         return []
 
-    touched_paths = [p for p in result.source_files if os.path.basename(p) in touched]
-    cascade_2dfx_sections(touched_paths, plan.id_map)
+    # Scan EVERY loaded file, not just the ones that got an objs/
+    # tobj/anim write (Sep 17 2026, real gap found against SOL's own
+    # files: game_lc.ide has no 2dfx section of its own at all - its
+    # models' 2dfx/lighting effects live entirely in a separate
+    # loaded file, GAME_LC.IFX, which "touched" would never include
+    # since it was never itself written to for the objs/tobj change.
+    # Cheap and always safe either way - every cascade helper here
+    # is already a no-op on a file with no matching lines).
+    cascade_2dfx_sections(result.source_files, plan.id_map)
+    cascade_path_ids(result.source_files, plan.id_map)
     return touched
 
 
@@ -395,24 +809,29 @@ def plan_collapse_free_ids(result, start_id: int, count: int) -> FreeIdCollapseP
     return plan
 
 
-def apply_collapse_free_ids(result, plan: FreeIdCollapsePlan) -> List[str]: #vers 2
+def apply_collapse_free_ids(result, plan: FreeIdCollapsePlan): #vers 3
     """Apply an already-planned free-ID collapse: shift everything
     above the scanned free range DOWN by requested_count, closing
-    the gap - writes every real touched file and cascades 2dfx
+    the gap - writes every real touched file and cascades 2dfx/path
     itself (Sep 12 2026, uses apply_id_shift_and_write). Refuses
     (returns None) unless plan.fully_free - never partially
     collapses, and never touches a real assigned entry (that's
-    Delete ID's job, a separate, explicit operation)."""
+    Delete ID's job, a separate, explicit operation). Returns
+    (touched_basenames, id_map) - the caller still owns any real IPL
+    cascade (cascade_ipl_files(ipl_paths, id_map)), same as every
+    other operation here that can't reach a real .ipl without a
+    dat_path."""
     if not plan.fully_free:
         return None
     collapse_from = plan.free_ids_found[-1] + 1
     max_id = _max_used_id(result)
     if collapse_from > max_id:
-        return []   # nothing above the freed range - already a clean no-op success
+        return [], {}   # nothing above the freed range - already a clean no-op success
     shift_plan = plan_id_shift(result, collapse_from, max_id, -plan.requested_count)
     if not shift_plan.ok:
         return None
-    return apply_id_shift_and_write(result, shift_plan)
+    touched = apply_id_shift_and_write(result, shift_plan)
+    return touched, shift_plan.id_map
 
 
 def plan_delete_and_collapse(result, start_id: int, count: int) -> List[tuple]: #vers 2
@@ -437,23 +856,32 @@ def plan_delete_and_collapse(result, start_id: int, count: int) -> List[tuple]: 
     return to_delete
 
 
-def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List[tuple]): #vers 2
+def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List[tuple]): #vers 3
     """Actually remove every real to_delete entry (writing each
-    touched file immediately), then collapse the now-fully-free
-    [start_id, start_id+count-1] range by shifting everything above
-    it down by count - writing that too, and cascading 2dfx itself
-    (Sep 12 2026, uses apply_id_shift_and_write). Stops and refuses
-    (returns None) on the first real removal or write failure rather
-    than partially applying. Returns (removed_ide_basenames,
-    shift_touched_basenames) on success."""
+    touched file immediately, then cascading 2dfx/path deletion into
+    those same just-written files - Sep 17 2026, per Keith: "when
+    changing ID's in the IDE, other entries need to be accounted
+    for" - this delete path used to bypass that entirely), then
+    collapse the now-fully-free [start_id, start_id+count-1] range by
+    shifting everything above it down by count - writing that too,
+    and cascading 2dfx/path itself (Sep 12 2026, uses apply_id_shift_
+    and_write). Stops and refuses (returns None) on the first real
+    removal or write failure rather than partially applying. Returns
+    (removed_ide_basenames, shift_touched_basenames, shift_id_map,
+    deleted_model_ids) on success - the caller still owns any real
+    IPL cascade (find_ipl_usages/remove_ipl_lines for deleted_model_
+    ids, cascade_ipl_files for shift_id_map), same as every other
+    operation here that can't reach a real .ipl without a dat_path."""
     from apps.methods.master_ide_edit import remove_entry, write_source_file
 
     removed_files = set()
+    deleted_ids = set()
     for model_id, _model_name, source_ide in to_delete:
         err = remove_entry(result, model_id, source_ide)
         if err:
             return None
         removed_files.add(os.path.basename(source_ide))
+        deleted_ids.add(model_id)
 
     for basename in removed_files:
         source_path = next((p for p in result.source_files
@@ -461,15 +889,23 @@ def apply_delete_and_collapse(result, start_id: int, count: int, to_delete: List
         if not source_path or not write_source_file(result, source_path):
             return None
 
+    if deleted_ids:
+        # Every loaded file, not just the ones written for the
+        # objs/tobj removal itself - same real gap as apply_id_
+        # shift_and_write's own fix (a deleted model's 2dfx effects
+        # can live in a separate loaded file, e.g. SOL's GAME_LC.IFX).
+        cascade_delete_2dfx(result.source_files, deleted_ids)
+        remove_path_blocks(result.source_files, deleted_ids)
+
     max_id = _max_used_id(result)
     collapse_from = start_id + count
     if collapse_from > max_id:
-        return sorted(removed_files), []
+        return sorted(removed_files), [], {}, deleted_ids
     shift_plan = plan_id_shift(result, collapse_from, max_id, -count)
     if not shift_plan.ok:
         return None
     shift_touched = apply_id_shift_and_write(result, shift_plan)
-    return sorted(removed_files), shift_touched
+    return sorted(removed_files), shift_touched, shift_plan.id_map, deleted_ids
 
 
 @dataclass

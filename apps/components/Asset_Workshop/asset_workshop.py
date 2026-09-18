@@ -475,6 +475,10 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.placeholder_text = "No texture"
         self.setMinimumSize(200, 200)
 
+        # Asset Check settings
+        self.auto_find_gta3_img = True
+        self.excluded_names = set()
+
         # Texture import/export settings
         self.dimension_limiting_enabled = False
         self.splash_screen_mode = False
@@ -644,14 +648,16 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Create all panels first
         #left_panel = self._create_left_panel() # Disabled pane.
-        #middle_panel = self._create_middle_panel()
+        middle_panel = self._create_middle_panel()
+        self._middle_panel = middle_panel
+        middle_panel.setVisible(False)   # hidden until a TXD is actually loaded
         right_panel = self._create_right_panel()
 
         # Left panel disabled - just middle (texture list) + right (viewport)
-        #main_splitter.addWidget(middle_panel)
+        main_splitter.addWidget(middle_panel)
         main_splitter.addWidget(right_panel)
         main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 1)
+        main_splitter.setStretchFactor(1, 2)
 
         self._main_splitter = main_splitter
         self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
@@ -688,11 +694,32 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 # - Asset Checker (adapted from asset_workshop_org.py, added into new UI)
 
-    def load_result(self, result): #vers 2
+    def load_result(self, result): #vers 4
         """Populate Asset Check with a real AssetCheckResult, building
         it into the right panel's own viewport on first use - ribbons
-        stay visible, left panel stays disabled."""
+        stay visible, left panel stays disabled. Excluded names/files
+        and the ID-range filter (Sep 17 2026, per Keith: "exclude
+        files... img, col, ide should ignore them" / "start listing
+        from a given ID") are stripped from the result right here,
+        once, so every view/diff downstream (all pure functions of
+        img_names/col_names/ide_names) simply never sees them.
+
+        The FULL, never-filtered path lists are captured once on the
+        first real load only (never overwritten by a later reload)
+        - excluding a whole file re-runs check_assets() with that
+        file's path dropped from the input list, which would
+        otherwise permanently lose it from self.result.*_paths and
+        make excluding it irreversible, and would also drift
+        _exclusions_key() out from under any names/files already
+        saved against the original full set."""
         self.result = result
+        if not hasattr(self, '_all_img_paths'):
+            self._all_img_paths = list(result.img_paths)
+            self._all_col_paths = list(result.col_paths)
+            self._all_ide_paths = list(result.ide_paths)
+        self.excluded_names, self.excluded_files, self.ignore_id_min, self.ignore_id_max = \
+            self._load_exclusions()
+        self._apply_exclusions(self.result)
         if self._checker_tab is None:
             self._build_checker_tab()
         self._refresh_checker_summary()
@@ -814,14 +841,18 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._checker_top.addStretch()
         self._checker_top.addWidget(QLabel("View:"))
         self.checker_view_combo = QComboBox()
-        view_items = ["4-Column View", "Merged View", "Cross-Reference Table"]
-        if self.result.ide_path:
-            view_items.append("Master IDE...")
-        self.checker_view_combo.addItems(view_items)
+        # Master IDE is always reachable, even with nothing loaded yet
+        # (Sep 17 2026, per Keith: it "can't be called from Asset_
+        # workshop.py when that's standalone" - previously gated on
+        # self.result.ide_path, so a bare/empty Asset Workshop had no
+        # way to reach it at all). With no real IDE path yet, it just
+        # opens Master IDE empty, ready for its own Load/Insert buttons.
+        self.checker_view_combo.addItems(
+            ["4-Column View", "Merged View", "Cross-Reference Table", "Master IDE..."])
         self.checker_view_combo.currentIndexChanged.connect(self._on_checker_view_changed)
         self._checker_top.addWidget(self.checker_view_combo)
         if hasattr(self, 'master_ide_ribbon_btn'):
-            self.master_ide_ribbon_btn.setEnabled(bool(self.result.ide_path))
+            self.master_ide_ribbon_btn.setEnabled(True)
         export_report_btn = QPushButton("Export Full Report...")
         export_report_btn.setToolTip(
             "Export every real missing/extra entry across IMG, COL, and IDE - "
@@ -1007,11 +1038,35 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             self._on_master_ide()
 
-    def _on_master_ide(self): #vers 1
-        """Open Master IDE Workshop for the same real IDE file(s)."""
+    def _on_master_ide(self): #vers 2
+        """Open Master IDE Workshop for the same real IDE file(s), or
+        with nothing pre-loaded if Asset Workshop itself has no real
+        IDE path yet (Sep 17 2026 - previously this passed [None] as
+        ide_paths when standalone with nothing loaded, which loaded
+        nothing useful anyway; opening it genuinely empty instead
+        lets its own Load from .dat/Insert IDE File buttons work)."""
         from apps.components.Master_Ide.master_ide_workshop import open_master_ide_workshop
-        paths = self.result.ide_paths or [self.result.ide_path]
+        paths = self.result.ide_paths or ([self.result.ide_path] if self.result.ide_path else None)
         open_master_ide_workshop(self.main_window, ide_paths=paths)
+
+    def _on_load_from_dat(self): #vers 1
+        """Load a whole game's real IMG/COL/IDE via its .dat, same
+        resolution open_asset_workshop's own dat_path branch uses -
+        needed standalone, where nothing else can hand this a path."""
+        dat_path, _ = QFileDialog.getOpenFileName(
+            self, "Load from .dat", "",
+            "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat "
+            "gtasol.dat gta_quick.dat);;All files (*.dat)")
+        if not dat_path:
+            return
+        img_path, col_path, ide_paths, game = find_game_asset_files(
+            dat_path, auto_find_gta3_img=getattr(self, 'auto_find_gta3_img', True))
+        if not img_path and not col_path and not ide_paths:
+            QMessageBox.warning(self, App_name,
+                f"Could not find any real IMG/COL/IDE files from:\n{dat_path}")
+            return
+        result = check_assets(img_path=img_path, col_path=col_path, ide_path=ide_paths, game=game)
+        self.load_result(result)
 
     def _populate_columns_view(self): #vers 1
         r = self.result
@@ -1235,6 +1290,164 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                                ide_path=self.result.ide_paths or None)
         self.load_result(result)
 
+    def _apply_exclusions(self, result): #vers 1
+        """Strip every excluded name from the three real base sets
+        every other view/diff on AssetCheckResult is a pure function
+        of (all_names, missing_from_img/col, img/col_extra_over_ide,
+        not_in_ide, status_for, cross_reference_rows) - stripping
+        here once means none of them need their own exclusion-aware
+        logic."""
+        if not self.excluded_names:
+            return
+        result.img_names -= self.excluded_names
+        result.col_names -= self.excluded_names
+        result.ide_names -= self.excluded_names
+        for name in self.excluded_names:
+            result.ide_id_by_name.pop(name, None)
+            result.ide_txd_by_name.pop(name, None)
+            result.ide_txd_display_by_name.pop(name, None)
+
+    def _exclusions_key(self): #vers 1
+        """Stable key identifying the current img/col/ide file set,
+        so exclusions from one game/project never bleed into an
+        unrelated one sharing the same asset_workshop.json."""
+        import hashlib
+        names = sorted(set(
+            os.path.basename(p) for p in
+            (self.result.img_paths or []) + (self.result.col_paths or []) + (self.result.ide_paths or [])))
+        if not names:
+            return "default"
+        return hashlib.md5(",".join(names).encode()).hexdigest()[:12]
+
+    def _load_excluded_names(self): #vers 1
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'asset_workshop.json'
+            data = json.loads(path.read_text())
+            entry = data.get('excluded_names', {}).get(self._exclusions_key())
+            return set(entry.get('names', [])) if entry else set()
+        except Exception:
+            return set()
+
+    def _save_excluded_names(self): #vers 1
+        try:
+            import json
+            from pathlib import Path
+            path = Path.home() / '.config' / 'imgfactory' / 'asset_workshop.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            all_excl = data.setdefault('excluded_names', {})
+            key = self._exclusions_key()
+            if self.excluded_names:
+                names = sorted(set(
+                    os.path.basename(p) for p in
+                    (self.result.img_paths or []) + (self.result.col_paths or []) + (self.result.ide_paths or [])))
+                all_excl[key] = {'names': sorted(self.excluded_names), 'files': names}
+            else:
+                all_excl.pop(key, None)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
+
+    def _get_selected_checker_names(self): #vers 1
+        """Every real name currently selected across the checker's
+        own list/table views - id_list resolves via ide_list's own
+        same-index pairing (both built from the same sorted_ide_names
+        loop); xref_table resolves via self.result.all_names since
+        its own "IDE Model Name" column is blank for anything not
+        declared in IDE."""
+        names = set()
+        for lst in (getattr(self, 'ide_list', None), getattr(self, 'img_list', None),
+                    getattr(self, 'col_list', None)):
+            if lst is None:
+                continue
+            for item in lst.selectedItems():
+                text = item.text().strip()
+                if text:
+                    names.add(text.lower())
+        id_list = getattr(self, 'id_list', None)
+        ide_list = getattr(self, 'ide_list', None)
+        if id_list is not None and ide_list is not None:
+            for item in id_list.selectedItems():
+                row = id_list.row(item)
+                paired = ide_list.item(row)
+                if paired and paired.text().strip():
+                    names.add(paired.text().strip().lower())
+        merged_table = getattr(self, 'merged_table', None)
+        if merged_table is not None:
+            for idx in merged_table.selectionModel().selectedRows():
+                item = merged_table.item(idx.row(), 0)
+                if item and item.text().strip():
+                    names.add(item.text().strip().lower())
+        xref_table = getattr(self, 'xref_table', None)
+        if xref_table is not None and self.result:
+            all_names = self.result.all_names
+            for idx in xref_table.selectionModel().selectedRows():
+                row = idx.row()
+                if 0 <= row < len(all_names):
+                    names.add(all_names[row])
+        return names
+
+    def _on_exclude_selected(self): #vers 1
+        """Exclude every real name currently selected in any checker
+        view - it stops showing anywhere and stops being counted as
+        missing/extra, and the exclusion persists across sessions
+        for this same img/col/ide file set."""
+        names = self._get_selected_checker_names()
+        if not names:
+            QMessageBox.information(self, "Exclude Files",
+                "Select one or more entries in the 4-Column, Merged, or "
+                "Cross-Reference view first.")
+            return
+        self.excluded_names |= names
+        self._save_excluded_names()
+        self._reload_result()
+        self._set_status(f"Excluded {len(names)} name(s)")
+
+    def _on_manage_exclusions(self): #vers 1
+        """View/remove currently-excluded names for this file set."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Manage Exclusions")
+        dialog.resize(360, 400)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel(f"{len(self.excluded_names)} name(s) excluded from this check:"))
+        lst = QListWidget()
+        lst.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        lst.addItems(sorted(self.excluded_names))
+        layout.addWidget(lst)
+        btn_row = QHBoxLayout()
+        remove_btn = QPushButton("Remove Selected")
+
+        def _remove_selected(): #vers 1
+            for item in lst.selectedItems():
+                self.excluded_names.discard(item.text())
+                lst.takeItem(lst.row(item))
+            self._save_excluded_names()
+            self._reload_result()
+
+        remove_btn.clicked.connect(_remove_selected)
+        btn_row.addWidget(remove_btn)
+        clear_btn = QPushButton("Clear All")
+
+        def _clear_all(): #vers 1
+            self.excluded_names.clear()
+            lst.clear()
+            self._save_excluded_names()
+            self._reload_result()
+
+        clear_btn.clicked.connect(_clear_all)
+        btn_row.addWidget(clear_btn)
+        btn_row.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+        dialog.exec()
+
 
 # - Panel Creation
 
@@ -1277,8 +1490,11 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 # - Settings Reusable
 
-    def _show_workshop_settings(self): #vers 5
-        """Show complete workshop settings dialog"""
+    def _show_workshop_settings(self): #vers 6
+        """Show workshop settings dialog - Fonts/Display/Preview only,
+        Export and Performance tabs removed (values were never read
+        anywhere, and Texture List Display referenced a table that
+        no longer exists)."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
                                     QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
@@ -1429,125 +1645,25 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         button_group.setLayout(button_layout)
         display_layout.addWidget(button_group)
 
-        # Table display
-        table_group = QGroupBox("Texture List Display")
-        table_layout = QVBoxLayout()
+        # Asset Check
+        asset_check_group = QGroupBox("Asset Check")
+        asset_check_layout = QVBoxLayout()
 
-        show_thumbnails = QCheckBox("Show texture thumbnails")
-        show_thumbnails.setChecked(True)
-        table_layout.addWidget(show_thumbnails)
+        auto_gta3_img_chk = QCheckBox("Automatically search for gta3.img")
+        auto_gta3_img_chk.setChecked(getattr(self, 'auto_find_gta3_img', True))
+        auto_gta3_img_chk.setToolTip(
+            "GTA III/VC's gta3.img is hard-coded into the engine - the "
+            ".dat never declares it. When Load from .dat finds no IMG "
+            "at all, fall back to game_root/models/gta3.img.")
+        asset_check_layout.addWidget(auto_gta3_img_chk)
 
-        show_warnings = QCheckBox("Show warning icons for suspicious textures")
-        show_warnings.setChecked(True)
-        show_warnings.setToolTip("Shows warning icon if normal and alpha appear identical")
-        table_layout.addWidget(show_warnings)
-
-        table_group.setLayout(table_layout)
-        display_layout.addWidget(table_group)
+        asset_check_group.setLayout(asset_check_layout)
+        display_layout.addWidget(asset_check_group)
 
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
 
-        # TAB 3: EXPORT SETTINGS
-
-        export_tab = QWidget()
-        export_layout = QVBoxLayout(export_tab)
-
-        # Default export format
-        export_format_group = QGroupBox("Default Export Format")
-        export_format_layout = QVBoxLayout()
-
-        format_combo = QComboBox()
-        format_combo.addItems(["PNG", "TGA", "BMP", "DDS"])
-        format_combo.setCurrentText(getattr(self, 'default_export_format', 'PNG'))
-        export_format_layout.addWidget(format_combo)
-
-        format_hint = QLabel("PNG recommended for best quality and compatibility")
-        format_hint.setStyleSheet("color: #888; font-style: italic;")
-        export_format_layout.addWidget(format_hint)
-
-        export_format_group.setLayout(export_format_layout)
-        export_layout.addWidget(export_format_group)
-
-        # Export options
-        export_options_group = QGroupBox("Export Options")
-        export_options_layout = QVBoxLayout()
-
-        preserve_alpha = QCheckBox("Preserve alpha channel when exporting")
-        preserve_alpha.setChecked(True)
-        export_options_layout.addWidget(preserve_alpha)
-
-        export_mipmaps = QCheckBox("Export mipmaps as separate files")
-        export_mipmaps.setChecked(False)
-        export_mipmaps.setToolTip("Saves each mipmap level as texture_mip0.png, texture_mip1.png, etc.")
-        export_options_layout.addWidget(export_mipmaps)
-
-        auto_folder = QCheckBox("Auto-create subfolders by texture name")
-        auto_folder.setChecked(False)
-        export_options_layout.addWidget(auto_folder)
-
-        export_options_group.setLayout(export_options_layout)
-        export_layout.addWidget(export_options_group)
-
-        # Target game/platform
-        target_group = QGroupBox("🎮 Export Target")
-        target_layout = QFormLayout()
-
-        game_combo = QComboBox()
-        game_combo.addItems(["Auto Detect", "GTA III", "GTA Vice City", "GTA San Andreas", "Manhunt"])
-        target_layout.addRow("Target Game:", game_combo)
-
-        platform_combo = QComboBox()
-        platform_combo.addItems(["PC", "Xbox", "PS2", "Android", "Multi-platform"])
-        target_layout.addRow("Target Platform:", platform_combo)
-
-        target_group.setLayout(target_layout)
-        export_layout.addWidget(target_group)
-
-        export_layout.addStretch()
-        tabs.addTab(export_tab, "Export")
-
-        # TAB 4: PERFORMANCE
-
-        perf_tab = QWidget()
-        perf_layout = QVBoxLayout(perf_tab)
-
-        perf_group = QGroupBox("Performance Settings")
-        perf_form = QFormLayout()
-
-        preview_quality = QComboBox()
-        preview_quality.addItems(["Low (Fast)", "Medium", "High (Slow)"])
-        preview_quality.setCurrentIndex(1)
-        perf_form.addRow("Preview Quality:", preview_quality)
-
-        thumb_size = QSpinBox()
-        thumb_size.setRange(32, 128)
-        thumb_size.setValue(64)
-        thumb_size.setSuffix(" px")
-        perf_form.addRow("Thumbnail Size:", thumb_size)
-
-        perf_group.setLayout(perf_form)
-        perf_layout.addWidget(perf_group)
-
-        # Caching
-        cache_group = QGroupBox("Caching")
-        cache_layout = QVBoxLayout()
-
-        enable_cache = QCheckBox("Enable texture preview caching")
-        enable_cache.setChecked(True)
-        cache_layout.addWidget(enable_cache)
-
-        cache_hint = QLabel("Caching improves performance but uses more memory")
-        cache_hint.setStyleSheet("color: #888; font-style: italic;")
-        cache_layout.addWidget(cache_hint)
-
-        cache_group.setLayout(cache_layout)
-        perf_layout.addWidget(cache_group)
-
-        perf_layout.addStretch()
-        tabs.addTab(perf_tab, "Performance")
-
-        # TAB 5: PREVIEW SETTINGS (LAST TAB)
+        # TAB 3: PREVIEW SETTINGS (LAST TAB)
 
         preview_tab = QWidget()
         preview_layout = QVBoxLayout(preview_tab)
@@ -1704,8 +1820,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             mode_map = {0: 'both', 1: 'icons', 2: 'text'}
             self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
 
-            # EXPORT
-            self.default_export_format = format_combo.currentText()
+            # ASSET CHECK
+            self.auto_find_gta3_img = auto_gta3_img_chk.isChecked()
 
             # PREVIEW
             self.zoom_level = zoom_spin.value() / 100.0
@@ -2743,29 +2859,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.open_img_btn.clicked.connect(self.open_img_archive)
             layout.addWidget(self.open_img_btn)
 
-        self.open_txd_btn = QPushButton("Open")
-        self.open_txd_btn.setFont(self.button_font)
-        self.open_txd_btn.setIcon(self._create_file_icon())
-        self.open_txd_btn.setIconSize(QSize(20, 20))
-        self.open_txd_btn.clicked.connect(self.open_txd_file)
-        layout.addWidget(self.open_txd_btn)
-
-        self.save_txd_btn = QPushButton("Save")
-        self.save_txd_btn.setFont(self.button_font)
-        self.save_txd_btn.setIcon(self._create_save_icon())
-        self.save_txd_btn.setIconSize(QSize(20, 20))
-        self.save_txd_btn.clicked.connect(self.save_txd_file)
-        self.save_txd_btn.setEnabled(False)
-        layout.addWidget(self.save_txd_btn)
-
-        self.export_all_btn = QPushButton("Extract")
-        self.export_all_btn.setFont(self.button_font)
-        self.export_all_btn.setIcon(self._create_package_icon())
-        self.export_all_btn.setIconSize(QSize(20, 20))
-        self.export_all_btn.clicked.connect(self.export_all_textures)
-        self.export_all_btn.setEnabled(False)
-        layout.addWidget(self.export_all_btn)
-
         self.undo_btn = QPushButton()
         self.undo_btn.setFont(self.button_font)
         self.undo_btn.setIcon(self._create_undo_icon())
@@ -2863,8 +2956,15 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return None
 
         #Been disabled as this is no longer needed in Asset_Browser
-    def _create_middle_panel(self): #vers 5
-        """Create middle panel - Texture list with mini toolbar shown in docked mode."""
+    def _create_middle_panel(self): #vers 6
+        """Create middle panel - just the texture list. The old mini
+        toolbar (Open/Save/Extract/Undo) was dropped (Sep 17 2026) -
+        those are all still reachable via the Tools menu and their
+        existing keyboard shortcuts (Ctrl+O/S/E), so a second set of
+        buttons here was redundant. This panel's real job is giving
+        the user something to click to set self.selected_texture -
+        without it, load/replace/save/preview all silently do
+        nothing useful (see the disabled call site's own history)."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(250)
@@ -2878,56 +2978,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         layout.addWidget(self._textures_header)
 
-        #    Mini toolbar: 4 icon buttons — only shown when docked          
-        # (toolbar has these too; in docked mode the toolbar is hidden)
-        icon_color = self._get_icon_color()
-        self._middle_btn_row = QFrame()
-        btn_layout = QHBoxLayout(self._middle_btn_row)
-        btn_layout.setContentsMargins(0, 0, 0, 0)
-        btn_layout.setSpacing(3)
-
-        self.open_txd_btn = QPushButton("Open")
-        self.open_txd_btn.setFont(self.button_font)
-        self.open_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-        self.open_txd_btn.setIconSize(QSize(20, 20))
-        self.open_txd_btn.setToolTip("Open TXD file (Ctrl+O)")
-        self.open_txd_btn.clicked.connect(self.open_txd_file)
-        btn_layout.addWidget(self.open_txd_btn)
-
-        self.save_txd_btn = QPushButton("Save")
-        self.save_txd_btn.setFont(self.button_font)
-        self.save_txd_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
-        self.save_txd_btn.setIconSize(QSize(20, 20))
-        self.save_txd_btn.setToolTip("Save TXD file (Ctrl+S)")
-        self.save_txd_btn.clicked.connect(self.save_txd_file)
-        self.save_txd_btn.setEnabled(False)
-        btn_layout.addWidget(self.save_txd_btn)
-
-        self.export_all_btn = QPushButton("Extract")
-        self.export_all_btn.setFont(self.button_font)
-        self.export_all_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
-        self.export_all_btn.setIconSize(QSize(20, 20))
-        self.export_all_btn.setToolTip("Export all textures")
-        self.export_all_btn.clicked.connect(self.export_all_textures)
-        self.export_all_btn.setEnabled(False)
-        btn_layout.addWidget(self.export_all_btn)
-
-        self.undo_btn = QPushButton()
-        self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
-        self.undo_btn.setIconSize(QSize(20, 20))
-        self.undo_btn.setToolTip("Undo last change")
-        self.undo_btn.clicked.connect(self._undo_last_action)
-        self.undo_btn.setEnabled(False)
-        btn_layout.addWidget(self.undo_btn)
-
-        btn_layout.addStretch()
-        layout.addWidget(self._middle_btn_row)
-
-        # Only show mini toolbar when docked (standalone toolbar already has these)
-        self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
-
-        #    Texture table                                                  
+        #    Texture table
         self.texture_table = QTableWidget()
         self.texture_table.setColumnCount(2)
         self.texture_table.setHorizontalHeaderLabels(["Preview", "Details"])
@@ -3064,8 +3115,15 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         #    Ribbon 0: Asset Check
         tb_asset = _tb("Asset Check")
+        _act(tb_asset, "Load from .dat...", self.icon_factory.folder_icon,
+             self._on_load_from_dat)
         _act(tb_asset, "Master IDE...", self.icon_factory.master_ide_icon,
              self._on_master_ide_ribbon, enabled=False, attr='master_ide_ribbon_btn')
+        tb_asset.addSeparator()
+        _act(tb_asset, "Exclude Selected", self.icon_factory.exclude_icon,
+             self._on_exclude_selected)
+        _act(tb_asset, "Manage Exclusions...", self.icon_factory.list_icon,
+             self._on_manage_exclusions)
 
         #    Ribbon 1: Transform
         tb_xform = _tb("Transform")
@@ -4578,8 +4636,10 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
     def _enable_txd_features_after_load(self): #vers 2
         """Enable TXD features after successful texture load."""
         if self.texture_list:
-            self.save_txd_btn.setEnabled(True)
-            self.export_all_btn.setEnabled(True)
+            if hasattr(self, 'save_txd_btn'):
+                self.save_txd_btn.setEnabled(True)
+            if hasattr(self, 'export_all_btn'):
+                self.export_all_btn.setEnabled(True)
             if hasattr(self, 'import_btn'):
                 self.import_btn.setEnabled(True)
             if hasattr(self, 'new_texture_btn'):
@@ -6324,6 +6384,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             }
 
             # Add to texture list
+            self._save_undo_state("Create texture")
             self.texture_list.append(new_texture)
             self._add_texture_to_table(new_texture)
 
@@ -6354,7 +6415,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.texture_table.setRowCount(0)
 
             self.setWindowTitle(App_name + ": {name}")
-            self.save_txd_btn.setEnabled(True)
+            if hasattr(self, 'save_txd_btn'):
+                self.save_txd_btn.setEnabled(True)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f" Created new TXD: {name}")
@@ -6523,6 +6585,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return
 
         # Process deletion
+        self._save_undo_state("Delete texture")
         try:
             if delete_all_radio.isChecked():
                 # Delete entire texture
@@ -6627,10 +6690,11 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Delete Error", f"Failed to delete: {str(e)}")
 
 
-    def _mark_as_modified(self): #vers 1
+    def _mark_as_modified(self): #vers 2
         """Mark the TXD as modified and enable save button"""
-        self.save_txd_btn.setEnabled(True)
-        self.save_txd_btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;")
+        if hasattr(self, 'save_txd_btn'):
+            self.save_txd_btn.setEnabled(True)
+            self.save_txd_btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;")
         current_title = self.windowTitle()
         if not current_title.endswith("*"):
             self.setWindowTitle(current_title + "*")
@@ -6765,10 +6829,10 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.main_window.log_message(traceback.format_exc())
 
 
-    def _reload_texture_table(self): #vers 4
+    def _reload_texture_table(self): #vers 5
         """Reload texture table — preserves row selection after reload."""
         # Remember which texture was selected by object identity
-        selected_name = (self.selected_texture.get('name') 
+        selected_name = (self.selected_texture.get('name')
                          if self.selected_texture else None)
         self.texture_table.setRowCount(0)
         for tex in self.texture_list:
@@ -6779,6 +6843,17 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 if tex.get('name') == selected_name:
                     self.texture_table.selectRow(row)
                     break
+        self._update_texture_panel_visibility()
+
+    def _update_texture_panel_visibility(self): #vers 1
+        """Show the texture list panel only while a TXD is actually
+        loaded (Sep 17 2026, per Keith: "any reason for it, maybe
+        hide it when not in use") - Asset Workshop's real job is the
+        checker + Master IDE, texture editing is secondary, so this
+        panel should stay out of the way until there's something in
+        it."""
+        if hasattr(self, '_middle_panel'):
+            self._middle_panel.setVisible(bool(self.texture_list))
 
 
     def _save_undo_state(self, action_name): #vers 2
@@ -6846,6 +6921,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Limit undo stack to 10 items
         if len(self.undo_stack) > 10:
             self.undo_stack.pop(0)
+
+        if hasattr(self, 'undo_btn'):
+            self.undo_btn.setEnabled(True)
 
 
     def _undo_last_action(self): #vers 2
@@ -7036,18 +7114,21 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load IMG: {str(e)}")
 
-    def _show_txd_info(self): #vers 4
-        """Show Workshop information dialog - About and capabilities"""
+    def _show_txd_info(self): #vers 5
+        """Show Workshop information dialog - About and capabilities.
+        Rewritten to describe what Asset Workshop actually does now
+        (Asset Checker + Master IDE), not the old full TXD editor
+        feature set most of which has since been removed."""
         dialog = QDialog(self)
         dialog.setWindowTitle("About " + App_name)
-        dialog.setMinimumWidth(600)
-        dialog.setMinimumHeight(500)
+        dialog.setMinimumWidth(500)
+        dialog.setMinimumHeight(400)
 
         layout = QVBoxLayout(dialog)
         layout.setSpacing(15)
 
         # Header
-        header = QLabel(App_name - {App_name})
+        header = QLabel(App_name)
         header.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
@@ -7057,99 +7138,26 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         author_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(author_label)
 
-        # Version info
-        version_label = QLabel("Version: 1.5 - October 2025")
-        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(version_label)
-
         layout.addWidget(QLabel(""))  # Spacer
 
         # Capabilities section
         capabilities = QTextEdit()
         capabilities.setReadOnly(True)
-        capabilities.setMaximumHeight(350)
+        capabilities.setMaximumHeight(280)
 
-        info_text = App_name + """ Capabilities:</b><br><br>
+        info_text = """<b>✓ Asset Checker:</b><br>
+- 4-Column view (ID / IDE / IMG / COL)<br>
+- Merged view and Cross-Reference table<br>
+- Export full report of missing/extra entries<br>
+- Add missing files externally (DFF/COL)<br><br>
 
-<b>✓ File Operations:</b><br>
-- Open TXD files (standalone or from IMG archives)<br>
-- Save TXD files back to IMG or as standalone<br>
-- Create new TXD files from scratch<br>
-- Multi-TXD management from IMG archives<br><br>
+<b>✓ Master IDE:</b><br>
+- Opens from the View dropdown or ribbon<br>
+- Merge, insert, add/remove IDs, reassign ID blocks<br><br>
 
-<b>✓ Texture Viewing & Editing:</b><br>
-- View all textures with thumbnails<br>
-- Preview textures with zoom and pan controls<br>
-- Flip textures (horizontal/vertical)<br>
-- Rotate textures (90°, 180°, 270°)<br>
-- Resize textures with interpolation<br>
-- Rename textures and alpha channels<br>
-- View texture properties (size, format, compression)<br><br>
-
-<b>✓ Texture Management:</b><br>
-- Import textures (PNG, JPG, BMP, TGA, DDS)<br>
-- Import 8-bit indexed formats (PCX, GIF, IFF/Amiga)<br>
-- Export single or multiple textures<br>
-- Duplicate textures<br>
-- Delete textures<br>
-- Undo/Redo operations<br><br>
-
-<b>✓ Format Support:</b><br>
-- DXT1/DXT3/DXT5 compression<br>
-- Uncompressed ARGB8888, RGB888<br>
-- 16-bit and 32-bit formats<br>
-- Palette-based textures<br>
-- Platform-specific formats (PC, Xbox, PS2)<br><br>
-
-<b>✓ Advanced Features:</b><br>
-- Mipmap generation and editing<br>
-- Bumpmap support (generate from height/normal maps)<br>
-- Alpha channel extraction and editing<br>
-- Batch export operations<br>
-- Texture filtering and search<br>
-- External editor integration<br>
-- AI upscaling support (if configured)<br><br>
-
-<b>✓ Platform Detection:</b><br>
-- Automatic RenderWare version detection<br>
-- Platform identification (PC, Xbox, PS2, Android)<br>
-- Game detection (GTA III, VC, SA, Manhunt)<br>
-- Format capability validation<br><br>
-
-<b>✓ Import Format Support:</b><br>"""
-
-        # Add format support dynamically
-        formats_available = []
-
-        # Standard formats (always via PIL)
-        formats_available.append("- PNG, JPG, JPEG (all variants)")
-        formats_available.append("- BMP (8/16/24/32-bit)")
-        formats_available.append("- TGA/Targa (all variants)")
-        formats_available.append("- DDS (DirectDraw Surface)")
-
-        # Check indexed format support
-        try:
-            if self.iff_import_enabled:
-                formats_available.append("- IFF/ILBM (Amiga 8-bit)")
-        except:
-            pass
-
-        # Always available via indexed_color_import
-        formats_available.append("- PCX (ZSoft Paintbrush)")
-        formats_available.append("- GIF (with transparency)")
-        formats_available.append("- PNG (8-bit indexed mode)")
-
-        info_text += "<br>".join(formats_available)
-        info_text += "<br><br>"
-
-        # Settings info
-        info_text += """<b>✓ Customization:</b><br>
-- Configurable dimension limiting<br>
-- Adjustable texture name length (8-64 chars)<br>
-- Splash screen dimension support<br>
-- Button display modes (Icons/Text/Both)<br>
-- Font customization<br>
-- Preview zoom and pan offsets<br><br>
+<b>✓ Texture (via Tools menu):</b><br>
+- Import / Export / Rename / Duplicate / Delete<br>
+- Undo last change<br><br>
 
 <b>Keyboard Shortcuts:</b><br>
 - Ctrl+O: Open TXD<br>
@@ -7621,6 +7629,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             for row in range(self.texture_table.rowCount()):
                 self.texture_table.setRowHeight(row, 100)
             self.texture_table.setColumnWidth(0, 80)
+            self._update_texture_panel_visibility()
 
             # === COMPLETE ===
             log("")
@@ -9105,8 +9114,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 f"TXD saved successfully!\n\n{file_path}")
 
             # Clear modified state
-            self.save_txd_btn.setEnabled(False)
-            self.save_txd_btn.setStyleSheet("")
+            if hasattr(self, 'save_txd_btn'):
+                self.save_txd_btn.setEnabled(False)
+                self.save_txd_btn.setStyleSheet("")
             title = self.windowTitle().replace("*", "")
             self.setWindowTitle(title)
 
@@ -9497,8 +9507,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.current_txd_name = os.path.basename(file_path)
 
             # Clear modified flag
-            self.save_txd_btn.setEnabled(False)
-            self.save_txd_btn.setStyleSheet("")
+            if hasattr(self, 'save_txd_btn'):
+                self.save_txd_btn.setEnabled(False)
+                self.save_txd_btn.setStyleSheet("")
             title = self.windowTitle().replace("*", "")
             self.setWindowTitle(title)
 
@@ -9756,8 +9767,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                     )
 
                 # Clear modified state
-                self.save_txd_btn.setEnabled(False)
-                self.save_txd_btn.setStyleSheet("")
+                if hasattr(self, 'save_txd_btn'):
+                    self.save_txd_btn.setEnabled(False)
+                    self.save_txd_btn.setStyleSheet("")
                 title = self.windowTitle().replace("*", "")
                 self.setWindowTitle(title)
 
@@ -9868,8 +9880,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 )
 
             # Clear modified state
-            self.save_txd_btn.setEnabled(False)
-            self.save_txd_btn.setStyleSheet("")
+            if hasattr(self, 'save_txd_btn'):
+                self.save_txd_btn.setEnabled(False)
+                self.save_txd_btn.setStyleSheet("")
             title = self.windowTitle().replace("*", "")
             self.setWindowTitle(title)
 
@@ -10104,8 +10117,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                     f"Remember to save the IMG file to write changes to disk!")
 
                 # Clear modified state
-                self.save_txd_btn.setEnabled(False)
-                self.save_txd_btn.setStyleSheet("")
+                if hasattr(self, 'save_txd_btn'):
+                    self.save_txd_btn.setEnabled(False)
+                    self.save_txd_btn.setStyleSheet("")
                 title = self.windowTitle().replace("*", "")
                 self.setWindowTitle(title)
 
@@ -11958,6 +11972,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             alpha_name = self.selected_texture.get('alpha_name', current_name + 'a')
             new_name, ok = QInputDialog.getText(self, "Rename Alpha", "Enter alpha name:", text=alpha_name)
             if ok and new_name and new_name != alpha_name:
+                self._save_undo_state("Rename alpha")
                 self.selected_texture['alpha_name'] = new_name
                 if hasattr(self, 'info_alpha_name'):
                     self.info_alpha_name.setText(f"Alpha: {new_name}")
@@ -11968,6 +11983,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             new_name, ok = QInputDialog.getText(self, "Rename Texture", "Enter texture name:", text=current_name)
             if ok and new_name and new_name != current_name:
+                self._save_undo_state("Rename texture")
                 self.selected_texture['name'] = new_name
                 if hasattr(self, 'info_name'):
                     self.info_name.setText(f"Name: {new_name}")
@@ -12644,6 +12660,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         if hasattr(self, 'texture_table') and self.texture_list:
             self.texture_table.selectRow(0)
+        self._update_texture_panel_visibility()
 
         self._log(f"Mobile DB: {db.name}.{db.platform} — {len(real_textures)} textures loaded")
 
@@ -12715,6 +12732,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             # Select first texture
             if hasattr(self, 'texture_table') and self.texture_list:
                 self.texture_table.selectRow(0)
+            self._update_texture_panel_visibility()
 
             dev = textures[0].get('device_id', 0) if textures else 0
             game_hint = 'SA' if dev == 6 else 'LC/VC'
@@ -13383,6 +13401,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 new_texture['fresnel_map'] = self.selected_texture['fresnel_map']
 
             # Add to texture list
+            self._save_undo_state("Duplicate texture")
             self.texture_list.append(new_texture)
 
             # Reload table

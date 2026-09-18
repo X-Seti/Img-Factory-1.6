@@ -224,7 +224,8 @@ def collect_ipl_paths_from_dat(dat_path: str, game_root: str = None, game: str =
     return paths
 
 
-def collect_img_paths_from_dat(dat_path: str, game_root: str = None, game: str = None): #vers 1
+def collect_img_paths_from_dat(dat_path: str, game_root: str = None, game: str = None,
+                                auto_find_gta3_img: bool = True): #vers 2
     """Resolve every real IMG archive a game's .dat actually loads
     (Sep 12 2026, real correction of a real wrong assumption: "the
     main archive is always named gta3.img" - a real gta_sol.dat
@@ -236,7 +237,14 @@ def collect_img_paths_from_dat(dat_path: str, game_root: str = None, game: str =
     everything for SOL specifically). CDIMAGE and IMG are the same
     real directive (dat.img_entries() already combines both). Same
     real 2-phase load every other collect_*_paths_from_dat function
-    here uses. Returns img_paths."""
+    here uses. Returns img_paths.
+
+    GTA III/VC's own gta3.img is hard-coded into the engine itself -
+    nothing in default.dat/gta3.dat/gta_vc.dat ever declares it via
+    an IMG/CDIMAGE directive, so it never shows up above. When
+    nothing was found at all, fall back to game_root/models/gta3.img
+    if auto_find_gta3_img is True (default; Asset Workshop exposes
+    this as a settings toggle)."""
     from apps.methods.gta_dat_parser import (
         detect_game_from_dat_filename, GTAWorldLoader, GTAGame)
 
@@ -255,6 +263,12 @@ def collect_img_paths_from_dat(dat_path: str, game_root: str = None, game: str =
             if entry.exists and entry.abs_path not in seen:
                 seen.add(entry.abs_path)
                 paths.append(entry.abs_path)
+
+    if not paths and auto_find_gta3_img:
+        fallback = os.path.join(game_root, "models", "gta3.img")
+        if os.path.isfile(fallback):
+            paths.append(fallback)
+
     return paths
 
 

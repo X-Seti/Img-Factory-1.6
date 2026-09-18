@@ -567,44 +567,64 @@ class SVGIconFactory: #vers 8
 
 
     @staticmethod
-    def add_id_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """+ID icon - add a Master IDE model ID"""
+    def add_id_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """+ID icon - add a Master IDE model ID. Stacked two-line
+        layout (bigger + on top, ID below) so it stays legible at
+        small toolbar sizes."""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <text x="12" y="16" font-family="Arial,sans-serif" font-size="9.5" font-weight="bold"
-                  fill="currentColor" text-anchor="middle">+ID</text>
+            <text x="12" y="13" font-family="Arial,sans-serif" font-size="14" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">+</text>
+            <text x="12" y="22" font-family="Arial,sans-serif" font-size="10" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">ID</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
 
     @staticmethod
-    def remove_id_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """-ID icon - remove/delete a Master IDE model ID"""
+    def remove_id_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """-ID icon - remove/delete a Master IDE model ID. Stacked
+        two-line layout matching add_id_icon."""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <text x="12" y="16" font-family="Arial,sans-serif" font-size="9.5" font-weight="bold"
-                  fill="currentColor" text-anchor="middle">-ID</text>
+            <text x="12" y="13" font-family="Arial,sans-serif" font-size="14" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">-</text>
+            <text x="12" y="22" font-family="Arial,sans-serif" font-size="10" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">ID</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
 
     @staticmethod
-    def txd_dedup_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """TXD duplicate-check icon - lowercase 'txd' over a green checkmark"""
+    def txd_dedup_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """TXD duplicate-check icon - lowercase 'txd' over a green
+        checkmark, both enlarged for visibility at toolbar size."""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path fill="#2ecc71" opacity="0.4"
+            <path fill="#2ecc71" opacity="0.55"
                 d="M9,16.2L4.8,12l-1.4,1.4L9,19L21,7l-1.4-1.4L9,16.2z"/>
-            <text x="12" y="15" font-family="Arial,sans-serif" font-size="8" font-weight="bold"
+            <text x="12" y="15" font-family="Arial,sans-serif" font-size="10" font-weight="bold"
                   fill="currentColor" text-anchor="middle">txd</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
 
     @staticmethod
-    def id_utilities_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """ID Utilities icon - 'ID' text with a small spanner badge"""
+    def exclude_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Exclude/hide icon - eye with a slash through it, standard
+        Material Design "visibility_off" glyph."""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <text x="9" y="15" font-family="Arial,sans-serif" font-size="10.5" font-weight="bold"
+            <path fill="currentColor"
+                d="M12,7c2.76,0 5,2.24 5,5c0,0.65 -0.13,1.26 -0.36,1.83l2.92,2.92c1.51,-1.26 2.7,-2.89 3.43,-4.75 -1.73,-4.39 -6,-7.5 -11,-7.5 -1.4,0 -2.74,0.25 -3.98,0.7l2.16,2.16C10.74,7.13 11.35,7 12,7zM2,4.27l2.28,2.28l0.46,0.46C3.08,8.3 1.78,10.02 1,12c1.73,4.39 6,7.5 11,7.5c1.55,0 3.03,-0.3 4.38,-0.84l0.42,0.42L19.73,22L21,20.73L3.27,3L2,4.27zM7.53,9.8l1.55,1.55c-0.05,0.21 -0.08,0.43 -0.08,0.65c0,1.66 1.34,3 3,3c0.22,0 0.44,-0.03 0.65,-0.08l1.55,1.55c-0.67,0.33 -1.41,0.53 -2.2,0.53c-2.76,0 -5,-2.24 -5,-5c0,-0.79 0.2,-1.53 0.53,-2.2zM11.84,9.02l3.15,3.15l0.02,-0.17c0,-1.66 -1.34,-3 -3,-3l-0.17,0.02z"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+    @staticmethod
+    def id_utilities_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """ID Utilities icon - 'ID' text over a larger spanner,
+        stacked two-line layout instead of a tiny corner badge."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="12" y="11" font-family="Arial,sans-serif" font-size="12" font-weight="bold"
                   fill="currentColor" text-anchor="middle">ID</text>
-            <g transform="translate(12.5,12.5) scale(0.42)">
+            <g transform="translate(6,12) scale(0.5)">
                 <path fill="currentColor"
                     d="M22.7,19l-9.1,-9.1c0.9,-2.3 0.4,-5 -1.5,-6.9c-2,-2 -5,-2.4 -7.4,-1.3L9,6l-3,3L1.6,4.7C0.4,7.1 0.9,10.1 2.9,12.1c1.9,1.9 4.6,2.4 6.9,1.5l9.1,9.1C19.1,22.9 19.6,23 20,23s0.9,-0.1 1.2,-0.5l1.2,-1.2C23,20.8 23,19.7 22.7,19z"/>
             </g>
@@ -5453,94 +5473,101 @@ def get_water_workshop_icon(size: int = 24, color: str = None, bg_color: str = N
     p.end()
     return QIcon(px)
 
-    @staticmethod
-    def list_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """List view — three horizontal lines."""
-        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <line x1="3" y1="6"  x2="21" y2="6"  stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>''', size, color)
 
-    @staticmethod
-    def grid_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """Grid/thumbnail view — 2x2 squares."""
-        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3"  y="3"  width="8" height="8" rx="1"
-                  stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
-            <rect x="13" y="3"  width="8" height="8" rx="1"
-                  stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
-            <rect x="3"  y="13" width="8" height="8" rx="1"
-                  stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
-            <rect x="13" y="13" width="8" height="8" rx="1"
-                  stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
-        </svg>''', size, color)
+def list_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    """List view — three horizontal lines."""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <line x1="3" y1="6"  x2="21" y2="6"  stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>''', size, color)
 
-    @staticmethod
-    def model_workshop_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """Model Workshop — isometric cube wireframe with vertex dots."""
-        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <polyline points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5 12,3"
-                      stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
-            <line x1="12" y1="3"   x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
-            <line x1="4"  y1="7.5" x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
-            <line x1="20" y1="7.5" x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
-            <circle cx="12" cy="3"    r="1.5" fill="currentColor"/>
-            <circle cx="20" cy="7.5"  r="1.5" fill="currentColor"/>
-            <circle cx="20" cy="16.5" r="1.5" fill="currentColor"/>
-            <circle cx="12" cy="21"   r="1.5" fill="currentColor"/>
-            <circle cx="4"  cy="16.5" r="1.5" fill="currentColor"/>
-            <circle cx="4"  cy="7.5"  r="1.5" fill="currentColor"/>
-            <circle cx="12" cy="12"   r="1.5" fill="currentColor"/>
-        </svg>''', size, color)
 
-    @staticmethod
-    def light_preset_top_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """Light preset: top-down sun with downward ray."""
-        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="7" r="3" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
-            <line x1="12" y1="1.5" x2="12" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <line x1="17.5" y1="3.5" x2="16" y2="5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            <line x1="6.5"  y1="3.5" x2="8"  y2="5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            <line x1="3" y1="19" x2="21" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="12" y1="10" x2="12" y2="19" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2,1.5"/>
-        </svg>''', size, color)
+def grid_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    """Grid/thumbnail view — 2x2 squares."""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3"  y="3"  width="8" height="8" rx="1"
+              stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+        <rect x="13" y="3"  width="8" height="8" rx="1"
+              stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+        <rect x="3"  y="13" width="8" height="8" rx="1"
+              stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+        <rect x="13" y="13" width="8" height="8" rx="1"
+              stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+    </svg>''', size, color)
 
-    @staticmethod
-    def light_preset_gta_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """Light preset: 45-degree GTA default angle."""
-        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.6" fill="currentColor" fill-opacity="0.2"/>
-            <line x1="5"   y1="1"   x2="5"   y2="2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="1.5" y1="2"   x2="2.8" y2="3.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            <line x1="8.5" y1="2"   x2="7.2" y2="3.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            <line x1="7"   y1="7"   x2="21"  y2="21"  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="3,2"/>
-        </svg>''', size, color)
 
-    @staticmethod
-    def light_preset_side_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """Light preset: side (east) angle."""
-        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="20" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
-            <line x1="21" y1="7"  x2="18.5" y2="7"  stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            <line x1="21" y1="17" x2="18.5" y2="17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            <line x1="17" y1="12" x2="3"    y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="3,2"/>
-        </svg>''', size, color)
+def model_workshop_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    """Model Workshop — isometric cube wireframe with vertex dots."""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <polyline points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5 12,3"
+                  stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
+        <line x1="12" y1="3"   x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
+        <line x1="4"  y1="7.5" x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
+        <line x1="20" y1="7.5" x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
+        <circle cx="12" cy="3"    r="1.5" fill="currentColor"/>
+        <circle cx="20" cy="7.5"  r="1.5" fill="currentColor"/>
+        <circle cx="20" cy="16.5" r="1.5" fill="currentColor"/>
+        <circle cx="12" cy="21"   r="1.5" fill="currentColor"/>
+        <circle cx="4"  cy="16.5" r="1.5" fill="currentColor"/>
+        <circle cx="4"  cy="7.5"  r="1.5" fill="currentColor"/>
+        <circle cx="12" cy="12"   r="1.5" fill="currentColor"/>
+    </svg>''', size, color)
 
-    @staticmethod
-    def light_preset_sunset_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """Light preset: low-angle sunset."""
-        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <line x1="3" y1="16" x2="21" y2="16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M5.5 16 A6.5 6.5 0 0 1 18.5 16" stroke="currentColor" stroke-width="1.8" fill="none"/>
-            <line x1="12"  y1="8.5"  x2="12"  y2="7"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="7"   y1="11"   x2="5.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-            <line x1="17"  y1="11"   x2="18.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-        </svg>''', size, color)
+
+def light_preset_top_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    """Light preset: top-down sun with downward ray."""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="7" r="3" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+        <line x1="12" y1="1.5" x2="12" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="17.5" y1="3.5" x2="16" y2="5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="6.5"  y1="3.5" x2="8"  y2="5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="3" y1="19" x2="21" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="12" y1="10" x2="12" y2="19" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2,1.5"/>
+    </svg>''', size, color)
+
+
+def light_preset_gta_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    """Light preset: 45-degree GTA default angle."""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.6" fill="currentColor" fill-opacity="0.2"/>
+        <line x1="5"   y1="1"   x2="5"   y2="2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="1.5" y1="2"   x2="2.8" y2="3.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="8.5" y1="2"   x2="7.2" y2="3.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="7"   y1="7"   x2="21"  y2="21"  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="3,2"/>
+    </svg>''', size, color)
+
+
+def light_preset_side_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    """Light preset: side (east) angle."""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+        <line x1="21" y1="7"  x2="18.5" y2="7"  stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="21" y1="17" x2="18.5" y2="17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="17" y1="12" x2="3"    y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="3,2"/>
+    </svg>''', size, color)
+
+
+def light_preset_sunset_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    """Light preset: low-angle sunset."""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <line x1="3" y1="16" x2="21" y2="16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M5.5 16 A6.5 6.5 0 0 1 18.5 16" stroke="currentColor" stroke-width="1.8" fill="none"/>
+        <line x1="12"  y1="8.5"  x2="12"  y2="7"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="7"   y1="11"   x2="5.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="17"  y1="11"   x2="18.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>''', size, color)
 
 
 
 # Attach as static methods on SVGIconFactory
+SVGIconFactory.list_icon              = staticmethod(list_icon)
+SVGIconFactory.grid_icon              = staticmethod(grid_icon)
+SVGIconFactory.model_workshop_icon    = staticmethod(model_workshop_icon)
+SVGIconFactory.light_preset_top_icon    = staticmethod(light_preset_top_icon)
+SVGIconFactory.light_preset_gta_icon    = staticmethod(light_preset_gta_icon)
+SVGIconFactory.light_preset_side_icon   = staticmethod(light_preset_side_icon)
+SVGIconFactory.light_preset_sunset_icon = staticmethod(light_preset_sunset_icon)
 SVGIconFactory.radar_workshop_icon    = staticmethod(get_radar_workshop_icon)
 SVGIconFactory.water_workshop_icon    = staticmethod(get_water_workshop_icon)
 SVGIconFactory.timecyc_workshop_icon  = staticmethod(get_timecyc_workshop_icon)

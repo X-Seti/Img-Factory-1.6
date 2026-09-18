@@ -21,15 +21,18 @@ from PyQt6.QtWidgets import (
 from apps.methods.id_reassign import plan_id_shift, apply_id_shift_and_write, cascade_ipl_files
 
 
-class IDShiftDialog(QDialog): #vers 4
-    def __init__(self, parent, result, game=None): #vers 2
+class IDShiftDialog(QDialog): #vers 5
+    def __init__(self, parent, result, game=None, dat_path=None): #vers 3
         super().__init__(parent)
         self.result = result
         self.game = game
+        self.dat_path = dat_path
         self.plan = None
         self.setWindowTitle("Move / Reassign ID Block")
         self.resize(560, 520)
         self._build_ui()
+        if self.dat_path:
+            self._auto_populate_ipl_list()
 
     def _build_ui(self): #vers 3
         lay = QVBoxLayout(self)
@@ -134,6 +137,19 @@ class IDShiftDialog(QDialog): #vers 4
                 "No real objs/tobj entries are currently loaded.")
             return
         self.end_spin.setValue(max(all_ids))
+
+    def _auto_populate_ipl_list(self): #vers 1
+        """Pre-fill the IPL list from the loaded game's own .dat
+        (Sep 12 2026 build note said this was the real intent all
+        along - "pre-populate... instead of manual browsing for
+        each one" - never actually wired in until now). Manual Add/
+        Remove still works on top of whatever this finds."""
+        try:
+            from apps.methods.master_ide import collect_ipl_paths_from_dat
+            for p in collect_ipl_paths_from_dat(self.dat_path, game=self.game):
+                self.ipl_list.addItem(p)
+        except Exception:
+            pass
 
     def _on_add_ipl_files(self): #vers 1
         paths, _ = QFileDialog.getOpenFileNames(

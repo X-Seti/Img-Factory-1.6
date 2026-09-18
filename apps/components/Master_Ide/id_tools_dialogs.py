@@ -26,16 +26,36 @@ from apps.methods.id_reassign import (
     plan_compact_all_gaps, apply_id_shift_and_write, plan_swap_ids, find_usages,
     plan_prefix_suffix_rename, apply_prefix_suffix_rename,
     plan_insert_relocation, apply_insert_relocation,
+    cascade_ipl_files, cascade_ipl_rename, cascade_path_rename,
+    find_ipl_usages, find_path_usages, remove_ipl_lines,
 )
+
+
+def _collect_ipl_paths(dat_path, game): #vers 1
+    """Shared helper - every dialog below needs the same real IPL
+    file list to cascade an ID shift/rename/delete into, derived
+    from the loaded game's own .dat (Sep 17 2026, same auto-
+    derivation id_shift_dialog.py's own dialog already uses).
+    Returns [] (never raises) when dat_path is unknown - IPL
+    cascade is then simply skipped, same as before this existed."""
+    if not dat_path:
+        return []
+    try:
+        from apps.methods.master_ide import collect_ipl_paths_from_dat
+        return collect_ipl_paths_from_dat(dat_path, game=game)
+    except Exception:
+        return []
 
 
 class AddIDDialog(QDialog): #vers 1
     """Reserve N free ID slots right after a given ID (Sep 12 2026,
     per Keith: "Add would create xN of ID's from the selected line...
     shift everything after by 1000+")."""
-    def __init__(self, parent, result): #vers 1
+    def __init__(self, parent, result, game=None, dat_path=None): #vers 2
         super().__init__(parent)
         self.result = result
+        self.game = game
+        self.dat_path = dat_path
         self.plan = None
         self.setWindowTitle("Add ID")
         self.resize(420, 220)
@@ -101,6 +121,8 @@ class AddIDDialog(QDialog): #vers 1
             QMessageBox.warning(self, "Add ID Failed",
                 "Plan had real conflicts, or a write failed - nothing applied.")
             return
+        if self.plan.id_map:
+            cascade_ipl_files(_collect_ipl_paths(self.dat_path, self.game), self.plan.id_map)
         QMessageBox.information(self, "Add ID", f"Reserved {self.count_spin.value()} ID(s). "
                                                   f"File(s) written: {', '.join(touched) or '(none needed)'}")
         self.accept()
@@ -113,9 +135,11 @@ class RemoveDeleteIDDialog(QDialog): #vers 1
     them, it won't delete what isn't free... If the 6th is assigned
     I get a warning, then the reverse happens, until i want to
     remove lines altogether")."""
-    def __init__(self, parent, result): #vers 1
+    def __init__(self, parent, result, game=None, dat_path=None): #vers 2
         super().__init__(parent)
         self.result = result
+        self.game = game
+        self.dat_path = dat_path
         self.scan_plan = None
         self.setWindowTitle("Remove / Delete ID")
         self.resize(480, 320)
@@ -192,23 +216,55 @@ class RemoveDeleteIDDialog(QDialog): #vers 1
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
-        touched = apply_collapse_free_ids(self.result, plan)
-        if touched is None:
+        applied = apply_collapse_free_ids(self.result, plan)
+        if applied is None:
             QMessageBox.warning(self, "Failed", "Plan was not fully free, or a write failed - nothing applied.")
             return
+        touched, id_map = applied
+        if id_map:
+            cascade_ipl_files(_collect_ipl_paths(self.dat_path, self.game), id_map)
         QMessageBox.information(self, "Collapsed", f"File(s) written: {', '.join(touched) or '(none needed)'}")
         self.accept()
 
-    def _on_delete_through(self): #vers 2
+    def _on_delete_through(self): #vers 3
+        """Warns about 2dfx/path/IPL usages before deleting (Sep 17
+        2026, per Keith: "when changing ID's in the IDE, other
+        entries need to be accounted for"), same as the table's own
+        right-click Remove."""
         from apps.methods.id_reassign import plan_delete_and_collapse as _plan_del
         start, count = self.start_spin.value(), self.count_spin.value()
         to_delete = _plan_del(self.result, start, count)
+        deleted_ids = {mid for mid, _name, _src in to_delete}
+
+        dfx_usages = []
+        for mid in deleted_ids:
+            dfx_usages.extend(u for u in find_usages(self.result, model_id=mid) if u['section'] == '2dfx')
+        # to_delete's own source_ide is a basename (IDEParser's own
+        # convention) - find_path_usages needs the real file path.
+        delete_basenames = {os.path.basename(src) for _mid, _name, src in to_delete}
+        source_paths = {p for p in self.result.source_files if os.path.basename(p) in delete_basenames}
+        path_usages = []
+        for mid in deleted_ids:
+            path_usages.extend(find_path_usages(list(source_paths), mid))
+        ipl_paths = _collect_ipl_paths(self.dat_path, self.game)
+        ipl_usages = []
+        for mid in deleted_ids:
+            ipl_usages.extend(find_ipl_usages(ipl_paths, mid))
+
         if to_delete:
             lines = [f"{len(to_delete)} real model(s) will be PERMANENTLY DELETED:"]
             lines += [f"  ID {mid}: {name} ({os.path.basename(src)})" for mid, name, src in to_delete]
-            msg = "\n".join(lines) + "\n\nThen the whole range collapses. Continue?"
+            msg = "\n".join(lines) + "\n\nThen the whole range collapses."
         else:
-            msg = f"No real assigned entries in range - this is just a plain collapse of {count} free ID(s). Continue?"
+            msg = f"No real assigned entries in range - this is just a plain collapse of {count} free ID(s)."
+        if dfx_usages:
+            msg += f"\n\n{len(dfx_usages)} 2dfx effect(s) reference these IDs and will be removed too."
+        if path_usages:
+            msg += f"\n{len(path_usages)} 'path' block(s) reference these IDs and will be removed too."
+        if ipl_usages:
+            files = sorted({os.path.basename(u['ipl_path']) for u in ipl_usages})
+            msg += f"\n{len(ipl_usages)} IPL placement(s) in {', '.join(files)} will be removed too."
+        msg += "\n\nContinue?"
         reply = QMessageBox.warning(
             self, "Delete Models && Collapse", msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -219,7 +275,12 @@ class RemoveDeleteIDDialog(QDialog): #vers 1
         if result is None:
             QMessageBox.warning(self, "Failed", "Could not apply/write - nothing applied.")
             return
-        removed_files, shift_touched = result
+        removed_files, shift_touched, shift_id_map, applied_deleted_ids = result
+        if ipl_paths:
+            if applied_deleted_ids and ipl_usages:
+                remove_ipl_lines(ipl_paths, applied_deleted_ids)
+            if shift_id_map:
+                cascade_ipl_files(ipl_paths, shift_id_map)
         all_touched = sorted(set(removed_files) | set(shift_touched))
         QMessageBox.information(self, "Deleted && Collapsed",
             f"Removed {len(to_delete)} model(s). File(s) written: {', '.join(all_touched) or '(none needed)'}")
@@ -231,9 +292,11 @@ class IDUtilitiesDialog(QDialog): #vers 1
     batch prefix/suffix rename - the lighter-weight follow-up use
     cases (Sep 12 2026, per Keith: "can you think of any other use
     cases")."""
-    def __init__(self, parent, result): #vers 1
+    def __init__(self, parent, result, game=None, dat_path=None): #vers 2
         super().__init__(parent)
         self.result = result
+        self.game = game
+        self.dat_path = dat_path
         self.setWindowTitle("ID Utilities")
         self.resize(560, 480)
         lay = QVBoxLayout(self)
@@ -298,6 +361,8 @@ class IDUtilitiesDialog(QDialog): #vers 1
         if not touched:
             QMessageBox.warning(self, "Failed", "Could not apply/write - nothing applied.")
             return
+        if plan.id_map:
+            cascade_ipl_files(_collect_ipl_paths(self.dat_path, self.game), plan.id_map)
         QMessageBox.information(self, "Compacted", f"File(s) written: {', '.join(touched)}")
         self._on_find_gaps()
 
@@ -334,6 +399,8 @@ class IDUtilitiesDialog(QDialog): #vers 1
         if not touched:
             self.swap_label.setText("Failed - nothing written.")
             return
+        if plan.id_map:
+            cascade_ipl_files(_collect_ipl_paths(self.dat_path, self.game), plan.id_map)
         self.swap_label.setText(f"Swapped. File(s) written: {', '.join(touched)}")
 
     def _build_usage_tab(self): #vers 1
@@ -429,6 +496,16 @@ class IDUtilitiesDialog(QDialog): #vers 1
         if not touched:
             QMessageBox.warning(self, "Failed", "Could not apply - nothing written.")
             return
+        ipl_paths = _collect_ipl_paths(self.dat_path, self.game)
+        for model_id, old_name, new_name, source_ide in self.rename_plan.renames:
+            # source_ide here is a basename (IDEParser's own convention),
+            # cascade_path_rename needs the real file path.
+            source_path = next((p for p in self.result.source_files
+                                 if os.path.basename(p) == os.path.basename(source_ide)), None)
+            if source_path:
+                cascade_path_rename([source_path], model_id, old_name, new_name)
+            if ipl_paths:
+                cascade_ipl_rename(ipl_paths, model_id, old_name, new_name)
         QMessageBox.information(self, "Renamed", f"File(s) written: {', '.join(touched)}")
         self.rename_apply_btn.setEnabled(False)
 
@@ -439,9 +516,11 @@ class InsertRelocateDialog(QDialog): #vers 1
     fresh target range, with a real name-collision check (Sep 12
     2026, per Keith: "insert ID, moves other ide files into that
     area... would need a model name check")."""
-    def __init__(self, parent, result): #vers 1
+    def __init__(self, parent, result, game=None, dat_path=None): #vers 2
         super().__init__(parent)
         self.result = result
+        self.game = game
+        self.dat_path = dat_path
         self.plan = None
         self.setWindowTitle("Insert & Relocate File")
         self.resize(480, 320)
@@ -510,5 +589,7 @@ class InsertRelocateDialog(QDialog): #vers 1
         if not touched:
             QMessageBox.warning(self, "Failed", "Could not apply/write - nothing applied.")
             return
+        if self.plan.id_map:
+            cascade_ipl_files(_collect_ipl_paths(self.dat_path, self.game), self.plan.id_map)
         QMessageBox.information(self, "Relocated", f"File(s) written: {', '.join(touched)}")
         self.accept()

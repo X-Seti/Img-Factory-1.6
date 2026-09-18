@@ -676,13 +676,33 @@ class MasterIDEWorkshop(QWidget): #vers 9
         elif action == remove_act:
             self._on_remove_rows(targets)
 
-    def _on_rename_row(self, model_id, source_ide): #vers 1
+    def _on_rename_row(self, model_id, source_ide): #vers 3
+        """Rename cascades into every real IPL "inst"/"cars" line
+        placing this same ID+old-name, so the IPL's own model-name
+        field stays matching the IDE (Sep 17 2026, per Keith: "if
+        IDE modelnames are changed, IPL modelnames need to also
+        match"). Also cascades into this same IDE file's own "path"
+        section header (GTA III/VC only - see id_reassign.py's own
+        note). IPL cascade only runs when the game was loaded via
+        .dat (self.dat_path known) - without a game root there's no
+        real IPL file list to derive."""
         from PyQt6.QtWidgets import QInputDialog
         new_name, ok = QInputDialog.getText(self, "Rename Entry", "New model name:")
         if not ok or not new_name.strip():
             return
+        new_name = new_name.strip()
         source_path = self._resolve_source_path(source_ide)
-        err = rename_entry(self.result, model_id, new_name.strip(), source_ide=source_path)
+
+        old_name = None
+        for section in ("objs", "tobj", "anim"):
+            for obj in self.result.objects_by_section.get(section, []):
+                if obj.model_id == model_id and os.path.basename(obj.source_ide) == os.path.basename(source_path):
+                    old_name = obj.model_name
+                    break
+            if old_name:
+                break
+
+        err = rename_entry(self.result, model_id, new_name, source_ide=source_path)
         if err:
             QMessageBox.warning(self, "Rename Failed", err)
             return
@@ -690,18 +710,80 @@ class MasterIDEWorkshop(QWidget): #vers 9
             QMessageBox.warning(self, "Rename Failed",
                 f"Renamed in memory but could not write:\n{source_path}")
             return
+
+        if old_name:
+            try:
+                from apps.methods.id_reassign import cascade_path_rename
+                cascade_path_rename([source_path], model_id, old_name, new_name)
+            except Exception as e:
+                QMessageBox.warning(self, "Path Cascade Failed",
+                    f"Renamed in IDE, but could not cascade into the 'path' section:\n{e}")
+            if self.dat_path:
+                try:
+                    from apps.methods.master_ide import collect_ipl_paths_from_dat
+                    from apps.methods.id_reassign import cascade_ipl_rename
+                    ipl_paths = collect_ipl_paths_from_dat(self.dat_path, game=self.game)
+                    cascade_ipl_rename(ipl_paths, model_id, old_name, new_name)
+                except Exception as e:
+                    QMessageBox.warning(self, "IPL Cascade Failed",
+                        f"Renamed in IDE, but could not cascade into IPL files:\n{e}")
+
         self._reload_after_edit()
 
-    def _on_remove_rows(self, targets): #vers 1
+    def _on_remove_rows(self, targets): #vers 3
+        """Removing an ID orphans its own 2dfx effects, any real IPL
+        placements, and (GTA III/VC only) any "path" block
+        referencing it (Sep 17 2026, per Keith: "when changing ID's
+        in the IDE, other entries need to be accounted for, like
+        2dfx... in the cascade"). Warns with the affected usages
+        before removing, then cascades the deletion into all three
+        once the IDE removal itself succeeds."""
         if not targets:
             return
+        model_ids = {model_id for model_id, _ in targets}
+
+        from apps.methods.id_reassign import (
+            find_usages, find_ipl_usages, find_path_usages,
+            cascade_delete_2dfx, remove_ipl_lines, remove_path_blocks)
+
+        dfx_usages = []
+        for model_id in model_ids:
+            dfx_usages.extend(u for u in find_usages(self.result, model_id=model_id)
+                               if u['section'] == '2dfx')
+
+        source_paths = {self._resolve_source_path(source_ide) for _, source_ide in targets}
+        path_usages = []
+        for model_id in model_ids:
+            path_usages.extend(find_path_usages(list(source_paths), model_id))
+
+        ipl_paths = []
+        ipl_usages = []
+        if self.dat_path:
+            try:
+                from apps.methods.master_ide import collect_ipl_paths_from_dat
+                ipl_paths = collect_ipl_paths_from_dat(self.dat_path, game=self.game)
+                for model_id in model_ids:
+                    ipl_usages.extend(find_ipl_usages(ipl_paths, model_id))
+            except Exception:
+                ipl_paths, ipl_usages = [], []
+
         if len(targets) == 1:
             model_id, source_ide = targets[0]
             prompt = f"Remove ID {model_id} from {os.path.basename(self._resolve_source_path(source_ide))}?"
         else:
             prompt = f"Remove {len(targets)} selected entries?"
+        warn_lines = []
+        if dfx_usages:
+            warn_lines.append(f"\n{len(dfx_usages)} 2dfx effect(s) reference these IDs and will be removed too.")
+        if path_usages:
+            warn_lines.append(f"\n{len(path_usages)} 'path' block(s) reference these IDs and will be removed too.")
+        if ipl_usages:
+            files = sorted({os.path.basename(u['ipl_path']) for u in ipl_usages})
+            warn_lines.append(f"\n{len(ipl_usages)} IPL placement(s) in {', '.join(files)} "
+                               f"reference these IDs and will be removed too.")
         reply = QMessageBox.question(
-            self, "Remove Entries", f"{prompt} A backup is made before writing each file.",
+            self, "Remove Entries",
+            f"{prompt} A backup is made before writing each file.{''.join(warn_lines)}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -724,6 +806,22 @@ class MasterIDEWorkshop(QWidget): #vers 9
             if write_failures:
                 msg.append("Failed to write: " + ", ".join(os.path.basename(p) for p in write_failures))
             QMessageBox.warning(self, "Remove Failed", "\n".join(msg))
+
+        removed_paths = touched_paths - set(write_failures)
+        if removed_paths:
+            # Every loaded file, not just the ones written for the
+            # objs/tobj removal itself - a deleted model's 2dfx
+            # effects (or, GTA III/VC, its "path" block) can live in
+            # a separate loaded file (e.g. SOL's GAME_LC.IFX never
+            # gets an objs/tobj write of its own, so it was never in
+            # removed_paths).
+            if dfx_usages:
+                cascade_delete_2dfx(self.result.source_files, model_ids)
+            if path_usages:
+                remove_path_blocks(self.result.source_files, model_ids)
+            if ipl_paths and ipl_usages:
+                remove_ipl_lines(ipl_paths, model_ids)
+
         self._reload_after_edit()
 
     def _on_add_entry(self): #vers 1
@@ -771,14 +869,15 @@ class MasterIDEWorkshop(QWidget): #vers 9
                 return int(it.text()) + 1
         return None
 
-    def _on_splice_drop(self, selected_rows, target_row, drop_position): #vers 1
+    def _on_splice_drop(self, selected_rows, target_row, drop_position): #vers 2
         """Real drag-move (Sep 12 2026, per Keith: "hold down left
         click to drag those entries to another location within the
         list"). Validates the dragged selection is one contiguous
         real block within a single section before touching anything -
         a scattered or mixed-section selection is refused outright,
         never guessed into a "best effort" range."""
-        from apps.methods.id_reassign import validate_contiguous_selection, plan_splice_move, apply_id_shift_and_write
+        from apps.methods.id_reassign import (
+            validate_contiguous_selection, plan_splice_move, apply_id_shift_and_write, cascade_ipl_files)
 
         result = validate_contiguous_selection(self._entry_rows, set(selected_rows))
         if isinstance(result, str):
@@ -811,35 +910,42 @@ class MasterIDEWorkshop(QWidget): #vers 9
         if not touched:
             QMessageBox.warning(self, "Move Failed", "Could not apply/write - nothing applied.")
             return
+        if plan.id_map and self.dat_path:
+            try:
+                from apps.methods.master_ide import collect_ipl_paths_from_dat
+                ipl_paths = collect_ipl_paths_from_dat(self.dat_path, game=self.game)
+                cascade_ipl_files(ipl_paths, plan.id_map)
+            except Exception:
+                pass
         self._reload_after_edit()
 
-    def _on_id_shift(self): #vers 1
+    def _on_id_shift(self): #vers 2
         from apps.methods.id_shift_dialog import IDShiftDialog
-        dlg = IDShiftDialog(self, self.result, game=self.game)
+        dlg = IDShiftDialog(self, self.result, game=self.game, dat_path=self.dat_path)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._reload_after_edit()
 
-    def _on_add_id(self): #vers 1
+    def _on_add_id(self): #vers 2
         from apps.components.Master_Ide.id_tools_dialogs import AddIDDialog
-        dlg = AddIDDialog(self, self.result)
+        dlg = AddIDDialog(self, self.result, game=self.game, dat_path=self.dat_path)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._reload_after_edit()
 
-    def _on_remove_delete_id(self): #vers 1
+    def _on_remove_delete_id(self): #vers 2
         from apps.components.Master_Ide.id_tools_dialogs import RemoveDeleteIDDialog
-        dlg = RemoveDeleteIDDialog(self, self.result)
+        dlg = RemoveDeleteIDDialog(self, self.result, game=self.game, dat_path=self.dat_path)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._reload_after_edit()
 
-    def _on_id_utilities(self): #vers 1
+    def _on_id_utilities(self): #vers 2
         from apps.components.Master_Ide.id_tools_dialogs import IDUtilitiesDialog
-        dlg = IDUtilitiesDialog(self, self.result)
+        dlg = IDUtilitiesDialog(self, self.result, game=self.game, dat_path=self.dat_path)
         dlg.exec()
         self._reload_after_edit()
 
-    def _on_insert_relocate(self): #vers 1
+    def _on_insert_relocate(self): #vers 2
         from apps.components.Master_Ide.id_tools_dialogs import InsertRelocateDialog
-        dlg = InsertRelocateDialog(self, self.result)
+        dlg = InsertRelocateDialog(self, self.result, game=self.game, dat_path=self.dat_path)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._reload_after_edit()
 
@@ -1075,3 +1181,26 @@ def _register_master_ide_taskbar(widget, main_window): #vers 1
             tb._set_exclusive_active('master_ide')
     except Exception:
         pass
+
+
+if __name__ == "__main__": #vers 1
+    """Standalone launcher (Sep 17 2026, per Keith: "make Master IDE
+    standalone" - it had none before, unlike Asset Workshop's own).
+    Opens genuinely empty, ready for its own Load from .dat/Insert
+    IDE File buttons - no pre-loaded data assumed."""
+    import sys
+    import traceback
+    from PyQt6.QtWidgets import QApplication
+
+    print("Starting Master IDE")
+
+    try:
+        app = QApplication(sys.argv)
+        workshop = MasterIDEWorkshop(None)
+        workshop.setWindowTitle("Master IDE - Standalone")
+        workshop.resize(1000, 650)
+        workshop.show()
+        sys.exit(app.exec())
+    except Exception as e:
+        traceback.print_exc()
+        sys.exit(1)
