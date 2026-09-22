@@ -1,44 +1,26 @@
 #!/usr/bin/env python3
-# bugs/Tmp_Template/gui_workshop.py - Version: 4
+# apps/methods/gui_workshop.py - Version: 3
 # X-Seti - Apr 2026 - IMG Factory 1.6
-# GUIWorkshop — TEMPLATE ONLY. Copy into your workshop, do not import.
+# GUIWorkshop — the ONE shared base class for all workshop tools.
 #
-# ┌                                                                 ┐
-# │ !! WARNING — DO NOT IMPORT THIS FILE INTO YOUR WORKSHOP !!      │
-# │                                                                 │
-# │ WRONG:  from apps.components.Tmp_Template.gui_workshop import   │
-# │         GUIWorkshop                                             │
-# │                                                                 │
-# │ RIGHT:  Copy this file into your workshop folder and rename it  │
-# │         e.g. apps/components/My_Workshop/my_workshop.py         │
-# │         Then edit your copy in place.                           │
-# │                                                                 │
-# │ Each workshop MUST be standalone and self-contained.            │
-# │ Importing this file creates a hard dependency that breaks       │
-# │ when the template changes, causes setup_ui() timing issues,     │
-# │ and makes workshops impossible to run independently.            │
-# └                                                                 ┘
+# Import it from here:  from apps.methods.gui_workshop import GUIWorkshop
+# Standalone apps keep a copy at  <app>/apps/methods/gui_workshop.py
+# Per-workshop changes go in  apps/components/<App>/depends/diffcode.py
+# (a small subclass that sets the layout flags below or overrides methods).
 #
-# HOW TO CREATE A NEW WORKSHOP:
-# 1. Copy bugs/Tmp_Template/ to apps/components/My_Workshop/
-# 2. Rename temp_workshop.py → my_workshop.py
-# 3. Edit the copy — change App_name, config_key, override stubs
-# 4. Never import from bugs/Tmp_Template again
-#
-# ┌                                                                 ┐
+# ┌┐
 # │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
 # │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
 # │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
 # │ SECTION 4 │ Logic   — stubs to override in your subclass        │
-# └                                                                 ┘
+# └┘
 #
-# If your workshop needs state before setup_ui() runs, use this pattern:
-#   def __init__(self, ...):
-#       self._defer_setup_ui = True   # stops auto-call in __init__
-#       super().__init__(...)          # base state initialised
-#       # ... set up your own state here ...
-#       self.setup_ui()               # call manually when ready
-#           self.setup_ui()              # call manually when ready
+# Subclass example:
+#   class WaterWorkshop(GUIWorkshop):
+#       App_name   = "Water Workshop"
+#       config_key = "water_workshop"
+#       def _open_file(self, path=None): ...
+#       def _build_menus_into_qmenu(self, pm): ...
 
 import sys, json
 from pathlib import Path
@@ -57,10 +39,8 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 
 
-#
 # SECTION 1 — GUI Core
 # Imports, optional deps, WorkshopSettings, _CornerOverlay
-#
 
 APPSETTINGS_AVAILABLE = False
 try:
@@ -95,7 +75,7 @@ __author__  = "X-Seti"
 __year__    = "2026"
 
 
-#    WorkshopSettings                                                          
+# WorkshopSettings
 
 class WorkshopSettings:
     """Per-app JSON settings.  Stored at ~/.config/imgfactory/{config_key}.json
@@ -166,7 +146,7 @@ class WorkshopSettings:
                 if Path(p).exists()]
 
 
-#    _CornerOverlay                                                             
+# _CornerOverlay
 
 class _CornerOverlay(QWidget):
     """Transparent overlay that draws accent-coloured resize triangles.
@@ -256,9 +236,11 @@ class _CornerOverlay(QWidget):
         p.end()
 
 
-#
+
 # SECTION 2 — Toolbar: Menu, Settings UI, Info [i], Cog [⚙]
 #
+# Need state before setup_ui()? set  self._defer_setup_ui = True  before
+# super().__init__() and call self.setup_ui() yourself when ready.
 #
 # Toolbar layout (left → right):
 #   [Menu] [Settings]  <stretch>  <Title>  <stretch>
@@ -276,7 +258,7 @@ class _ToolbarMixin:
     Mixed into GUIWorkshop — not used standalone.
     """
 
-    #    Toolbar creation                                                       
+    # Toolbar creation
 
     def _create_toolbar(self):
         self.toolbar = QFrame()
@@ -305,7 +287,7 @@ class _ToolbarMixin:
             b.clicked.connect(slot)
             return b
 
-        #    Left: [Menu] [Settings]                                        
+        # Left: [Menu] [Settings]
         self.menu_btn = QPushButton("Menu")
         self.menu_btn.setFont(self.button_font)
         self.menu_btn.setMinimumHeight(28)
@@ -333,7 +315,7 @@ class _ToolbarMixin:
         lo.addSpacing(4)
         lo.addStretch()
 
-        #    Centre: title                                                  
+        # Centre: title
         self.title_label = QLabel(self.App_name)
         self.title_label.setFont(self.title_font)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -343,15 +325,21 @@ class _ToolbarMixin:
         lo.addStretch()
         lo.addSpacing(4)
 
-        #    Right: action buttons                                          
+        #  Right: action buttons
         self.open_btn   = _ibtn("open_icon",   "Open  Ctrl+O",  self._open_file)
         self.save_btn   = _ibtn("save_icon",   "Save  Ctrl+S",  self._save_file)
+        self.convert_btn = None
+        if self.TOOLBAR_CONVERT:
+            self.convert_btn = _ibtn("convert_icon", "Convert format",
+                                     self._convert_dialog)
+            self.convert_btn.setEnabled(False)   # enabled after file load
         self.export_btn = _ibtn("export_icon", "Export",        self._export_file)
         self.import_btn = _ibtn("import_icon", "Import",        self._import_file)
         self.save_btn.setEnabled(False)
-        for b in (self.open_btn, self.save_btn,
+        for b in (self.open_btn, self.save_btn, self.convert_btn,
                   self.export_btn, self.import_btn):
-            lo.addWidget(b)
+            if b is not None:
+                lo.addWidget(b)
 
         lo.addSpacing(6)
 
@@ -390,13 +378,11 @@ class _ToolbarMixin:
             self.dock_btn.clicked.connect(self.toggle_dock_mode)
             lo.addWidget(self.dock_btn)
 
-        # Hide the whole titlebar/toolbar when docked (Aug 20 2026)
-
         self.toolbar.setVisible(self.standalone_mode)
 
         return self.toolbar
 
-    #    Menu button handler                                                    
+    # Menu button handler
 
     def _on_menu_btn_clicked(self):
         """[Menu] button — dropdown or toggle top bar per settings."""
@@ -419,7 +405,7 @@ class _ToolbarMixin:
     def _show_popup_menu(self):   # compat alias
         self._show_dropdown_menu()
 
-    #    [ℹ] Info — About dialog                                                
+    #  [ℹ] Info — About dialog
 
     def _show_about(self):
         """[ℹ] button — show About / Info for this workshop."""
@@ -432,7 +418,7 @@ class _ToolbarMixin:
             + f"Copyright \u00a9 {year}  {author}\n"
               f"Part of IMG Factory 1.6 — a GTA modding toolkit.")
 
-    #    [⚙] Cog — Global AppSettings theme dialog                             
+    #  [⚙] Cog — Global AppSettings theme dialog
 
     def _launch_theme_settings(self):
         """[⚙] Cog — opens the global AppSettings / SettingsDialog.
@@ -454,7 +440,7 @@ class _ToolbarMixin:
             QMessageBox.warning(self, "Theme Error",
                 f"Could not open theme settings:\n{e}")
 
-    #    [Settings] — Workshop-local settings dialog                            
+    #  [Settings] — Workshop-local settings dialog
 
     def _show_workshop_settings(self):
         """[Settings] button — workshop-local settings.
@@ -474,7 +460,7 @@ class _ToolbarMixin:
         tabs = QTabWidget()
         ws  = self.WS
 
-        #    Tab 1: Fonts                                                   
+        #  Tab 1: Fonts
         ft  = QWidget(); fl = QVBoxLayout(ft)
 
         def _font_row(label, fam_key, sz_key, def_fam, def_sz, mn=7, mx=32):
@@ -500,7 +486,7 @@ class _ToolbarMixin:
         fl.addStretch()
         tabs.addTab(ft, "Fonts")
 
-        #    Tab 2: Display                                                 
+        #  Tab 2: Display
         dt = QWidget(); dl = QVBoxLayout(dt)
 
         bm_grp = QGroupBox("Button Display Mode"); bm_lo = QVBoxLayout(bm_grp)
@@ -531,7 +517,7 @@ class _ToolbarMixin:
         dl.addStretch()
         tabs.addTab(dt, "Display")
 
-        #    Tab 3: Menu                                                    
+        #  Tab 3: Menu
         mt = QWidget(); ml = QVBoxLayout(mt)
 
         ms_grp = QGroupBox("Menu Style"); ms_lo = QVBoxLayout(ms_grp)
@@ -555,7 +541,7 @@ class _ToolbarMixin:
         ml.addStretch()
         tabs.addTab(mt, "Menu")
 
-        #    Tab 4: About                                                   
+        #  Tab 4: About
         at  = QWidget(); al = QVBoxLayout(at)
         atx = QTextEdit(); atx.setReadOnly(True)
         author = getattr(self, "App_author",      __author__)
@@ -573,7 +559,7 @@ class _ToolbarMixin:
         al.addWidget(atx)
         tabs.addTab(at, "About")
 
-        #    Dialog buttons                                                 
+        #  Dialog buttons
         lo.addWidget(tabs)
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
@@ -585,7 +571,7 @@ class _ToolbarMixin:
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
-        #    Save                                                          
+        #  Save
         ws.set("font_title_family",        fc_tit.currentFont().family())
         ws.set("font_title_size",          sc_tit.value())
         ws.set("font_panel_family",        fc_pan.currentFont().family())
@@ -612,7 +598,7 @@ class _ToolbarMixin:
             self._sidebar_frame.setFixedWidth(ws.get("sidebar_width", 82))
         self._set_status("Settings saved.")
 
-    #    Theme helpers                                                          
+    #  Theme helpers
 
     def _get_icon_color(self) -> str:
         """Returns text_primary from current theme."""
@@ -676,9 +662,9 @@ class _ToolbarMixin:
                     except Exception: pass
 
 
-#
+# ═════════════════════════════════════════════════════════════════════════════
 # SECTION 3 — Layout: setup_ui, left panel, centre panel, right panel, status
-#
+# ═════════════════════════════════════════════════════════════════════════════
 
 class _LayoutMixin:
     """Panel creation and layout.
@@ -695,13 +681,21 @@ class _LayoutMixin:
         ml.addWidget(self._create_toolbar())
 
         sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._create_left_panel())
-        sp.addWidget(self._create_centre_panel())
-        sp.addWidget(self._create_right_panel())
-        sp.setStretchFactor(0, 1)
-        sp.setStretchFactor(1, 5)
-        sp.setStretchFactor(2, 0)
-        sp.setSizes([200, 950, self.WS.get("sidebar_width", 82)])
+        parts = []          # (factory, stretch, default size)
+        if self.SHOW_LEFT_PANEL:
+            parts.append((self._create_left_panel, 1, 200))
+        parts.append((self._create_centre_panel, 5, 950))
+        if self.SHOW_RIGHT_PANEL:
+            parts.append((self._create_right_panel, 0,
+                          self.WS.get("sidebar_width", 82)))
+        for i, (make, stretch, _w) in enumerate(parts):
+            sp.addWidget(make())
+            sp.setStretchFactor(i, stretch)
+        sizes = self.SPLITTER_SIZES or [w for _f, _s, w in parts]
+        if self.SPLITTER_STRETCH:
+            for i, st in enumerate(self.SPLITTER_STRETCH):
+                sp.setStretchFactor(i, st)
+        sp.setSizes(sizes)
         self._main_splitter = sp
         ml.addWidget(sp)
 
@@ -873,11 +867,11 @@ class _LayoutMixin:
             self._status_bar.setText(msg)
 
 
-#
+# ═════════════════════════════════════════════════════════════════════════════
 # SECTION 4 — Logic stubs
 # These are the methods your subclass overrides with actual app logic.
 # Everything above this line is pure UI — do not put app logic there.
-#
+# ═════════════════════════════════════════════════════════════════════════════
 
 class _LogicStubsMixin:
     """Stub methods for subclass override.
@@ -885,7 +879,7 @@ class _LogicStubsMixin:
     Replace these with your actual file format, drawing, and undo logic.
     """
 
-    #    ToolMenuMixin protocol                                                 
+    #  ToolMenuMixin protocol
     def get_menu_title(self) -> str:
         return self.App_name
 
@@ -917,7 +911,7 @@ class _LogicStubsMixin:
         vm.addSeparator()
         vm.addAction("About " + self.App_name, self._show_about)
 
-    #    File operations                                                        
+    #  File operations
     def _open_file(self, path=None):   pass   # override: load your format
     def _save_file(self):              pass   # override: save your format
     def _export_file(self):            pass   # override: export
@@ -926,18 +920,18 @@ class _LogicStubsMixin:
         self.WS._data["recent_files"] = []; self.WS.save()
         self._set_status("Recent files cleared")
 
-    #    Edit operations                                                        
+    #  Edit operations
     def _undo(self):         self._set_status("Undo — override in subclass")
     def _redo(self):         self._set_status("Redo — override in subclass")
     def _copy_item(self):    pass   # override: copy selection
     def _paste_item(self):   pass   # override: paste clipboard
 
-    #    View operations                                                        
+    #  View operations
     def _zoom(self, factor: float): pass   # override: zoom your canvas
     def _fit(self):                 pass   # override: fit view
     def _jump(self):                pass   # override: jump to selection
 
-    #    Panel callbacks                                                        
+    #  Panel callbacks
     def _on_list_selection_changed(self, row: int): pass
     def _on_tab_changed(self, idx: int):            pass
     def _on_add_item(self):
@@ -947,19 +941,19 @@ class _LogicStubsMixin:
         row = self._item_list.currentRow()
         if row >= 0: self._item_list.takeItem(row)
 
-    #    Toolbar actions                                                        
+    #  Toolbar actions
     def _on_toolbar_action(self, action: str): pass  # rotate/flip/edit etc.
 
-    #    Tool management                                                        
+    #  Tool management
     def _set_active_tool(self, tool: str):
         self._active_tool = tool
         for name, btn in self._draw_btns.items():
             btn.setChecked(name == tool)
 
 
-#
+# ═════════════════════════════════════════════════════════════════════════════
 # GUIWorkshop — assembles all four sections
-#
+# ═════════════════════════════════════════════════════════════════════════════
 
 class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
                   ToolMenuMixin, QWidget):
@@ -968,7 +962,14 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     management are inherited from the four sections above.
     """
 
-    #    Subclass identity — OVERRIDE ALL OF THESE                              
+    #  Subclass identity — OVERRIDE ALL OF THESE
+    # Layout flags — set these in depends/diffcode.py instead of copying setup_ui
+    SHOW_LEFT_PANEL   = True
+    SHOW_RIGHT_PANEL  = True
+    SPLITTER_SIZES    = None      # e.g. [700, 450]; None = defaults
+    SPLITTER_STRETCH  = None      # e.g. [3, 2]
+    TOOLBAR_CONVERT   = False     # adds a Convert button (calls self._convert_dialog)
+
     App_name        = "Workshop"
     App_build       = "Build 1"
     App_author      = "X-Seti"
@@ -976,11 +977,11 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     App_description = "GUIWorkshop base template — IMG Factory 1.6"
     config_key      = "gui_workshop"
 
-    #    Signals                                                                
+    #  Signals
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
-    #    Init                                                                   
+    #  Init
     def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
         self.main_window     = main_window
@@ -1081,7 +1082,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         QShortcut(QKeySequence("Shift+R"), self).activated.connect(
             lambda: self._set_active_tool("rect_fill"))
 
-    #    Window chrome                                                          
+    #  Window chrome
     def showEvent(self, ev):
         super().showEvent(ev)
         if not hasattr(self, "_corner_overlay"):
@@ -1173,9 +1174,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         super().closeEvent(ev)
 
 
-#                                                                              
 # Standalone launcher
-#                                                                              
 
 if __name__ == "__main__":
     import traceback

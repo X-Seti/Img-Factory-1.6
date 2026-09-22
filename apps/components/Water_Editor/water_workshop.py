@@ -33,8 +33,9 @@ from pathlib import Path
 _root = Path(__file__).resolve().parents[3]  # apps/components/Water_Editor -> project root
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
-from apps.components.Water_Editor.gui_workshop import GUIWorkshop
+from apps.methods.gui_workshop import GUIWorkshop
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.ribbon_system import RibbonMixin
 
 App_name  = "Water Workshop"
 App_build = "Apr 2026"
@@ -48,6 +49,27 @@ def _apply_dialog_theme(dlg, mw): #vers 1
             apply_dialog_theme(dlg, mw)
         except Exception:
             pass
+
+def _atomic_write(path, data: bytes): #vers 1
+    """Write to a temp file in the same folder then swap it in, so a
+    crash or full disk can never leave a half-written water file."""
+    import os, tempfile
+    d = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".water_", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        if os.path.exists(path):
+            try:
+                os.chmod(tmp, os.stat(path).st_mode & 0o7777)
+            except OSError:
+                pass
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
 
 class WaterproParser:
     HEADER_SIZE  = 964
@@ -93,23 +115,35 @@ class WaterproParser:
         out[196:964]       = self.unk_block
         out[964:964+gw*gw] = self.vis_grid
         out[964+gw*gw:]    = self.phys_grid
-        Path(path).write_bytes(bytes(out))
+        _atomic_write(path, bytes(out))
 
 
 class WaterDatParser:
-    def __init__(self): #vers 1
+    """water.dat (GTA III/VC/LCS text rects). Keeps every original line
+    (comments, spacing, CRLF) so an untouched file saves byte-identical
+    and only edited/added/removed rows change."""
+    def __init__(self): #vers 2
         self.rects  = []
         self.header = ""
         self.path   = None
+        self._eol   = "\r\n"
+        self._lines = []
+        self._row_of = {}
+        self._orig_rects = []
+        self._end_idx = None
 
-    def load(self, path: str): #vers 1
+    def load(self, path: str): #vers 2
         self.path  = path
         self.rects = []
-        hdr        = []
-        in_hdr     = True
-        for line in Path(path).read_text(encoding="latin1", errors="replace").splitlines():
+        raw = Path(path).read_bytes().decode("latin1")
+        self._eol   = "\r\n" if "\r\n" in raw else "\n"
+        self._lines = raw.split(self._eol)
+        self._row_of, self._end_idx = {}, None
+        hdr, in_hdr = [], True
+        for i, line in enumerate(self._lines):
             s = line.strip()
             if s.startswith("*"):
+                self._end_idx = i
                 break
             if not s or s.startswith(";"):
                 if in_hdr:
@@ -120,16 +154,47 @@ class WaterDatParser:
             if len(parts) >= 5:
                 try:
                     self.rects.append(tuple(float(p) for p in parts[:5]))
+                    self._row_of[i] = len(self.rects) - 1
                 except ValueError:
                     pass
         self.header = "\n".join(hdr)
+        self._orig_rects = list(self.rects)
 
-    def save(self, path: str): #vers 1
-        lines = [self.header, ""]
-        for r in self.rects:
-            lines.append(f"{r[0]:.4f},\t{r[1]:.4f},\t{r[2]:.4f},\t{r[3]:.4f},\t{r[4]:.4f},")
-        lines.append("* ;end of file")
-        Path(path).write_text("\n".join(lines), encoding="latin1")
+    @staticmethod
+    def _fmt(r): #vers 1
+        return f"{r[0]:.4f},\t{r[1]:.4f},\t{r[2]:.4f},\t{r[3]:.4f},\t{r[4]:.4f},"
+
+    def to_text(self) -> str: #vers 1
+        cur, orig = self.rects, self._orig_rects
+        same_len  = len(cur) == len(orig)
+        remaining = [] if same_len else list(cur)
+        out = []
+        def _flush_new():
+            for r in remaining:
+                out.append(self._fmt(r))
+            remaining.clear()
+        for i, line in enumerate(self._lines):
+            if i == self._end_idx:
+                _flush_new()
+            if i in self._row_of:
+                k = self._row_of[i]
+                if same_len:
+                    out.append(line if cur[k] == orig[k] else self._fmt(cur[k]))
+                else:
+                    o = orig[k]
+                    if o in remaining:
+                        remaining.remove(o)
+                        out.append(line)
+            else:
+                out.append(line)
+        if not same_len and self._end_idx is None:
+            _flush_new()
+            out.append("* ;end of file")
+        return self._eol.join(out)
+
+    def save(self, path: str): #vers 2
+        _atomic_write(path, self.to_text().encode("latin1", errors="replace"))
+        self.path = path
 
     def translate_all(self, dx: float, dy: float, dz: float = 0.0): #vers 1
         """Translate all water rectangles by (dx, dy). z is ignored for flat rects.
@@ -148,19 +213,31 @@ class WaterDatParser:
 
 
 class SaWaterParser:
-    def __init__(self): #vers 1
+    """SA water.dat / water1.dat quads (4 corners x 7 values, optional
+    trailing flag). Original lines are kept so untouched quads, the
+    "processed" line and any comments save unchanged."""
+    def __init__(self): #vers 2
         self.quads = []
         self.path  = None
+        self._eol  = "\n"
+        self._lines = []
 
-    def load(self, path: str): #vers 1
+    @staticmethod
+    def _sig(q): #vers 1
+        return (tuple((c["x"], c["y"], *c["f"]) for c in q["corners"]), q.get("flag"))
+
+    def load(self, path: str): #vers 2
         self.path  = path
         self.quads = []
-        for line in Path(path).read_text(encoding="latin1", errors="replace").splitlines():
+        raw = Path(path).read_bytes().decode("latin1")
+        self._eol   = "\r\n" if "\r\n" in raw else "\n"
+        self._lines = raw.split(self._eol)
+        for i, line in enumerate(self._lines):
             s = line.strip()
             if not s or s.startswith(";") or s.startswith("*") or s == "processed":
                 continue
             parts = s.split()
-            if len(parts) < 29:
+            if len(parts) < 28:
                 continue
             try:
                 corners = [
@@ -169,19 +246,47 @@ class SaWaterParser:
                      "f": [float(parts[c*7+k]) for k in range(2, 7)]}
                     for c in range(4)
                 ]
-                self.quads.append({"corners": corners, "flag": int(parts[28])})
+                flag = int(parts[28]) if len(parts) > 28 else None
             except (ValueError, IndexError):
-                pass
+                continue
+            q = {"corners": corners, "flag": flag, "_line": i}
+            q["_sig"] = self._sig(q)
+            self.quads.append(q)
 
-    def save(self, path: str): #vers 1
-        lines = ["processed"]
-        for q in self.quads:
-            row = "    ".join(
-                f"{c['x']:.4f} {c['y']:.4f} " + " ".join(f"{v:.5f}" for v in c["f"])
-                for c in q["corners"]
-            )
-            lines.append(row + f"  {q['flag']}")
-        Path(path).write_text("\n".join(lines), encoding="latin1")
+    @staticmethod
+    def _fmt(q): #vers 1
+        row = "    ".join(
+            f"{c['x']:.4f} {c['y']:.4f} " + " ".join(f"{v:.5f}" for v in c["f"])
+            for c in q["corners"])
+        return row + (f"  {q['flag']}" if q.get("flag") is not None else "")
+
+    def to_text(self) -> str: #vers 1
+        by_line = {q["_line"]: q for q in self.quads if "_line" in q}
+        new = [q for q in self.quads if "_line" not in q]
+        out = []
+        for i, line in enumerate(self._lines):
+            q = by_line.get(i)
+            if q is not None:
+                out.append(line if self._sig(q) == q["_sig"] else self._fmt(q))
+            elif self._is_quad_line(line):
+                continue                      # a quad that was deleted
+            else:
+                out.append(line)
+        if new:
+            while out and out[-1] == "":
+                out.pop()
+            out.extend(self._fmt(q) for q in new)
+            out.append("")
+        return self._eol.join(out)
+
+    @staticmethod
+    def _is_quad_line(line): #vers 1
+        s = line.strip()
+        return bool(s) and not s.startswith((";", "*")) and s != "processed" and len(s.split()) >= 28
+
+    def save(self, path: str): #vers 2
+        _atomic_write(path, self.to_text().encode("latin1", errors="replace"))
+        self.path = path
 
     def translate_all(self, dx: float, dy: float, dz: float = 0.0): #vers 1
         """Translate all quad corners by (dx, dy, dz)."""
@@ -739,7 +844,7 @@ class SaWaterCanvas(QWidget):
 # SECTION 3 - WaterWorkshop: GUIWorkshop subclass
 # =============================================================================
 
-class WaterWorkshop(GUIWorkshop):
+class WaterWorkshop(RibbonMixin, GUIWorkshop):
 
     App_name        = "Water Workshop"
     App_build       = Build
@@ -748,6 +853,9 @@ class WaterWorkshop(GUIWorkshop):
     App_description = ("GTA III / VC / PS2 LC / SOL - waterpro.dat + water.dat\n"
                        "GTA SA - water.dat / water1.dat (quad format)")
     config_key      = "water_workshop"
+    _ribbon_name    = "water_workshop"
+    # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
+    _RIBBON_LAYOUT_VERSION = 1
 
 
     def __init__(self, parent=None, main_window=None): #vers 1
@@ -761,6 +869,7 @@ class WaterWorkshop(GUIWorkshop):
         self._redo_phys   = []
         self._redo_vis    = []
         self._active_grid = "phys"
+        self._dirty       = False
         self._grid_offset_x = 0
         self._grid_offset_y = 0
         self._grid_offset_z = 0.0
@@ -771,12 +880,89 @@ class WaterWorkshop(GUIWorkshop):
             self.setWindowIcon(_SVG.water_workshop_icon(64))
         except Exception:
             pass
-        # When docked: hide toolbar file buttons (they move to left panel)
-        if not self.standalone_mode:
-            for btn_name in ("open_btn", "save_btn", "export_btn", "import_btn"):
-                btn = getattr(self, btn_name, None)
-                if btn:
-                    btn.setVisible(False)
+        self.ribbon_restore_state()
+
+
+    def _create_toolbar(self): #vers 2
+        """Titlebar keeps Settings / title / Undo / Info / Theme; the file
+        buttons moved to the File ribbon."""
+        tb = super()._create_toolbar()
+        for name in ("open_btn", "save_btn", "export_btn", "import_btn"):
+            btn = getattr(self, name, None)
+            if btn:
+                btn.setVisible(False)
+        return tb
+
+
+    def setup_ui(self): #vers 2
+        """Titlebar / [left panel | canvas tabs] inside the ribbon host / status bar."""
+        ml = QVBoxLayout(self)
+        ml.setContentsMargins(*self.get_content_margins())
+        ml.setSpacing(self.setspacing)
+        ml.addWidget(self._create_toolbar())
+
+        sp = QSplitter(Qt.Orientation.Horizontal)
+        sp.addWidget(self._create_left_panel())
+        sp.addWidget(self._create_centre_panel())
+        sp.setStretchFactor(0, 1)
+        sp.setStretchFactor(1, 5)
+        sp.setSizes([220, 1000])
+        self._main_splitter = sp
+
+        self._draw_btns = {}
+        ml.addWidget(self.ribbon_wrap(sp), 1)
+        self._build_ribbons()
+
+        self._status_widget = self._create_status_bar()
+        ml.addWidget(self._status_widget)
+        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+
+
+    def _build_ribbons(self): #vers 1
+        """File / Edit / View / Draw ribbons (replaces the old right-hand
+        tool sidebar and the titlebar/left-panel file buttons)."""
+        B = self.ribbon_button
+
+        tb = self.ribbon_toolbar("File")
+        B(tb, "open_icon",   "Load water file  (Ctrl+O)", self._open_file)
+        self.save_btn = B(tb, "save_icon", "Save  (Ctrl+S)", self._save_file, enabled=False)
+        B(tb, "saveas_icon", "Save As...", self._save_file_as)
+        tb.addSeparator()
+        B(tb, "export_icon", "Export grids as BMP", self._export_bmp)
+        B(tb, "import_icon", "Import BMP grid",     self._import_bmp)
+
+        tb = self.ribbon_toolbar("Edit")
+        B(tb, "undo_icon",   "Undo  (Ctrl+Z)", self._undo)
+        B(tb, "redo_icon",   "Redo  (Ctrl+Y)", self._redo)
+        tb.addSeparator()
+        B(tb, "scissors_icon",   "Erase all (active grid)",  self._erase_all_grid)
+        B(tb, "rotate_cw_icon",  "Invert grid data",         self._invert_grid)
+        B(tb, "flip_horz_icon",  "Flip display colours",     self._flip_colours)
+        tb.addSeparator()
+        B(tb, "search_icon",     "Water statistics",         self._show_stats)
+        B(tb, "locate_icon",     "Grid offset / shift",      self._show_offset_dialog)
+
+        tb = self.ribbon_toolbar("View")
+        B(tb, "zoom_in_icon",    "Zoom in  (+)",  lambda: self._zoom(1.25))
+        B(tb, "zoom_out_icon",   "Zoom out  (-)", lambda: self._zoom(0.8))
+        B(tb, "fit_grid_icon",   "Fit  (Ctrl+0)", self._fit)
+        B(tb, "grid_icon",       "Toggle grid lines", self._toggle_grid)
+
+        tb = self.ribbon_toolbar("Draw")
+        for icon, tip, name in (
+                ("paint_icon",     "Pencil (P)",            "pencil"),
+                ("fill_icon",      "Flood fill (F)",        "fill"),
+                ("line_icon",      "Line (L)",              "line"),
+                ("rect_icon",      "Rect outline (R)",      "rect"),
+                ("rect_fill_icon", "Filled rect (Shift+R)", "rect_fill"),
+                ("dropper_icon",   "Dropper (K)",           "picker"),
+                ("zoom_in_icon",   "Zoom tool (Z)",         "zoom")):
+            self._draw_btns[name] = B(
+                tb, icon, tip, lambda checked=False, t=name: self._set_active_tool(t),
+                checkable=True)
+        self._draw_btns["pencil"].setChecked(True)
+        self._active_tool = "pencil"
+        self.ribbon_label(tb, "L = Sea   R = Land")
 
 
     def _build_menus_into_qmenu(self, pm): #vers 3
@@ -821,34 +1007,6 @@ class WaterWorkshop(GUIWorkshop):
         ll  = QVBoxLayout(panel)
         ll.setContentsMargins(*self.get_panel_margins())
 
-        # Docked mode: file buttons live here (not on toolbar)
-        if not self.standalone_mode:
-            ic  = self._get_icon_color()
-            btn_row = QHBoxLayout()
-            btn_row.setSpacing(2)
-
-            def _pb(icon_fn, tip, slot):
-                b = QPushButton()
-                try:
-                    b.setIcon(getattr(SVGIconFactory, icon_fn)(16, ic))
-                    b.setIconSize(QSize(16, 16))
-                except Exception:
-                    pass
-                b.setToolTip(tip)
-                b.setFixedHeight(26)
-                b.clicked.connect(slot)
-                btn_row.addWidget(b)
-                return b
-
-            _pb("open_icon",   "Load water file (Ctrl+O)", self._open_file)
-            self._docked_save_btn = _pb("save_icon", "Save (Ctrl+S)", self._save_file)
-            _pb("export_icon", "Export grids as BMP",      self._export_bmp)
-            _pb("import_icon", "Import BMP grid",          self._import_bmp)
-            ll.addLayout(btn_row)
-
-            sep0 = QFrame(); sep0.setFrameShape(QFrame.Shape.HLine)
-            ll.addWidget(sep0)
-
         hdr = QLabel("Water Levels / Rects")
         hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hdr.setFont(self.panel_font)
@@ -859,7 +1017,7 @@ class WaterWorkshop(GUIWorkshop):
         self._levels_list.itemDoubleClicked.connect(self._edit_level)
         ll.addWidget(self._levels_list)
         br = QHBoxLayout()
-        self._add_btn = QPushButton("+ Level")
+        self._add_btn = QPushButton("+ Add")
         self._del_btn = QPushButton("- Remove")
         self._add_btn.clicked.connect(self._add_level)
         self._del_btn.clicked.connect(self._del_level)
@@ -910,15 +1068,15 @@ class WaterWorkshop(GUIWorkshop):
         tbar = QGroupBox("Translate all water data")
         tbl  = QHBoxLayout(tbar); tbl.setSpacing(6)
         self._wdx = QDoubleSpinBox(); self._wdx.setRange(-9999,9999); self._wdx.setDecimals(2)
-        self._wdx.setFixedWidth(90); self._wdx.setFixedHeight(24); self._wdx.setPrefix("dX: ")
+        self._wdx.setMinimumWidth(110); self._wdx.setMinimumHeight(28); self._wdx.setPrefix("dX: ")
         self._wdy = QDoubleSpinBox(); self._wdy.setRange(-9999,9999); self._wdy.setDecimals(2)
-        self._wdy.setFixedWidth(90); self._wdy.setFixedHeight(24); self._wdy.setPrefix("dY: ")
+        self._wdy.setMinimumWidth(110); self._wdy.setMinimumHeight(28); self._wdy.setPrefix("dY: ")
         self._wdz = QDoubleSpinBox(); self._wdz.setRange(-9999,9999); self._wdz.setDecimals(2)
-        self._wdz.setFixedWidth(90); self._wdz.setFixedHeight(24); self._wdz.setPrefix("dZ: ")
+        self._wdz.setMinimumWidth(110); self._wdz.setMinimumHeight(28); self._wdz.setPrefix("dZ: ")
         for sp in (self._wdx, self._wdy, self._wdz):
             tbl.addWidget(sp)
         from PyQt6.QtWidgets import QPushButton as _PB
-        apply_btn = _PB("Apply"); apply_btn.setFixedHeight(24)
+        apply_btn = _PB("Apply"); apply_btn.setMinimumHeight(28)
         apply_btn.setToolTip("Translate all water quads and rects by dX/dY/dZ")
         apply_btn.clicked.connect(lambda: self.translate_water(
             self._wdx.value(), self._wdy.value(), self._wdz.value()))
@@ -930,84 +1088,15 @@ class WaterWorkshop(GUIWorkshop):
         cl.addWidget(self._view_tabs)
         return panel
 
-    def _populate_sidebar(self): #vers 1
-        sl  = self._sidebar_layout
-        ic  = self._get_icon_color()
-        BTN = 36
-
-        def _nb(icon_fn, tip, slot, checkable=False):
-            b = QToolButton()
-            b.setFixedSize(BTN, BTN)
-            try:
-                b.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-            except Exception:
-                b.setText(tip[:2])
-            b.setToolTip(tip)
-            b.setCheckable(checkable)
-            b.clicked.connect(slot)
-            return b
-
-        def _row(*btns): #vers 1
-            row = QHBoxLayout()
-            row.setSpacing(2)
-            row.setContentsMargins(0, 0, 0, 0)
-            for b in btns:
-                row.addWidget(b)
-            if len(btns) == 1:
-                row.addStretch()
-            sl.addLayout(row)
-
-        def _sep(): #vers 1
-            s = QFrame()
-            s.setFrameShape(QFrame.Shape.HLine)
-            sl.addSpacing(2)
-            sl.addWidget(s)
-            sl.addSpacing(2)
-
-        def _tool(icon_fn, tip, name): #vers 1
-            b = _nb(icon_fn, tip,
-                    lambda checked=False, t=name: self._set_active_tool(t),
-                    checkable=True)
-            self._draw_btns[name] = b
-            return b
-
-        _row(_nb("zoom_in_icon",  "Zoom in (+)",     lambda: self._zoom(1.25)),
-             _nb("zoom_out_icon", "Zoom out (-)",    lambda: self._zoom(0.8)))
-        _row(_nb("fit_grid_icon", "Fit  Ctrl+0",     self._fit),
-             _nb("locate_icon",   "Toggle grid",     self._toggle_grid))
-        _sep()
-        _row(_tool("paint_icon",     "Pencil (P)",           "pencil"),
-             _tool("fill_icon",      "Flood fill (F)",       "fill"))
-        _row(_tool("line_icon",      "Line (L)",             "line"),
-             _tool("rect_icon",      "Rect outline (R)",     "rect"))
-        _row(_tool("rect_fill_icon", "Filled rect (Shift+R)","rect_fill"),
-             _tool("dropper_icon",   "Dropper (K)",          "picker"))
-        _row(_tool("zoom_in_icon",   "Zoom tool (Z)",        "zoom"),
-             _nb("scissors_icon",    "Erase all",            self._erase_all_grid))
-        _row(_nb("rotate_cw_icon",   "Invert grid data",     self._invert_grid),
-             _nb("flip_horz_icon",   "Flip display colours", self._flip_colours))
-        _row(_nb("search_icon",      "Statistics",           self._show_stats),
-             _nb("locate_icon",      "Grid offset / shift",  self._show_offset_dialog))
-        _sep()
-        sl.addWidget(QLabel("L=Sea  R=Land", alignment=Qt.AlignmentFlag.AlignCenter))
-        wf = QFrame()
-        wf.setFixedSize(74, 14)
-        wf.setStyleSheet("background:palette(highlight); border:1px solid palette(mid);")
-        df = QFrame()
-        df.setFixedSize(74, 14)
-        df.setStyleSheet("background:#3d2b0f; border:1px solid palette(mid);")  # land = brown
-        sl.addWidget(wf)
-        sl.addWidget(df)
-        if "pencil" in self._draw_btns:
-            self._draw_btns["pencil"].setChecked(True)
-            self._active_tool = "pencil"
-
-
 # SECTION 4 - Water logic
 
-    def _on_grid_changed(self): #vers 1
-        self._dirty_lbl.setText("Modified: yes")
-        self.save_btn.setEnabled(True)
+    def _mark_dirty(self, dirty=True): #vers 1
+        self._dirty = dirty
+        self._dirty_lbl.setText("Modified: yes" if dirty else "Modified: no")
+        self.save_btn.setEnabled(dirty)
+
+    def _on_grid_changed(self): #vers 2
+        self._mark_dirty(True)
         for c in (self._phys_canvas, self._vis_canvas):
             if hasattr(c, "_img_cache"): del c._img_cache
 
@@ -1154,8 +1243,9 @@ class WaterWorkshop(GUIWorkshop):
                 self._load_waterdat(path)
             self.WS.add_recent(str(path))
             self._file_path = str(path)
-            self._dirty_lbl.setText("Modified: no")
-            self.save_btn.setEnabled(False)
+            self._undo_phys.clear(); self._undo_vis.clear()
+            self._redo_phys.clear(); self._redo_vis.clear()
+            self._mark_dirty(False)
         except Exception as e:
             import traceback
             QMessageBox.critical(self, "Load Error",
@@ -1221,51 +1311,66 @@ class WaterWorkshop(GUIWorkshop):
             f"Loaded {Path(path).name}  |  {len(sa.quads)} SA water quads")
 
 
-    def _refresh_levels_list(self): #vers 2
+    def _refresh_levels_list(self): #vers 3
         self._levels_list.clear()
-        if not self._waterpro:
-            return
-        wp = self._waterpro
-        for i in range(wp.water_levels_count):
-            self._levels_list.addItem(QListWidgetItem(
-                f"Level {i}:  Z = {wp.water_level_data[i]:.4f}"))
+        if self._waterpro:
+            wp = self._waterpro
+            for i in range(wp.water_levels_count):
+                self._levels_list.addItem(QListWidgetItem(
+                    f"Level {i}:  Z = {wp.water_level_data[i]:.4f}"))
+        elif self._waterdat:
+            for i, r in enumerate(self._waterdat.rects):
+                self._levels_list.addItem(QListWidgetItem(
+                    f"[{i}] Z={r[0]:.1f}  ({r[1]:.0f},{r[2]:.0f}) to ({r[3]:.0f},{r[4]:.0f})"))
+        elif self._sa_water:
+            for i, q in enumerate(self._sa_water.quads):
+                c = q["corners"][0]
+                self._levels_list.addItem(QListWidgetItem(
+                    f"[{i}] ({c['x']:.0f},{c['y']:.0f})  flag={q['flag']}"))
 
 
-    def _save_file(self): #vers 2
-        if not self._file_path:
+    def _current_parser(self): #vers 1
+        return self._waterpro or self._waterdat or self._sa_water
+
+    def _write_water(self, path) -> bool: #vers 1
+        """Back up any existing file at path, then write atomically."""
+        from apps.methods.file_backup import backup_file, note_change
+        parser = self._current_parser()
+        if parser is None:
+            return False
+        try:
+            if Path(path).exists():
+                note_change(f"Save {Path(path).name}")
+                if backup_file(str(path)) is None:
+                    QMessageBox.warning(self, "Save",
+                        "Backup failed - file not overwritten.")
+                    return False
+            parser.save(str(path))
+        except Exception as e:
+            QMessageBox.critical(self, "Save Error", f"{Path(path).name}:\n{e}")
+            return False
+        self._file_path = str(path)
+        self.WS.add_recent(str(path))
+        self._mark_dirty(False)
+        self._set_status(f"Saved {Path(path).name}")
+        return True
+
+    def _save_file(self): #vers 3
+        """Save over the loaded file (previous version is backed up first)."""
+        if not self._current_parser() or not self._file_path:
             self._set_status("No file loaded")
             return
-        if self._file_type == "waterpro" and self._waterpro:
-            p, _ = QFileDialog.getSaveFileName(
-                self, "Save waterpro.dat", self._file_path,
-                "DAT Files (*.dat *.DAT);;All Files (*)")
-            if not p:
-                return
-            try:
-                self._waterpro.save(p)
-                self._dirty_lbl.setText("Modified: no")
-                self.save_btn.setEnabled(False)
-                self._set_status(f"Saved to {Path(p).name}")
-            except Exception as e:
-                QMessageBox.critical(self, "Save Error", str(e))
-        elif self._file_type == "waterdat" and self._waterdat:
-            p, _ = QFileDialog.getSaveFileName(
-                self, "Save water.dat", self._file_path, "DAT Files (*.dat)")
-            if p:
-                try:
-                    self._waterdat.save(p)
-                    self._set_status(f"Saved to {Path(p).name}")
-                except Exception as e:
-                    QMessageBox.critical(self, "Save Error", str(e))
-        elif self._file_type == "sa_water" and self._sa_water:
-            p, _ = QFileDialog.getSaveFileName(
-                self, "Save SA water.dat", self._file_path, "DAT Files (*.dat)")
-            if p:
-                try:
-                    self._sa_water.save(p)
-                    self._set_status(f"Saved to {Path(p).name}")
-                except Exception as e:
-                    QMessageBox.critical(self, "Save Error", str(e))
+        self._write_water(self._file_path)
+
+    def _save_file_as(self): #vers 1
+        if not self._current_parser():
+            self._set_status("No file loaded")
+            return
+        p, _ = QFileDialog.getSaveFileName(
+            self, "Save water file as", self._file_path,
+            "DAT Files (*.dat *.DAT);;All Files (*)")
+        if p:
+            self._write_water(p)
 
 
     def _export_file(self): #vers 2
@@ -1340,61 +1445,107 @@ class WaterWorkshop(GUIWorkshop):
             QMessageBox.critical(self, "Import Error", str(e))
 
 
-    def _edit_level(self, item): #vers 2
-        if not self._waterpro:
-            return
+    def _edit_level(self, item): #vers 3
         idx = self._levels_list.row(item)
-        wp  = self._waterpro
-        if idx < 0 or idx >= wp.water_levels_count:
-            return
-        dlg  = QDialog(self)
-        dlg.setWindowTitle(f"Edit Water Level {idx}")
+        dlg = QDialog(self)
         _apply_dialog_theme(dlg, self.main_window)
-        fl   = QFormLayout(dlg)
-        spin = QDoubleSpinBox()
-        spin.setRange(-1000, 1000)
-        spin.setDecimals(4)
-        spin.setValue(wp.water_level_data[idx])
-        fl.addRow(f"Level {idx} Z height:", spin)
+        fl  = QFormLayout(dlg)
         btns = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok |
-            QDialogButtonBox.StandardButton.Cancel)
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(dlg.accept)
         btns.rejected.connect(dlg.reject)
-        fl.addRow(btns)
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            wp.water_level_data[idx] = spin.value()
+
+        def _spin(val, lo=-100000, hi=100000, dec=4):
+            sp = QDoubleSpinBox()
+            sp.setRange(lo, hi)
+            sp.setDecimals(dec)
+            sp.setValue(val)
+            return sp
+
+        if self._waterpro:
+            wp = self._waterpro
+            if idx < 0 or idx >= wp.water_levels_count:
+                return
+            dlg.setWindowTitle(f"Edit Water Level {idx}")
+            spin = _spin(wp.water_level_data[idx], -1000, 1000)
+            fl.addRow(f"Level {idx} Z height:", spin)
+            fl.addRow(btns)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                wp.water_level_data[idx] = spin.value()
+                self._refresh_levels_list()
+                self._on_grid_changed()
+        elif self._waterdat:
+            rects = self._waterdat.rects
+            if idx < 0 or idx >= len(rects):
+                return
+            dlg.setWindowTitle(f"Edit Water Rect {idx}")
+            r = rects[idx]
+            sp = [_spin(v, dec=2) for v in r]
+            for lbl, w in zip(("Z level", "X left", "Y bottom", "X right", "Y top"), sp):
+                fl.addRow(lbl + ":", w)
+            fl.addRow(btns)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                rects[idx] = tuple(w.value() for w in sp)
+                self._refresh_levels_list()
+                self._mark_dirty(True)
+        elif self._sa_water:
+            quads = self._sa_water.quads
+            if idx < 0 or idx >= len(quads):
+                return
+            dlg.setWindowTitle(f"Edit Water Quad {idx}")
+            from PyQt6.QtWidgets import QSpinBox
+            fs = QSpinBox()
+            fs.setRange(0, 255)
+            fs.setValue(quads[idx]["flag"] if quads[idx]["flag"] is not None else 0)
+            fl.addRow("Flag:", fs)
+            fl.addRow(btns)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                quads[idx]["flag"] = fs.value()
+                self._refresh_levels_list()
+                self._mark_dirty(True)
+
+
+    def _add_level(self): #vers 2
+        if self._waterpro:
+            wp = self._waterpro
+            if wp.water_levels_count >= WaterproParser.WATER_LEVELS:
+                QMessageBox.information(self, "At Maximum",
+                    f"Maximum {WaterproParser.WATER_LEVELS} levels.")
+                return
+            wp.water_level_data[wp.water_levels_count] = 0.0
+            wp.water_levels_count += 1
             self._refresh_levels_list()
             self._on_grid_changed()
+        elif self._waterdat:
+            x0, y0, x1, y1 = self._waterdat.world_bbox()
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+            self._waterdat.rects.append((0.0, cx - 50, cy - 50, cx + 50, cy + 50))
+            self._refresh_levels_list()
+            self._levels_list.setCurrentRow(len(self._waterdat.rects) - 1)
+            self._mark_dirty(True)
 
 
-    def _add_level(self): #vers 1
-        if not self._waterpro:
-            return
-        wp = self._waterpro
-        if wp.water_levels_count >= WaterproParser.WATER_LEVELS:
-            QMessageBox.information(self, "At Maximum",
-                f"Maximum {WaterproParser.WATER_LEVELS} levels.")
-            return
-        wp.water_level_data[wp.water_levels_count] = 0.0
-        wp.water_levels_count += 1
-        self._refresh_levels_list()
-        self._on_grid_changed()
-
-
-    def _del_level(self): #vers 1
-        if not self._waterpro:
-            return
-        wp  = self._waterpro
+    def _del_level(self): #vers 2
         idx = self._levels_list.currentRow()
-        if idx < 0 or idx >= wp.water_levels_count:
-            return
-        wp.water_level_data[idx:wp.water_levels_count-1] = \
-            wp.water_level_data[idx+1:wp.water_levels_count]
-        wp.water_level_data[wp.water_levels_count-1] = 0.0
-        wp.water_levels_count -= 1
-        self._refresh_levels_list()
-        self._on_grid_changed()
+        if self._waterpro:
+            wp = self._waterpro
+            if idx < 0 or idx >= wp.water_levels_count:
+                return
+            wp.water_level_data[idx:wp.water_levels_count-1] = \
+                wp.water_level_data[idx+1:wp.water_levels_count]
+            wp.water_level_data[wp.water_levels_count-1] = 0.0
+            wp.water_levels_count -= 1
+            self._refresh_levels_list()
+            self._on_grid_changed()
+        elif self._waterdat and 0 <= idx < len(self._waterdat.rects):
+            del self._waterdat.rects[idx]
+            self._refresh_levels_list()
+            self._mark_dirty(True)
+        elif self._sa_water and 0 <= idx < len(self._sa_water.quads):
+            del self._sa_water.quads[idx]
+            self._sa_canvas.setup(self._sa_water.quads, self._sa_water.world_bbox())
+            self._refresh_levels_list()
+            self._mark_dirty(True)
 
 
     def get_water_quads(self): #vers 1
@@ -1420,6 +1571,7 @@ class WaterWorkshop(GUIWorkshop):
             self._waterdat.translate_all(dx, dy, dz)
             changed = True
         if changed:
+            self._mark_dirty(True)
             self._set_status(
                 f"Water translated  dX={dx:+.1f}  dY={dy:+.1f}  dZ={dz:+.1f}")
             if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -1438,6 +1590,23 @@ class WaterWorkshop(GUIWorkshop):
             f"Quad {idx}: ({c['x']:.1f},{c['y']:.1f})"
             f"  flag={q['flag']}  f=[{vals}]")
 
+
+    def closeEvent(self, ev): #vers 1
+        if self.standalone_mode and self._dirty:
+            r = QMessageBox.question(
+                self, App_name, "Save changes before closing?",
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel)
+            if r == QMessageBox.StandardButton.Cancel:
+                ev.ignore()
+                return
+            if r == QMessageBox.StandardButton.Save:
+                self._save_file()
+                if self._dirty:
+                    ev.ignore()
+                    return
+        self.ribbon_save_state()
+        super().closeEvent(ev)
 
     def _show_stats(self): #vers 1
         if self._sa_water and not self._waterpro:

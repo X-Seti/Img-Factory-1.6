@@ -63,6 +63,7 @@ class DFFParser:
             self.errors.append(f"Not a Clump: chunk type 0x{ct:04X}")
             return self.model
         self.model.rw_version = lib
+        self.model.raw = bytes(data)          # kept so DFFWriter can patch edits back in
         self._parse_clump(p, p + sz)
         return self.model
 
@@ -177,6 +178,9 @@ class DFFParser:
         flags, uv_count, unk, tri_count, vert_count, morph_count = \
             struct.unpack_from('<HBBiii', self.data, p)
         p += 16
+        from apps.methods.rw_chunks import version_of
+        if version_of(self.model.rw_version) < 0x34000:
+            p += 12                      # ambient / specular / diffuse (RW < 3.4)
 
         geom.flags = flags
         geom.uv_layer_count = uv_count if uv_count > 0 else 1
@@ -200,33 +204,24 @@ class DFFParser:
                 uvs.append(TexCoord(u, v))
             geom.uv_layers.append(uvs)
 
-        # Morph target header: bsphere(16) + has_pos(4) + has_nrm(4)
-        # This header always precedes triangle + vertex data in the morph target.
+        # Standard RW layout: triangles come BEFORE the first morph target
+        # (tri_count * 8), then bsphere(16) + has_pos(4) + has_nrm(4) +
+        # vertices + normals. (Was read in the wrong order before, which gave
+        # wrong vertices on most real files.)
+        inline_tris = []
+        for _ in range(max(0, tri_count)):
+            v2, v1, mat_id, v3 = struct.unpack_from('<HHHH', self.data, p); p += 8
+            inline_tris.append(Triangle(v1, v2, v3, mat_id))
+
         cx, cy, cz, r = struct.unpack_from('<4f', self.data, p); p += 16
         geom.bounding_sphere = BoundingSphere(Vector3(cx,cy,cz), r)
         has_pos, has_nrm = struct.unpack_from('<II', self.data, p); p += 8
 
-        # Inline triangles (inside morph target, after bsphere+flags)
-        inline_tris = []
-        if tri_count > 0:
-            struct_bytes_left = (start + 12 + sz) - p
-            if struct_bytes_left >= tri_count * 8:
-                for _ in range(tri_count):
-                    v2, v1, mat_id, v3 = struct.unpack_from('<HHHH', self.data, p); p += 8
-                    inline_tris.append(Triangle(v1, v2, v3, mat_id))
-
-        # Force has_pos if struct contains enough bytes for vertices
-        struct_bytes_left = (start + 12 + sz) - p
-        if not has_pos and vert_count > 0 and struct_bytes_left >= vert_count * 12:
-            has_pos = 1
-
-        # Vertices
         if has_pos:
             for _ in range(vert_count):
                 x,y,z = struct.unpack_from('<3f', self.data, p); p += 12
                 geom.vertices.append(Vector3(x,y,z))
 
-        # Normals
         if has_nrm:
             for _ in range(vert_count):
                 x,y,z = struct.unpack_from('<3f', self.data, p); p += 12
@@ -500,25 +495,31 @@ def load_dff(path: str) -> Optional[DFFModel]:
 
 
 class DFFWriter:
-    """Placeholder for DFF round-trip writing - not yet implemented.
+    """Writes a DFFModel back by patching the bytes it was loaded from
+    (apps/methods/dff_patch.py). Only edited fields change; a model that was
+    not edited comes back byte-identical."""
 
-    model_workshop.py's _save_file() imports this expecting write() to
-    either work or raise NotImplementedError (it already has a specific
-    except NotImplementedError handler showing a friendly 'not yet
-    implemented, use Export -> OBJ' message) - but this class never
-    actually existed, so the import itself failed with a raw ImportError
-    instead. This stub restores the intended behaviour until DFF writing
-    is actually implemented."""
+    last_report: List[str] = []
 
     @staticmethod
-    def write(dff_model) -> bytes:
-        """Serialize a DFFModel back to raw DFF bytes. Not yet implemented -
-        writing a correct RenderWare clump (frame list, geometry list with
-        binmesh/triangle data, materials, atomics, extensions) is a
-        substantial undertaking distinct from parsing one."""
-        raise NotImplementedError(
-            "DFF round-trip save is not yet implemented - use Export -> OBJ "
-            "or another format for now.")
+    def write(dff_model) -> bytes: #vers 2
+        """Return the patched DFF bytes. Raises NotImplementedError when the
+        model has no source bytes (a model built from scratch)."""
+        from apps.methods.dff_patch import patch_dff
+        raw = getattr(dff_model, 'raw', None)
+        if not raw and getattr(dff_model, 'source_path', ''):
+            try:
+                with open(dff_model.source_path, 'rb') as f:
+                    raw = f.read()
+            except OSError:
+                raw = None
+        if not raw:
+            raise NotImplementedError(
+                "this model was not loaded from a DFF, so there is nothing to patch - "
+                "export it as OBJ instead")
+        out, report = patch_dff(raw, dff_model)
+        DFFWriter.last_report = report
+        return out
 
 
 __all__ = ['DFFParser', 'DFFWriter', 'detect_dff', 'load_dff', 'read_chunk']

@@ -47,6 +47,7 @@ anything is written - all-or-nothing, no partial shift."""
 # plan_compact_all_gaps
 # plan_swap_ids
 # find_usages
+# preview_cascade
 # plan_splice_move
 # validate_contiguous_selection
 
@@ -214,6 +215,12 @@ def _remap_id_field_line(line: str, id_map: Dict[int, int]): #vers 1
     return f"{prefix_ws}{id_map[old_id]}{sep}{rest.lstrip()}"
 
 
+def _keep_eol(raw: str, new_line: str) -> str: #vers 1
+    """new_line with the original line's own ending (CRLF / LF / none), so
+    a cascade never converts a file's line endings."""
+    return new_line.rstrip("\r\n") + raw[len(raw.rstrip("\r\n")):]
+
+
 def _remap_section_ids_in_file(file_path: str, section_names, id_map: Dict[int, int]) -> bool: #vers 1
     """Shared low-level rewrite - given any real text file (.ipl or
     .ide both work), substitute ONLY the leading ID field on lines
@@ -224,7 +231,7 @@ def _remap_section_ids_in_file(file_path: str, section_names, id_map: Dict[int, 
     if not file_path or not os.path.isfile(file_path):
         return False
     try:
-        with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+        with open(file_path, "r", encoding="latin-1", newline="") as f:
             lines = f.readlines()
     except Exception:
         return False
@@ -246,7 +253,7 @@ def _remap_section_ids_in_file(file_path: str, section_names, id_map: Dict[int, 
         if current_section in section_names:
             remapped = _remap_id_field_line(raw, id_map)
             if remapped is not None:
-                out_lines.append(remapped if remapped.endswith("\n") else remapped + "\n")
+                out_lines.append(_keep_eol(raw, remapped))
                 changed = True
                 continue
         out_lines.append(raw)
@@ -256,7 +263,7 @@ def _remap_section_ids_in_file(file_path: str, section_names, id_map: Dict[int, 
     if backup_file(file_path) is None:
         return False
     try:
-        with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+        with open(file_path, "w", encoding="latin-1", newline="") as f:
             f.writelines(out_lines)
         return True
     except Exception:
@@ -309,7 +316,7 @@ def _remap_names_in_file(file_path: str, section_names, model_id: int,
     if not file_path or not os.path.isfile(file_path):
         return False
     try:
-        with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+        with open(file_path, "r", encoding="latin-1", newline="") as f:
             lines = f.readlines()
     except Exception:
         return False
@@ -331,7 +338,7 @@ def _remap_names_in_file(file_path: str, section_names, model_id: int,
         if current_section in section_names:
             remapped = _remap_name_field_line(raw, model_id, old_name, new_name)
             if remapped is not None:
-                out_lines.append(remapped if remapped.endswith("\n") else remapped + "\n")
+                out_lines.append(_keep_eol(raw, remapped))
                 changed = True
                 continue
         out_lines.append(raw)
@@ -341,7 +348,7 @@ def _remap_names_in_file(file_path: str, section_names, model_id: int,
     if backup_file(file_path) is None:
         return False
     try:
-        with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+        with open(file_path, "w", encoding="latin-1", newline="") as f:
             f.writelines(out_lines)
         return True
     except Exception:
@@ -369,7 +376,7 @@ def _remove_id_lines_in_file(file_path: str, section_names, model_ids) -> bool: 
     if not file_path or not os.path.isfile(file_path):
         return False
     try:
-        with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+        with open(file_path, "r", encoding="latin-1", newline="") as f:
             lines = f.readlines()
     except Exception:
         return False
@@ -404,7 +411,7 @@ def _remove_id_lines_in_file(file_path: str, section_names, model_ids) -> bool: 
     if backup_file(file_path) is None:
         return False
     try:
-        with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+        with open(file_path, "w", encoding="latin-1", newline="") as f:
             f.writelines(out_lines)
         return True
     except Exception:
@@ -431,7 +438,7 @@ def find_ipl_usages(ipl_paths: List[str], model_id: int) -> List[dict]: #vers 1
         if not path or not os.path.isfile(path):
             continue
         try:
-            with open(path, "r", encoding="ascii", errors="ignore") as f:
+            with open(path, "r", encoding="latin-1", newline="") as f:
                 lines = f.readlines()
         except Exception:
             continue
@@ -508,7 +515,7 @@ def _remap_path_header_id_line(line: str, id_map: Dict[int, int]): #vers 1
     """If this real "path" section header line's own ID field (2nd
     position - "car"/"ped", ID, ModelName) is in id_map, return the
     line with ONLY that field substituted. Returns None otherwise."""
-    m = _PATH_HEADER_RE.match(line.rstrip("\n"))
+    m = _PATH_HEADER_RE.match(line.rstrip("\r\n"))
     if not m:
         return None
     old_id = int(m.group("id"))
@@ -522,7 +529,7 @@ def _remap_path_header_name_line(line: str, model_id: int, old_name: str, new_na
     """Same as _remap_path_header_id_line but for a rename - matches
     on ID+old-name together (a rename never changes the ID), only
     substituting the ModelName field."""
-    m = _PATH_HEADER_RE.match(line.rstrip("\n"))
+    m = _PATH_HEADER_RE.match(line.rstrip("\r\n"))
     if not m:
         return None
     if int(m.group("id")) != model_id or m.group("name").strip().lower() != old_name.strip().lower():
@@ -542,7 +549,7 @@ def _scan_path_section(file_path: str, line_fn): #vers 1
     if not file_path or not os.path.isfile(file_path):
         return False
     try:
-        with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+        with open(file_path, "r", encoding="latin-1", newline="") as f:
             lines = f.readlines()
     except Exception:
         return False
@@ -564,7 +571,7 @@ def _scan_path_section(file_path: str, line_fn): #vers 1
             continue
         remapped = line_fn(raw)
         if remapped is not None:
-            out_lines.append(remapped if remapped.endswith("\n") else remapped + "\n")
+            out_lines.append(_keep_eol(raw, remapped))
             changed = True
         else:
             out_lines.append(raw)
@@ -574,7 +581,7 @@ def _scan_path_section(file_path: str, line_fn): #vers 1
     if backup_file(file_path) is None:
         return False
     try:
-        with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+        with open(file_path, "w", encoding="latin-1", newline="") as f:
             f.writelines(out_lines)
         return True
     except Exception:
@@ -609,7 +616,7 @@ def find_path_usages(ide_paths: List[str], model_id: int) -> List[dict]: #vers 1
         if not path or not os.path.isfile(path):
             continue
         try:
-            with open(path, "r", encoding="ascii", errors="ignore") as f:
+            with open(path, "r", encoding="latin-1", newline="") as f:
                 lines = f.readlines()
         except Exception:
             continue
@@ -624,7 +631,7 @@ def find_path_usages(ide_paths: List[str], model_id: int) -> List[dict]: #vers 1
             if low == "end":
                 in_path_section = False
                 continue
-            m = _PATH_HEADER_RE.match(raw.rstrip("\n"))
+            m = _PATH_HEADER_RE.match(raw.rstrip("\r\n"))
             if m and int(m.group("id")) == model_id:
                 usages.append({'ide_path': path, 'line_no': line_no, 'model_name': m.group("name").strip()})
     return usages
@@ -641,7 +648,7 @@ def remove_path_blocks(ide_paths: List[str], model_ids) -> Dict[str, bool]: #ver
         if not file_path or not os.path.isfile(file_path):
             return False
         try:
-            with open(file_path, "r", encoding="ascii", errors="ignore") as f:
+            with open(file_path, "r", encoding="latin-1", newline="") as f:
                 lines = f.readlines()
         except Exception:
             return False
@@ -663,7 +670,7 @@ def remove_path_blocks(ide_paths: List[str], model_ids) -> Dict[str, bool]: #ver
                 skipping = False
                 out_lines.append(raw)
                 continue
-            m = _PATH_HEADER_RE.match(raw.rstrip("\n"))
+            m = _PATH_HEADER_RE.match(raw.rstrip("\r\n"))
             if m:
                 skipping = int(m.group("id")) in ids
                 if skipping:
@@ -679,7 +686,7 @@ def remove_path_blocks(ide_paths: List[str], model_ids) -> Dict[str, bool]: #ver
         if backup_file(file_path) is None:
             return False
         try:
-            with open(file_path, "w", encoding="ascii", errors="ignore") as f:
+            with open(file_path, "w", encoding="latin-1", newline="") as f:
                 f.writelines(out_lines)
             return True
         except Exception:
@@ -1244,3 +1251,50 @@ def validate_contiguous_selection(entry_rows: List[tuple], selected_indices) -> 
             return "Selection must be one contiguous block, not scattered rows."
     ids = sorted(r[1] for r in selected_entries)
     return (ids[0], ids[-1], sections.pop())
+
+
+def preview_cascade(ide_paths: List[str], ipl_paths: List[str], model_ids) -> Dict[str, dict]: #vers 1
+    """Dry run - for every given model ID, count the real lines a
+    change would touch in each file, writing nothing (Sep 20 2026,
+    per Keith: show what an ID change/rename/remove would affect
+    first). Returns {path: {'2dfx': n, 'path': n, 'inst': n}} with
+    only files that have at least one hit. path blocks are GTA III/VC
+    only, 2dfx and inst/cars work for every game."""
+    ids = {model_ids} if isinstance(model_ids, int) else set(model_ids)
+    out: Dict[str, dict] = {}
+
+    def _bump(path, key):
+        out.setdefault(path, {'2dfx': 0, 'path': 0, 'inst': 0})[key] += 1
+
+    def _scan(path, sections, key):
+        if not path or not os.path.isfile(path):
+            return
+        cur = None
+        try:
+            lines = open(path, "r", encoding="latin-1", newline="").readlines()
+        except Exception:
+            return
+        for raw in lines:
+            s = raw.split("#")[0].strip()
+            low = s.lower()
+            if low == "end":
+                cur = None
+                continue
+            if cur is None and low in sections:
+                cur = low
+                continue
+            if cur in sections and s:
+                try:
+                    if int(s.split(",", 1)[0].strip()) in ids:
+                        _bump(path, key)
+                except ValueError:
+                    pass
+
+    for p in ide_paths:
+        _scan(p, ("2dfx",), '2dfx')
+        for u in find_path_usages([p], next(iter(ids))) if len(ids) == 1 else \
+                [u for i in ids for u in find_path_usages([p], i)]:
+            _bump(p, 'path')
+    for p in ipl_paths:
+        _scan(p, _IPL_ID_SECTIONS, 'inst')
+    return out

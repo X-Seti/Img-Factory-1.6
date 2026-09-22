@@ -54,7 +54,7 @@ except ImportError:
             self.setWindowTitle("Settings (fallback)")
 
 # --- Data Structures ---
-IMGEntry = namedtuple('IMGEntry', ['name', 'offset', 'size', 'data_offset', 'rw_version'])
+IMGEntry = namedtuple('IMGEntry', ['name', 'offset', 'size', 'data_offset', 'rw_version'], defaults=(0,))
 
 
 # --- IDE Parser ---
@@ -79,157 +79,122 @@ class IDEParser:
 
 # --- IMG Parser ---
 class IMGParser:
-    def __init__(self, file_path: str = None, debug_mode: bool = False): #vers 1
+    """Thin adapter over apps/methods/img_core_classes.IMGFile so this browser
+    reads and writes the real GTA IMG layouts (V1 DIR/IMG, V2, ...). Entries
+    stay simple named tuples for the tree view; new data waits in _new until
+    the archive is saved."""
+
+    def __init__(self, file_path: str = None, debug_mode: bool = False): #vers 2
         self.file_path = file_path
         self.version = 0
         self.entries: List[IMGEntry] = []
         self.file_handle = None
         self.debug_mode = debug_mode
+        self._core = None
+        self._new: dict = {}          # name -> bytes added/replaced since load
+        self._new_version = 2         # used when the archive has no file yet
         if file_path:
             self.load(file_path)
 
-    def _decode_name(self, name_bytes: bytes) -> str: #vers 1
-        clean = name_bytes.rstrip(b'\x00')
-        if not clean: return "(empty)"
-        if self.debug_mode:
-            return clean.hex()
-        try:
-            return clean.decode('utf-8', errors='replace')
-        except:
-            return clean.hex()
+    def _sync(self): #vers 1
+        self.entries = [IMGEntry(e.name, e.offset, e.size, e.offset, getattr(e, 'rw_version', 0))
+                        for e in self._core.entries] if self._core else []
 
-    def _parse_external_dir(self, dir_path: str, img_path: str): #vers 1
-        with open(dir_path, 'rb') as f:
-            num_entries = struct.unpack('<I', f.read(4))[0]
-            for _ in range(num_entries):
-                entry_data = f.read(32)
-                if len(entry_data) < 32: break
-                name = self._decode_name(entry_data[:24])
-                if name == "(empty)": continue
-                offset = struct.unpack('<I', entry_data[24:28])[0]
-                size = struct.unpack('<I', entry_data[28:32])[0]
-                self.entries.append(IMGEntry(name, offset, size, offset))
-        self.file_path = img_path
-
-    def load(self, file_path: str): #vers 2
+    def load(self, file_path: str): #vers 3
+        from apps.methods.img_core_classes import IMGFile
+        core = IMGFile(file_path)
+        if not core.open():
+            raise ValueError(getattr(core, 'last_error', '') or "Invalid or unsupported IMG file")
+        self._core = core
         self.file_path = file_path
-        self.entries = []
-        img_path = Path(file_path)
-        dir_path = img_path.with_suffix('.dir')
-        if dir_path.exists():
-            self.version = 2
-            self._parse_external_dir(dir_path, file_path)
-            return
+        self.version = core.version.value
+        self._new = {}
+        self._sync()
 
-        with open(file_path, 'rb') as f:
-            version_bytes = f.read(4)
-            if len(version_bytes) < 4:
-                raise ValueError("Invalid IMG file")
-            self.version = struct.unpack('<I', version_bytes)[0]
+    def get_file_data(self, entry: IMGEntry) -> bytes: #vers 2
+        if entry.name in self._new:
+            return self._new[entry.name]
+        ce = self._core.get_entry(entry.name) if self._core else None
+        if ce is None:
+            raise KeyError(entry.name)
+        return self._core.read_entry_data(ce)
 
-            if self.version == 1:
-                f.seek(32)
-                while True:
-                    entry_data = f.read(32)
-                    if len(entry_data) < 32: break
-                    name = self._decode_name(entry_data[:24])
-                    if name == "(empty)": break
-                    offset = struct.unpack('<I', entry_data[24:28])[0]
-                    size = struct.unpack('<I', entry_data[28:32])[0]
-                    self.entries.append(IMGEntry(name, offset, size, offset))
-            elif self.version == 2:
-                num_entries = struct.unpack('<I', f.read(4))[0]
-                f.seek(8)
-                for _ in range(num_entries):
-                    entry_data = f.read(32)
-                    if len(entry_data) < 32: break
-                    name = self._decode_name(entry_data[:24])
-                    if name == "(empty)": continue
-                    offset = struct.unpack('<I', entry_data[24:28])[0]
-                    size = struct.unpack('<I', entry_data[28:32])[0]
-                    dir_size = 8 + 32 * num_entries
-                    data_offset = dir_size + offset
-                    self.entries.append(IMGEntry(name, offset, size, data_offset))
-            else:
-                next_bytes = f.read(4)
-                if len(next_bytes) == 4:
-                    num_entries = struct.unpack('<I', next_bytes)[0]
-                    if 1 <= num_entries <= 65535:
-                        f.seek(8)
-                        for _ in range(num_entries):
-                            entry_data = f.read(32)
-                            if len(entry_data) < 32: break
-                            name = self._decode_name(entry_data[:24])
-                            if name == "(empty)": continue
-                            offset = struct.unpack('<I', entry_data[24:28])[0]
-                            size = struct.unpack('<I', entry_data[28:32])[0]
-                            self.entries.append(IMGEntry(name, offset, size, offset))
-                    else:
-                        raise ValueError(f"Unsupported IMG version: {self.version}")
-                else:
-                    raise ValueError(f"Unsupported IMG version: {self.version}")
+    def close(self): #vers 2
+        if self._core:
+            try: self._core.close()
+            except Exception: pass
 
-    def get_file_data(self, entry: IMGEntry) -> bytes: #vers 1
-        if not self.file_handle:
-            self.file_handle = open(self.file_path, 'rb')
-        self.file_handle.seek(entry.data_offset)
-        return self.file_handle.read(entry.size)
-
-    def close(self): #vers 1
-        if self.file_handle:
-            self.file_handle.close()
-            self.file_handle = None
-
-    def create_new(self, version: int = 2): #vers 1
+    def create_new(self, version: int = 2): #vers 2
+        self.close()
+        self._core = None
         self.version = version
+        self._new_version = version
         self.entries = []
+        self._new = {}
         self.file_path = None
 
-    def add_entry(self, name: str,  bytes): #vers 1
-        offset = self.entries[-1].offset + self.entries[-1].size if self.entries else 0
-        self.entries.append(IMGEntry(name, offset, len(data), 0))
+    def add_entry(self, name: str, data: bytes): #vers 2
+        self._new[name] = data
+        if self._core:
+            if not self._core.add_entry(name, data, auto_save=False):
+                raise ValueError(f"could not add {name}")
+            self._sync()
+        else:
+            self.entries = [e for e in self.entries if e.name != name]
+            self.entries.append(IMGEntry(name, 0, len(data), 0, 0))
 
-    def remove_entry(self, name: str): #vers 1
-        self.entries = [e for e in self.entries if e.name != name]
+    def remove_entry(self, name: str): #vers 2
+        self._new.pop(name, None)
+        if self._core:
+            self._core.remove_entry(name)
+            self._sync()
+        else:
+            self.entries = [e for e in self.entries if e.name != name]
 
-    def rename_entry(self, old_name: str, new_name: str): #vers 1
-        for i, e in enumerate(self.entries):
-            if e.name == old_name:
-                self.entries[i] = IMGEntry(new_name, e.offset, e.size, e.data_offset)
-                break
+    def rename_entry(self, old_name: str, new_name: str): #vers 2
+        entry = next((e for e in self.entries if e.name == old_name), None)
+        if entry is None:
+            return
+        data = self.get_file_data(entry)
+        self.remove_entry(old_name)
+        self.add_entry(new_name, data)
 
-    def save(self, file_path: str): #vers 1
-        with open(file_path, 'wb') as f:
-            if self.version == 1:
-                f.write(struct.pack('<I', 1))
-                f.write(b'\x00' * 28)
-                current_offset = 0
-                updated = [IMGEntry(e.name, current_offset := current_offset + e.size - e.size, e.size, 0) for e in self.entries]
-                current_offset = 0
-                for e in self.entries:
-                    name_bytes = e.name.encode('ascii')[:24].ljust(24, b'\x00')
-                    f.write(name_bytes)
-                    f.write(struct.pack('<I', current_offset))
-                    f.write(struct.pack('<I', e.size))
-                    current_offset += e.size
-                for e in self.entries:
-                    f.write(self.get_file_data(e) if self.file_path else b'')
-            elif self.version == 2:
-                f.write(struct.pack('<I', 2))
-                f.write(struct.pack('<I', len(self.entries)))
-                current_offset = 0
-                for e in self.entries:
-                    name_bytes = e.name.encode('ascii')[:24].ljust(24, b'\x00')
-                    f.write(name_bytes)
-                    f.write(struct.pack('<I', current_offset))
-                    f.write(struct.pack('<I', e.size))
-                    current_offset += e.size
-                for e in self.entries:
-                    f.write(self.get_file_data(e) if self.file_path else b'')
-        self.file_path = file_path
+    def save(self, file_path: str = None) -> bool: #vers 2
+        """Write the archive (backup first, atomic). Returns True on success;
+        the reason for a failure is in .last_error."""
+        self.last_error = ""
+        from apps.methods.img_core_classes import IMGFile, IMGVersion
+        try:
+            if self._core is None:                       # brand-new archive
+                if not file_path:
+                    self.last_error = "no path given"
+                    return False
+                core = IMGFile()
+                if not core.create_new(file_path, IMGVersion(self._new_version)):
+                    self.last_error = "could not create the archive"
+                    return False
+                if "replaceme.dff" not in self._new:
+                    core.remove_entry("replaceme.dff")          # placeholder the core creator adds
+                for name, data in self._new.items():
+                    core.add_entry(name, data, auto_save=False)
+                self._core = core
+                ok = core.save_img_file()
+            elif file_path and file_path != self.file_path:
+                ok = self._core.save_to_path(file_path)
+            else:
+                ok = self._core.save_img_file()
+            if not ok:
+                self.last_error = getattr(self._core, 'last_error', '') or "save failed"
+                return False
+            self.file_path = self._core.file_path
+            self._new = {}
+            self._sync()
+            return True
+        except Exception as e:
+            self.last_error = str(e)
+            return False
 
 
-# --- Tree View ---
 class IMGTreeView(QTreeWidget):
     filesDropped = pyqtSignal(list)
     filesDragged = pyqtSignal(list)
@@ -260,7 +225,8 @@ class IMGTreeView(QTreeWidget):
         urls = []
         for e in entries:
             path = Path(temp_dir) / e.name
-            path.write_bytes(e.data)
+            provider = getattr(self, 'data_provider', None)
+            path.write_bytes(provider(e) if provider else b'')
             urls.append(_qurl_from_path(str(path)))
         mime.setUrls(urls)
         drag.setMimeData(mime)
@@ -307,6 +273,7 @@ class IMGTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.tree_view = IMGTreeView()
+        self.tree_view.data_provider = lambda e: self.img_parser.get_file_data(e)
         layout.addWidget(self.tree_view)
         self.tree_view.filesDropped.connect(self.on_files_dropped)
         self.tree_view.filesDragged.connect(self.on_files_dragged)
@@ -411,24 +378,23 @@ class IMGTab(QWidget):
             except Exception as ex:
                 QMessageBox.warning(self, "Export Error", f"Failed to export {e.name}:\n{ex}")
 
-    def save(self, file_path: str = None): #vers 2
-        if not file_path:
-            file_path = self.file_path
+    def save(self, file_path: str = None): #vers 4
+        """Save through the core IMG writer (backup first, atomic rebuild)."""
+        file_path = file_path or self.file_path
         if not file_path:
             file_path, _ = QFileDialog.getSaveFileName(self, "Save IMG", "", "IMG Files (*.img)")
-            if not file_path: return False
-        try:
-            temp = IMGParser()
-            temp.version = self.img_parser.version
-            temp.entries = self.img_parser.entries.copy()
-            temp.file_path = self.file_path
-            temp.save(file_path)
-            self.file_path = file_path
-            self.modified = False
-            return True
-        except Exception as e:
-            QMessageBox.critical(self, "Save Error", f"Failed to save:\n{e}")
+            if not file_path:
+                return False
+        if not self.img_parser.entries:
+            QMessageBox.warning(self, "Save", "The archive is empty - nothing to save.")
             return False
+        if not self.img_parser.save(file_path):
+            QMessageBox.critical(self, "Save Error", f"Failed to save:\n{self.img_parser.last_error}")
+            return False
+        self.file_path = self.img_parser.file_path
+        self.modified = False
+        self.update_tree()
+        return True
 
     def rebuild_img(self): #vers 1
         self.update_tree()
@@ -442,9 +408,7 @@ class IMGTab(QWidget):
         self.add_entries(files)
 
     def on_files_dragged(self, entries: List[IMGEntry]): #vers 1
-        for e in entries:
-            if not hasattr(e, 'data'):
-                e.data = self.img_parser.get_file_data(e)
+        pass    # entries are named tuples; drag data is read on demand via get_file_data
 
     def sort_entries_by_ide_order(self, ide_model_names: List[str]): #vers 1
         current = {e.name: e for e in self.img_parser.entries}
@@ -778,9 +742,14 @@ class MainWidget(QWidget):
         tab = self._get_current_tab()
         if tab: tab.save()
 
-    def save_as_current(self): #vers 1
+    def save_as_current(self): #vers 2
+        """Save As really asks for a new path now (it used to overwrite the open archive)."""
         tab = self._get_current_tab()
-        if tab: tab.save()
+        if not tab:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Save IMG As", getattr(tab, "file_path", "") or "", "IMG Files (*.img)")
+        if path:
+            tab.save(path)
 
     def close_tab(self, index): #vers 2
         tab = self.tab_widget.widget(index)

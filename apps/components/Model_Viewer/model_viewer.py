@@ -22,6 +22,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from apps.methods.ribbon_system import RibbonMixin
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QFrame,
@@ -53,6 +54,8 @@ try:
     from apps.methods.dff_viewport import DFFViewport
 except ImportError:
     from apps.components.Model_Viewer.methods.dff_viewport import DFFViewport
+
+from apps.methods.ribbon_system import RibbonMixin
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -271,11 +274,14 @@ class _CornerOverlay(QWidget):
 # DFFViewport imported from apps.methods.dff_viewport
 
 # - Main workshop widget (RadarWorkshop pattern)
-class ModelViewer(ToolMenuMixin, QWidget):
+class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
     """Model Viewer — RadarWorkshop UI template with DFFViewport canvas."""
 
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
+
+    _ribbon_name = "model_viewer"
+    _RIBBON_LAYOUT_VERSION = 1     # 1 = File / Tools ribbons
 
     def _build_menus_into_qmenu(self, pm): #vers 1
         fm = pm.addMenu("File")
@@ -414,7 +420,9 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self.viewport = DFFViewport()
         self.viewport.app_settings = self.app_settings
 
-        main_layout.addWidget(self._create_toolbar())
+        self._tb_frame = self._create_toolbar()
+        self._tb_frame.setVisible(self.standalone_mode)   # title / window buttons only
+        main_layout.addWidget(self._tb_frame)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._create_left_panel())
@@ -424,8 +432,28 @@ class ModelViewer(ToolMenuMixin, QWidget):
         splitter.setStretchFactor(1, 5)
         splitter.setStretchFactor(2, 0)
         splitter.setSizes([200, 800, 180])
-        main_layout.addWidget(splitter, 1)
+        main_layout.addWidget(self.ribbon_wrap(splitter), 1)
+        self._build_ribbons()
         main_layout.addWidget(self._create_status_bar())
+        self.ribbon_restore_state()
+
+    def _build_ribbons(self): #vers 1
+        """File and Tools ribbons (moved out of the old title bar)."""
+        from PyQt6.QtWidgets import QToolButton
+        B = self.ribbon_button
+        tb = self.ribbon_toolbar("File")
+        self.open_dff_btn = B(tb, "open_icon", "Open DFF model (Ctrl+O)", self._open_dff, text="DFF")
+        self.open_txd_btn = B(tb, "texture_icon", "Open TXD textures", self._open_txd, text="TXD")
+        tb = self.ribbon_toolbar("Tools")
+        mb = QToolButton()
+        mb.setText("Menu"); mb.setMinimumHeight(self._RIBBON_BTN)
+        mb.setToolTip("Viewer menus"); mb.clicked.connect(self._on_menu_btn_clicked)
+        tb.addWidget(mb)
+        self.menu_toggle_btn = mb
+        self.settings_btn = B(tb, "settings_icon", "Viewer Settings", self._show_workshop_settings, text="Set")
+        self.info_radar_btn = B(tb, "info_icon", "About Model Viewer", self._show_about, text="i")
+        self.properties_btn = B(tb, "properties_icon", "Theme / App Settings", self._open_app_settings, text="Th")
+
 
 
     # - toolbar
@@ -473,20 +501,6 @@ class ModelViewer(ToolMenuMixin, QWidget):
             b.clicked.connect(cb)
             return b
 
-        # Menu | Settings
-        self.menu_toggle_btn = QPushButton("Menu")
-        self.menu_toggle_btn.setFont(self.button_font)
-        self.menu_toggle_btn.setFixedHeight(28)
-        ico = _icon('menu')
-        if ico: self.menu_toggle_btn.setIcon(ico); self.menu_toggle_btn.setIconSize(QSize(16,16))
-        self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
-        lay.addWidget(self.menu_toggle_btn)
-
-        self.settings_btn = _ibtn("Viewer Settings", self._show_workshop_settings, 'settings')
-        lay.addWidget(self.settings_btn)
-
-        lay.addSpacing(4)
-
         # → title (draggable centre area) →
         self._title_lbl = QLabel(App_name)
         self._title_lbl.setFont(self.title_font)
@@ -496,21 +510,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         lay.addWidget(self._title_lbl)
         lay.addStretch()
 
-        # Open DFF | Open TXD
-        self.open_dff_btn = _tbtn("Open DFF", "Open DFF model (Ctrl+O)", self._open_dff, 'open')
-        self.open_txd_btn = _tbtn("Open TXD", "Open TXD textures",       self._open_txd, 'open')
-        lay.addWidget(self.open_dff_btn)
-        lay.addWidget(self.open_txd_btn)
-
-        lay.addSpacing(4)
-
         # ⓘ ⚙ − □ ✕  (standalone only)
         if self.standalone_mode:
-            self.info_radar_btn = _ibtn("About Model Viewer", self._show_about,         'info')
-            self.properties_btn = _ibtn("Theme / App Settings", self._open_app_settings,'properties')
-            lay.addWidget(self.info_radar_btn)
-            lay.addWidget(self.properties_btn)
-
             lay.addSpacing(4)
             self.minimize_btn = QPushButton(); self.minimize_btn.setFixedSize(32,28)
             self.maximize_btn = QPushButton(); self.maximize_btn.setFixedSize(32,28)
@@ -688,10 +689,11 @@ class ModelViewer(ToolMenuMixin, QWidget):
         swatch_lay = QHBoxLayout(swatch_row)
         swatch_lay.setContentsMargins(0,0,0,0); swatch_lay.setSpacing(4)
 
-        self._paint1_btn = QPushButton("Primary")
-        self._paint2_btn = QPushButton("Secondary")
+        self._paint1_btn = QPushButton("Pri")
+        self._paint2_btn = QPushButton("Sec")
+        self._paint1_btn.setToolTip("Primary paint colour"); self._paint2_btn.setToolTip("Secondary paint colour")
         for btn in (self._paint1_btn, self._paint2_btn):
-            btn.setFixedHeight(28)
+            btn.setFixedHeight(28); btn.setMinimumWidth(50)
             btn.setFont(self.infobar_font)
         self._paint1_btn.clicked.connect(self._pick_paint1)
         self._paint2_btn.clicked.connect(self._pick_paint2)
@@ -1865,7 +1867,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
         self._refresh_corner_overlay()
 
-    def closeEvent(self, event): #Vers 2
+    def closeEvent(self, event): #Vers 3
+        self.ribbon_save_state()
         # Save window geometry
         if self.standalone_mode:
             g = self.geometry()

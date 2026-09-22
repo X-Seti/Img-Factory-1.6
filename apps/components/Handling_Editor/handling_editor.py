@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 3
+#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 4
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Handling Editor
 
 """
@@ -53,7 +53,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 
-from apps.components.Handling_Editor.gui_workshop import GUIWorkshop
+from apps.components.Handling_Editor.depends.diffcode import GUIWorkshop
 
 
 #                                                                              
@@ -139,101 +139,25 @@ HANDLING_FLAGS = {
 # Data classes
 #                                                                              
 
-@dataclass
-class HandlingEntry: #vers 1
-    values: list = field(default_factory=list)
-    comment: str = ""
-    raw_line: str = ""
-
-    @staticmethod
-    def from_line(line: str) -> Optional['HandlingEntry']: #vers 2
-        stripped = line.strip()
-        if not stripped or stripped.startswith(';'):
-            return None
-        # SA special sections: % = boat, $ = plane/heli, ! = bike, & = animation
-        # These have different field layouts — skip them for car-only handling tab
-        if stripped[0] in ('%', '$', '!', '&'):
-            return None
-        comment = ""
-        if ';' in stripped:
-            idx = stripped.index(';')
-            comment = stripped[idx:]
-            stripped = stripped[:idx].strip()
-        parts = stripped.split()
-        if len(parts) < 10:
-            return None
-        e = HandlingEntry()
-        e.values = parts
-        e.comment = comment
-        e.raw_line = line
-        return e
-
-    def to_line(self) -> str: #vers 1
-        return '\t'.join(str(v) for v in self.values) + (f'  {self.comment}' if self.comment else '') + '\n'
-
-    @property
-    def name(self) -> str: #vers 1
-        return self.values[0] if self.values else ''
-
-
-class HandlingParser: #vers 1
-    def __init__(self): #vers 1
-        self.entries: List[HandlingEntry] = []
-        self.header_lines: List[str] = []
-        self.game = 'VC'
-
-    def _detect_game(self, lines: List[str]) -> str: #vers 1
-        for ln in lines:
-            parts = ln.strip().split()
-            if len(parts) > 37:
-                return 'SA'
-        return 'VC'
-
-    def load(self, path: str) -> bool: #vers 1
-        try:
-            with open(path, 'r', encoding='latin-1') as f:
-                lines = f.readlines()
-            self.game = self._detect_game([l for l in lines if not l.strip().startswith(';')])
-            self.entries.clear()
-            self.header_lines.clear()
-            in_data = False
-            for ln in lines:
-                s = ln.strip()
-                if not s or s.startswith(';'):
-                    if not in_data:
-                        self.header_lines.append(ln)
-                    continue
-                in_data = True
-                e = HandlingEntry.from_line(ln)
-                if e:
-                    self.entries.append(e)
-            return True
-        except Exception as ex:
-            print(f"HandlingParser.load error: {ex}")
-            return False
-
-    def save(self, path: str) -> bool: #vers 1
-        try:
-            with open(path, 'w', encoding='latin-1') as f:
-                for ln in self.header_lines:
-                    f.write(ln)
-                for e in self.entries:
-                    f.write(e.to_line())
-            return True
-        except Exception as ex:
-            print(f"HandlingParser.save error: {ex}")
-            return False
+# The file model (HandlingEntry / HandlingParser) lives in apps/methods/handling_file.py:
+# byte-exact round trip, only edited vehicle lines change, CRLF/comments/SA
+# special lines (% $ ! &) are kept.
+from apps.methods.handling_file import HandlingEntry, HandlingParser, detect_game, header_fields
+from apps.methods.ribbon_system import RibbonMixin
 
 
 #                                                                              
 # Editor widget
 #                                                                              
 
-class HandlingEditor(GUIWorkshop): #vers 1
+class HandlingEditor(RibbonMixin, GUIWorkshop): #vers 2
     App_name   = "Handling Editor"
     App_build  = "Build 1"
     App_auth   = "X-Seti"
     config_key = "handling_editor"
+    _ribbon_name = "handling_editor"
+    # Bump when the set of ribbons changes (1 = File/Edit/View/Tools)
+    _RIBBON_LAYOUT_VERSION = 1
 
     def __init__(self, main_window=None, parent=None):
         self._defer_setup_ui = True
@@ -245,7 +169,11 @@ class HandlingEditor(GUIWorkshop): #vers 1
         self._modified    = False
         self._field_widgets: Dict[str, QWidget] = {}
         self._blocking    = False
+        self._fields      = VC_FIELDS
+        self._undo_stack, self._redo_stack = [], []
+        self._ide_paths: List[str] = []
         self.setup_ui()
+        self.ribbon_restore_state()
         # Hide inner toolbar chrome when docked inside IMG Factory
         if main_window and hasattr(self, 'toolbar'):
             self.toolbar.hide()
@@ -273,7 +201,7 @@ class HandlingEditor(GUIWorkshop): #vers 1
         btn_row = QHBoxLayout()
         for label, slot in [("Add", self._add_entry), ("Del", self._delete_entry), ("Dup", self._duplicate_entry)]:
             b = QPushButton(label)
-            b.setFixedHeight(24)
+            b.setMinimumHeight(28)
             b.clicked.connect(slot)
             btn_row.addWidget(b)
         lay.addLayout(btn_row)
@@ -287,9 +215,27 @@ class HandlingEditor(GUIWorkshop): #vers 1
         self._form_layout = QFormLayout(container)
         self._form_layout.setSpacing(4)
         self._form_layout.setContentsMargins(8, 8, 8, 8)
-        self._field_widgets.clear()
+        self._fill_form(VC_FIELDS)
+        return scroll
 
-        for fname, ftype, fmin, fmax, tip in VC_FIELDS:
+    def _fields_for(self, game: str, n_values: int):
+        """Columns from the loaded file's own legend (III, VC, SA and mods all
+        label their columns in the header comments); numbered text fields fill
+        in whatever the legend does not cover."""
+        hf = header_fields(self._parser._lines) if getattr(self._parser, "_lines", None) else []
+        if hf and len(hf) != n_values:
+            hf = hf[:22]             # legend and data disagree (SA): trust only the shared leading columns
+        base = hf[:n_values] if hf else (VC_FIELDS if game == 'VC' else VC_FIELDS[:20])
+        extra = [(f"Field {i + 1}", "str", "", "", "Not labelled - edit as text")
+                 for i in range(len(base), n_values)]
+        return list(base) + extra
+
+    def _fill_form(self, fields):
+        self._fields = fields
+        while self._form_layout.rowCount():
+            self._form_layout.removeRow(0)
+        self._field_widgets.clear()
+        for fname, ftype, fmin, fmax, tip in fields:
             lbl = QLabel(fname)
             lbl.setToolTip(tip)
             lbl.setFixedWidth(200)
@@ -310,11 +256,11 @@ class HandlingEditor(GUIWorkshop): #vers 1
                 w = QCheckBox()
                 w.setToolTip(tip)
                 w.stateChanged.connect(lambda v, n=fname: self._on_field_changed(n, int(v > 0)))
-            elif ftype == 'char':
+            elif ftype == 'char' or 'DriveType' in fname or 'EngineType' in fname:
                 w = QComboBox()
-                if fname == 'DriveType':
+                if 'DriveType' in fname:
                     w.addItems(['F', 'R', '4'])
-                elif fname == 'EngineType':
+                elif 'EngineType' in fname:
                     w.addItems(['P', 'D', 'E'])
                 w.setToolTip(tip)
                 w.currentTextChanged.connect(lambda v, n=fname: self._on_field_changed(n, v))
@@ -331,8 +277,6 @@ class HandlingEditor(GUIWorkshop): #vers 1
 
             self._field_widgets[fname] = w
             self._form_layout.addRow(lbl, w)
-
-        return scroll
 
     def _build_right_panel(self, parent: QWidget) -> QWidget: #vers 1
         w = QWidget(parent)
@@ -380,8 +324,106 @@ class HandlingEditor(GUIWorkshop): #vers 1
         lay.addWidget(grp)
         return w
 
-    def setup_ui(self): #vers 2
-        super().setup_ui()
+    def setup_ui(self): #vers 3
+        """Titlebar / [vehicle list | fields | stats] inside the ribbon host / status bar."""
+        ml = QVBoxLayout(self)
+        ml.setContentsMargins(*self.get_content_margins())
+        ml.setSpacing(self.setspacing)
+        ml.addWidget(self._create_toolbar())
+        ml.addWidget(self.ribbon_wrap(self._create_centre_panel()), 1)
+        self._build_ribbons()
+        self._status_widget = self._create_status_bar()
+        ml.addWidget(self._status_widget)
+        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+
+    def _create_toolbar(self): #vers 2
+        """Titlebar keeps Settings / title / Undo / Info / Theme; the file
+        buttons moved to the File ribbon."""
+        tb = super()._create_toolbar()
+        for name in ("open_btn", "save_btn", "export_btn", "import_btn"):
+            btn = getattr(self, name, None)
+            if btn:
+                btn.setVisible(False)
+        return tb
+
+    def _build_ribbons(self): #vers 1
+        B = self.ribbon_button
+        tb = self.ribbon_toolbar("File")
+        B(tb, "open_icon",   "Open handling.cfg  (Ctrl+O)", self._open_file)
+        self.save_btn = B(tb, "save_icon", "Save  (Ctrl+S) - backs up the old file first", self._save_file, enabled=False)
+        B(tb, "saveas_icon", "Save As...", self._save_as)
+
+        tb = self.ribbon_toolbar("Edit")
+        B(tb, "undo_icon", "Undo  (Ctrl+Z)", self._undo)
+        B(tb, "redo_icon", "Redo  (Ctrl+Y)", self._redo)
+        tb.addSeparator()
+        B(tb, "add_icon",   "Add vehicle (copy of the first)", self._add_entry)
+        B(tb, "trash_icon", "Delete selected vehicle", self._delete_entry)
+        B(tb, "edit_icon",  "Duplicate selected vehicle", self._duplicate_entry)
+
+        tb = self.ribbon_toolbar("Tools")
+        B(tb, "check_icon",   "Check against vehicles.ide: unused handlings, missing handlings, duplicate names", self._check_vs_ide, text="Check")
+        B(tb, "convert_icon", "Scale one column on every vehicle...", self._scale_column, text="Scale")
+        B(tb, "folder_icon",  "Choose the vehicles.ide file(s) kept in step with renames...", self._choose_ides, text="IDEs")
+
+    def closeEvent(self, ev): #vers 1
+        if self._parser.dirty:
+            r = QMessageBox.question(
+                self, App_name if 'App_name' in globals() else "Handling Editor", "Save changes before closing?",
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel)
+            if r == QMessageBox.StandardButton.Cancel:
+                ev.ignore()
+                return
+            if r == QMessageBox.StandardButton.Save:
+                self._save_file()
+                if self._parser.dirty:
+                    ev.ignore()
+                    return
+        self.ribbon_save_state()
+        super().closeEvent(ev)
+
+    def _update_modified(self): #vers 1
+        self._modified = self._parser.dirty
+        if hasattr(self, "save_btn"):
+            self.save_btn.setEnabled(self._modified)
+
+    # -- undo (whole-list snapshots; a run of edits to one field is one step)
+    def _snap(self):
+        return [(e, list(e.values)) for e in self._parser.entries], list(self._parser.entries)
+
+    def _push_undo(self, key=None):
+        if key is not None and getattr(self, "_last_undo_key", None) == key:
+            return
+        self._last_undo_key = key
+        self._undo_stack.append(self._snap())
+        del self._undo_stack[:-60]
+        self._redo_stack.clear()
+
+    def _apply_snap(self, snap):
+        vals, order = snap
+        for e, v in vals:
+            e.values = list(v)
+        self._parser.entries = list(order)
+        self._current_idx = -1
+        self._refresh_list(self._search_box.text())
+        self._update_modified()
+
+    def _undo(self): #vers 1
+        if not self._undo_stack:
+            self._set_status("Nothing to undo")
+            return
+        self._redo_stack.append(self._snap())
+        self._last_undo_key = None
+        self._apply_snap(self._undo_stack.pop())
+
+    def _redo(self): #vers 1
+        if not self._redo_stack:
+            self._set_status("Nothing to redo")
+            return
+        self._undo_stack.append(self._snap())
+        self._last_undo_key = None
+        self._apply_snap(self._redo_stack.pop())
 
     def _create_centre_panel(self): #vers 1
         sp = QSplitter(Qt.Orientation.Horizontal)
@@ -391,32 +433,172 @@ class HandlingEditor(GUIWorkshop): #vers 1
         sp.setSizes([200, 600, 220])
         return sp
 
-    def _open_file(self, path=None): #vers 1
+    def _open_file(self, path=None): #vers 2
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open handling.cfg", "",
                 "Handling files (handling.cfg *.cfg);;All files (*)")
         if not path:
             return
-        if not self._parser.load(path):
+        parser = HandlingParser()
+        if not parser.load(path):
             QMessageBox.critical(self, "Error", f"Failed to load {path}")
             return
+        self._parser = parser
         self._current_path = path
-        self._modified = False
+        self._current_idx = -1
+        self._undo_stack.clear(); self._redo_stack.clear()
+        self._last_undo_key = None
+        n = max((len(e.values) for e in parser.entries), default=0)
+        self._fill_form(self._fields_for(parser.game, n))
         self._refresh_list()
-        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.entries)} vehicles  [{self._parser.game}]")
+        self._update_modified()
+        self._set_status(f"Loaded {os.path.basename(path)} - {len(parser.entries)} vehicles  [{parser.game}]")
 
-    def _save_file(self): #vers 1
+    def _save_file(self): #vers 2
+        """Back up the existing file, write atomically, then keep the chosen
+        vehicles.ide files in step with any renamed handling."""
         if not self._current_path:
-            self._current_path, _ = QFileDialog.getSaveFileName(
-                self, "Save handling.cfg", "", "Handling files (handling.cfg *.cfg)")
-        if not self._current_path:
+            self._save_as()
             return
-        if self._parser.save(self._current_path):
-            self._modified = False
-            self._set_status(f"Saved {os.path.basename(self._current_path)}")
-        else:
+        if not self._parser.dirty:
+            self._set_status("Nothing to save")
+            return
+        renames = [(e.orig[0], e.values[0]) for e in self._parser.entries
+                   if e.orig and e.orig[0] != e.values[0]]
+        from apps.methods.file_backup import backup_file, note_change
+        if os.path.exists(self._current_path):
+            note_change(f"Save {os.path.basename(self._current_path)}")
+            if backup_file(self._current_path) is None:
+                QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                return
+        if not self._parser.save(self._current_path):
             QMessageBox.critical(self, "Error", "Save failed")
+            return
+        msg = f"Saved {os.path.basename(self._current_path)}"
+        if renames:
+            msg += self._cascade_renames(renames)
+        self._update_modified()
+        self._set_status(msg)
+
+    def _save_as(self): #vers 2
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save As", self._current_path or "", "Handling files (handling.cfg *.cfg)")
+        if path:
+            self._current_path = path
+            self._save_file()
+
+    # -- vehicles.ide link ("cars" rows: id, model, txd, type, HANDLING, ...)
+    def _choose_ides(self): #vers 1
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "vehicles.ide file(s) that use these handlings", "", "IDE Files (*.ide *.IDE);;All Files (*)")
+        if paths:
+            self._ide_paths = list(paths)
+            self._set_status(f"{len(paths)} IDE file(s) will follow handling renames")
+
+    def _cascade_renames(self, renames) -> str: #vers 1
+        """Rewrite the handling column of every 'cars' row that used a renamed
+        handling (the IDE is backed up first). Returns text for the status bar."""
+        if not self._ide_paths:
+            r = QMessageBox.question(
+                self, "vehicles.ide",
+                f"{len(renames)} handling name(s) changed. Update the cars in vehicles.ide too? "
+                "(you pick the IDE file(s))")
+            if r == QMessageBox.StandardButton.Yes:
+                self._choose_ides()
+        if not self._ide_paths:
+            return ""
+        from apps.methods.ide_file import IDEFile
+        from apps.methods.file_backup import backup_file, note_change
+        table = {old.lower(): new for old, new in renames}
+        touched = 0
+        for p in self._ide_paths:
+            f = IDEFile()
+            try:
+                f.load(p)
+            except Exception:
+                continue
+            sec = f.section("cars")
+            hit = 0
+            for row in (sec.rows if sec else []):
+                if len(row.fields) > 4 and row.fields[4].lower() in table:
+                    row.fields[4] = table[row.fields[4].lower()]
+                    hit += 1
+            if hit:
+                note_change(f"Handling rename in {os.path.basename(p)}")
+                if backup_file(p) is not None:
+                    f.save(p)
+                    touched += 1
+        return f"  |  {touched} IDE file(s) updated"
+
+    def _handling_names(self):
+        return {e.name.lower() for e in self._parser.entries}
+
+    def _check_vs_ide(self): #vers 1
+        """Report duplicate handling names, handlings no car uses, and cars
+        whose handling does not exist (needs the vehicles.ide file(s))."""
+        if not self._parser.entries:
+            self._set_status("Open a handling.cfg first")
+            return
+        from collections import Counter
+        from apps.methods.asset_integrity import show_integrity_dialog
+        out = []
+        dup = [f"   {n} x{c}" for n, c in Counter(e.name.upper() for e in self._parser.entries).items() if c > 1]
+        out += [f"== Duplicate handling names: {len(dup)}"] + dup + [""]
+        if not self._ide_paths:
+            self._choose_ides()
+        if self._ide_paths:
+            from apps.methods.ide_file import IDEFile
+            used, missing = {}, []
+            names = self._handling_names()
+            for p in self._ide_paths:
+                f = IDEFile()
+                try:
+                    f.load(p)
+                except Exception:
+                    continue
+                sec = f.section("cars")
+                for row in (sec.rows if sec else []):
+                    if len(row.fields) > 4:
+                        h = row.fields[4].lower()
+                        used.setdefault(h, []).append(row.fields[1])
+                        if h not in names:
+                            missing.append(f"   {row.fields[1]} (id {row.fields[0]}) uses '{row.fields[4]}' - not in handling.cfg")
+            unused = [f"   {e.name}" for e in self._parser.entries if e.name.lower() not in used]
+            out += [f"== Cars using a handling that does not exist: {len(missing)}"] + missing + [""]
+            out += [f"== Handlings no car uses: {len(unused)}"] + unused
+        else:
+            out.append("(vehicles.ide check skipped - no IDE file chosen)")
+        show_integrity_dialog(self, "\n".join(out))
+
+    def _scale_column(self): #vers 1
+        """Multiply one numeric column on every vehicle (e.g. Mass x 1.1)."""
+        if not self._parser.entries:
+            return
+        from PyQt6.QtWidgets import QInputDialog
+        names = [f[0] for f in self._fields[1:]]
+        name, ok = QInputDialog.getItem(self, "Scale column", "Column:", names, 0, False)
+        if not ok:
+            return
+        k = next(i for i, f in enumerate(self._fields) if f[0] == name)
+        fac, ok = QInputDialog.getDouble(self, "Scale column", f"Multiply {name} by:", 1.0, 0.0001, 10000.0, 4)
+        if not ok or fac == 1.0:
+            return
+        self._push_undo()
+        n = 0
+        for e in self._parser.entries:
+            if k < len(e.values):
+                try:
+                    v = float(e.values[k]) * fac
+                except ValueError:
+                    continue
+                e.values[k] = (f"{v:.4f}".rstrip('0').rstrip('.') or "0")
+                n += 1
+        self._refresh_list(self._search_box.text())
+        self._update_modified()
+        if self._current_idx >= 0:
+            self._populate_fields(self._parser.entries[self._current_idx])
+        self._set_status(f"Scaled {name} on {n} vehicle(s) by {fac:g}")
 
     def _refresh_list(self, filter_text: str = ""): #vers 1
         self._veh_list.clear()
@@ -444,7 +626,7 @@ class HandlingEditor(GUIWorkshop): #vers 1
     def _populate_fields(self, entry: HandlingEntry): #vers 1
         self._blocking = True
         vals = entry.values
-        for i, (fname, ftype, *_) in enumerate(VC_FIELDS):
+        for i, (fname, ftype, *_) in enumerate(self._fields):
             if i >= len(vals):
                 break
             w = self._field_widgets.get(fname)
@@ -467,20 +649,24 @@ class HandlingEditor(GUIWorkshop): #vers 1
         self._blocking = False
         self._update_stat_bars(entry)
 
-    def _on_field_changed(self, field_name: str, value): #vers 1
+    def _on_field_changed(self, field_name: str, value): #vers 2
         if self._blocking or self._current_idx < 0:
             return
         entry = self._parser.entries[self._current_idx]
-        for i, (fname, *_) in enumerate(VC_FIELDS):
+        for i, (fname, *_) in enumerate(self._fields):
             if fname == field_name and i < len(entry.values):
-                entry.values[i] = str(value)
+                new = str(value)
+                if entry.values[i] == new:
+                    return
+                self._push_undo((id(entry), fname))
+                entry.values[i] = new
                 break
-        self._modified = True
+        self._update_modified()
         self._update_stat_bars(entry)
 
     def _update_stat_bars(self, entry: HandlingEntry): #vers 1
         vals = entry.values
-        field_map = {f[0]: i for i, f in enumerate(VC_FIELDS)}
+        field_map = {f[0]: i for i, f in enumerate(self._fields)}
         for field_name, (bar, max_val) in self._stat_bars.items():
             idx = field_map.get(field_name)
             if idx is not None and idx < len(vals):
@@ -504,53 +690,45 @@ class HandlingEditor(GUIWorkshop): #vers 1
             except Exception:
                 pass
 
-    def _add_entry(self): #vers 1
+    def _add_entry(self): #vers 2
+        self._push_undo()
         template = self._parser.entries[0].values[:] if self._parser.entries else ['NEWVEHICLE'] + ['0.0'] * 36
         template[0] = 'NEWVEHICLE'
-        e = HandlingEntry()
-        e.values = template
-        self._parser.entries.append(e)
+        self._parser.entries.append(HandlingEntry(template))
         self._refresh_list(self._search_box.text())
         self._veh_list.setCurrentRow(self._veh_list.count() - 1)
-        self._modified = True
+        self._update_modified()
 
-    def _delete_entry(self): #vers 1
+    def _delete_entry(self): #vers 2
         if self._current_idx < 0 or not self._parser.entries:
             return
         name = self._parser.entries[self._current_idx].name
-        r = QMessageBox.question(self, "Delete", f"Delete {name}?")
-        if r != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, "Delete", f"Delete {name}?") != QMessageBox.StandardButton.Yes:
             return
+        self._push_undo()
         self._parser.entries.pop(self._current_idx)
         self._current_idx = -1
         self._refresh_list(self._search_box.text())
-        self._modified = True
+        self._update_modified()
 
-    def _duplicate_entry(self): #vers 1
+    def _duplicate_entry(self): #vers 2
         if self._current_idx < 0 or not self._parser.entries:
             return
+        self._push_undo()
         src = self._parser.entries[self._current_idx]
-        e = HandlingEntry()
-        e.values = src.values[:]
+        e = src.copy_as_new()
         e.values[0] = src.values[0] + '_COPY'
         self._parser.entries.insert(self._current_idx + 1, e)
         self._refresh_list(self._search_box.text())
-        self._modified = True
+        self._update_modified()
 
     def _build_menus_into_qmenu(self, pm): #vers 1
         fm = pm.addMenu("File")
         fm.addAction("Open handling.cfg", self._open_file)
         fm.addAction("Save", self._save_file)
-        fm.addAction("Save As…", lambda: self._save_as())
+        fm.addAction("Save As…", self._save_as)
         fm.addSeparator()
         fm.addAction("Close", self.close)
-
-    def _save_as(self): #vers 1
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save As", "", "Handling files (handling.cfg *.cfg)")
-        if path:
-            self._current_path = path
-            self._save_file()
 
 
 def open_handling_editor(main_window=None, path: str = None): #vers 1

@@ -189,9 +189,17 @@ class IDShiftDialog(QDialog): #vers 5
             self.preview_label.setText("\n".join(lines))
             self.apply_btn.setEnabled(False)
         else:
+            from apps.methods.id_reassign import preview_cascade
+            ide_files = sorted({p for p in getattr(self.result, "source_files", [])})
+            hits = preview_cascade(ide_files, self._ipl_paths(), list(self.plan.id_map))
+            detail = [f"  {os.path.basename(f)}: " + ", ".join(
+                f"{n} {k}" for k, n in c.items() if n) for f, c in sorted(hits.items())]
             self.preview_label.setText(
                 f"OK - {len(self.plan.moved)} real entrie(s) would shift by {offset:+d} "
-                f"(range becomes {start + offset}-{end + offset}). No conflicts.")
+                f"(range becomes {start + offset}-{end + offset}). No conflicts."
+                + ("\nAlso updated:\n" + "\n".join(detail[:20])
+                   + (f"\n  ...and {len(detail) - 20} more files" if len(detail) > 20 else "")
+                   if detail else ""))
             self.apply_btn.setEnabled(True)
 
     def _on_apply(self): #vers 1
@@ -205,6 +213,8 @@ class IDShiftDialog(QDialog): #vers 5
         if reply != QMessageBox.StandardButton.Yes:
             return
 
+        from apps.methods.file_backup import note_change
+        note_change(f"ID shift {self.start_spin.value()}-{self.end_spin.value()} by {self.offset_spin.value():+d}")
         touched_basenames = apply_id_shift_and_write(self.result, self.plan)
         if not touched_basenames:
             QMessageBox.warning(self, "Apply Failed",

@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-# apps/components/Tmp_Template/gui_workshop.py - Version: 2
+# apps/methods/gui_workshop.py - Version: 3
 # X-Seti - Apr 2026 - IMG Factory 1.6
-# GUIWorkshop — reusable base class for all workshop tools.
+# GUIWorkshop — the ONE shared base class for all workshop tools.
+#
+# Import it from here:  from apps.methods.gui_workshop import GUIWorkshop
+# Standalone apps keep a copy at  <app>/apps/methods/gui_workshop.py
+# Per-workshop changes go in  apps/components/<App>/depends/diffcode.py
+# (a small subclass that sets the layout flags below or overrides methods).
 #
 # ┌┐
 # │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
@@ -234,6 +239,9 @@ class _CornerOverlay(QWidget):
 
 # SECTION 2 — Toolbar: Menu, Settings UI, Info [i], Cog [⚙]
 #
+# Need state before setup_ui()? set  self._defer_setup_ui = True  before
+# super().__init__() and call self.setup_ui() yourself when ready.
+#
 # Toolbar layout (left → right):
 #   [Menu] [Settings]  <stretch>  <Title>  <stretch>
 #   [Open] [Save] [Export] [Import]  [Undo]  [ℹ]  [⚙]  [_] [⬜] [✕]
@@ -320,12 +328,18 @@ class _ToolbarMixin:
         #  Right: action buttons
         self.open_btn   = _ibtn("open_icon",   "Open  Ctrl+O",  self._open_file)
         self.save_btn   = _ibtn("save_icon",   "Save  Ctrl+S",  self._save_file)
+        self.convert_btn = None
+        if self.TOOLBAR_CONVERT:
+            self.convert_btn = _ibtn("convert_icon", "Convert format",
+                                     self._convert_dialog)
+            self.convert_btn.setEnabled(False)   # enabled after file load
         self.export_btn = _ibtn("export_icon", "Export",        self._export_file)
         self.import_btn = _ibtn("import_icon", "Import",        self._import_file)
         self.save_btn.setEnabled(False)
-        for b in (self.open_btn, self.save_btn,
+        for b in (self.open_btn, self.save_btn, self.convert_btn,
                   self.export_btn, self.import_btn):
-            lo.addWidget(b)
+            if b is not None:
+                lo.addWidget(b)
 
         lo.addSpacing(6)
 
@@ -667,13 +681,21 @@ class _LayoutMixin:
         ml.addWidget(self._create_toolbar())
 
         sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._create_left_panel())
-        sp.addWidget(self._create_centre_panel())
-        sp.addWidget(self._create_right_panel())
-        sp.setStretchFactor(0, 1)
-        sp.setStretchFactor(1, 5)
-        sp.setStretchFactor(2, 0)
-        sp.setSizes([200, 950, self.WS.get("sidebar_width", 82)])
+        parts = []          # (factory, stretch, default size)
+        if self.SHOW_LEFT_PANEL:
+            parts.append((self._create_left_panel, 1, 200))
+        parts.append((self._create_centre_panel, 5, 950))
+        if self.SHOW_RIGHT_PANEL:
+            parts.append((self._create_right_panel, 0,
+                          self.WS.get("sidebar_width", 82)))
+        for i, (make, stretch, _w) in enumerate(parts):
+            sp.addWidget(make())
+            sp.setStretchFactor(i, stretch)
+        sizes = self.SPLITTER_SIZES or [w for _f, _s, w in parts]
+        if self.SPLITTER_STRETCH:
+            for i, st in enumerate(self.SPLITTER_STRETCH):
+                sp.setStretchFactor(i, st)
+        sp.setSizes(sizes)
         self._main_splitter = sp
         ml.addWidget(sp)
 
@@ -941,6 +963,13 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     """
 
     #  Subclass identity — OVERRIDE ALL OF THESE
+    # Layout flags — set these in depends/diffcode.py instead of copying setup_ui
+    SHOW_LEFT_PANEL   = True
+    SHOW_RIGHT_PANEL  = True
+    SPLITTER_SIZES    = None      # e.g. [700, 450]; None = defaults
+    SPLITTER_STRETCH  = None      # e.g. [3, 2]
+    TOOLBAR_CONVERT   = False     # adds a Convert button (calls self._convert_dialog)
+
     App_name        = "Workshop"
     App_build       = "Build 1"
     App_author      = "X-Seti"
@@ -1015,7 +1044,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         if parent:
             p = parent.pos(); self.move(p.x() + 50, p.y() + 80)
 
-        self.setup_ui()
+        if not getattr(self, '_defer_setup_ui', False):
+            self.setup_ui()
         self._setup_shortcuts()
         self._apply_theme()
 

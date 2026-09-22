@@ -5640,6 +5640,18 @@ def get_tcyc_toggle_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     return SVGIconFactory._create_icon(svg_data, size, color)
 
 
+def redo_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Redo - mirror of undo_icon (curved arrow pointing right)."""
+    svg_data = '''<svg viewBox="0 0 24 24">
+        <path d="M15 10 L15 6 L22 10 L15 14 L15 10 Z" fill="currentColor"/>
+        <path d="M15 10 H8 C5.8 10 4 11.8 4 14 C4 16.2 5.8 18 8 18 H12"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" fill="none"/>
+    </svg>'''
+    return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+SVGIconFactory.redo_icon            = staticmethod(redo_icon)
 SVGIconFactory.get_cull_zone_icon   = staticmethod(get_cull_zone_icon)
 SVGIconFactory.get_zone_icon        = staticmethod(get_zone_icon)
 SVGIconFactory.get_occlusion_icon   = staticmethod(get_occlusion_icon)

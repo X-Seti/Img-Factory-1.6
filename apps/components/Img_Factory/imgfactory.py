@@ -6508,96 +6508,21 @@ class IMGFactory(QMainWindow):
         """Open IDE Editor — docked by default, standalone on right-click."""
         self.open_ide_editor_docked()
 
-    def open_ide_editor_docked(self): #vers 1
-        """Open IDE Editor embedded as a tab in IMG Factory."""
+    def open_ide_editor_docked(self): #vers 2
+        """Open the IDE editor - it lives in the IPL Workshop's IDE tab now."""
         try:
-            from apps.components.Ide_Editor.ide_editor import IDEEditor
-            from PyQt6.QtWidgets import QVBoxLayout, QWidget
-
-            # Re-use existing IDE tab if already open
-            for i in range(self.main_tab_widget.count()):
-                widget = self.main_tab_widget.widget(i)
-                if widget:
-                    editors = widget.findChildren(IDEEditor)
-                    if editors:
-                        self.main_tab_widget.setCurrentIndex(i)
-                        self.log_message("IDE Editor already open — switched to tab")
-                        return editors[0]
-
-            # Build tab container
-            tab_container = QWidget()
-            tab_container.file_type = "WORKSHOP"
-            tab_layout = QVBoxLayout(tab_container)
-            tab_layout.setContentsMargins(0, 0, 0, 0)
-
-            editor = IDEEditor(tab_container)
-            editor.setWindowFlags(Qt.WindowType.Widget)
-            tab_layout.addWidget(editor)
-
-            # Pass current IMG file if available
-            if hasattr(self, 'current_img') and self.current_img:
-                fp = getattr(self.current_img, 'file_path', '')
-                if fp and hasattr(editor, '_try_auto_load'):
-                    editor._try_auto_load(fp)
-
-            try:
-                from apps.methods.imgfactory_svg_icons import SVGIconFactory
-                icon = SVGIconFactory.ide_icon() if hasattr(SVGIconFactory, 'ide_icon') else SVGIconFactory.info_icon()
-                idx = self.main_tab_widget.addTab(tab_container, icon, "IDE Editor")
-            except Exception:
-                idx = self.main_tab_widget.addTab(tab_container, "IDE Editor")
-
-            self.main_tab_widget.setCurrentIndex(idx)
-            editor.show()
-            self._ensure_tab_area_visible()
-            self.log_message("IDE Editor opened (docked)")
-
-            # Register in tool taskbar
-            try:
-                from apps.methods.imgfactory_svg_icons import SVGIconFactory
-                icon = SVGIconFactory.info_icon() if not hasattr(SVGIconFactory, 'ide_icon') else SVGIconFactory.ide_icon()
-                self.register_tool("ide", "IDE", icon,
-                                   tab_container, "IDE Item Definition Editor")
-            except Exception:
-                pass
-            return editor
-
+            from apps.components.Ide_Editor.ide_editor import open_ide_editor
+            return open_ide_editor(self)
         except Exception as e:
-            self.log_message(f"Error opening IDE Editor (docked): {e}")
-            return None
+            self.log_message(f"Error opening IDE Editor: {e}")
 
-    def open_ide_editor_standalone(self): #vers 1
-        """Open IDE Editor as a standalone floating window."""
+    def open_ide_editor_standalone(self): #vers 2
+        """Open the IDE editor - it lives in the IPL Workshop's IDE tab now."""
         try:
-            from apps.components.Ide_Editor.ide_editor import IDEEditor
-
-            editor = IDEEditor(None)
-            editor.setWindowFlags(Qt.WindowType.Window)
-            editor.setWindowTitle("IDE Editor — IMG Factory 1.6")
-            editor.resize(1100, 750)
-
-            # Pass current IMG file if available
-            if hasattr(self, 'current_img') and self.current_img:
-                fp = getattr(self.current_img, 'file_path', '')
-                if fp and hasattr(editor, '_try_auto_load'):
-                    editor._try_auto_load(fp)
-
-            editor.show()
-            editor.raise_()
-            self.log_message("IDE Editor opened (standalone)")
-
-            try:
-                from apps.methods.imgfactory_svg_icons import SVGIconFactory
-                icon = SVGIconFactory.info_icon() if not hasattr(SVGIconFactory, 'ide_icon') else SVGIconFactory.ide_icon()
-                self.register_tool("ide", "IDE", icon,
-                                   editor, "IDE Item Definition Editor")
-            except Exception:
-                pass
-            return editor
-
+            from apps.components.Ide_Editor.ide_editor import open_ide_editor
+            return open_ide_editor(self)
         except Exception as e:
-            self.log_message(f"Error opening IDE Editor (standalone): {e}")
-            return None
+            self.log_message(f"Error opening IDE Editor: {e}")
 
     def open_dat_editor(self): #vers 1
         """Open DAT file editor"""

@@ -276,6 +276,25 @@ class NewIMGDialog(QDialog):
             'game_preset': self.selected_preset
         }
         
+        # never silently replace an existing archive (or its .dir) with an empty one
+        out = settings['output_path']
+        clash = [pth for pth in (out, os.path.splitext(out)[0] + ".dir") if os.path.exists(pth)]
+        if clash:
+            r = QMessageBox.question(
+                self, "File exists",
+                f"{os.path.basename(clash[0])} already exists.\n\nCreating a new archive replaces it with an "
+                "EMPTY one (a backup copy is kept). Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            if r != QMessageBox.StandardButton.Yes:
+                return
+            from apps.methods.file_backup import backup_file, note_change
+            for pth in clash:
+                note_change(f"Replace {os.path.basename(pth)} with a new empty archive")
+                if backup_file(pth) is None:
+                    QMessageBox.warning(self, "Backup failed", f"Could not back up {os.path.basename(pth)} - nothing was replaced.")
+                    return
+
         # Show progress and disable UI
         self.progress_bar.setVisible(True)
         self.create_btn.setEnabled(False)

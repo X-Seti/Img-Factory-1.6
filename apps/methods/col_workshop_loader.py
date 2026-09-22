@@ -46,6 +46,7 @@ class COLFile: #vers 2
         self.load_error = ""
         self.file_path  = file_path
         self.raw_data: Optional[bytes] = None
+        self.splice_info = None
 
     #    Public load API                                                    
 
@@ -118,7 +119,15 @@ class COLFile: #vers 2
         try:
             self.raw_data = data
             self.models   = self._parse_all_models(data)
+            self.splice_info = None
             if self.models:
+                # remember each model's original record so a save can keep everything
+                # the editor does not model (see col_splice.py)
+                try:
+                    from apps.methods.col_splice import tag_models
+                    self.splice_info = tag_models(self.models, data)
+                except Exception:
+                    self.splice_info = None
                 self.is_loaded = True
                 if self.debug:
                     img_debugger.success(f"Loaded {len(self.models)} model(s)")

@@ -36,6 +36,9 @@ except ImportError:
         def get_terminal_icon(*a, **kw): return QIcon()
 
 
+from apps.methods.ribbon_system import RibbonMixin
+
+
 class SCMCoordHit:
     __slots__ = ('offset','x','y','z','context','patched')
     def __init__(self, offset, x, y, z, context=''):
@@ -58,7 +61,8 @@ class SCMParser:
         return True
 
     def save(self,path:str):
-        with open(path,'wb') as f: f.write(self.data)
+        from apps.methods.file_backup import safe_write_bytes      # backup + atomic write
+        safe_write_bytes(path, bytes(self.data))
 
     def _valid(self,x,y,z)->bool:
         import math
@@ -115,8 +119,11 @@ class SCMSearchThread(QThread):
         self.finished_s.emit(hits)
 
 
-class SCMWorkshop(QWidget):
+class SCMWorkshop(RibbonMixin, QWidget):
     App_name="SCM Workshop"
+    _ribbon_name="scm_workshop"
+    # Bump when the set of ribbons changes (1 = File ribbon)
+    _RIBBON_LAYOUT_VERSION=1
 
     def __init__(self,parent=None,main_window=None):
         super().__init__(parent)
@@ -132,41 +139,36 @@ class SCMWorkshop(QWidget):
 
     def _fspin(self,lo,hi,val,tip):
         s=QDoubleSpinBox(); s.setRange(lo,hi); s.setValue(val)
-        s.setDecimals(3); s.setFixedWidth(90); s.setFixedHeight(24); s.setToolTip(tip); return s
+        s.setDecimals(3); s.setMinimumWidth(100); s.setMinimumHeight(28); s.setToolTip(tip); return s
 
     def _build_ui(self):
         root=QVBoxLayout(self); root.setContentsMargins(4,4,4,4); root.setSpacing(4)
 
-        # Toolbar
-        bar=QHBoxLayout(); bar.setSpacing(6); ic=self._ic()
-        for icon_fn,tip,slot,attr in [
-            ('open_icon',  'Open main.scm',  self._open_file,  None),
-            ('save_icon',  'Save SCM',        self._save_file,  '_save_btn'),
-            ('export_icon','Save As…',        self._save_as,    '_saveas_btn'),
-        ]:
-            b=QPushButton()
-            try: b.setIcon(getattr(SVGIconFactory,icon_fn)(18,ic))
-            except: pass
-            b.setIconSize(QSize(18,18)); b.setFixedSize(28,28); b.setToolTip(tip)
-            b.clicked.connect(slot)
-            if attr: setattr(self,attr,b); b.setEnabled(False)
-            bar.addWidget(b)
-        bar.addSpacing(8)
+        self._progress=QProgressBar(); self._progress.setVisible(False); self._progress.setFixedHeight(10)
+
+        self._tabs=QTabWidget()
+        host=QWidget(); hl=QVBoxLayout(host); hl.setContentsMargins(0,0,0,0); hl.setSpacing(2)
+        hl.addWidget(self._progress); hl.addWidget(self._tabs,1)
+        root.addWidget(self.ribbon_wrap(host),1)
+        B=self.ribbon_button
+        tb=self.ribbon_toolbar("File")
+        B(tb,"open_icon","Open main.scm",self._open_file)
+        self._save_btn=B(tb,"save_icon","Save SCM - backs the old file up first",self._save_file,enabled=False)
+        self._saveas_btn=B(tb,"saveas_icon","Save As...",self._save_as,enabled=False)
+        # status row under the tabs
+        bar=QHBoxLayout(); bar.setSpacing(6)
         self._status_lbl=QLabel("No SCM loaded")
         self._status_lbl.setStyleSheet("color:palette(mid);")
         bar.addWidget(self._status_lbl,1)
         self._game_lbl=QLabel(""); self._game_lbl.setFont(QFont("Arial",9,QFont.Weight.Bold))
         bar.addWidget(self._game_lbl)
         root.addLayout(bar)
+        self.ribbon_restore_state()
 
-        self._progress=QProgressBar(); self._progress.setVisible(False); self._progress.setFixedHeight(10)
-        root.addWidget(self._progress)
-
-        self._tabs=QTabWidget(); root.addWidget(self._tabs,1)
-        self._tabs.addTab(self._build_search_tab(),"🔍  Coord Search")
-        self._tabs.addTab(self._build_patch_tab(), "🔧  Region Patch")
-        self._tabs.addTab(self._build_hex_tab(),   "🔢  Hex View")
-        self._tabs.addTab(self._build_info_tab(),  "ℹ  Info")
+        self._tabs.addTab(self._build_search_tab(),"Coord Search")
+        self._tabs.addTab(self._build_patch_tab(), "Region Patch")
+        self._tabs.addTab(self._build_hex_tab(),   "Hex View")
+        self._tabs.addTab(self._build_info_tab(),  "Info")
 
     def _build_search_tab(self):
         w=QFrame(); lay=QVBoxLayout(w); lay.setSpacing(6)
@@ -185,7 +187,7 @@ class SCMWorkshop(QWidget):
         self._tol=self._fspin(0,500,10,"Tolerance"); fl.addRow("Tolerance ±:",self._tol)
         lay.addWidget(flt)
         br=QHBoxLayout()
-        self._search_btn=QPushButton("🔍  Search SCM"); self._search_btn.setFixedHeight(28)
+        self._search_btn=QPushButton("Search SCM"); self._search_btn.setMinimumHeight(28)
         self._search_btn.setEnabled(False); self._search_btn.clicked.connect(self._run_search)
         br.addWidget(self._search_btn)
         self._result_lbl=QLabel(""); br.addWidget(self._result_lbl,1)
@@ -215,7 +217,7 @@ class SCMWorkshop(QWidget):
         self._pdy=self._fspin(-9999,9999,0,"dY"); dl.addWidget(QLabel("dY:")); dl.addWidget(self._pdy)
         self._pdz=self._fspin(-9999,9999,0,"dZ"); dl.addWidget(QLabel("dZ:")); dl.addWidget(self._pdz)
         lay.addWidget(dg)
-        pb=QPushButton("⚠  Apply Region Patch"); pb.setFixedHeight(32)
+        pb=QPushButton("Apply Region Patch"); pb.setMinimumHeight(32)
         pb.setStyleSheet("QPushButton{background:palette(highlight);color:palette(highlightedText);font-weight:bold}QPushButton:hover{background:palette(highlight);}")
         pb.clicked.connect(self._apply_patch); lay.addWidget(pb)
         self._patch_log=QTextEdit(); self._patch_log.setReadOnly(True)
@@ -225,9 +227,9 @@ class SCMWorkshop(QWidget):
     def _build_hex_tab(self):
         w=QFrame(); lay=QVBoxLayout(w); lay.setSpacing(4)
         nav=QHBoxLayout(); nav.addWidget(QLabel("Offset (hex):"))
-        self._hex_offset=QLineEdit("0"); self._hex_offset.setFixedWidth(100)
+        self._hex_offset=QLineEdit("0"); self._hex_offset.setMinimumWidth(100)
         self._hex_offset.returnPressed.connect(self._update_hex_view); nav.addWidget(self._hex_offset)
-        gb=QPushButton("Go"); gb.setFixedWidth(48); gb.setFixedHeight(24); gb.clicked.connect(self._update_hex_view)
+        gb=QPushButton("Go"); gb.setMinimumWidth(56); gb.setMinimumHeight(28); gb.clicked.connect(self._update_hex_view)
         nav.addWidget(gb); nav.addStretch(); lay.addLayout(nav)
         self._hex_view=QTextEdit(); self._hex_view.setReadOnly(True)
         self._hex_view.setFont(QFont("Courier New",9))
@@ -246,7 +248,7 @@ class SCMWorkshop(QWidget):
 <li><b>Hex View</b> — inspect raw bytes at any offset</li>
 <li><b>Save / Save As</b> — write the patched SCM back to disk</li>
 </ul>
-<p><b>⚠ Warning:</b> SCM is compiled bytecode. Float hits are heuristic — not all
+<p><b>Warning:</b> SCM is compiled bytecode. Float hits are heuristic — not all
 will be world coords. Always keep a backup of the original main.scm.</p>
 <h4>TODO (future)</h4>
 <ul>
@@ -274,14 +276,14 @@ will be world coords. Always keep a backup of the original main.scm.</p>
 
     def _save_file(self):
         if not self._scm_path or not self._parser.data: return
-        try: self._parser.save(self._scm_path); self._status_lbl.setText(f"Saved: {os.path.basename(self._scm_path)}")
+        try: self._parser.save(self._scm_path); self._patched=False; self._status_lbl.setText(f"Saved: {os.path.basename(self._scm_path)}")
         except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
 
     def _save_as(self):
         if not self._parser.data: return
         path,_=QFileDialog.getSaveFileName(self,"Save SCM As",self._scm_path,"SCM Files (*.scm);;All Files (*)")
         if path:
-            try: self._parser.save(path); self._scm_path=path; self._status_lbl.setText(f"Saved: {os.path.basename(path)}")
+            try: self._parser.save(path); self._patched=False; self._scm_path=path; self._status_lbl.setText(f"Saved: {os.path.basename(path)}")
             except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
 
     def _run_search(self):
@@ -332,10 +334,22 @@ will be world coords. Always keep a backup of the original main.scm.</p>
             QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
         if reply!=QMessageBox.StandardButton.Yes: return
         count=self._parser.patch_all_in_region(x1,x2,y1,y2,dx,dy,dz)
+        if count: self._patched=True
         msg=f"Patched {count} triplets  dX={dx:+.1f} dY={dy:+.1f} dZ={dz:+.1f}"
         self._patch_log.append(msg)
         if self.main_window and hasattr(self.main_window,'log_message'):
             self.main_window.log_message(f"SCM: {msg}")
+
+    def closeEvent(self,ev):
+        if getattr(self,'_patched',False):
+            r=QMessageBox.question(self,"SCM Workshop","The SCM has unsaved patches. Save before closing?",
+                QMessageBox.StandardButton.Save|QMessageBox.StandardButton.Discard|QMessageBox.StandardButton.Cancel)
+            if r==QMessageBox.StandardButton.Cancel: ev.ignore(); return
+            if r==QMessageBox.StandardButton.Save:
+                self._save_file()
+                if getattr(self,'_patched',False): ev.ignore(); return
+        self.ribbon_save_state()
+        super().closeEvent(ev)
 
     def _update_hex_view(self):
         if not self._parser.data: self._hex_view.setPlainText("No SCM loaded."); return

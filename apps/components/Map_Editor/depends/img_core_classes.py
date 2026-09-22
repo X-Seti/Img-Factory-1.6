@@ -1102,10 +1102,12 @@ class IMGFile:
             if not self.file_path or not self.entries:
                 return False
 
-            # Create backup first
-            import shutil
-            backup_path = self.file_path + '.backup'
-            shutil.copy2(self.file_path, backup_path)
+            # Back the archive up first (timestamped + journalled); never rebuild without one
+            from apps.methods.file_backup import backup_file, note_change
+            note_change(f"Rebuild {os.path.basename(self.file_path)}")
+            if os.path.exists(self.file_path) and backup_file(self.file_path) is None:
+                self.last_error = "Backup failed - archive not rewritten"
+                return False
 
             # Rebuild the IMG file
             return self.rebuild_img_file()
@@ -1113,11 +1115,36 @@ class IMGFile:
         except Exception as e:
             return False
 
-    def save(self, file_path=None): #vers 1
-        """Save IMG file - wrapper for save_img_file()"""
-        if file_path:
-            self.file_path = file_path
+    def save(self, file_path=None): #vers 2
+        """Save IMG file. With a path this is Save As (see save_to_path)."""
+        if file_path and file_path != self.file_path:
+            return self.save_to_path(file_path)
         return self.save_img_file()
+
+    def save_to_path(self, new_path: str) -> bool: #vers 1
+        """Save As: entry data is read from the current file and the archive is written
+        to new_path (an existing file there is backed up first); on success this object
+        then refers to the new file. (Old behaviour pointed file_path at the new, not yet
+        existing file and then tried to read the entries from it.)"""
+        try:
+            from apps.methods.file_backup import backup_file, note_change
+            if os.path.exists(new_path):
+                note_change(f"Save As over {os.path.basename(new_path)}")
+                if backup_file(new_path) is None:
+                    self.last_error = "Backup failed - target not overwritten"
+                    return False
+            self._rebuild_target = new_path
+            try:
+                ok = self.rebuild_img_file()
+            finally:
+                self._rebuild_target = None
+            if ok:
+                self.file_path = new_path
+                self.modified = False
+            return ok
+        except Exception as e:
+            self.last_error = f"Save As failed: {e}"
+            return False
 
     def rebuild_img_file(self) -> bool: #vers 1
         """Rebuild IMG file based on version"""
@@ -1159,6 +1186,8 @@ class IMGFile:
         try:
             import struct
             import os
+            _out = getattr(self, '_rebuild_target', None) or self.file_path
+            _tmp_img = _out + '.rebuild.tmp'
 
             # Calculate sizes
             entry_count = len(self.entries)
@@ -1186,8 +1215,8 @@ class IMGFile:
                 aligned_size = ((len(data) + 2047) // 2048) * 2048
                 current_offset += aligned_size
 
-            # Write new IMG file
-            with open(self.file_path, 'wb') as f:
+            # Write the new IMG next to the old one and swap it in only when complete
+            with open(_tmp_img, 'wb') as f:
                 # Write directory
                 for i, entry in enumerate(self.entries):
                     # Convert to sectors
@@ -1222,10 +1251,17 @@ class IMGFile:
                     if current_pos < sector_end:
                         f.write(b'\x00' * (sector_end - current_pos))
 
+            os.replace(_tmp_img, _out)
             print(f"Rebuilt IMG file: {entry_count} entries")
             return True
 
         except Exception as e:
+            self.last_error = f"Rebuild failed: {e}"
+            try:
+                if os.path.exists(_tmp_img):
+                    os.unlink(_tmp_img)
+            except Exception:
+                pass
             return False
 
     def _rebuild_version1(self) -> bool: #vers 1
@@ -1234,9 +1270,14 @@ class IMGFile:
             import struct
             import os
 
-            # Get DIR and IMG paths
-            dir_path = self.file_path
-            img_path = self.file_path.replace('.dir', '.img')
+            # Get DIR and IMG paths from whichever of the pair was opened. (The old code used
+            # the opened path for BOTH files when it was the .img, so the directory table was
+            # written into the archive and then overwritten by the data.)
+            base, ext = os.path.splitext(getattr(self, '_rebuild_target', None) or self.file_path)
+            up = ext.isupper()
+            dir_path = base + ('.DIR' if up else '.dir')
+            img_path = base + ('.IMG' if up else '.img')
+            _tmp_dir, _tmp_img1 = dir_path + '.rebuild.tmp', img_path + '.rebuild.tmp'
 
             entry_count = len(self.entries)
 
@@ -1262,7 +1303,7 @@ class IMGFile:
                 current_offset += aligned_size
 
             # Write DIR file
-            with open(dir_path, 'wb') as f:
+            with open(_tmp_dir, 'wb') as f:
                 for entry in self.entries:
                     # Convert to sectors
                     offset_sectors = entry.offset // 2048
@@ -1276,7 +1317,7 @@ class IMGFile:
                     f.write(entry_data)
 
             # Write IMG file
-            with open(img_path, 'wb') as f:
+            with open(_tmp_img1, 'wb') as f:
                 for i, data in enumerate(entry_data_list):
                     f.seek(self.entries[i].offset)
                     f.write(data)
@@ -1287,10 +1328,19 @@ class IMGFile:
                     if current_pos < sector_end:
                         f.write(b'\x00' * (sector_end - current_pos))
 
+            os.replace(_tmp_img1, img_path)
+            os.replace(_tmp_dir, dir_path)
             print(f"Rebuilt DIR/IMG pair: {entry_count} entries")
             return True
 
         except Exception as e:
+            self.last_error = f"Rebuild failed: {e}"
+            for _t in (locals().get('_tmp_dir'), locals().get('_tmp_img1')):
+                try:
+                    if _t and os.path.exists(_t):
+                        os.unlink(_t)
+                except Exception:
+                    pass
             return False
 
     def import_file(self, file_path: str) -> bool: #vers 1

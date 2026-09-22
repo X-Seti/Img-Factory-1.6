@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-#this belongs in components/File_Browser/dolphin_dialog.py - Version: 1
-# X-Seti - October22 2025 - IMG Factory 1.5 - Dolphin Style File Browser
+#this belongs in components/File_Browser/dolphin_dialog.py - Version: 22
+# X-Seti - Sep 22 2026 - IMG Factory 1.6 - Dolphin Style File Browser
 
 """
 Dolphin Style File Browser - Custom themed file dialog
@@ -19,25 +19,43 @@ if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem,
     QLabel, QPushButton, QLineEdit, QComboBox, QSplitter, QMenu,
-    QMessageBox, QInputDialog, QToolBar, QWidget, QHeaderView
+    QMessageBox, QInputDialog, QToolBar, QWidget, QHeaderView,
+    QMainWindow, QListWidget, QListWidgetItem, QStackedWidget,
+    QAbstractItemView, QApplication, QSlider, QWidgetAction, QFileIconProvider,
+    QTabWidget, QFrame, QSizePolicy, QCheckBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QDir, QFileInfo, QSize
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
+from PyQt6.QtCore import Qt, pyqtSignal, QDir, QFileInfo, QSize, QTimer, QByteArray
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QAction, QPalette, QShortcut, QKeySequence
 from PyQt6.QtSvg import QSvgRenderer
 import os
+import json
 import datetime
+
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+except Exception:
+    SVGIconFactory = None
 
 ##Methods list -
 # __init__
 # _add_place
 # _add_project_folders
+# _add_sidebar_section
 # _add_storage_devices
 # _add_tree_item
 # _apply_colors
 # _apply_default_styling
 # _apply_filter
+# _apply_icon_scale
 # _apply_theme_styling
+# _apply_tree_columns
+# _build_breadcrumb
+# _build_toolbars
 # _change_view_mode
+# _add_recent_file
+# _close_tab
+# _config_get
+# _config_set
 # _create_address_bar
 # _create_archive_icon
 # _create_back_icon
@@ -52,7 +70,6 @@ import datetime
 # _create_edit_icon
 # _create_export_icon
 # _create_file_icon
-# _create_file_tree
 # _create_folder_icon
 # _create_forward_icon
 # _create_home_icon
@@ -61,7 +78,9 @@ import datetime
 # _create_info_panel
 # _create_model_icon
 # _create_new_folder
+# _create_new_folder_icon
 # _create_open_icon
+# _create_pane
 # _create_places_sidebar
 # _create_properties_icon
 # _create_refresh_icon
@@ -71,7 +90,9 @@ import datetime
 # _create_texture_icon
 # _create_toolbar
 # _create_up_icon
+# _current_selected_paths
 # _delete_item
+# _file_icon_for
 # _format_file_size
 # _get_project_folder_icon
 # _get_file_details
@@ -81,22 +102,47 @@ import datetime
 # _go_home
 # _go_up
 # _handle_action_button
+# _icon
 # _item_double_clicked
 # _load_directory
 # _load_directory_silent
 # _navigate_to_address
+# _new_tab
+# _open_as
+# _open_search
+# _open_with_default
 # _parse_filter
+# _path_icon
+# _pin_place
 # _place_clicked
+# _places_context_menu
 # _populate_filter_combo
+# _recent_clicked
 # _refresh_directory
+# _refresh_places_icons
 # _rename_item
+# _resolve_icon_color
+# _restore_toolbar_state
+# _save_toolbar_state
 # _selection_changed
 # _setup_dialog_properties
 # _setup_ui
+# _show_address_edit
 # _show_context_menu
 # _show_properties
+# _tab_changed
+# _toggle_info_panel
+# _toggle_path_edit
+# _toggle_places_panel
+# _toggle_split_view
+# _toggle_system_icons
+# _toolbar_context_menu
+# _unpin_place
 # _update_info_panel
 # _update_preview
+# _zoom_in
+# _zoom_out
+# _zoom_reset
 # accept
 # get_existing_directory
 # get_open_filename
@@ -105,9 +151,220 @@ import datetime
 # get_selected_path
 # get_selected_paths
 # reject
+# set_active_pane
+
+##class BrowserPane: -
+# __init__
+# _activate
+# _build_icon_list
+# _build_tree
+# _icon_item_double_clicked
+
+##class FileSearchDialog: -
+# __init__
+# _open_result
+# _run_search
+
+##class _VerticalLabel: -
+# minimumSizeHint
+# paintEvent
+# sizeHint
 
 ##Classes -
+# BrowserPane
 # DolphinFileDialog
+# FileSearchDialog
+# _VerticalLabel
+
+class _VerticalLabel(QLabel): #vers 1
+    """QLabel that paints its text rotated 90° - for header titles in
+    vertical ribbon toolbars, where Qt doesn't auto-rotate widgets."""
+
+    def paintEvent(self, event): #vers 1
+        painter = QPainter(self)
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        painter.translate(0, self.height())
+        painter.rotate(-90)
+        painter.drawText(0, 0, self.height(), self.width(),
+                          Qt.AlignmentFlag.AlignCenter, self.text())
+        painter.end()
+
+    def sizeHint(self): #vers 1
+        s = super().sizeHint()
+        return QSize(s.height(), s.width())
+
+    def minimumSizeHint(self): #vers 1
+        s = super().minimumSizeHint()
+        return QSize(s.height(), s.width())
+
+
+class FileSearchDialog(QDialog): #vers 1
+    """Recursive search under the current directory - Simple mode
+    matches filenames, Detailed mode also greps file contents."""
+
+    def __init__(self, dialog): #vers 1
+        super().__init__(dialog)
+        self.dialog = dialog
+        self.setWindowTitle("Search")
+        self.resize(500, 400)
+        layout = QVBoxLayout(self)
+
+        row = QHBoxLayout()
+        self.pattern_input = QLineEdit()
+        self.pattern_input.setPlaceholderText("Search text...")
+        self.pattern_input.returnPressed.connect(self._run_search)
+        row.addWidget(self.pattern_input, 1)
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Simple (filename)", "Detailed (content)"])
+        row.addWidget(self.mode_combo)
+        search_btn = QPushButton("Search")
+        search_btn.clicked.connect(self._run_search)
+        row.addWidget(search_btn)
+        layout.addLayout(row)
+
+        self.results_list = QListWidget()
+        self.results_list.itemDoubleClicked.connect(self._open_result)
+        layout.addWidget(self.results_list)
+
+        self.status_label = QLabel("")
+        layout.addWidget(self.status_label)
+
+    def _run_search(self): #vers 1
+        """Walk self.dialog.current_path, match filenames (Simple)
+        and optionally file contents (Detailed), capped at 500 hits."""
+        pattern = self.pattern_input.text().strip()
+        if not pattern:
+            return
+        self.results_list.clear()
+        root = self.dialog.current_path
+        detailed = self.mode_combo.currentIndex() == 1
+        pattern_lower = pattern.lower()
+        count = 0
+        skip_dirs = {'.git', '__pycache__', 'node_modules', '.vscode', '.idea'}
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+            for name in filenames:
+                full = os.path.join(dirpath, name)
+                matched = pattern_lower in name.lower()
+                if not matched and detailed:
+                    try:
+                        with open(full, 'r', errors='ignore') as fh:
+                            matched = pattern_lower in fh.read().lower()
+                    except Exception:
+                        pass
+                if matched:
+                    item = QListWidgetItem(full)
+                    item.setData(Qt.ItemDataRole.UserRole, full)
+                    self.results_list.addItem(item)
+                    count += 1
+                    if count >= 500:
+                        break
+            if count >= 500:
+                break
+        self.status_label.setText(f"{count} match{'es' if count != 1 else ''}"
+                                   + (" (capped at 500)" if count >= 500 else ""))
+
+    def _open_result(self, item): #vers 1
+        """Navigate the browser to the selected result's directory."""
+        path = item.data(Qt.ItemDataRole.UserRole)
+        if path and os.path.exists(path):
+            self.dialog._load_directory(os.path.dirname(path))
+            self.accept()
+
+
+class BrowserPane(QWidget): #vers 1
+    """One Dolphin-style browsing pane: own tree/icon-list view,
+    current directory and history. Dialog tabs/split view hold
+    multiple panes; shared toolbar/breadcrumb/info panel act on
+    whichever pane last had activity via dialog.set_active_pane()."""
+
+    def __init__(self, dialog, initial_path=None): #vers 1
+        super().__init__(dialog)
+        self.dialog = dialog
+        self.current_path = initial_path or dialog._pending_current_path
+        self.history = []
+        self.history_index = -1
+        self.view_index = 0
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.view_stack = QStackedWidget()
+        self.tree = self._build_tree()
+        self.view_stack.addWidget(self.tree)
+        self.icon_list = self._build_icon_list()
+        self.view_stack.addWidget(self.icon_list)
+        layout.addWidget(self.view_stack)
+
+    def _activate(self, fn, *args): #vers 1
+        """Make this pane active, then forward the original signal call."""
+        self.dialog.set_active_pane(self)
+        if fn:
+            fn(*args)
+
+    def _build_tree(self): #vers 1
+        """Build this pane's Details/Condensed tree view."""
+        d = self.dialog
+        tree = QTreeWidget()
+        tree.setHeaderLabels(["Name", "Size", "Type", "Date Modified"])
+        tree.setRootIsDecorated(False)
+        tree.setAlternatingRowColors(True)
+        tree.setSortingEnabled(True)
+        tree.setSelectionMode(
+            QTreeWidget.SelectionMode.ExtendedSelection if d.multi_select
+            else QTreeWidget.SelectionMode.SingleSelection
+        )
+        tree.setColumnWidth(0, 300)
+        tree.setColumnWidth(1, 100)
+        tree.setColumnWidth(2, 120)
+        tree.setColumnWidth(3, 150)
+        tree.itemDoubleClicked.connect(
+            lambda item, col: self._activate(d._item_double_clicked, item, col))
+        tree.itemClicked.connect(lambda item, col: self._activate(None))
+        tree.itemSelectionChanged.connect(lambda: self._activate(d._selection_changed))
+        tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tree.customContextMenuRequested.connect(
+            lambda pos: self._activate(d._show_context_menu, pos))
+        return tree
+
+    def _build_icon_list(self): #vers 1
+        """Build this pane's Icons grid view, mirrors the tree's data."""
+        d = self.dialog
+        lw = QListWidget()
+        lw.setViewMode(QListWidget.ViewMode.IconMode)
+        lw.setIconSize(QSize(48, 48))
+        lw.setGridSize(QSize(96, 84))
+        lw.setResizeMode(QListWidget.ResizeMode.Adjust)
+        lw.setMovement(QListWidget.Movement.Static)
+        lw.setWordWrap(True)
+        lw.setSelectionMode(
+            QListWidget.SelectionMode.ExtendedSelection if d.multi_select
+            else QListWidget.SelectionMode.SingleSelection
+        )
+        lw.itemDoubleClicked.connect(
+            lambda item: self._activate(self._icon_item_double_clicked, item))
+        lw.itemClicked.connect(lambda item: self._activate(None))
+        lw.itemSelectionChanged.connect(lambda: self._activate(d._selection_changed))
+        lw.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        lw.customContextMenuRequested.connect(
+            lambda pos: self._activate(d._show_context_menu, pos))
+        return lw
+
+    def _icon_item_double_clicked(self, item): #vers 1
+        """Icons view double-click - same navigate/select behaviour as tree."""
+        d = self.dialog
+        path = item.data(Qt.ItemDataRole.UserRole)
+        if not path:
+            return
+        if item.text() == "..":
+            d._go_up()
+            return
+        file_info = QFileInfo(path)
+        if file_info.isDir():
+            d._load_directory(path)
+        elif d.mode in ['open', 'import']:
+            d.selected_items = [path]
+            d.accept()
+
 
 class DolphinFileDialog(QDialog): #vers 1
     """Custom file dialog with Dolphin-style interface"""
@@ -115,6 +372,7 @@ class DolphinFileDialog(QDialog): #vers 1
     # Signals
     path_selected = pyqtSignal(str)
     paths_selected = pyqtSignal(list)
+    open_in_workshop = pyqtSignal(str, str)  # handler, path
 
     def __init__(self, parent=None, mode='open', multi_select=False, file_filter="All Files (*.*)"): #vers 1
         """
@@ -132,14 +390,38 @@ class DolphinFileDialog(QDialog): #vers 1
         self.mode = mode
         self.multi_select = multi_select
         self.file_filter = file_filter
-        self.current_path = QDir.homePath()
+        self.active_pane = None
+        self.panes = []
+        self._pending_current_path = QDir.homePath()
         self.selected_items = []
+
+        # Real native OS icons (QFileIconProvider - Plasma/GTK on Linux,
+        # Explorer on Windows, Finder on macOS) vs the SVGIconFactory
+        # static icons. Loaded from saved config, default off.
+        self._icon_provider = QFileIconProvider()
+        self._use_system_icons = False
+        try:
+            self._use_system_icons = json.loads(
+                (Path.home()/'.config'/'imgfactory'/'file_browser.json').read_text()
+            ).get('use_system_icons', False)
+        except Exception:
+            pass
+
+        # Text zoom (Ctrl+=/Ctrl+-/Ctrl+0) - persisted, applied to all
+        # tree/icon views across every pane and the sidebar.
+        self._font_pt = 9
+        try:
+            self._font_pt = json.loads(
+                (Path.home()/'.config'/'imgfactory'/'file_browser.json').read_text()
+            ).get('font_pt', 9)
+        except Exception:
+            pass
 
         # Setup dialog
         self._setup_dialog_properties()
 
 
-    def _setup_dialog_properties(self): #vers 1
+    def _setup_dialog_properties(self): #vers 2
         """Setup dialog window properties"""
         # Set title based on mode
         titles = {
@@ -149,11 +431,59 @@ class DolphinFileDialog(QDialog): #vers 1
             'export': 'Export Files'
         }
         self.setWindowTitle(titles.get(self.mode, 'Browse'))
+        self.setWindowIcon(self._create_folder_icon())
 
         # Set size
         self.setMinimumSize(900, 600)
         self.resize(1000, 650)
         self.setModal(True)
+
+
+    # ---- Active-pane forwarding ---------------------------------------
+    # tree/icon_list/current_path/history/history_index/_view_stack all
+    # resolve to whichever BrowserPane is active, so every method below
+    # that reads/writes them keeps working unchanged across tabs+split.
+
+    @property
+    def tree(self): #vers 1
+        return self.active_pane.tree if self.active_pane else None
+
+    @property
+    def icon_list(self): #vers 1
+        return self.active_pane.icon_list if self.active_pane else None
+
+    @property
+    def _view_stack(self): #vers 1
+        return self.active_pane.view_stack if self.active_pane else None
+
+    @property
+    def current_path(self): #vers 1
+        return self.active_pane.current_path if self.active_pane else self._pending_current_path
+
+    @current_path.setter
+    def current_path(self, value): #vers 1
+        if self.active_pane:
+            self.active_pane.current_path = value
+        else:
+            self._pending_current_path = value
+
+    @property
+    def history(self): #vers 1
+        return self.active_pane.history if self.active_pane else []
+
+    @history.setter
+    def history(self, value): #vers 1
+        if self.active_pane:
+            self.active_pane.history = value
+
+    @property
+    def history_index(self): #vers 1
+        return self.active_pane.history_index if self.active_pane else -1
+
+    @history_index.setter
+    def history_index(self, value): #vers 1
+        if self.active_pane:
+            self.active_pane.history_index = value
 
 
     def get_selected_path(self): #vers 1
@@ -168,18 +498,29 @@ class DolphinFileDialog(QDialog): #vers 1
         return self.selected_items
 
 
-    def accept(self): #vers 1
-        """Handle dialog accept"""
+    def accept(self): #vers 4
+        """Handle dialog accept. Keep-open checked -> emit and stay open."""
         if self.selected_items:
+            if self.mode in ('open', 'import'):
+                for p in self.selected_items:
+                    if os.path.isfile(p):
+                        self._add_recent_file(p)
             if self.multi_select:
                 self.paths_selected.emit(self.selected_items)
             else:
                 self.path_selected.emit(self.selected_items[0])
+        if hasattr(self, 'keep_open_check') and self.keep_open_check.isChecked():
+            self.selected_items = []
+            if hasattr(self, 'selection_label'):
+                self._selection_changed()
+            return
+        self._save_toolbar_state()
         super().accept()
 
 
-    def reject(self): #vers 1
+    def reject(self): #vers 2
         """Handle dialog cancel"""
+        self._save_toolbar_state()
         self.selected_items = []
         super().reject()
 
@@ -200,13 +541,29 @@ class DolphinFileDialog(QDialog): #vers 1
 
         # Main content area with splitter
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Left: Places sidebar
         self.places_widget = self._create_places_sidebar()
         self.main_splitter.addWidget(self.places_widget)
 
-        # Center: File tree/list
-        self.file_tree = self._create_file_tree()
+        # Center: Tabs of BrowserPanes (Dolphin-style tabs + split view).
+        # self.tree/self.icon_list/self.current_path/self.history all
+        # forward to whichever pane last had activity - see BrowserPane
+        # and set_active_pane().
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setDocumentMode(True)
+        self.tab_widget.setContentsMargins(0, 0, 0, 0)
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self._close_tab)
+        self.tab_widget.currentChanged.connect(self._tab_changed)
+        first_pane = self._create_pane()
+        first_page = QSplitter(Qt.Orientation.Horizontal)
+        first_page.addWidget(first_pane)
+        self.tab_widget.addTab(first_page, self._create_folder_icon(), "Tab 1")
+        self.active_pane = first_pane
+        self.file_tree = self.tab_widget
         self.main_splitter.addWidget(self.file_tree)
 
         # Right: Preview/info panel
@@ -227,107 +584,567 @@ class DolphinFileDialog(QDialog): #vers 1
         # Apply theme
         self._apply_theme_styling()
 
+        # Function-key panel/view shortcuts (Dolphin-style)
+        QShortcut(QKeySequence("F5"), self, activated=self._refresh_directory)
+        QShortcut(QKeySequence("F9"), self,
+                  activated=lambda: self._places_toggle_act.trigger())
+        QShortcut(QKeySequence("F3"), self,
+                  activated=lambda: self._info_toggle_act.trigger())
+
+        # Text zoom
+        QShortcut(QKeySequence("Ctrl+="), self, activated=self._zoom_in)
+        QShortcut(QKeySequence("Ctrl++"), self, activated=self._zoom_in)
+        QShortcut(QKeySequence("Ctrl+-"), self, activated=self._zoom_out)
+        QShortcut(QKeySequence("Ctrl+0"), self, activated=self._zoom_reset)
+        self._apply_font_scale()
+
         # Load initial directory
         self._load_directory(self.current_path)
 
 
-    def _create_toolbar(self): #vers 1
-        """Create top toolbar with navigation and action buttons"""
-        toolbar = QToolBar()
-        toolbar.setMovable(False)
-        toolbar.setIconSize(QSize(20, 20))
+    def _create_toolbar(self): #vers 2
+        """Ribbon toolbar - QMainWindow+QToolBar, movable/floatable/
+        icon-size/save-restore, replacing the old fixed QPushButton row."""
+        icon_color = self._resolve_icon_color()
 
-        # Back button
-        self.back_btn = QPushButton()
-        self.back_btn.setIcon(self._create_back_icon())
-        self.back_btn.setToolTip("Go Back")
-        self.back_btn.setFixedSize(32, 32)
-        self.back_btn.clicked.connect(self._go_back)
+        inner_mw = QMainWindow()
+        inner_mw.setWindowFlags(Qt.WindowType.Widget)
+        inner_mw.setContentsMargins(0, 0, 0, 0)
+        inner_mw.setDockOptions(
+            QMainWindow.DockOption.AllowNestedDocks |
+            QMainWindow.DockOption.AllowTabbedDocks)
+        central = QWidget()
+        central.setMaximumHeight(0)
+        inner_mw.setCentralWidget(central)
+        # Fixed height again - float/side-docking never actually
+        # worked in this embedded 0-size-central mw (see _tb() below),
+        # so removing the fixed height just brought the blank space
+        # back with nothing gained. Toolbar is now restricted to the
+        # top row only, where this fixed height is correct.
+        inner_mw.setFixedHeight(36)
+        self._inner_mw = inner_mw
+
+        self._build_toolbars(inner_mw, icon_color)
+
+        QTimer.singleShot(300, self._restore_toolbar_state)
+
+        return inner_mw
+
+    def _build_toolbars(self, mw, icon_color: str): #vers 1
+        """Build ribbon QToolBar(s) using QAction."""
+        _saved_px = 20
+        try:
+            _saved_px = json.loads(
+                (Path.home()/'.config'/'imgfactory'/'file_browser.json').read_text()
+            ).get('icon_scale', 20)
+        except Exception:
+            pass
+        icon_size = QSize(_saved_px, _saved_px)
+        self._ribbon_actions = []
+
+        def _tb(name, area=Qt.ToolBarArea.TopToolBarArea):
+            tb = QToolBar(name, mw)
+            tb.setObjectName(name)
+            tb.setIconSize(icon_size)
+            # Movable within the top row only - this mw has no real
+            # side/bottom docking room (0-size central widget), so
+            # floating/side-docking never actually worked, it just
+            # looked draggable. Restrict to what's honest and works.
+            tb.setMovable(True)
+            tb.setFloatable(False)
+            tb.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea)
+            tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            tb.customContextMenuRequested.connect(
+                lambda pos, t=tb: self._toolbar_context_menu(t, pos))
+            mw.addToolBar(area, tb)
+            return tb
+
+        def _act(tb, name, icon_fn, callback=None, checkable=False, attr=None):
+            try:
+                icon = getattr(SVGIconFactory, icon_fn)(20, icon_color) if SVGIconFactory else QIcon()
+            except Exception:
+                icon = QIcon()
+            act = QAction(icon, name, mw)
+            act.setToolTip(name)
+            act.setCheckable(checkable)
+            if callback:
+                if checkable:
+                    act.toggled.connect(callback)
+                else:
+                    act.triggered.connect(callback)
+            tb.addAction(act)
+            self._ribbon_actions.append({'action': act, 'toolbar': tb, 'name': name})
+            if attr:
+                setattr(self, attr, act)
+            return act
+
+        # Single toolbar, logical groups separated - keeps everything on
+        # one row instead of the old 3-toolbar layout wrapping to 2+
+        # rows whenever the window wasn't wide enough.
+        tb_main = _tb("Main")
+        _act(tb_main, "Back", 'get_back_icon', self._go_back, attr='back_btn')
+        _act(tb_main, "Forward", 'get_forward_icon', self._go_forward, attr='forward_btn')
+        _act(tb_main, "Up", 'get_up_icon', self._go_up, attr='up_btn')
+        _act(tb_main, "Refresh  F5", 'get_refresh_icon', self._refresh_directory, attr='refresh_btn')
+        _act(tb_main, "Home", 'get_home_icon', self._go_home, attr='home_btn')
         self.back_btn.setEnabled(False)
-        toolbar.addWidget(self.back_btn)
-
-        # Forward button
-        self.forward_btn = QPushButton()
-        self.forward_btn.setIcon(self._create_forward_icon())
-        self.forward_btn.setToolTip("Go Forward")
-        self.forward_btn.setFixedSize(32, 32)
-        self.forward_btn.clicked.connect(self._go_forward)
         self.forward_btn.setEnabled(False)
-        toolbar.addWidget(self.forward_btn)
+        tb_main.addSeparator()
 
-        # Up/Parent button
-        self.up_btn = QPushButton()
-        self.up_btn.setIcon(self._create_up_icon())
-        self.up_btn.setToolTip("Go to Parent Directory")
-        self.up_btn.setFixedSize(32, 32)
-        self.up_btn.clicked.connect(self._go_up)
-        toolbar.addWidget(self.up_btn)
-
-        # Refresh button
-        self.refresh_btn = QPushButton()
-        self.refresh_btn.setIcon(self._create_refresh_icon())
-        self.refresh_btn.setToolTip("Refresh")
-        self.refresh_btn.setFixedSize(32, 32)
-        self.refresh_btn.clicked.connect(self._refresh_directory)
-        toolbar.addWidget(self.refresh_btn)
-
-        toolbar.addSeparator()
-
-        # Home button
-        self.home_btn = QPushButton()
-        self.home_btn.setIcon(self._create_home_icon())
-        self.home_btn.setToolTip("Go Home")
-        self.home_btn.setFixedSize(32, 32)
-        self.home_btn.clicked.connect(self._go_home)
-        toolbar.addWidget(self.home_btn)
-
-        toolbar.addSeparator()
-
-        # View mode combo
         self.view_mode = QComboBox()
-        self.view_mode.addItems(["Details", "Icons", "List"])
+        self.view_mode.addItems(["Details", "Icons", "Condensed"])
         self.view_mode.setCurrentIndex(0)
         self.view_mode.currentIndexChanged.connect(self._change_view_mode)
-        toolbar.addWidget(self.view_mode)
+        tb_main.addWidget(self.view_mode)
+        tb_main.addSeparator()
 
-        toolbar.addSeparator()
+        _act(tb_main, "Places Panel  F9", 'get_panel_toggle_icon',
+             self._toggle_places_panel, checkable=True, attr='_places_toggle_act')
+        self._places_toggle_act.setChecked(True)
+        _act(tb_main, "Info Panel  F3", 'get_panel_toggle_icon',
+             self._toggle_info_panel, checkable=True, attr='_info_toggle_act')
+        self._info_toggle_act.setChecked(True)
+        _act(tb_main, "System Icons", 'get_image_icon',
+             self._toggle_system_icons, checkable=True, attr='_system_icons_act')
+        self._system_icons_act.setChecked(self._use_system_icons)
+        tb_main.addSeparator()
 
-        # Create folder button
-        self.new_folder_btn = QPushButton()
-        self.new_folder_btn.setIcon(self._create_folder_icon())
-        self.new_folder_btn.setToolTip("Create New Folder")
-        self.new_folder_btn.setFixedSize(32, 32)
-        self.new_folder_btn.clicked.connect(self._create_new_folder)
-        toolbar.addWidget(self.new_folder_btn)
+        _act(tb_main, "New Folder", 'get_new_folder_icon', self._create_new_folder, attr='new_folder_btn')
+        tb_main.addSeparator()
 
-        # History tracking
-        self.history = []
-        self.history_index = -1
+        _act(tb_main, "New Tab", 'get_add_icon', self._new_tab, attr='new_tab_btn')
+        _act(tb_main, "Split View", 'get_panel_toggle_icon', self._toggle_split_view,
+             checkable=True, attr='_split_view_act')
+        tb_main.addSeparator()
 
-        return toolbar
+        # Text zoom - plain QActions, no icon lookup (label carries it)
+        zoom_out_act = QAction("A-", mw)
+        zoom_out_act.setToolTip("Zoom out text  Ctrl+-")
+        zoom_out_act.triggered.connect(self._zoom_out)
+        tb_main.addAction(zoom_out_act)
+        zoom_in_act = QAction("A+", mw)
+        zoom_in_act.setToolTip("Zoom in text  Ctrl+=")
+        zoom_in_act.triggered.connect(self._zoom_in)
+        tb_main.addAction(zoom_in_act)
+        tb_main.addSeparator()
 
-    def _create_address_bar(self): #vers 1
-        """Create address bar with path navigation"""
+        _act(tb_main, "Search", 'get_search_icon', self._open_search, attr='search_btn')
+
+        self._tb_main = tb_main
+
+    def _toolbar_context_menu(self, toolbar, pos): #vers 1
+        """Right-click context menu on any toolbar."""
+        menu = QMenu(self)
+
+        size_menu = menu.addMenu("Icon Size")
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(14, 32)
+        slider.setSingleStep(2)
+        try:
+            data = json.loads(
+                (Path.home()/'.config'/'imgfactory'/'file_browser.json').read_text())
+            slider.setValue(data.get('icon_scale', 20))
+        except Exception:
+            slider.setValue(20)
+        slider.valueChanged.connect(self._apply_icon_scale)
+        wa = QWidgetAction(menu)
+        wa.setDefaultWidget(slider)
+        size_menu.addAction(wa)
+
+        menu.addSeparator()
+        menu.addAction("Lock All Toolbars",
+            lambda: [tb.setMovable(False) for tb in self._inner_mw.findChildren(QToolBar)])
+        menu.addAction("Unlock All Toolbars",
+            lambda: [tb.setMovable(True) for tb in self._inner_mw.findChildren(QToolBar)])
+        menu.exec(toolbar.mapToGlobal(pos))
+
+    def _apply_icon_scale(self, px: int): #vers 1
+        """Apply icon size to all toolbars live and persist it."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw:
+            for tb in mw.findChildren(QToolBar):
+                tb.setIconSize(QSize(px, px))
+        try:
+            path = Path.home() / '.config' / 'imgfactory' / 'file_browser.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['icon_scale'] = px
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
+
+    def _open_search(self): #vers 1
+        """Open the Simple/Detailed recursive search dialog."""
+        dlg = FileSearchDialog(self)
+        dlg.exec()
+
+    def _open_with_default(self, path): #vers 1
+        """Open a file with its associated workshop or external app."""
+        from apps.methods.file_associations import get_handler, is_internal, launch_external
+        handler = get_handler(path)
+        if not handler:
+            QMessageBox.information(self, "No Association",
+                "No app associated with this file type.\nUse 'Open As...' to set one.")
+            return
+        if is_internal(handler):
+            self.open_in_workshop.emit(handler, path)
+        else:
+            launch_external(handler, path)
+
+    def _open_as(self, path): #vers 2
+        """Pick a handler for this file, optionally set as default.
+        'Browse for App...' lets the user import their own executable."""
+        from apps.methods.file_associations import get_associations, save_associations, is_internal, launch_external
+        ext = Path(path).suffix.lstrip('.').lower()
+        assoc = get_associations()
+        browse_label = "Browse for App..."
+        choices = [browse_label] + sorted(set(assoc.values()))
+        current = assoc.get(ext, choices[0] if choices else '')
+        choice, ok = QInputDialog.getItem(
+            self, "Open As", f"Open .{ext} files with:",
+            choices, choices.index(current) if current in choices else 0, True)
+        if not ok or not choice:
+            return
+        if choice == browse_label:
+            from PyQt6.QtWidgets import QFileDialog
+            app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin")
+            if not app_path:
+                return
+            choice = app_path
+        if QMessageBox.question(self, "Set Default",
+                f"Always open .{ext} with '{choice}'?") == QMessageBox.StandardButton.Yes:
+            assoc[ext] = choice
+            save_associations(assoc)
+        if is_internal(choice):
+            self.open_in_workshop.emit(choice, path)
+        else:
+            launch_external(choice, path)
+
+    def _config_get(self, key, default=None): #vers 1
+        """Read one key from file_browser.json."""
+        try:
+            path = Path.home() / '.config' / 'imgfactory' / 'file_browser.json'
+            return json.loads(path.read_text()).get(key, default)
+        except Exception:
+            return default
+
+    def _config_set(self, key, value): #vers 1
+        """Write one key to file_browser.json, merging with existing data."""
+        try:
+            path = Path.home() / '.config' / 'imgfactory' / 'file_browser.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data[key] = value
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
+
+    def _pin_place(self, name, path): #vers 1
+        """Pin a folder to Places, persisted across sessions."""
+        pinned = self._config_get('pinned_places', [])
+        if any(p['path'] == path for p in pinned):
+            return
+        pinned.append({'name': name, 'path': path})
+        self._config_set('pinned_places', pinned)
+        item = self._add_place(name, path, self._path_icon(path, self._create_folder_icon))
+        item.setData(0, Qt.ItemDataRole.UserRole + 1, True)
+
+    def _unpin_place(self, path): #vers 1
+        """Remove a pinned folder from Places."""
+        pinned = [p for p in self._config_get('pinned_places', []) if p['path'] != path]
+        self._config_set('pinned_places', pinned)
+        for i in range(self.places_tree.topLevelItemCount() - 1, -1, -1):
+            item = self.places_tree.topLevelItem(i)
+            if item.data(0, Qt.ItemDataRole.UserRole) == path:
+                self.places_tree.takeTopLevelItem(i)
+
+    def _places_context_menu(self, position): #vers 1
+        """Right-click on Places - Remove for pinned entries only."""
+        item = self.places_tree.itemAt(position)
+        if not item or not item.data(0, Qt.ItemDataRole.UserRole + 1):
+            return
+        path = item.data(0, Qt.ItemDataRole.UserRole)
+        menu = QMenu(self)
+        remove_action = menu.addAction(self._create_delete_icon(), "Remove from Places")
+        remove_action.triggered.connect(lambda: self._unpin_place(path))
+        menu.exec(self.places_tree.viewport().mapToGlobal(position))
+
+    def _add_recent_file(self, path): #vers 1
+        """Track a recently opened file, persisted, max 10 entries."""
+        recent = [p for p in self._config_get('recent_files', []) if p != path]
+        recent.insert(0, path)
+        recent = recent[:10]
+        self._config_set('recent_files', recent)
+
+    def _recent_clicked(self, item, column): #vers 1
+        """Open the folder containing a recent file."""
+        path = item.data(0, Qt.ItemDataRole.UserRole)
+        if path and os.path.exists(path):
+            self._load_directory(os.path.dirname(path))
+
+    def _zoom_in(self): #vers 1
+        """Ctrl+= / Ctrl++ - increase list/tree text size."""
+        self._font_pt = min(self._font_pt + 1, 18)
+        self._apply_font_scale()
+
+    def _zoom_out(self): #vers 1
+        """Ctrl+- - decrease list/tree text size."""
+        self._font_pt = max(self._font_pt - 1, 7)
+        self._apply_font_scale()
+
+    def _zoom_reset(self): #vers 1
+        """Ctrl+0 - reset list/tree text size to default."""
+        self._font_pt = 9
+        self._apply_font_scale()
+
+    def _apply_font_scale(self): #vers 1
+        """Apply self._font_pt to every pane's tree/icon list and the
+        sidebar trees, and persist it."""
+        style = f"font-size: {self._font_pt}pt;"
+        for pane in self.panes:
+            pane.tree.setStyleSheet(style)
+            pane.icon_list.setStyleSheet(style)
+        for name in ('places_tree', 'devices_tree', 'project_tree', 'recent_tree'):
+            tree = getattr(self, name, None)
+            if tree:
+                tree.setStyleSheet(style)
+        try:
+            path = Path.home() / '.config' / 'imgfactory' / 'file_browser.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['font_pt'] = self._font_pt
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
+
+    def _save_toolbar_state(self): #vers 1
+        """Save QMainWindow toolbar state to file_browser.json."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw is None:
+            return
+        try:
+            path = Path.home() / '.config' / 'imgfactory' / 'file_browser.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['toolbar_state'] = mw.saveState(1).toHex().data().decode()
+            data['toolbar_state_version'] = 1
+            path.write_text(json.dumps(data, indent=2))
+        except Exception as _e:
+            print(f"[DolphinFileDialog] _save_toolbar_state error: {_e}")
+
+    def _restore_toolbar_state(self): #vers 1
+        """Restore QMainWindow toolbar state from file_browser.json."""
+        mw = getattr(self, '_inner_mw', None)
+        if mw is None:
+            return
+        try:
+            from PyQt6.QtCore import QByteArray
+            path = Path.home() / '.config' / 'imgfactory' / 'file_browser.json'
+            if not path.exists():
+                return
+            data = json.loads(path.read_text())
+            state_hex = data.get('toolbar_state')
+            if state_hex and data.get('toolbar_state_version') == 1:
+                mw.restoreState(QByteArray.fromHex(state_hex.encode()), 1)
+        except Exception as _e:
+            print(f"[DolphinFileDialog] _restore_toolbar_state error: {_e}")
+
+    def _toggle_places_panel(self, checked: bool): #vers 1
+        """F9 - toggle the left Places/Devices/Project-folders sidebar."""
+        if hasattr(self, 'places_widget'):
+            self.places_widget.setVisible(checked)
+
+    def _toggle_info_panel(self, checked: bool): #vers 1
+        """F3 - toggle the right preview/info panel."""
+        if hasattr(self, 'info_panel'):
+            self.info_panel.setVisible(checked)
+
+    def _toggle_system_icons(self, checked: bool): #vers 2
+        """Switch between real native OS icons (QFileIconProvider) and
+        the themed SVGIconFactory icon set, and persist the choice."""
+        self._use_system_icons = checked
+        try:
+            path = Path.home() / '.config' / 'imgfactory' / 'file_browser.json'
+            try:
+                data = json.loads(path.read_text())
+            except Exception:
+                data = {}
+            data['use_system_icons'] = checked
+            path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
+        if self.active_pane:
+            self._refresh_directory()
+        if hasattr(self, 'places_tree'):
+            self._refresh_places_icons()
+
+    def _refresh_places_icons(self): #vers 1
+        """Re-resolve icons for the places sidebar after a System Icons toggle."""
+        icon_fns = {
+            "Home": self._create_home_icon, "Desktop": self._create_desktop_icon,
+            "Documents": self._create_document_icon, "Downloads": self._create_download_icon,
+            "Pictures": self._create_image_icon,
+        }
+        for i in range(self.places_tree.topLevelItemCount()):
+            item = self.places_tree.topLevelItem(i)
+            fallback = icon_fns.get(item.text(0))
+            if fallback:
+                path = item.data(0, Qt.ItemDataRole.UserRole)
+                item.setIcon(0, self._path_icon(path, fallback))
+        for i in range(self.devices_tree.topLevelItemCount()):
+            item = self.devices_tree.topLevelItem(i)
+            path = item.data(0, Qt.ItemDataRole.UserRole)
+            item.setIcon(0, self._path_icon(path, self._create_drive_icon))
+
+    def _create_pane(self, path=None): #vers 2
+        """Build a new BrowserPane wired to this dialog's shared handlers."""
+        pane = BrowserPane(self, initial_path=path)
+        style = f"font-size: {self._font_pt}pt;"
+        pane.tree.setStyleSheet(style)
+        pane.icon_list.setStyleSheet(style)
+        self.panes.append(pane)
+        return pane
+
+    def set_active_pane(self, pane): #vers 1
+        """Make `pane` active; syncs shared toolbar/breadcrumb/info panel
+        to its state without touching any pane's own history."""
+        if pane is None or pane is self.active_pane:
+            return
+        self.active_pane = pane
+        if hasattr(self, 'address_input'):
+            self.address_input.setText(pane.current_path)
+        if hasattr(self, '_breadcrumb_layout'):
+            self._build_breadcrumb(pane.current_path)
+            self._addr_stack.setCurrentWidget(self._breadcrumb_widget)
+        if hasattr(self, 'back_btn'):
+            self.back_btn.setEnabled(pane.history_index > 0)
+            self.forward_btn.setEnabled(pane.history_index < len(pane.history) - 1)
+            self.up_btn.setEnabled(QDir(pane.current_path).cdUp())
+        if hasattr(self, 'view_mode'):
+            self.view_mode.blockSignals(True)
+            self.view_mode.setCurrentIndex(getattr(pane, 'view_index', 0))
+            self.view_mode.blockSignals(False)
+        if hasattr(self, 'selection_label'):
+            self._selection_changed()
+
+    def _new_tab(self): #vers 1
+        """Open a new tab starting at the active pane's current directory."""
+        start_path = self.active_pane.current_path if self.active_pane else QDir.homePath()
+        pane = self._create_pane(start_path)
+        page = QSplitter(Qt.Orientation.Horizontal)
+        page.addWidget(pane)
+        idx = self.tab_widget.addTab(page, self._create_folder_icon(), os.path.basename(start_path.rstrip('/')) or "/")
+        self.tab_widget.setCurrentIndex(idx)
+        self.set_active_pane(pane)
+        self._load_directory(start_path)
+
+    def _close_tab(self, index): #vers 2
+        """Close a tab; the last remaining tab cannot be closed."""
+        if self.tab_widget.count() <= 1:
+            return
+        w = self.tab_widget.widget(index)
+        self.tab_widget.removeTab(index)
+        # hide() first - a reparented widget briefly becomes its own
+        # top-level window (visible) until deleteLater() actually runs.
+        w.hide()
+        w.deleteLater()
+
+    def _tab_changed(self, index): #vers 1
+        """Sync active pane to the newly current tab, if it changed."""
+        page = self.tab_widget.widget(index)
+        if not isinstance(page, QSplitter) or page.count() == 0:
+            return
+        panes = [page.widget(i) for i in range(page.count())]
+        if self.active_pane not in panes:
+            self.set_active_pane(panes[0])
+
+    def _toggle_split_view(self, checked): #vers 2
+        """Split the current tab into two side-by-side panes, or
+        collapse back to one (Dolphin-style split view)."""
+        page = self.tab_widget.currentWidget()
+        if not isinstance(page, QSplitter):
+            return
+        if checked:
+            if page.count() < 2:
+                pane = self._create_pane(self.active_pane.current_path)
+                page.addWidget(pane)
+                self.set_active_pane(pane)
+                self._load_directory(pane.current_path)
+        else:
+            if page.count() > 1:
+                extra = page.widget(1)
+                if self.active_pane is extra:
+                    self.set_active_pane(page.widget(0))
+                if extra in self.panes:
+                    self.panes.remove(extra)
+                # hide() first - a reparented widget briefly becomes its
+                # own top-level window (visible) until deleteLater() runs.
+                extra.hide()
+                extra.setParent(None)
+                extra.deleteLater()
+
+    def _create_address_bar(self): #vers 3
+        """Dolphin-style breadcrumb path bar - clickable segments by
+        default, click the edit icon (or Ctrl+L) to type a path. One
+        edit/confirm button and a framed path container cover both
+        modes."""
         widget = QWidget()
+        widget.setMaximumHeight(34)
         layout = QHBoxLayout(widget)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setContentsMargins(5, 2, 5, 2)
 
-        # Location icon + label
-        location_label = QLabel("Location:")
-        layout.addWidget(location_label)
+        path_frame = QFrame()
+        path_frame.setObjectName("PathContainer")
+        path_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        path_frame.setMaximumHeight(30)
+        path_layout = QHBoxLayout(path_frame)
+        path_layout.setContentsMargins(2, 0, 2, 0)
+        path_layout.setSpacing(2)
 
-        # Path input
+        self._addr_stack = QStackedWidget()
+        self._addr_stack.setFixedHeight(26)
+
+        # Breadcrumb page
+        self._breadcrumb_widget = QWidget()
+        self._breadcrumb_layout = QHBoxLayout(self._breadcrumb_widget)
+        self._breadcrumb_layout.setContentsMargins(4, 2, 4, 2)
+        self._breadcrumb_layout.setSpacing(0)
+        self._addr_stack.addWidget(self._breadcrumb_widget)
+
+        # Edit page
         self.address_input = QLineEdit()
-        self.address_input.setPlaceholderText("Enter path or browse...")
+        self.address_input.setPlaceholderText("Enter path...")
         self.address_input.setText(self.current_path)
         self.address_input.returnPressed.connect(self._navigate_to_address)
-        layout.addWidget(self.address_input)
+        # NOT editingFinished - it fires on the focus round-trip right
+        # after setFocus()/selectAll() in _show_address_edit(), which
+        # immediately reverted back to breadcrumb view (the "blink").
+        # Enter (returnPressed) navigates; _load_directory() itself
+        # returns the view to breadcrumb and resets the button icon.
+        self._addr_stack.addWidget(self.address_input)
 
-        # Go button
-        go_btn = QPushButton("Go")
-        go_btn.setFixedWidth(60)
-        go_btn.clicked.connect(self._navigate_to_address)
-        layout.addWidget(go_btn)
+        path_layout.addWidget(self._addr_stack, 1)
+
+        # Single edit/confirm button - visible in both modes
+        self._path_edit_btn = QPushButton()
+        self._path_edit_btn.setIcon(self._create_edit_icon())
+        self._path_edit_btn.setFlat(True)
+        self._path_edit_btn.setFixedWidth(24)
+        self._path_edit_btn.setToolTip("Edit path  Ctrl+L")
+        self._path_edit_btn.clicked.connect(self._toggle_path_edit)
+        path_layout.addWidget(self._path_edit_btn)
+
+        layout.addWidget(path_frame, 1)
+
+        QShortcut(QKeySequence("Ctrl+L"), self, activated=self._show_address_edit)
 
         # Filter combo
         self.filter_combo = QComboBox()
@@ -337,6 +1154,63 @@ class DolphinFileDialog(QDialog): #vers 1
         layout.addWidget(self.filter_combo)
 
         return widget
+
+    def _toggle_path_edit(self): #vers 1
+        """Single path button - edit when showing breadcrumb, confirm
+        (navigate) when showing the text input."""
+        if self._addr_stack.currentWidget() is self._breadcrumb_widget:
+            self._show_address_edit()
+        else:
+            self._navigate_to_address()
+
+    def _build_breadcrumb(self, path: str): #vers 1
+        """Rebuild the clickable breadcrumb segments for the given path."""
+        while self._breadcrumb_layout.count():
+            child = self._breadcrumb_layout.takeAt(0)
+            w = child.widget()
+            if w:
+                w.deleteLater()
+
+        norm = path.rstrip('/') or '/'
+        segments = []
+        cur = norm
+        while True:
+            name = os.path.basename(cur) or cur
+            segments.append((name, cur))
+            parent = os.path.dirname(cur)
+            if parent == cur:
+                break
+            cur = parent
+        segments.reverse()
+
+        for i, (name, full) in enumerate(segments):
+            btn = QPushButton(name if name not in ('', '/') else "/")
+            btn.setFlat(True)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setStyleSheet("QPushButton { padding: 2px 6px; border: none; }")
+            btn.clicked.connect(lambda checked=False, p=full: self._load_directory(p))
+            if i == len(segments) - 1:
+                f = btn.font()
+                f.setBold(True)
+                btn.setFont(f)
+                btn.setEnabled(False)
+            self._breadcrumb_layout.addWidget(btn)
+            if i < len(segments) - 1:
+                sep = QLabel("›")
+                self._breadcrumb_layout.addWidget(sep)
+
+        self._breadcrumb_layout.addStretch(1)
+
+    def _show_address_edit(self): #vers 2
+        """Switch the breadcrumb bar to editable text mode."""
+        self.address_input.setText(self.current_path)
+        self._addr_stack.setCurrentWidget(self.address_input)
+        self.address_input.setFocus()
+        self.address_input.selectAll()
+        if hasattr(self, '_path_edit_btn'):
+            self._path_edit_btn.setIcon(self._create_open_icon())
+            self._path_edit_btn.setToolTip("Go  Enter")
+
 
 
     def _populate_filter_combo(self): #vers 1
@@ -437,67 +1311,105 @@ class DolphinFileDialog(QDialog): #vers 1
             item.setData(0, Qt.ItemDataRole.UserRole, drive_path)
             item.setIcon(0, self._create_drive_icon())
 
-    def _create_places_sidebar(self): #vers 2
-        """Create left sidebar with common places and devices"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(5, 5, 5, 5)
+    def _create_places_sidebar(self): #vers 6
+        """Left sidebar - Places/Devices/Project Folders as resizable,
+        collapsible sections in a vertical QSplitter (drag the handle
+        between sections to resize; click the arrow to collapse). No
+        box borders - darker theme-aware bg. Project Folders is
+        hidden entirely when not docked."""
+        self._sidebar_splitter = QSplitter(Qt.Orientation.Vertical)
+        self._sidebar_splitter.setChildrenCollapsible(False)
 
-        # Places label
-        places_label = QLabel("Places")
-        places_label.setStyleSheet("font-weight: bold; font-size: 11px; padding: 5px 0px;")
-        layout.addWidget(places_label)
-
-        # Places tree
+        # Places
         self.places_tree = QTreeWidget()
+        self.places_tree.setObjectName("SidebarTree")
         self.places_tree.setHeaderHidden(True)
         self.places_tree.setMaximumWidth(200)
         self.places_tree.itemClicked.connect(self._place_clicked)
+        self.places_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.places_tree.customContextMenuRequested.connect(self._places_context_menu)
+        self._add_sidebar_section("Places", self.places_tree)
 
-        # Add common places
-        self._add_place("Home", QDir.homePath(), self._create_home_icon())
-        self._add_place("Desktop", QDir.homePath() + "/Desktop", self._create_desktop_icon())
-        self._add_place("Documents", QDir.homePath() + "/Documents", self._create_document_icon())
-        self._add_place("Downloads", QDir.homePath() + "/Downloads", self._create_download_icon())
-        self._add_place("Pictures", QDir.homePath() + "/Pictures", self._create_image_icon())
+        home = QDir.homePath()
+        self._add_place("Home", home, self._path_icon(home, self._create_home_icon))
+        self._add_place("Desktop", home + "/Desktop", self._path_icon(home + "/Desktop", self._create_desktop_icon))
+        self._add_place("Documents", home + "/Documents", self._path_icon(home + "/Documents", self._create_document_icon))
+        self._add_place("Downloads", home + "/Downloads", self._path_icon(home + "/Downloads", self._create_download_icon))
+        self._add_place("Pictures", home + "/Pictures", self._path_icon(home + "/Pictures", self._create_image_icon))
+        for p in self._config_get('pinned_places', []):
+            if os.path.exists(p['path']):
+                item = self._add_place(p['name'], p['path'], self._path_icon(p['path'], self._create_folder_icon))
+                item.setData(0, Qt.ItemDataRole.UserRole + 1, True)
 
-        layout.addWidget(self.places_tree)
+        # Recent files
+        self.recent_tree = QTreeWidget()
+        self.recent_tree.setObjectName("SidebarTree")
+        self.recent_tree.setHeaderHidden(True)
+        self.recent_tree.setMaximumWidth(200)
+        self.recent_tree.itemClicked.connect(self._recent_clicked)
+        self._add_sidebar_section("Recent", self.recent_tree)
+        for path in self._config_get('recent_files', []):
+            if os.path.exists(path):
+                item = QTreeWidgetItem(self.recent_tree)
+                item.setText(0, os.path.basename(path))
+                item.setData(0, Qt.ItemDataRole.UserRole, path)
+                item.setIcon(0, self._create_file_icon())
 
-        # Devices label
-        devices_label = QLabel("Devices")
-        devices_label.setStyleSheet("font-weight: bold; font-size: 11px; padding: 5px 0px;")
-        layout.addWidget(devices_label)
-
-        # Devices tree
+        # Devices
         self.devices_tree = QTreeWidget()
+        self.devices_tree.setObjectName("SidebarTree")
         self.devices_tree.setHeaderHidden(True)
         self.devices_tree.setMaximumWidth(200)
         self.devices_tree.itemClicked.connect(self._place_clicked)
-
-        # Add storage devices
+        self._add_sidebar_section("Devices", self.devices_tree)
         self._add_storage_devices()
 
-        layout.addWidget(self.devices_tree)
-
-        # Project Folders label
-        project_label = QLabel("Project Folders")
-        project_label.setStyleSheet("font-weight: bold; font-size: 11px; padding: 5px 0px;")
-        layout.addWidget(project_label)
-
-        # Project folders tree
+        # Project Folders - only when docked in IMG Factory
         self.project_tree = QTreeWidget()
+        self.project_tree.setObjectName("SidebarTree")
         self.project_tree.setHeaderHidden(True)
         self.project_tree.setMaximumWidth(200)
         self.project_tree.itemClicked.connect(self._place_clicked)
+        if hasattr(self.parent_window, 'app_settings'):
+            self._add_sidebar_section("Project Folders", self.project_tree)
+            self._add_project_folders()
 
-        # Add project folders from settings
-        self._add_project_folders()
+        return self._sidebar_splitter
 
-        layout.addWidget(self.project_tree)
+    def _add_sidebar_section(self, title, tree): #vers 3
+        """Add one resizable, collapsible section (header + tree) to
+        the sidebar splitter - drag the splitter handle below it to
+        resize, click the arrow to collapse."""
+        section = QWidget()
+        section.setObjectName("SidebarSection")
+        v = QVBoxLayout(section)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
 
-        layout.addStretch()
+        header = QWidget()
+        header.setObjectName("SidebarHeader")
+        hl = QHBoxLayout(header)
+        hl.setContentsMargins(4, 2, 4, 2)
+        collapse_btn = QPushButton("▾")
+        collapse_btn.setObjectName("SidebarCollapseBtn")
+        collapse_btn.setFlat(True)
+        collapse_btn.setFixedWidth(16)
+        label = QLabel(title)
+        label.setStyleSheet("font-weight: bold; font-size: 11px;")
+        hl.addWidget(collapse_btn)
+        hl.addWidget(label)
+        hl.addStretch()
+        v.addWidget(header)
+        v.addWidget(tree)
 
-        return widget
+        def _toggle_section(): #vers 3
+            visible = not tree.isVisible()
+            tree.setVisible(visible)
+            collapse_btn.setText("▾" if visible else "▸")
+        collapse_btn.clicked.connect(_toggle_section)
+
+        self._sidebar_splitter.addWidget(section)
+        return section
 
 
     def _add_place(self, name, path, icon): #vers 1
@@ -509,7 +1421,7 @@ class DolphinFileDialog(QDialog): #vers 1
         return item
 
 
-    def _add_storage_devices(self): #vers 1
+    def _add_storage_devices(self): #vers 2
         """Add storage devices to places"""
         drives = QDir.drives()
 
@@ -521,46 +1433,23 @@ class DolphinFileDialog(QDialog): #vers 1
             item = QTreeWidgetItem(self.places_tree)
             item.setText(0, f"Drive {drive_name}")
             item.setData(0, Qt.ItemDataRole.UserRole, drive_path)
-            item.setIcon(0, self._create_drive_icon())
+            item.setIcon(0, self._path_icon(drive_path, self._create_drive_icon))
 
 
-    def _create_file_tree(self): #vers 1
-        """Create main file/folder tree view"""
-        self.tree = QTreeWidget()
-
-        # Set headers
-        headers = ["Name", "Size", "Type", "Date Modified"]
-        self.tree.setHeaderLabels(headers)
-
-        # Configure tree
-        self.tree.setRootIsDecorated(False)
-        self.tree.setAlternatingRowColors(True)
-        self.tree.setSortingEnabled(True)
-        self.tree.setSelectionMode(
-            QTreeWidget.SelectionMode.ExtendedSelection if self.multi_select
-            else QTreeWidget.SelectionMode.SingleSelection
-        )
-
-        # Set column widths
-        self.tree.setColumnWidth(0, 300)  # Name
-        self.tree.setColumnWidth(1, 100)  # Size
-        self.tree.setColumnWidth(2, 120)  # Type
-        self.tree.setColumnWidth(3, 150)  # Date
-
-        # Connect signals
-        self.tree.itemDoubleClicked.connect(self._item_double_clicked)
-        self.tree.itemSelectionChanged.connect(self._selection_changed)
-        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.tree.customContextMenuRequested.connect(self._show_context_menu)
-
-        return self.tree
-
-
-    def _load_directory(self, path): #vers 1
-        """Load directory contents into tree"""
+    def _load_directory(self, path): #vers 2
+        """Load directory contents into tree (and icon grid)"""
         self.tree.clear()
+        if hasattr(self, 'icon_list'):
+            self.icon_list.clear()
         self.current_path = path
         self.address_input.setText(path)
+        if hasattr(self, '_breadcrumb_layout'):
+            self._build_breadcrumb(path)
+            if hasattr(self, '_addr_stack'):
+                self._addr_stack.setCurrentWidget(self._breadcrumb_widget)
+                if hasattr(self, '_path_edit_btn'):
+                    self._path_edit_btn.setIcon(self._create_edit_icon())
+                    self._path_edit_btn.setToolTip("Edit path  Ctrl+L")
 
         # Update history
         if not self.history or self.history[self.history_index] != path:
@@ -589,10 +1478,15 @@ class DolphinFileDialog(QDialog): #vers 1
 
         # Add parent directory (..) if not at root
         if dir_info.cdUp():
+            up_icon = self._create_up_icon()
             parent_item = QTreeWidgetItem(self.tree)
             parent_item.setText(0, "..")
-            parent_item.setIcon(0, self._create_up_icon())
+            parent_item.setIcon(0, up_icon)
             parent_item.setData(0, Qt.ItemDataRole.UserRole, dir_info.absolutePath())
+            if hasattr(self, 'icon_list'):
+                up_li = QListWidgetItem(up_icon, "..")
+                up_li.setData(Qt.ItemDataRole.UserRole, dir_info.absolutePath())
+                self.icon_list.addItem(up_li)
             dir_info.cd(path)  # Go back to current
 
         # Load entries
@@ -602,8 +1496,8 @@ class DolphinFileDialog(QDialog): #vers 1
             self._add_tree_item(entry)
 
 
-    def _add_tree_item(self, file_info): #vers 1
-        """Add file/folder item to tree"""
+    def _add_tree_item(self, file_info): #vers 2
+        """Add file/folder item to tree (and mirror into icon grid)"""
         item = QTreeWidgetItem(self.tree)
 
         # Name
@@ -611,10 +1505,8 @@ class DolphinFileDialog(QDialog): #vers 1
         item.setData(0, Qt.ItemDataRole.UserRole, file_info.absoluteFilePath())
 
         # Icon
-        if file_info.isDir():
-            item.setIcon(0, self._create_folder_icon())
-        else:
-            item.setIcon(0, self._get_file_icon(file_info.suffix()))
+        icon = self._file_icon_for(file_info)
+        item.setIcon(0, icon)
 
         # Size
         if file_info.isFile():
@@ -635,6 +1527,11 @@ class DolphinFileDialog(QDialog): #vers 1
         modified = file_info.lastModified().toString("yyyy-MM-dd HH:mm")
         item.setText(3, modified)
 
+        if hasattr(self, 'icon_list'):
+            li = QListWidgetItem(icon, file_info.fileName())
+            li.setData(Qt.ItemDataRole.UserRole, file_info.absoluteFilePath())
+            self.icon_list.addItem(li)
+
         return item
 
 
@@ -652,7 +1549,7 @@ class DolphinFileDialog(QDialog): #vers 1
         # Preview area
         self.preview_label = QLabel("No selection")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumHeight(200)
+        self.preview_label.setMinimumHeight(100)
         self.preview_label.setMaximumHeight(250)
         self.preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(window);")
         layout.addWidget(self.preview_label)
@@ -695,7 +1592,7 @@ class DolphinFileDialog(QDialog): #vers 1
         # Preview area
         self.preview_label = QLabel("No selection")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumHeight(200)
+        self.preview_label.setMinimumHeight(100)
         self.preview_label.setMaximumHeight(250)
         self.preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(window);")
         layout.addWidget(self.preview_label)
@@ -917,6 +1814,11 @@ class DolphinFileDialog(QDialog): #vers 1
 
         button_layout.addStretch()
 
+        # Keep dialog open after selection (multi-file workflows)
+        self.keep_open_check = QCheckBox("Keep open")
+        self.keep_open_check.setToolTip("Don't close after selecting")
+        button_layout.addWidget(self.keep_open_check)
+
         # Action buttons based on mode
         if self.mode == 'open':
             self.action_btn = QPushButton("Open")
@@ -975,25 +1877,29 @@ class DolphinFileDialog(QDialog): #vers 1
 
                 self.selected_items = [full_path]
         else:
-            # Get selected items from tree
-            selected = self.tree.selectedItems()
-            if not selected:
+            # Get selected items from whichever view is active
+            paths = [p for p in self._current_selected_paths() if p and p != ".."]
+            if not paths:
                 QMessageBox.warning(self, "No Selection", "Please select a file or folder.")
                 return
 
-            self.selected_items = []
-            for item in selected:
-                path = item.data(0, Qt.ItemDataRole.UserRole)
-                if path and path != "..":
-                    self.selected_items.append(path)
+            self.selected_items = paths
 
         # Accept dialog
         self.accept()
 
-    def _selection_changed(self): #vers 1
-        """Handle tree selection change"""
-        selected = self.tree.selectedItems()
-        count = len(selected)
+    def _current_selected_paths(self): #vers 1
+        """Selected item paths from whichever view (tree or icon grid) is active."""
+        if hasattr(self, 'icon_list') and self.icon_list.isVisible():
+            return [it.data(Qt.ItemDataRole.UserRole)
+                    for it in self.icon_list.selectedItems()]
+        return [it.data(0, Qt.ItemDataRole.UserRole)
+                for it in self.tree.selectedItems()]
+
+    def _selection_changed(self): #vers 2
+        """Handle selection change in either view (tree or icon grid)"""
+        paths = self._current_selected_paths()
+        count = len(paths)
 
         # Update selection label
         if count == 0:
@@ -1004,8 +1910,7 @@ class DolphinFileDialog(QDialog): #vers 1
             self.action_btn.setEnabled(True)
 
             # Update info panel
-            item = selected[0]
-            path = item.data(0, Qt.ItemDataRole.UserRole)
+            path = paths[0]
             if path and path != "..":
                 self._update_info_panel(path)
         else:
@@ -1090,42 +1995,77 @@ class DolphinFileDialog(QDialog): #vers 1
         self._load_directory(path)
         self.history_index = old_index
 
-    def _change_view_mode(self, index): #vers 1
-        """Change view mode (Details/Icons/List)"""
-        # STUB: additional view modes (list/compact) not yet implemented
-        # For now, only details view is implemented
-        pass
+    def _change_view_mode(self, index): #vers 3
+        """Change view mode: 0=Details, 1=Icons, 2=Condensed"""
+        if not self.active_pane:
+            return
+        self.active_pane.view_index = index
+        if index == 1:
+            self._view_stack.setCurrentWidget(self.icon_list)
+        else:
+            self._view_stack.setCurrentWidget(self.tree)
+            self._apply_tree_columns(condensed=(index == 2))
+        self._selection_changed()
+
+    def _apply_tree_columns(self, condensed: bool): #vers 1
+        """Condensed = Name column only, tight rows. Details = all columns."""
+        self.tree.setHeaderHidden(condensed)
+        for col in (1, 2, 3):
+            self.tree.setColumnHidden(col, condensed)
+        self.tree.setStyleSheet(
+            "QTreeWidget::item { height: 18px; }" if condensed else "")
 
 
-    def _show_context_menu(self, position): #vers 1
-        """Show context menu for file operations"""
-        item = self.tree.itemAt(position)
+    def _show_context_menu(self, position): #vers 2
+        """Show context menu for file operations - works from either
+        the tree (Details/Condensed) or the icon grid (Icons view)."""
+        active = self.icon_list if (hasattr(self, 'icon_list') and self.icon_list.isVisible()) else self.tree
+        if active is self.icon_list:
+            item = self.icon_list.itemAt(position)
+            path = item.data(Qt.ItemDataRole.UserRole) if item else None
+            name = item.text() if item else None
+        else:
+            item = self.tree.itemAt(position)
+            path = item.data(0, Qt.ItemDataRole.UserRole) if item else None
+            name = item.text(0) if item else None
 
         menu = QMenu(self)
 
-        if item:
-            path = item.data(0, Qt.ItemDataRole.UserRole)
-            file_info = QFileInfo(path)
-
+        if item and path and path != "..":
             # Open action
             open_action = menu.addAction(self._create_open_icon(), "Open")
-            open_action.triggered.connect(lambda: self._item_double_clicked(item, 0))
+            open_action.triggered.connect(
+                lambda: self._icon_item_double_clicked(item) if active is self.icon_list
+                        else self._item_double_clicked(item, 0))
+
+            # Copy path
+            copy_action = menu.addAction(self._create_edit_icon(), "Copy Path")
+            copy_action.triggered.connect(lambda: QApplication.clipboard().setText(path))
+
+            if QFileInfo(path).isDir():
+                pin_action = menu.addAction(self._create_folder_icon(), "Add to Places")
+                pin_action.triggered.connect(lambda: self._pin_place(name, path))
+            else:
+                open_with_action = menu.addAction(self._create_open_icon(), "Open With Default App")
+                open_with_action.triggered.connect(lambda: self._open_with_default(path))
+                open_as_action = menu.addAction(self._create_open_icon(), "Open As...")
+                open_as_action.triggered.connect(lambda: self._open_as(path))
 
             menu.addSeparator()
 
             # Rename action
             rename_action = menu.addAction(self._create_edit_icon(), "Rename")
-            rename_action.triggered.connect(lambda: self._rename_item(item))
+            rename_action.triggered.connect(lambda: self._rename_item(path, name))
 
             # Delete action
             delete_action = menu.addAction(self._create_delete_icon(), "Delete")
-            delete_action.triggered.connect(lambda: self._delete_item(item))
+            delete_action.triggered.connect(lambda: self._delete_item(path, name))
 
             menu.addSeparator()
 
             # Properties action
             props_action = menu.addAction(self._create_properties_icon(), "Properties")
-            props_action.triggered.connect(lambda: self._show_properties(item))
+            props_action.triggered.connect(lambda: self._show_properties(path))
         else:
             # Empty space context menu
             new_folder_action = menu.addAction(self._create_folder_icon(), "New Folder")
@@ -1136,7 +2076,7 @@ class DolphinFileDialog(QDialog): #vers 1
             refresh_action = menu.addAction(self._create_refresh_icon(), "Refresh")
             refresh_action.triggered.connect(self._refresh_directory)
 
-        menu.exec(self.tree.viewport().mapToGlobal(position))
+        menu.exec(active.viewport().mapToGlobal(position))
 
 
     def _create_new_folder(self): #vers 1
@@ -1166,11 +2106,8 @@ class DolphinFileDialog(QDialog): #vers 1
                 QMessageBox.critical(self, "Error", f"Failed to create folder:\n{str(e)}")
 
 
-    def _rename_item(self, item): #vers 1
-        """Rename selected file or folder"""
-        old_path = item.data(0, Qt.ItemDataRole.UserRole)
-        old_name = item.text(0)
-
+    def _rename_item(self, old_path, old_name): #vers 2
+        """Rename selected file or folder (path/name, works for either view)"""
         new_name, ok = QInputDialog.getText(
             self,
             "Rename",
@@ -1196,11 +2133,8 @@ class DolphinFileDialog(QDialog): #vers 1
                 QMessageBox.critical(self, "Error", f"Failed to rename:\n{str(e)}")
 
 
-    def _delete_item(self, item): #vers 1
-        """Delete selected file or folder"""
-        path = item.data(0, Qt.ItemDataRole.UserRole)
-        name = item.text(0)
-
+    def _delete_item(self, path, name): #vers 2
+        """Delete selected file or folder (path/name, works for either view)"""
         file_info = QFileInfo(path)
         item_type = "folder" if file_info.isDir() else "file"
 
@@ -1227,9 +2161,8 @@ class DolphinFileDialog(QDialog): #vers 1
                 QMessageBox.critical(self, "Error", f"Failed to delete:\n{str(e)}")
 
 
-    def _show_properties(self, item): #vers 1
-        """Show file/folder properties dialog"""
-        path = item.data(0, Qt.ItemDataRole.UserRole)
+    def _show_properties(self, path): #vers 2
+        """Show file/folder properties dialog (path, works for either view)"""
         file_info = QFileInfo(path)
 
         props_text = f"Name: {file_info.fileName()}\n"
@@ -1265,6 +2198,29 @@ class DolphinFileDialog(QDialog): #vers 1
                 return f"{size:.1f} {unit}"
             size /= 1024.0
         return f"{size:.1f} PB"
+
+    def _path_icon(self, path: str, fallback_creator) -> 'QIcon': #vers 1
+        """Real OS icon for a places/bookmark path if System Icons is
+        on and the path exists, else the given SVGIconFactory fallback."""
+        if self._use_system_icons and os.path.exists(path):
+            try:
+                return self._icon_provider.icon(QFileInfo(path))
+            except Exception:
+                pass
+        return fallback_creator()
+
+    def _file_icon_for(self, file_info) -> 'QIcon': #vers 1
+        """Icon for a real filesystem entry - real native OS icon
+        (QFileIconProvider) when System Icons is on, else the themed
+        SVGIconFactory icon set."""
+        if self._use_system_icons:
+            try:
+                return self._icon_provider.icon(file_info)
+            except Exception:
+                pass
+        if file_info.isDir():
+            return self._create_folder_icon()
+        return self._get_file_icon(file_info.suffix())
 
     def _get_file_icon(self, extension): #vers 1
         """Get appropriate icon for file extension"""
@@ -1431,7 +2387,7 @@ class DolphinFileDialog(QDialog): #vers 1
                 background-color: {bg_secondary};
                 color: {text_primary};
                 border: 1px solid {border};
-                padding: 5px;
+                padding: 2px;
                 font-weight: bold;
             }}
             QPushButton {{
@@ -1472,6 +2428,32 @@ class DolphinFileDialog(QDialog): #vers 1
             }}
             QWidget {{
                 background-color: {panel_bg};
+            }}
+            QTreeWidget#SidebarTree {{
+                background-color: {bg_tertiary};
+                border: none;
+            }}
+            QWidget#SidebarSection, QWidget#SidebarHeader {{
+                background-color: {bg_tertiary};
+            }}
+            QPushButton#SidebarCollapseBtn {{
+                background-color: transparent;
+                border: none;
+                padding: 0px;
+            }}
+            QFrame#PathContainer {{
+                background-color: {bg_primary};
+                border: 1px solid {border};
+                border-radius: 3px;
+            }}
+            QTabWidget::pane {{
+                border: none;
+                margin: 0px;
+                padding: 0px;
+            }}
+            QTabBar::tab {{
+                padding: 2px 10px;
+                margin: 0px;
             }}
         """
 
@@ -1536,278 +2518,88 @@ class DolphinFileDialog(QDialog): #vers 1
         """
         self.setStyleSheet(default_style)
 
-    def _create_svg_icon(self, svg_data, size=20): #vers 1
-        """Convert SVG data to QIcon"""
-        from PyQt6.QtCore import QSize
-        from PyQt6.QtGui import QPixmap, QPainter
-        from PyQt6.QtSvg import QSvgRenderer
+    def _resolve_icon_color(self) -> str: #vers 1
+        """Icon colour priority: IMG Factory theme (docked/parent has
+        app_settings) first, else app_settings_system override if set,
+        else OS/system palette (follows KDE/Wayland theme live)."""
+        try:
+            if hasattr(self.parent_window, 'app_settings'):
+                theme_name = self.parent_window.app_settings.current_settings.get("theme", "IMG_Factory")
+                theme_data = self.parent_window.app_settings.themes.get(theme_name, {})
+                colors = theme_data.get('colors', {})
+                if colors.get('text_primary'):
+                    return colors['text_primary']
+        except Exception:
+            pass
+        try:
+            from apps.utils.app_settings_system import AppSettings
+            sys_settings = AppSettings()
+            sys_color = sys_settings.current_settings.get('icon_color')
+            if sys_color:
+                return sys_color
+        except Exception:
+            pass
+        palette = QApplication.palette()
+        is_dark = palette.color(QPalette.ColorRole.Window).lightness() < 128
+        return '#ffffff' if is_dark else '#202020'
 
-        renderer = QSvgRenderer(svg_data)
+    def _create_svg_icon(self, svg_data, size=20): #vers 2
+        """Convert raw SVG bytes to a themed QIcon (legacy call path -
+        kept for any external caller still passing hand-built SVG)."""
+        color = self._resolve_icon_color()
+        if isinstance(svg_data, bytes):
+            svg_data = svg_data.decode('utf-8')
+        svg_data = svg_data.replace('currentColor', color)
+        renderer = QSvgRenderer(svg_data.encode('utf-8'))
         pixmap = QPixmap(QSize(size, size))
         pixmap.fill(Qt.GlobalColor.transparent)
-
         painter = QPainter(pixmap)
         renderer.render(painter)
         painter.end()
-
         return QIcon(pixmap)
 
-    def _create_folder_icon(self): #vers 1
-        """Folder icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-7l-2-2H5a2 2 0 00-2 2z"
-                stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
+    #    Icon lookup — routed through the shared, theme-aware
+    #    SVGIconFactory (apps/methods/imgfactory_svg_icons.py) instead
+    #    of this file's own hand-drawn SVGs, which never applied a
+    #    colour and were invisible on dark themes. Method names kept
+    #    unchanged so every existing call site still works.
 
-    def _create_file_icon(self): #vers 1
-        """Generic file icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M14 2v6h6" stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
+    def _icon(self, name: str) -> 'QIcon': #vers 1
+        """Look up a themed icon by SVGIconFactory method name."""
+        color = self._resolve_icon_color()
+        try:
+            if SVGIconFactory is not None:
+                return getattr(SVGIconFactory, name)(20, color)
+        except Exception:
+            pass
+        return QIcon()
 
-    def _create_image_icon(self): #vers 1
-        """Image file icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <rect x="3" y="3" width="18" height="18" rx="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-            <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="2"
-                fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_archive_icon(self): #vers 1
-        """Archive file icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_model_icon(self): #vers 1
-        """3D model file icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="2"
-                fill="none" stroke-linejoin="round"/>
-            <path d="M2 17l10 5 10-5M2 12l10 5 10-5"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_texture_icon(self): #vers 1
-        """Texture file icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <rect x="3" y="3" width="7" height="7" fill="currentColor" opacity="0.3"/>
-            <rect x="14" y="3" width="7" height="7" fill="currentColor" opacity="0.6"/>
-            <rect x="3" y="14" width="7" height="7" fill="currentColor" opacity="0.6"/>
-            <rect x="14" y="14" width="7" height="7" fill="currentColor" opacity="0.3"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_collision_icon(self): #vers 1
-        """Collision file icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M12 2v20M2 12h20" stroke="currentColor" stroke-width="1" opacity="0.5"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_text_icon(self): #vers 1
-        """Text file icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_back_icon(self): #vers 1
-        """Back navigation icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M19 12H5M12 19l-7-7 7-7"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_forward_icon(self): #vers 1
-        """Forward navigation icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M5 12h14M12 5l7 7-7 7"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_up_icon(self): #vers 1
-        """Up/Parent directory icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M12 19V5M5 12l7-7 7 7"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_refresh_icon(self): #vers 1
-        """Refresh icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.2"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_home_icon(self): #vers 1
-        """Home icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M9 22V12h6v10" stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_desktop_icon(self): #vers 1
-        """Desktop icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <rect x="2" y="3" width="20" height="14" rx="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2"
-                fill="none" stroke-linecap="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_document_icon(self): #vers 1
-        """Document icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_download_icon(self): #vers 1
-        """Download/Downloads folder icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <polyline points="7 10 12 15 17 10"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="12" y1="15" x2="12" y2="3"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_drive_icon(self): #vers 1
-        """Hard drive icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <rect x="2" y="6" width="20" height="12" rx="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M6 12h.01M10 12h.01" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_open_icon(self): #vers 1
-        """Open icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-7l-2-2H5a2 2 0 00-2 2z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_save_icon(self): #vers 1
-        """Save icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M17 21v-8H7v8M7 3v5h8"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_import_icon(self): #vers 1
-        """Import icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <polyline points="7 10 12 15 17 10"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="12" y1="15" x2="12" y2="3"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_export_icon(self): #vers 1
-        """Export icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <polyline points="17 8 12 3 7 8"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="12" y1="3" x2="12" y2="15"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_cancel_icon(self): #vers 1
-        """Cancel/Close icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <line x1="15" y1="9" x2="9" y2="15"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="9" y1="9" x2="15" y2="15"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_edit_icon(self): #vers 1
-        """Edit/Rename icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_delete_icon(self): #vers 1
-        """Delete icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <polyline points="3 6 5 6 21 6"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
-
-    def _create_properties_icon(self): #vers 1
-        """Properties/Info icon SVG"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M12 16v-4M12 8h.01"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._create_svg_icon(svg_data)
+    def _create_folder_icon(self):     return self._icon('get_folder_icon')     #vers 2
+    def _create_file_icon(self):       return self._icon('get_file_icon')       #vers 2
+    def _create_image_icon(self):      return self._icon('get_image_icon')      #vers 2
+    def _create_archive_icon(self):    return self._icon('package_icon')        #vers 2
+    def _create_model_icon(self):      return self._icon('mesh_icon')           #vers 2
+    def _create_texture_icon(self):    return self._icon('texture_icon')        #vers 2
+    def _create_collision_icon(self):  return self._icon('get_col_file_icon')   #vers 2
+    def _create_text_icon(self):       return self._icon('get_file_icon')       #vers 2
+    def _create_back_icon(self):       return self._icon('get_back_icon')       #vers 2
+    def _create_forward_icon(self):    return self._icon('get_forward_icon')    #vers 2
+    def _create_up_icon(self):         return self._icon('get_up_icon')         #vers 2
+    def _create_refresh_icon(self):    return self._icon('get_refresh_icon')    #vers 2
+    def _create_home_icon(self):       return self._icon('get_home_icon')       #vers 2
+    def _create_desktop_icon(self):    return self._icon('box_icon')            #vers 2
+    def _create_document_icon(self):   return self._icon('get_new_file_icon')   #vers 2
+    def _create_download_icon(self):   return self._icon('get_import_icon')     #vers 2
+    def _create_drive_icon(self):      return self._icon('box_icon')            #vers 2
+    def _create_open_icon(self):       return self._icon('get_open_icon')       #vers 2
+    def _create_save_icon(self):       return self._icon('get_save_icon')       #vers 2
+    def _create_import_icon(self):     return self._icon('get_import_icon')     #vers 2
+    def _create_export_icon(self):     return self._icon('get_export_icon')     #vers 2
+    def _create_cancel_icon(self):     return self._icon('get_close_icon')      #vers 2
+    def _create_edit_icon(self):       return self._icon('get_edit_icon')       #vers 2
+    def _create_delete_icon(self):     return self._icon('get_trash_icon')      #vers 2
+    def _create_properties_icon(self): return self._icon('get_properties_icon') #vers 2
+    def _create_new_folder_icon(self): return self._icon('get_new_folder_icon') #vers 1
 
 
 @staticmethod

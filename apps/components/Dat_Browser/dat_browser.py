@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QMenu, QApplication, QDialog,
     QRadioButton, QCheckBox, QGroupBox, QProgressDialog,
 )
+from apps.methods.ribbon_system import RibbonMixin
 from PyQt6.QtCore import QSize, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont, QColor
 
@@ -697,11 +698,14 @@ class TXDDumpDialog(QDialog): #vers 1
         self.accept()
 
 
-class DATBrowserWidget(QWidget): #vers 4
+class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
     """
     Full DAT/IDE/IPL browser panel.
     Drop into any QTabWidget or use standalone.
     """
+
+    _ribbon_name = "dat_browser"
+    _RIBBON_LAYOUT_VERSION = 1     # 1 = Game / Tools ribbons
 
     open_img_requested = pyqtSignal(str)          # emits abs path to .img
     xref_ready         = pyqtSignal(object)        # emits GTAWorldXRef after load
@@ -748,13 +752,17 @@ class DATBrowserWidget(QWidget): #vers 4
         self.setAttribute(_Qt.WidgetAttribute.WA_StyledBackground, True)
         # Apply palette background immediately before any child widgets render
         self._apply_theme_stylesheet()
-        root = QVBoxLayout(self)
+        # Ribbon wrap: the panel content is the central widget, the game
+        # row and tool buttons live in two ribbons (overflow chevron when narrow)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        central = QWidget()
+        outer.addWidget(self.ribbon_wrap(central))
+        root = QVBoxLayout(central)
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(4)
 
-        # Toolbar
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(6)
+        toolbar = self.ribbon_toolbar("Game")
 
         self._game_combo = QComboBox()
         self._game_combo.addItems([
@@ -801,12 +809,16 @@ class DATBrowserWidget(QWidget): #vers 4
         # Load persisted settings (after widgets exist)
         self._load_dat_settings()
 
+        self._path_edit.setMinimumWidth(180)
+        self._game_combo.setMinimumHeight(26)
+        self._path_edit.setMinimumHeight(26)
         toolbar.addWidget(QLabel("Game:"))
         toolbar.addWidget(self._game_combo)
-        toolbar.addWidget(self._path_edit, 1)
+        toolbar.addWidget(self._path_edit)
         toolbar.addWidget(browse_btn)
         toolbar.addWidget(self._load_btn)
 
+        toolbar = self.ribbon_toolbar("Tools")
         self._dump_txd_btn = QPushButton("Dump TXDs")
         self._dump_txd_btn.setToolTip("Extract all TXD files from game IMG archives to a folder")
         self._dump_txd_btn.setEnabled(False)
@@ -841,7 +853,7 @@ class DATBrowserWidget(QWidget): #vers 4
         from PyQt6.QtCore import QTimer as _QT2
         _QT2.singleShot(100, self._load_toolbar_icons)
 
-        root.addLayout(toolbar)
+        self.ribbon_restore_state()
 
         # Progress bar (hidden when idle)
         self._progress = QProgressBar()

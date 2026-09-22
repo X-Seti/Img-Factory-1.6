@@ -640,6 +640,19 @@ def euler_degrees_to_quat(roll_deg, pitch_deg, yaw_deg): #vers 1
 # Model Workshop icon available: SVGIconFactory.model_workshop_icon()
 # Use for: DFF edit button in main toolbar, Model Workshop tab icon.
 # - DFF → Viewport adapter
+
+def _write_ipl_lines(path: str, lines: list) -> None: #vers 1
+    """Write text lines back to an IPL/DAT the safe way: journal + timestamped backup
+    of the existing file (raises if the backup fails), atomic write, latin-1 so no byte
+    is dropped, and the file's own line ending (new lines get CRLF in a CRLF file)."""
+    from apps.methods.file_backup import safe_write_bytes
+    crlf = any(l.endswith('\r\n') for l in lines)
+    eol = '\r\n' if crlf else '\n'
+    out = [(l.rstrip('\r\n') + eol) if l.endswith('\n') else l for l in lines]
+    safe_write_bytes(path, ''.join(out).encode('latin-1', errors='replace'),
+                     f"Map Workshop: save {os.path.basename(path)}")
+
+
 class _DFFGeometryAdapter:
     """Adapts a DFF Geometry for use with COL3DViewport.
 
@@ -23773,14 +23786,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not path:
             return
         try:
-            with open(path, 'w', encoding='ascii', errors='replace') as f:
-                f.write("inst\n")
-                for inst in matching:
-                    f.write(f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
-                            f"{inst.pos_x:.6f}, {inst.pos_y:.6f}, {inst.pos_z:.6f}, "
-                            f"{inst.rot_x:.7f}, {inst.rot_y:.7f}, {inst.rot_z:.7f}, {inst.rot_w:.7f}, "
-                            f"{inst.lod_index}\n")
-                f.write("end\n")
+            _rows = ["inst\n"] + [
+                f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                f"{inst.pos_x:.6f}, {inst.pos_y:.6f}, {inst.pos_z:.6f}, "
+                f"{inst.rot_x:.7f}, {inst.rot_y:.7f}, {inst.rot_z:.7f}, {inst.rot_w:.7f}, "
+                f"{inst.lod_index}\n" for inst in matching] + ["end\n"]
+            _write_ipl_lines(path, _rows)
         except Exception as e:
             QMessageBox.warning(self, "Save Binary IPL as Text", f"Failed to save: {e}")
             return
@@ -23825,8 +23836,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             from apps.methods.gta_dat_parser import write_binary_ipl_inst_only
             data = write_binary_ipl_inst_only(matching)
-            with open(path, 'wb') as f:
-                f.write(data)
+            from apps.methods.file_backup import safe_write_bytes
+            safe_write_bytes(path, data)
         except Exception as e:
             QMessageBox.warning(self, "Save Text as Binary IPL", f"Failed to save: {e}")
             return
@@ -24368,8 +24379,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not path:
             return
         try:
-            with open(path, 'w', encoding='ascii', errors='replace') as f:
-                f.write('\n'.join(lines_out) + '\n')
+            _write_ipl_lines(path, [l + '\n' for l in lines_out])
         except Exception as e:
             QMessageBox.warning(self, "Save IPL Data As...", f"Failed to save: {e}")
             return
@@ -27979,7 +27989,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         names for reading."""
         from apps.methods.gta_dat_parser import GTAGame
         try:
-            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+            with open(abs_path, 'r', encoding='latin-1', newline='') as f:
                 lines = f.readlines()
         except Exception as e:
             return False, f"Couldn't read {abs_path}: {e}"
@@ -28023,19 +28033,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lines[-1] += '\n'
             lines += ['cull\n'] + new_lines + ['end\n']
 
-        backup_path = abs_path + '.bak'
-        if not os.path.isfile(backup_path):
-            try:
-                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
-                    original = f.read()
-                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
-                    f.write(original)
-            except Exception as e:
-                return False, f"Couldn't write backup for {abs_path}: {e}"
-
         try:
-            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
-                f.writelines(lines)
+            _write_ipl_lines(abs_path, lines)      # timestamped backup + atomic write, CRLF kept
         except Exception as e:
             return False, f"Couldn't write {abs_path}: {e}"
         return True, f"Wrote {len(cull_entries)} cull box(es) to {os.path.basename(abs_path)}"
@@ -28167,7 +28166,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         across every real game this parser handles, unlike cull - no
         game-specific branching needed here."""
         try:
-            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+            with open(abs_path, 'r', encoding='latin-1', newline='') as f:
                 lines = f.readlines()
         except Exception as e:
             return False, f"Couldn't read {abs_path}: {e}"
@@ -28195,19 +28194,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lines[-1] += '\n'
             lines += ['occl\n'] + new_lines + ['end\n']
 
-        backup_path = abs_path + '.bak'
-        if not os.path.isfile(backup_path):
-            try:
-                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
-                    original = f.read()
-                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
-                    f.write(original)
-            except Exception as e:
-                return False, f"Couldn't write backup for {abs_path}: {e}"
-
         try:
-            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
-                f.writelines(lines)
+            _write_ipl_lines(abs_path, lines)      # timestamped backup + atomic write, CRLF kept
         except Exception as e:
             return False, f"Couldn't write {abs_path}: {e}"
         return True, f"Wrote {len(occl_entries)} occlusion box(es) to {os.path.basename(abs_path)}"
@@ -28349,7 +28337,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         own docstring) shows plain, unquoted names ("cjsafe"), not
         SannyBuilder-style quoted strings."""
         try:
-            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+            with open(abs_path, 'r', encoding='latin-1', newline='') as f:
                 lines = f.readlines()
         except Exception as e:
             return False, f"Couldn't read {abs_path}: {e}"
@@ -28378,19 +28366,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lines[-1] += '\n'
             lines += ['grge\n'] + new_lines + ['end\n']
 
-        backup_path = abs_path + '.bak'
-        if not os.path.isfile(backup_path):
-            try:
-                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
-                    original = f.read()
-                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
-                    f.write(original)
-            except Exception as e:
-                return False, f"Couldn't write backup for {abs_path}: {e}"
-
         try:
-            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
-                f.writelines(lines)
+            _write_ipl_lines(abs_path, lines)      # timestamped backup + atomic write, CRLF kept
         except Exception as e:
             return False, f"Couldn't write {abs_path}: {e}"
         return True, f"Wrote {len(grge_entries)} garage(s) to {os.path.basename(abs_path)}"
@@ -28429,7 +28406,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         exist). Returns (success: bool, message: str)."""
         from apps.methods.gta_dat_parser import convert_inst_fields, GTAGame
         try:
-            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+            with open(abs_path, 'r', encoding='latin-1', newline='') as f:
                 lines = f.readlines()
         except Exception as e:
             return False, f"Couldn't read {abs_path}: {e}"
@@ -28467,19 +28444,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if converted == 0:
             return False, f"No convertible INST lines found in {os.path.basename(abs_path)}"
 
-        backup_path = abs_path + '.bak'
-        if not os.path.isfile(backup_path):
-            try:
-                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
-                    original = f.read()
-                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
-                    f.write(original)
-            except Exception as e:
-                return False, f"Couldn't write backup for {abs_path}: {e}"
-
         try:
-            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
-                f.writelines(new_lines)
+            _write_ipl_lines(abs_path, new_lines)      # timestamped backup + atomic write, CRLF kept
         except Exception as e:
             return False, f"Couldn't write {abs_path}: {e}"
         suffix = f", {skipped} left unconverted" if skipped else ""
@@ -30528,7 +30494,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         Returns (success: bool, message: str)."""
         try:
-            with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
+            with open(abs_path, 'r', encoding='latin-1', newline='') as f:
                 lines = f.readlines()
         except Exception as e:
             return False, f"Couldn't read {abs_path}: {e}"
@@ -30559,19 +30525,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lines[-1] += '\n'
             lines += ['zone\n'] + new_lines + ['end\n']
 
-        backup_path = abs_path + '.bak'
-        if not os.path.isfile(backup_path):
-            try:
-                with open(abs_path, 'r', encoding='ascii', errors='ignore') as f:
-                    original = f.read()
-                with open(backup_path, 'w', encoding='ascii', errors='ignore') as f:
-                    f.write(original)
-            except Exception as e:
-                return False, f"Couldn't write backup for {abs_path}: {e}"
-
         try:
-            with open(abs_path, 'w', encoding='ascii', errors='ignore') as f:
-                f.writelines(lines)
+            _write_ipl_lines(abs_path, lines)      # timestamped backup + atomic write, CRLF kept
         except Exception as e:
             return False, f"Couldn't write {abs_path}: {e}"
         return True, f"Wrote {len(zone_entries)} zone(s) to {os.path.basename(abs_path)}"

@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
     QDialog, QFontComboBox, QDialogButtonBox, QTextEdit, QButtonGroup
 )
 
+from apps.methods.ribbon_system import RibbonMixin
 from PyQt6.QtCore import Qt, QPoint, QSize, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QAction, QBrush, QColor, QFont, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QPolygon, QShortcut
 
@@ -110,20 +111,14 @@ except ImportError:
 # GLViewportMixin — embedded in this file
 class GLViewportMixin: pass
 
-# HandlingParser — depends/ tool-specific copy
+# Handling file model (byte-exact) - the old import chain always finished with
+# _HANDLING_AVAILABLE = False, so the Handling tab never worked.
+from apps.methods.handling_file import HandlingParser, HandlingEntry, header_fields
 try:
-    from handling_editor import HandlingParser, HandlingEntry, VC_FIELDS, HANDLING_FLAGS
-    _HANDLING_AVAILABLE = True
-except ImportError:
-    try:
-        from apps.components.Handling_Editor.handling_editor import (
-            HandlingParser, HandlingEntry, VC_FIELDS, HANDLING_FLAGS
-        )
-        _HANDLING_AVAILABLE = True
-    except ImportError:
-        _HANDLING_AVAILABLE = False
-
-    _HANDLING_AVAILABLE = False
+    from apps.components.Handling_Editor.handling_editor import VC_FIELDS, HANDLING_FLAGS
+except Exception:
+    VC_FIELDS, HANDLING_FLAGS = [("HandlingName", "str", "", "", "Handling name")], {}
+_HANDLING_AVAILABLE = True
 
 # Parser imports — fall back to local depends/ when running standalone
 try:
@@ -2291,7 +2286,7 @@ class _LayoutMixin:
 
         def _tbtn(text, tip, cb, iname=None, checkable=False, checked=False):  #vers 1
             b = _QTB(); b.setFont(self.infobar_font)
-            b.setToolTip(tip); b.setFixedHeight(24)
+            b.setToolTip(tip); b.setMinimumHeight(28)
             ico = _icon(iname)
             if ico:
                 b.setIcon(ico); b.setIconSize(QSize(13,13))
@@ -2311,7 +2306,7 @@ class _LayoutMixin:
         def _tbtn_txt(text, tip, cb, iname=None, checkable=False, checked=False):  #vers 1
             """Button with icon+short text side by side."""
             b = _QTB(); b.setFont(self.infobar_font)
-            b.setToolTip(tip); b.setFixedHeight(24)
+            b.setToolTip(tip); b.setMinimumHeight(28)
             ico = _icon(iname)
             if ico:
                 b.setIcon(ico); b.setIconSize(QSize(13,13))
@@ -2354,7 +2349,7 @@ class _LayoutMixin:
         for label, mode, iname in [("Wire","wireframe","dff_edit"),
                                     ("Solid","solid","properties"),
                                     ("Tex","textured","image")]:
-            b = _QTB(); b.setFont(self.infobar_font); b.setFixedHeight(24)
+            b = _QTB(); b.setFont(self.infobar_font); b.setMinimumHeight(28)
             b.setToolTip(f"{mode.capitalize()} render mode")
             ico = _icon(iname)
             if ico: b.setIcon(ico); b.setIconSize(QSize(13,13))
@@ -2383,9 +2378,9 @@ class _LayoutMixin:
         lay.addWidget(_lbl("Paint"))
         self._paint1_btn = QPushButton("Pri")
         self._paint2_btn = QPushButton("Sec")
-        self._carcol_btn = QPushButton("Carcol")
+        self._carcol_btn = QPushButton("Cols")
         for b in (self._paint1_btn, self._paint2_btn, self._carcol_btn):
-            b.setFixedHeight(24); b.setFont(self.infobar_font)
+            b.setMinimumHeight(28); b.setFont(self.infobar_font)
         self._paint1_btn.clicked.connect(self._pick_paint1)
         self._paint2_btn.clicked.connect(self._pick_paint2)
         self._carcol_btn.clicked.connect(self._cycle_carcol)
@@ -2402,7 +2397,7 @@ class _LayoutMixin:
         #    Assembly                                      
         lay.addWidget(_lbl("Assembly"))
         self._assemble_btn = _tbtn_txt("All",    "Show all parts", self._toggle_assembly_mode, 'select_all', True, False)
-        self._damage_btn   = _tbtn_txt("Damage", "Damaged state",  self._toggle_damage_mode,   'warning',    True, False)
+        self._damage_btn   = _tbtn_txt("Dmg", "Damaged state",  self._toggle_damage_mode,   'warning',    True, False)
         self._lod_btn      = _tbtn_txt("LOD",    "Show LOD",       self._toggle_lod_mode,      'search',     True, False)
         lay.addWidget(_row(self._assemble_btn, self._damage_btn, self._lod_btn))
         lay.addWidget(_sep())
@@ -2510,7 +2505,7 @@ class _LayoutMixin:
         er1 = QWidget(); eh1 = QHBoxLayout(er1); eh1.setContentsMargins(0,0,0,0); eh1.setSpacing(2)
         er2 = QWidget(); eh2 = QHBoxLayout(er2); eh2.setContentsMargins(0,0,0,0); eh2.setSpacing(2)
         for i, (label, tip, cb, iname, checkable) in enumerate(edit_defs):
-            b = _QTB(); b.setFixedHeight(24)
+            b = _QTB(); b.setMinimumHeight(28)
             b.setFont(self.infobar_font); b.setToolTip(tip)
             ico = _icon(iname)
             if ico:
@@ -3780,138 +3775,22 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self.window_closed.emit()
         event.accept()
 
-# carcols.dat parser
+# carcols.dat / carmods.dat: byte-exact models in apps/methods/vehicle_data_files.py
+from apps.methods.vehicle_data_files import (
+    CarColour as _CarColourBase, CarColEntry, CarModEntry, CarColsFile, CarModsFile)
 
-@dataclass
-class CarColour: #vers 1
-    r: int = 0
-    g: int = 0
-    b: int = 0
 
+class CarColour(_CarColourBase): #vers 2
     def to_qcolor(self) -> QColor:  #vers 1
         return QColor(self.r, self.g, self.b)
 
-    def __str__(self):  #vers 1
-        return f"{self.r},{self.g},{self.b}"
 
-
-@dataclass
-class CarColEntry: #vers 1
-    name:     str                    = ""
-    palettes: List[Tuple[int, int]]  = field(default_factory=list)
-
-
-class CarColsParser: #vers 1
+class CarColsParser(CarColsFile): #vers 2
     def __init__(self): #vers 1
-        self.colours:      List[CarColour]   = []
-        self.vehicles:     List[CarColEntry] = []
-        self.header_lines: List[str]         = []
-        self.game:         str               = "VC"
-
-    def _detect_game(self, lines: List[str]) -> str: #vers 1
-        for ln in lines:
-            s = ln.strip()
-            if s.lower().startswith("col") and not s.startswith(";"):
-                if len(s.split()) > 15:
-                    return "SA"
-        return "VC"
-
-    def load(self, path: str) -> bool: #vers 2
-        try:
-            self.colours.clear(); self.vehicles.clear(); self.header_lines.clear()
-            with open(path, "r", encoding="latin-1") as f:
-                lines = f.readlines()
-            self.game = self._detect_game(lines)
-            section = None
-            for ln in lines:
-                s = ln.strip()
-                if '#' in s: s = s[:s.index('#')].strip()
-                if ';' in s: s = s[:s.index(';')].strip()
-                if not s: continue
-                sl = s.lower()
-                if sl == 'col':  section = 'col'; continue
-                if sl == 'car':  section = 'car'; continue
-                if sl == 'end':  section = None;  continue
-                if section == 'col':
-                    try:
-                        parts = s.replace('\t', ' ').split()
-                        rgb = parts[0].split(',')
-                        if len(rgb) == 3:
-                            self.colours.append(CarColour(int(rgb[0]),int(rgb[1]),int(rgb[2])))
-                        elif len(parts) >= 3:
-                            self.colours.append(CarColour(int(parts[0]),int(parts[1]),int(parts[2])))
-                    except (ValueError, IndexError):
-                        pass
-                elif section == 'car':
-                    parts = [p.strip() for p in s.split(',')]
-                    if not parts or not parts[0]: continue
-                    entry = CarColEntry(name=parts[0])
-                    nums = []
-                    for p in parts[1:]:
-                        try: nums.append(int(p.strip()))
-                        except ValueError: pass
-                    for i in range(0, len(nums)-1, 2):
-                        entry.palettes.append((nums[i], nums[i+1]))
-                    if entry.palettes:
-                        self.vehicles.append(entry)
-            return True
-        except Exception as ex:
-            print(f"CarColsParser.load: {ex}"); return False
-
-    def save(self, path: str) -> bool: #vers 1
-        try:
-            with open(path, "w", encoding="latin-1") as f:
-                for ln in self.header_lines: f.write(ln)
-                for c in self.colours: f.write(f"{c.r},{c.g},{c.b}\n")
-                f.write("\n")
-                for v in self.vehicles:
-                    pairs = "   ".join(f"{p},{s}" for p, s in v.palettes)
-                    f.write(f"col   {v.name}   {pairs}\n")
-            return True
-        except Exception as ex:
-            print(f"CarColsParser.save: {ex}"); return False
+        super().__init__(CarColour)
 
 
-# carmods.dat parser
-
-@dataclass
-class CarModEntry: #vers 1
-    vehicle: str       = ""
-    mods:    List[str] = field(default_factory=list)
-
-
-class CarModsParser: #vers 1
-    def __init__(self): #vers 1
-        self.entries:      List[CarModEntry] = []
-        self.header_lines: List[str]         = []
-
-    def load(self, path: str) -> bool: #vers 1
-        try:
-            self.entries.clear(); self.header_lines.clear()
-            in_data = False
-            with open(path, "r", encoding="latin-1") as f:
-                for ln in f:
-                    s = ln.strip()
-                    if not s or s.startswith(";") or s.startswith("#"):
-                        if not in_data: self.header_lines.append(ln)
-                        continue
-                    in_data = True
-                    parts = s.split()
-                    if parts:
-                        self.entries.append(CarModEntry(vehicle=parts[0], mods=parts[1:]))
-            return True
-        except Exception as ex:
-            print(f"CarModsParser.load: {ex}"); return False
-
-    def save(self, path: str) -> bool: #vers 1
-        try:
-            with open(path, "w", encoding="latin-1") as f:
-                for ln in self.header_lines: f.write(ln)
-                for e in self.entries:
-                    f.write(f"{e.vehicle}   {chr(32).join(e.mods)}\n")
-            return True
-        except Exception as ex:
-            print(f"CarModsParser.save: {ex}"); return False
+CarModsParser = CarModsFile
 
 
 # Colour swatch grid
@@ -3971,7 +3850,35 @@ class HandlingTab(QWidget): #vers 1
         self._field_widgets: Dict[str, QWidget] = {}
         self._stat_bars:     Dict[str, tuple]   = {}
         self._flag_labels:   Dict[int, QLabel]  = {}
+        self._fields = VC_FIELDS
         self._build_ui()
+
+    def _fill_form(self, fields): #vers 1
+        self._fields = fields
+        while self._form.rowCount():
+            self._form.removeRow(0)
+        self._field_widgets.clear()
+        for fname, ftype, fmin, fmax, tip in fields:
+            lbl = QLabel(fname); lbl.setToolTip(tip); lbl.setFixedWidth(200)
+            if ftype == "float":
+                w = QDoubleSpinBox(); w.setRange(float(fmin), float(fmax)); w.setDecimals(4); w.setSingleStep(0.01)
+                w.valueChanged.connect(lambda v, n=fname: self._changed(n, v))
+            elif ftype == "int":
+                w = QSpinBox(); w.setRange(int(fmin), int(fmax))
+                w.valueChanged.connect(lambda v, n=fname: self._changed(n, v))
+            elif ftype == "bool":
+                w = QCheckBox()
+                w.stateChanged.connect(lambda v, n=fname: self._changed(n, int(v > 0)))
+            elif 'DriveType' in fname or 'EngineType' in fname:
+                w = QComboBox()
+                w.addItems(["F", "R", "4"] if 'DriveType' in fname else ["P", "D", "E"])
+                w.currentTextChanged.connect(lambda v, n=fname: self._changed(n, v))
+            else:
+                w = QLineEdit()
+                w.textChanged.connect(lambda v, n=fname: self._changed(n, v))
+            w.setToolTip(tip)
+            self._field_widgets[fname] = w
+            self._form.addRow(lbl, w)
 
     def _build_ui(self): #vers 1
         root = QHBoxLayout(self); root.setContentsMargins(4, 4, 4, 4)
@@ -4013,27 +3920,7 @@ class HandlingTab(QWidget): #vers 1
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         ctr = QWidget(); scroll.setWidget(ctr)
         self._form = QFormLayout(ctr); self._form.setSpacing(3); self._form.setContentsMargins(6,6,6,6)
-        for fname, ftype, fmin, fmax, tip in VC_FIELDS:
-            lbl = QLabel(fname); lbl.setToolTip(tip); lbl.setFixedWidth(200)
-            if ftype == "float":
-                w = QDoubleSpinBox(); w.setRange(float(fmin), float(fmax)); w.setDecimals(4); w.setSingleStep(0.01)
-                w.valueChanged.connect(lambda v, n=fname: self._changed(n, v))
-            elif ftype == "int":
-                w = QSpinBox(); w.setRange(int(fmin), int(fmax))
-                w.valueChanged.connect(lambda v, n=fname: self._changed(n, v))
-            elif ftype == "bool":
-                w = QCheckBox()
-                w.stateChanged.connect(lambda v, n=fname: self._changed(n, int(v > 0)))
-            elif ftype == "char":
-                w = QComboBox()
-                w.addItems(["F","R","4"] if fname == "DriveType" else ["P","D","E"])
-                w.currentTextChanged.connect(lambda v, n=fname: self._changed(n, v))
-            else:
-                w = QLineEdit()
-                w.textChanged.connect(lambda v, n=fname: self._changed(n, v))
-            w.setToolTip(tip)
-            self._field_widgets[fname] = w
-            self._form.addRow(lbl, w)
+        self._fill_form(VC_FIELDS)
         sp.addWidget(scroll)
 
         # Right
@@ -4059,10 +3946,23 @@ class HandlingTab(QWidget): #vers 1
     def load_file(self, path: str) -> bool: #vers 1
         if not self._parser: return False
         ok = self._parser.load(path)
-        if ok: self._refresh_list()
+        if ok:
+            n = max((len(e.values) for e in self._parser.entries), default=0)
+            hf = header_fields(self._parser._lines)
+            if hf and len(hf) != n:
+                hf = hf[:22]
+            base = hf[:n] if hf else VC_FIELDS[:n]
+            self._fill_form(list(base) + [(f"Field {i + 1}", "str", "", "", "Not labelled - edit as text")
+                                          for i in range(len(base), n)])
+            self._cur_idx = -1
+            self._refresh_list()
         return ok
 
-    def save_file(self, path: str) -> bool: #vers 1
+    @property
+    def dirty(self) -> bool:
+        return bool(self._parser and self._parser.dirty)
+
+    def save_file(self, path: str) -> bool: #vers 2
         return self._parser.save(path) if self._parser else False
 
     def _refresh_list(self, ft: str = ""): #vers 1
@@ -4081,7 +3981,7 @@ class HandlingTab(QWidget): #vers 1
 
     def _populate(self, entry): #vers 1
         self._blocking = True
-        for i, (fname, ftype, *_) in enumerate(VC_FIELDS):
+        for i, (fname, ftype, *_) in enumerate(self._fields):
             if i >= len(entry.values): break
             w = self._field_widgets.get(fname)
             if not w: continue
@@ -4099,12 +3999,12 @@ class HandlingTab(QWidget): #vers 1
     def _changed(self, fname, value): #vers 1
         if self._blocking or self._cur_idx < 0: return
         entry = self._parser.entries[self._cur_idx]
-        for i, (fn, *_) in enumerate(VC_FIELDS):
+        for i, (fn, *_) in enumerate(self._fields):
             if fn == fname and i < len(entry.values): entry.values[i] = str(value); break
         self._update_stats(entry)
 
     def _update_stats(self, entry): #vers 1
-        fm = {f[0]: i for i, f in enumerate(VC_FIELDS)}
+        fm = {f[0]: i for i, f in enumerate(self._fields)}
         for fn, (bar, mx) in self._stat_bars.items():
             idx = fm.get(fn)
             if idx is not None and idx < len(entry.values):
@@ -4122,7 +4022,7 @@ class HandlingTab(QWidget): #vers 1
         if not self._parser: return
         tmpl = self._parser.entries[0].values[:] if self._parser.entries else ["NEWVEHICLE"]+["0.0"]*36
         tmpl[0] = "NEWVEHICLE"
-        e = HandlingEntry(); e.values = tmpl
+        e = HandlingEntry(tmpl)
         self._parser.entries.append(e); self._refresh_list(self._search.text())
         self._veh_list.setCurrentRow(self._veh_list.count()-1)
 
@@ -4136,7 +4036,7 @@ class HandlingTab(QWidget): #vers 1
     def _dup(self): #vers 1
         if self._cur_idx < 0 or not self._parser: return
         src = self._parser.entries[self._cur_idx]
-        e = HandlingEntry(); e.values = src.values[:]; e.values[0] = src.values[0]+"_COPY"
+        e = src.copy_as_new(); e.values[0] = src.values[0]+"_COPY"
         self._parser.entries.insert(self._cur_idx+1, e); self._refresh_list(self._search.text())
 
 
@@ -4218,7 +4118,11 @@ class CarColoursTab(QWidget): #vers 1
             self._refresh_veh_list()
         return ok
 
-    def save_file(self, path: str) -> bool: #vers 1
+    @property
+    def dirty(self) -> bool:
+        return self._parser.dirty
+
+    def save_file(self, path: str) -> bool: #vers 2
         return self._parser.save(path)
 
     def _refresh_veh_list(self, ft: str = ""): #vers 1
@@ -4337,7 +4241,11 @@ class CarModsTab(QWidget): #vers 1
         if ok: self._refresh_list()
         return ok
 
-    def save_file(self, path: str) -> bool: #vers 1
+    @property
+    def dirty(self) -> bool:
+        return self._parser.dirty
+
+    def save_file(self, path: str) -> bool: #vers 2
         return self._parser.save(path)
 
     def _refresh_list(self, ft: str = ""): #vers 1
@@ -4386,7 +4294,10 @@ class CarModsTab(QWidget): #vers 1
 
 
 # Main workshop
-class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
+class VehicleWorkshop(RibbonMixin, GLViewportMixin, GUIWorkshop): #vers 4
+    _ribbon_name = "vehicle_workshop"
+    # Bump when the set of ribbons changes (1 = File ribbon)
+    _RIBBON_LAYOUT_VERSION = 1
 
     def __init__(self, main_window=None, parent=None): #vers 4
         super().__init__(parent)
@@ -4416,8 +4327,39 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         lay.addWidget(self._tabs)
         return panel
 
-    def setup_ui(self): #vers 3
-        super().setup_ui()
+    def setup_ui(self): #vers 4
+        """Titlebar / [left | tabs | right] inside the ribbon host / status bar."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(*self.get_content_margins())
+        main_layout.setSpacing(self.setspacing)
+        # Viewport must exist before the toolbar (toolbar buttons reference it)
+        self.viewport = VehicleViewport()
+        self.viewport.app_settings = self.app_settings
+        main_layout.addWidget(self._create_toolbar())
+        for name in ("open_btn", "save_btn"):           # the File ribbon replaces these
+            b = getattr(self, name, None)
+            if b:
+                b.setVisible(False)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(self._create_left_panel())
+        splitter.addWidget(self._create_centre_panel())
+        splitter.addWidget(self._create_right_panel())
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 5)
+        splitter.setStretchFactor(2, 0)
+        splitter.setSizes([200, 800, 180])
+        main_layout.addWidget(self.ribbon_wrap(splitter), 1)
+        self._build_ribbons()
+        main_layout.addWidget(self._create_status_bar())
+        self.ribbon_restore_state()
+
+    def _build_ribbons(self): #vers 1
+        B = self.ribbon_button
+        tb = self.ribbon_toolbar("File")
+        B(tb, "open_icon",   "Open a DFF, TXD, handling.cfg, carcols.dat or carmods.dat  (Ctrl+O)", self._open_file)
+        self.save_btn = B(tb, "save_icon", "Save the file on the current tab  (Ctrl+S) - backs up first", self._save_file)
+        B(tb, "saveas_icon", "Save the current tab's file as...", self._save_as)
+        B(tb, "export_icon", "Save every changed data file", self._save_all, text="All")
 
     def _create_preview_tab(self): #vers 1
         """Build the 3D Preview tab with DFFViewport and vehicle controls."""
@@ -4763,28 +4705,82 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
             QMessageBox.warning(self, "Unknown",
                 "Expected a .dff, .txd, handling.cfg, carcols.dat or carmods.dat")
 
-    def _save_file(self): #vers 1
-        idx = self._tabs.currentIndex()
-        if idx == 0 and self._handling_path:
-            self._tab_handling.save_file(self._handling_path)
-            self._set_status(f"Saved {os.path.basename(self._handling_path)}")
-        elif idx == 1 and self._carcols_path:
-            self._tab_carcols.save_file(self._carcols_path)
-            self._set_status(f"Saved {os.path.basename(self._carcols_path)}")
-        elif idx == 2 and self._carmods_path:
-            self._tab_carmods.save_file(self._carmods_path)
-            self._set_status(f"Saved {os.path.basename(self._carmods_path)}")
-        else:
-            self._save_as()
+    # -- data files: (tab, path attribute, dialog filter)
+    def _data_tabs(self):
+        return [(self._tab_handling, "_handling_path", "Handling (handling.cfg *.cfg)"),
+                (self._tab_carcols,  "_carcols_path",  "Car Colours (carcols.dat *.dat)"),
+                (self._tab_carmods,  "_carmods_path",  "Car Mods (carmods.dat *.dat)")]
 
-    def _save_as(self): #vers 1
-        idx = self._tabs.currentIndex()
-        hints = ["Handling (handling.cfg *.cfg)", "Car Colours (carcols.dat *.dat)", "Car Mods (carmods.dat *.dat)"]
-        path, _ = QFileDialog.getSaveFileName(self, "Save As", "", hints[idx])
-        if not path: return
-        if idx == 0: self._handling_path = path; self._tab_handling.save_file(path)
-        elif idx == 1: self._carcols_path = path; self._tab_carcols.save_file(path)
-        elif idx == 2: self._carmods_path = path; self._tab_carmods.save_file(path)
+    def _current_data_tab(self):
+        cur = self._tabs.currentWidget()
+        return next((t for t in self._data_tabs() if t[0] is cur), None)
+
+    def has_unsaved(self) -> bool: #vers 1
+        return any(getattr(t, "dirty", False) for t, _a, _f in self._data_tabs())
+
+    def _write_data_tab(self, tab, path: str) -> bool: #vers 1
+        """Back the existing file up, then let the tab's file model write it atomically."""
+        from apps.methods.file_backup import backup_file, note_change
+        if os.path.exists(path):
+            note_change(f"Save {os.path.basename(path)}")
+            if backup_file(path) is None:
+                QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                return False
+        if not tab.save_file(path):
+            QMessageBox.critical(self, "Save", f"Could not write {os.path.basename(path)}")
+            return False
+        return True
+
+    def _save_file(self): #vers 2
+        """Save the file on the current tab (the old version saved by tab NUMBER with
+        the numbers off by one, so it wrote the wrong data to the wrong file)."""
+        entry = self._current_data_tab()
+        if entry is None:
+            self._save_all()
+            return
+        tab, attr, _flt = entry
+        path = getattr(self, attr, None)
+        if not path:
+            self._save_as()
+            return
+        if self._write_data_tab(tab, path):
+            self._set_status(f"Saved {os.path.basename(path)}")
+
+    def _save_all(self): #vers 1
+        saved = []
+        for tab, attr, _f in self._data_tabs():
+            path = getattr(self, attr, None)
+            if path and getattr(tab, "dirty", False) and self._write_data_tab(tab, path):
+                saved.append(os.path.basename(path))
+        self._set_status("Saved " + ", ".join(saved) if saved else "Nothing to save")
+
+    def _save_as(self): #vers 2
+        entry = self._current_data_tab()
+        if entry is None:
+            QMessageBox.information(self, "Save As", "Switch to the Handling, Car Colours or Car Mods tab first.")
+            return
+        tab, attr, flt = entry
+        path, _ = QFileDialog.getSaveFileName(self, "Save As", getattr(self, attr, None) or "", flt)
+        if path and self._write_data_tab(tab, path):
+            setattr(self, attr, path)
+            self._set_status(f"Saved {os.path.basename(path)}")
+
+    def closeEvent(self, event): #vers 2
+        if self.standalone_mode and self.has_unsaved():
+            r = QMessageBox.question(
+                self, "Vehicle Workshop", "Save changed data files before closing?",
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel)
+            if r == QMessageBox.StandardButton.Cancel:
+                event.ignore()
+                return
+            if r == QMessageBox.StandardButton.Save:
+                self._save_all()
+                if self.has_unsaved():
+                    event.ignore()
+                    return
+        self.ribbon_save_state()
+        super().closeEvent(event)
 
     def _open_specific(self, kind: str): #vers 1
         f = {"handling":"Handling (handling.cfg *.cfg)",

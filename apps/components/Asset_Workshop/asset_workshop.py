@@ -399,7 +399,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
     # and Effects ribbons (viewport/background/effects tools dropped),
     # 6 = removed Name/Format/Mipmaps ribbons and Transform's flip/
     # rotate/switch/invert/generate-alpha actions.
-    _RIBBON_LAYOUT_VERSION = 6
+    _RIBBON_LAYOUT_VERSION = 7
 
     def _get_ui_color(self, key): #vers 1
         """Return theme-aware QColor. No hardcoded colors."""
@@ -478,6 +478,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Asset Check settings
         self.auto_find_gta3_img = True
         self.excluded_names = set()
+        self.excluded_files = set()
+        self.ignore_id_min = None
+        self.ignore_id_max = None
+        self._all_img_paths = []
+        self._all_col_paths = []
+        self._all_ide_paths = []
 
         # Texture import/export settings
         self.dimension_limiting_enabled = False
@@ -681,15 +687,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 status_frame.setVisible(False)
             main_layout.addWidget(status_frame)
 
-    def _add_txd_tab(self, txd_data, txd_name): #vers 1
-        """Add new TXD as tab"""
-        tab_info = {
-            'name': txd_name,
-            'data': txd_data,
-            'textures': [],
-            'modified': False
-        }
-        self.txd_tabs.append(tab_info)
 
 
 # - Asset Checker (adapted from asset_workshop_org.py, added into new UI)
@@ -713,7 +710,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         _exclusions_key() out from under any names/files already
         saved against the original full set."""
         self.result = result
-        if not hasattr(self, '_all_img_paths'):
+        if not (self._all_img_paths or self._all_col_paths or self._all_ide_paths):
             self._all_img_paths = list(result.img_paths)
             self._all_col_paths = list(result.col_paths)
             self._all_ide_paths = list(result.ide_paths)
@@ -1066,7 +1063,30 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 f"Could not find any real IMG/COL/IDE files from:\n{dat_path}")
             return
         result = check_assets(img_path=img_path, col_path=col_path, ide_path=ide_paths, game=game)
+        self._all_img_paths, self._all_col_paths, self._all_ide_paths = [], [], []   # new game - recapture
+        self.dat_path, self._dat_game = dat_path, game
         self.load_result(result)
+
+    def _on_integrity_check(self): #vers 1
+        """Read-only consistency report: orphaned IPL/2dfx/path, duplicate
+        IDs/names, TXD usage (info only), ID gaps. Uses ALL ide files
+        (ignoring Exclude Files) so nothing shows as falsely orphaned."""
+        from apps.methods.master_ide import load_master_ide, collect_ipl_paths_from_dat
+        from apps.methods.asset_integrity import check_integrity, format_report, show_integrity_dialog
+        ides = list(self._all_ide_paths or self.result.ide_paths
+                    or ([self.result.ide_path] if self.result.ide_path else []))
+        if not ides:
+            QMessageBox.information(self, App_name, "No IDE files loaded.")
+            return
+        dat = getattr(self, 'dat_path', None)
+        game = getattr(self, '_dat_game', None)
+        if dat:
+            ipls = collect_ipl_paths_from_dat(dat, game=game)
+        else:
+            ipls = [os.path.splitext(p)[0] + ext for p in ides for ext in (".ipl", ".IPL")
+                    if os.path.isfile(os.path.splitext(p)[0] + ext)]
+        rep = check_integrity(load_master_ide(ides, game=game), ipls)
+        show_integrity_dialog(self, format_report(rep))
 
     def _populate_columns_view(self): #vers 1
         r = self.result
@@ -1282,70 +1302,92 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return
         self._reload_result()
 
-    def _reload_result(self): #vers 1
-        """Re-run check_assets against the same real paths and
-        repopulate every checker view."""
-        result = check_assets(img_path=self.result.img_paths or None,
-                               col_path=self.result.col_paths or None,
-                               ide_path=self.result.ide_paths or None)
+    def _reload_result(self): #vers 2
+        """Re-run check_assets against the FULL original path lists
+        (minus any excluded whole files) and repopulate every view."""
+        excluded = {f.lower() for f in self.excluded_files}
+
+        def _filt(paths):
+            kept = [p for p in paths if os.path.basename(p).lower() not in excluded]
+            return kept or None
+
+        result = check_assets(img_path=_filt(self._all_img_paths),
+                               col_path=_filt(self._all_col_paths),
+                               ide_path=_filt(self._all_ide_paths))
         self.load_result(result)
 
-    def _apply_exclusions(self, result): #vers 1
-        """Strip every excluded name from the three real base sets
-        every other view/diff on AssetCheckResult is a pure function
-        of (all_names, missing_from_img/col, img/col_extra_over_ide,
-        not_in_ide, status_for, cross_reference_rows) - stripping
-        here once means none of them need their own exclusion-aware
-        logic."""
-        if not self.excluded_names:
+    def _apply_exclusions(self, result): #vers 2
+        """Strip excluded names, plus any name whose IDE ID falls
+        outside the ID range, from the three base sets every other
+        view/diff on AssetCheckResult is a pure function of. Names
+        with no IDE ID (IMG/COL only) are unaffected by the ID range."""
+        to_exclude = set(self.excluded_names)
+        if self.ignore_id_min is not None or self.ignore_id_max is not None:
+            lo = self.ignore_id_min if self.ignore_id_min is not None else float('-inf')
+            hi = self.ignore_id_max if self.ignore_id_max is not None else float('inf')
+            for name, mid in result.ide_id_by_name.items():
+                if not (lo <= mid <= hi):
+                    to_exclude.add(name)
+        if not to_exclude:
             return
-        result.img_names -= self.excluded_names
-        result.col_names -= self.excluded_names
-        result.ide_names -= self.excluded_names
-        for name in self.excluded_names:
+        result.img_names -= to_exclude
+        result.col_names -= to_exclude
+        result.ide_names -= to_exclude
+        for name in to_exclude:
             result.ide_id_by_name.pop(name, None)
             result.ide_txd_by_name.pop(name, None)
             result.ide_txd_display_by_name.pop(name, None)
 
-    def _exclusions_key(self): #vers 1
-        """Stable key identifying the current img/col/ide file set,
-        so exclusions from one game/project never bleed into an
-        unrelated one sharing the same asset_workshop.json."""
+    def _exclusions_key(self): #vers 2
+        """Stable key for the ORIGINAL full img/col/ide file set, so
+        exclusions never bleed between projects and never drift when
+        a whole file is excluded."""
         import hashlib
-        names = sorted(set(
-            os.path.basename(p) for p in
-            (self.result.img_paths or []) + (self.result.col_paths or []) + (self.result.ide_paths or [])))
+        paths = (getattr(self, '_all_img_paths', None) or self.result.img_paths or []) + \
+                (getattr(self, '_all_col_paths', None) or self.result.col_paths or []) + \
+                (getattr(self, '_all_ide_paths', None) or self.result.ide_paths or [])
+        names = sorted(set(os.path.basename(p) for p in paths))
         if not names:
             return "default"
         return hashlib.md5(",".join(names).encode()).hexdigest()[:12]
 
-    def _load_excluded_names(self): #vers 1
-        try:
-            import json
-            from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'asset_workshop.json'
-            data = json.loads(path.read_text())
-            entry = data.get('excluded_names', {}).get(self._exclusions_key())
-            return set(entry.get('names', [])) if entry else set()
-        except Exception:
-            return set()
+    def _config_path(self): #vers 1
+        from pathlib import Path
+        return Path.home() / '.config' / 'imgfactory' / 'asset_workshop.json'
 
-    def _save_excluded_names(self): #vers 1
+    def _load_exclusions(self): #vers 1
+        """Returns (names, files, id_min, id_max)."""
         try:
             import json
-            from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'asset_workshop.json'
+            data = json.loads(self._config_path().read_text())
+            entry = data.get('excluded_names', {}).get(self._exclusions_key())
+            if not entry:
+                return set(), set(), None, None
+            return (set(entry.get('names', [])), set(entry.get('excluded_files', [])),
+                    entry.get('id_min'), entry.get('id_max'))
+        except Exception:
+            return set(), set(), None, None
+
+    def _save_exclusions(self): #vers 1
+        try:
+            import json
+            path = self._config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
                 data = {}
             all_excl = data.setdefault('excluded_names', {})
             key = self._exclusions_key()
-            if self.excluded_names:
-                names = sorted(set(
-                    os.path.basename(p) for p in
-                    (self.result.img_paths or []) + (self.result.col_paths or []) + (self.result.ide_paths or [])))
-                all_excl[key] = {'names': sorted(self.excluded_names), 'files': names}
+            if (self.excluded_names or self.excluded_files
+                    or self.ignore_id_min is not None or self.ignore_id_max is not None):
+                files = sorted(set(os.path.basename(p) for p in
+                                   self._all_img_paths + self._all_col_paths + self._all_ide_paths))
+                all_excl[key] = {
+                    'names': sorted(self.excluded_names),
+                    'excluded_files': sorted(self.excluded_files),
+                    'id_min': self.ignore_id_min, 'id_max': self.ignore_id_max,
+                    'files': files,
+                }
             else:
                 all_excl.pop(key, None)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -1404,46 +1446,110 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 "Cross-Reference view first.")
             return
         self.excluded_names |= names
-        self._save_excluded_names()
+        self._save_exclusions()
         self._reload_result()
         self._set_status(f"Excluded {len(names)} name(s)")
 
-    def _on_manage_exclusions(self): #vers 1
-        """View/remove currently-excluded names for this file set."""
+    def _on_manage_exclusions(self): #vers 2
+        """Names / Files / ID Range tabs. Files excludes a whole loaded
+        .ide/.img/.col (e.g. vehicles.ide, peds.ide, weapons.ide);
+        ID Range hides IDE entries outside [from, to] - leave a side
+        unchecked for open-ended ("show everything after ID 300")."""
+        from PyQt6.QtWidgets import QTabWidget, QCheckBox, QSpinBox
         dialog = QDialog(self)
         dialog.setWindowTitle("Manage Exclusions")
-        dialog.resize(360, 400)
+        dialog.resize(420, 460)
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel(f"{len(self.excluded_names)} name(s) excluded from this check:"))
-        lst = QListWidget()
-        lst.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        lst.addItems(sorted(self.excluded_names))
-        layout.addWidget(lst)
-        btn_row = QHBoxLayout()
-        remove_btn = QPushButton("Remove Selected")
+        tabs = QTabWidget()
+        layout.addWidget(tabs)
 
-        def _remove_selected(): #vers 1
-            for item in lst.selectedItems():
+        # Names
+        names_tab = QWidget()
+        nl = QVBoxLayout(names_tab)
+        nl.addWidget(QLabel(f"{len(self.excluded_names)} name(s) excluded:"))
+        names_lst = QListWidget()
+        names_lst.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        names_lst.addItems(sorted(self.excluded_names))
+        nl.addWidget(names_lst)
+        rm_btn = QPushButton("Remove Selected")
+
+        def _remove_names(): #vers 1
+            for item in names_lst.selectedItems():
                 self.excluded_names.discard(item.text())
-                lst.takeItem(lst.row(item))
-            self._save_excluded_names()
-            self._reload_result()
+                names_lst.takeItem(names_lst.row(item))
+        rm_btn.clicked.connect(_remove_names)
+        nl.addWidget(rm_btn)
+        tabs.addTab(names_tab, "Names")
 
-        remove_btn.clicked.connect(_remove_selected)
-        btn_row.addWidget(remove_btn)
+        # Files
+        files_tab = QWidget()
+        fl = QVBoxLayout(files_tab)
+        fl.addWidget(QLabel("Checked files are excluded from every view:"))
+        files_lst = QListWidget()
+        all_paths = self._all_ide_paths + self._all_img_paths + self._all_col_paths
+        for base in sorted({os.path.basename(p) for p in all_paths}, key=str.lower):
+            item = QListWidgetItem(base)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if base.lower() in
+                               {f.lower() for f in self.excluded_files} else Qt.CheckState.Unchecked)
+            files_lst.addItem(item)
+        fl.addWidget(files_lst)
+        tabs.addTab(files_tab, "Files")
+
+        # ID range
+        id_tab = QWidget()
+        il = QVBoxLayout(id_tab)
+        il.addWidget(QLabel("Only list IDE entries inside this ID range:"))
+        min_row = QHBoxLayout()
+        min_chk = QCheckBox("From ID")
+        min_chk.setChecked(self.ignore_id_min is not None)
+        min_spin = QSpinBox(); min_spin.setRange(0, 999999)
+        min_spin.setValue(self.ignore_id_min if self.ignore_id_min is not None else 0)
+        min_row.addWidget(min_chk); min_row.addWidget(min_spin); min_row.addStretch()
+        il.addLayout(min_row)
+        max_row = QHBoxLayout()
+        max_chk = QCheckBox("To ID")
+        max_chk.setChecked(self.ignore_id_max is not None)
+        max_spin = QSpinBox(); max_spin.setRange(0, 999999)
+        max_spin.setValue(self.ignore_id_max if self.ignore_id_max is not None else 32767)
+        max_row.addWidget(max_chk); max_row.addWidget(max_spin); max_row.addStretch()
+        il.addLayout(max_row)
+        il.addWidget(QLabel("Entries with no IDE ID (IMG/COL only) are unaffected."))
+        il.addStretch()
+        tabs.addTab(id_tab, "ID Range")
+
+        btn_row = QHBoxLayout()
         clear_btn = QPushButton("Clear All")
 
         def _clear_all(): #vers 1
             self.excluded_names.clear()
-            lst.clear()
-            self._save_excluded_names()
+            self.excluded_files.clear()
+            self.ignore_id_min = self.ignore_id_max = None
+            self._save_exclusions()
             self._reload_result()
-
+            dialog.accept()
         clear_btn.clicked.connect(_clear_all)
         btn_row.addWidget(clear_btn)
         btn_row.addStretch()
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
+        apply_btn = QPushButton("Apply")
+
+        def _apply(): #vers 1
+            self.excluded_files = {files_lst.item(i).text().lower()
+                                   for i in range(files_lst.count())
+                                   if files_lst.item(i).checkState() == Qt.CheckState.Checked}
+            self.ignore_id_min = min_spin.value() if min_chk.isChecked() else None
+            self.ignore_id_max = max_spin.value() if max_chk.isChecked() else None
+            if (self.ignore_id_min is not None and self.ignore_id_max is not None
+                    and self.ignore_id_min > self.ignore_id_max):
+                QMessageBox.warning(dialog, "Manage Exclusions", "'From' must not exceed 'To'.")
+                return
+            self._save_exclusions()
+            self._reload_result()
+            dialog.accept()
+        apply_btn.clicked.connect(_apply)
+        btn_row.addWidget(apply_btn)
+        close_btn = QPushButton("Cancel")
+        close_btn.clicked.connect(lambda: (setattr(self, 'excluded_names', self._load_exclusions()[0]), dialog.reject()))
         btn_row.addWidget(close_btn)
         layout.addLayout(btn_row)
         dialog.exec()
@@ -1895,71 +2001,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.main_window.log_message(f"Window mode: {mode}")
 
 
-    def _apply_always_on_top(self): #vers 1
-        """Apply always on top window flag"""
-        current_flags = self.windowFlags()
-
-        if self.window_always_on_top:
-            new_flags = current_flags | Qt.WindowType.WindowStaysOnTopHint
-        else:
-            new_flags = current_flags & ~Qt.WindowType.WindowStaysOnTopHint
-
-        if new_flags != current_flags:
-            # Save state
-            current_geometry = self.geometry()
-            was_visible = self.isVisible()
-
-            # Apply new flags
-            self.setWindowFlags(new_flags)
-
-            # Restore state
-            self.setGeometry(current_geometry)
-            if was_visible:
-                self.show()
 
 
-    def _scan_available_locales(self): #vers 2
-        """Scan locale folder and return list of available languages"""
-        import os
-        import configparser
-
-        locales = []
-        locale_path = os.path.join(os.path.dirname(__file__), 'locale')
-
-        if not os.path.exists(locale_path):
-            # Easter egg: Amiga Workbench 3.1 style error
-            self._show_amiga_locale_error()
-            # Return default English
-            return [("English", "en", None)]
-
-        try:
-            for filename in os.listdir(locale_path):
-                if filename.endswith('.lang'):
-                    filepath = os.path.join(locale_path, filename)
-
-                    try:
-                        config = configparser.ConfigParser()
-                        config.read(filepath, encoding='utf-8')
-
-                        if 'Metadata' in config:
-                            lang_name = config['Metadata'].get('LanguageName', 'Unknown')
-                            lang_code = config['Metadata'].get('LanguageCode', 'unknown')
-                            locales.append((lang_name, lang_code, filepath))
-
-                    except Exception as e:
-                        if self.main_window and hasattr(self.main_window, 'log_message'):
-                            self.main_window.log_message(f"Failed to load locale {filename}: {e}")
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Locale scan error: {e}")
-
-        locales.sort(key=lambda x: x[0])
-
-        if not locales:
-            locales = [("English", "en", None)]
-
-        return locales
 
 
     def _show_amiga_locale_error(self): #vers 1
@@ -2122,78 +2165,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.show()
 
 
-    def _apply_button_mode(self, dialog): #vers 1
-        """Apply button display mode"""
-        mode_index = self.button_mode_combo.currentIndex()
-        mode_map = {0: 'both', 1: 'icons', 2: 'text'}
-
-        new_mode = mode_map[mode_index]
-
-        if new_mode != self.button_display_mode:
-            self.button_display_mode = new_mode
-            self._update_all_buttons()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                mode_names = {0: 'Icons + Text', 1: 'Icons Only', 2: 'Text Only'}
-                self.main_window.log_message(f"✨ Button style: {mode_names[mode_index]}")
-
-        dialog.close()
 
 
-    def _preserve_original_data(self, texture: Dict, texture_data: bytes, offset: int): #vers 1
-        """
-        Preserve original binary data to prevent corruption
-        """
-        try:
-            # Store the ORIGINAL compressed/raw data
-            # This prevents RGB corruption from channel swapping
-
-            # Read texture native header (88 bytes)
-            if len(texture_data) < offset + 88:
-                return
-
-            header_data = texture_data[offset:offset + 88]
-
-            # Parse header to get data size
-            platform_id = struct.unpack('<I', header_data[0:4])[0]
-            filter_flags = struct.unpack('<I', header_data[4:8])[0]
-
-            # Texture name at 8-40
-            # Alpha name at 40-72
-
-            raster_format = struct.unpack('<I', header_data[72:76])[0]
-            d3d_format = struct.unpack('<I', header_data[76:80])[0]
-            width = struct.unpack('<H', header_data[80:82])[0]
-            height = struct.unpack('<H', header_data[82:84])[0]
-            depth = struct.unpack('<B', header_data[84:85])[0]
-            mipmap_count = struct.unpack('<B', header_data[85:86])[0]
-            raster_type = struct.unpack('<B', header_data[86:87])[0]
-            compression = struct.unpack('<B', header_data[87:88])[0]
-
-            # Read total data size (comes after 88-byte header)
-            if len(texture_data) >= offset + 92:
-                total_data_size = struct.unpack('<I', texture_data[offset + 88:offset + 92])[0]
-
-                # Store ORIGINAL compressed/raw texture data
-                data_start = offset + 92
-                data_end = data_start + total_data_size
-
-                if len(texture_data) >= data_end:
-                    original_data = texture_data[data_start:data_end]
-
-                    # Store in texture dict - this is the KEY to preventing corruption
-                    texture['original_binary_data'] = original_data
-                    texture['original_header'] = header_data
-                    texture['d3d_format'] = d3d_format
-                    texture['raster_format'] = raster_format
-                    texture['platform_id'] = platform_id
-
-                    if self.main_window and hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message(f"Preserved original data for: {texture['name']}")
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Warning: Could not preserve original data: {e}")
 
 
 # - Window functionality
@@ -2244,60 +2217,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Not on any button = draggable
         print(f"[DRAG] On draggable area at {pos}")
         return True
-
-        # Get all buttons in toolbar
-        buttons_to_check = []
-
-        if hasattr(self, 'open_img_btn'):
-            buttons_to_check.append(self.open_img_btn)
-        if hasattr(self, 'open_txd_btn'):
-            buttons_to_check.append(self.open_txd_btn)
-        if hasattr(self, 'save_txd_btn'):
-            buttons_to_check.append(self.save_txd_btn)
-        if hasattr(self, 'import_btn'):
-            buttons_to_check.append(self.import_btn)
-        if hasattr(self, 'export_btn'):
-            buttons_to_check.append(self.export_btn)
-        if hasattr(self, 'export_all_btn'):
-            buttons_to_check.append(self.export_all_btn)
-        if hasattr(self, 'switch_btn'):
-            buttons_to_check.append(self.switch_btn)
-        if hasattr(self, 'props_btn'):
-            buttons_to_check.append(self.props_btn)
-        if hasattr(self, 'info_btn'):
-            buttons_to_check.append(self.info_btn)
-        if hasattr(self, 'minimize_btn'):
-            buttons_to_check.append(self.minimize_btn)
-        if hasattr(self, 'maximize_btn'):
-            buttons_to_check.append(self.maximize_btn)
-        if hasattr(self, 'close_btn'):
-            buttons_to_check.append(self.close_btn)
-        # Should be enabled on selection:
-        if hasattr(self, 'undo_btn'):
-            # Undo depends on undo stack, not selection
-            self.undo_btn.setEnabled(len(self.undo_stack) > 0)
-
-        if hasattr(self, 'check_dff_btn'):
-            # Always enabled if textures exist
-            self.check_dff_btn.setEnabled(len(self.texture_list) > 0)
-
-        if not hasattr(self, 'drag_btn'):
-            return False
-
-        # Convert to toolbar coordinates
-        toolbar_local_pos = self.toolbar.mapFrom(self, pos)
-
-        # Check if clicking on drag button
-        return self.drag_btn.geometry().contains(toolbar_local_pos)
-
-        # Check if position is NOT on any button (i.e., on stretch area)
-        for btn in buttons_to_check:
-            btn_global_rect = btn.geometry()
-            btn_rect = btn_global_rect.translated(toolbar_rect.topLeft())
-            if btn_rect.contains(pos):
-                return False  # On a button, not draggable
-
-        return True  # On empty stretch area, draggable
 
 
 # - From the fixed gui - move, drag
@@ -2404,19 +2323,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             button.setMaximumHeight(16777215)
 
 
-    def _on_display_mode_changed(self, text): #vers 3
-        """Handle display mode combo box change"""
-        mode_map = {
-            "Icons Only": "icons",
-            "Text Only": "text",
-            "Both": "both"
-        }
-
-        self.button_display_mode = mode_map.get(text, "both")
-        self._update_all_buttons()
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Button display: {text}")
 
 
     def _detect_txd_info(self, txd_data: bytes) -> bool: #vers 1
@@ -2693,39 +2599,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
 
-    def _handle_resize(self, global_pos): #vers 1
-        """Handle window resizing"""
-        if not self.resize_direction or not self.drag_position:
-            return
-
-        delta = global_pos - self.drag_position
-        geometry = self.frameGeometry()
-
-        min_width = 800
-        min_height = 600
-
-        # Handle horizontal resizing
-        if "left" in self.resize_direction:
-            new_width = geometry.width() - delta.x()
-            if new_width >= min_width:
-                geometry.setLeft(geometry.left() + delta.x())
-        elif "right" in self.resize_direction:
-            new_width = geometry.width() + delta.x()
-            if new_width >= min_width:
-                geometry.setRight(geometry.right() + delta.x())
-
-        # Handle vertical resizing
-        if "top" in self.resize_direction:
-            new_height = geometry.height() - delta.y()
-            if new_height >= min_height:
-                geometry.setTop(geometry.top() + delta.y())
-        elif "bottom" in self.resize_direction:
-            new_height = geometry.height() + delta.y()
-            if new_height >= min_height:
-                geometry.setBottom(geometry.bottom() + delta.y())
-
-        self.setGeometry(geometry)
-        self.drag_position = global_pos
 
 
     def resizeEvent(self, event): #vers 2
@@ -3119,6 +2992,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
              self._on_load_from_dat)
         _act(tb_asset, "Master IDE...", self.icon_factory.master_ide_icon,
              self._on_master_ide_ribbon, enabled=False, attr='master_ide_ribbon_btn')
+        _act(tb_asset, "Integrity Check...", self.icon_factory.check_icon,
+             self._on_integrity_check)
         tb_asset.addSeparator()
         _act(tb_asset, "Exclude Selected", self.icon_factory.exclude_icon,
              self._on_exclude_selected)
@@ -3306,19 +3181,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 # - Rest of the logic for the panels
 
-    def _set_checkerboard_bg(self): #vers 1
-        """Set checkerboard background"""
-        # Create checkerboard pattern
-        self.preview_widget.setStyleSheet("""
-            border: 1px solid palette(mid);
-            background-image:
-                linear-gradient(45deg, #333 25%, transparent 25%),
-                linear-gradient(-45deg, #333 25%, transparent 25%),
-                linear-gradient(45deg, transparent 75%, #333 75%),
-                linear-gradient(-45deg, transparent 75%, #333 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-        """)
 
 
     def _create_level_card(self, level_data): #vers 2
@@ -3688,12 +3550,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.warning(self, "Theme Error", f"Could not load theme system:\n{e}")
 
 
-    def _setup_settings_button(self): #vers 1
-        """Setup settings button in UI"""
-        settings_btn = QPushButton("âš™ Settings")
-        settings_btn.clicked.connect(self._open_settings_dialog)
-        settings_btn.setMaximumWidth(120)
-        return settings_btn
 
 
     def _show_settings_dialog(self): #vers 6
@@ -4392,34 +4248,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         dlg.exec()
 
 
-    def _show_window_context_menu(self, pos): #vers 1
-        """Show context menu for titlebar right-click"""
-        from PyQt6.QtWidgets import QMenu
-
-
-        # Move window action
-        move_action = menu.addAction("Move Window")
-        move_action.triggered.connect(self._enable_move_mode)
-
-        # Maximize/Restore action
-        if self.isMaximized():
-            max_action = menu.addAction("Restore Window")
-        else:
-            max_action = menu.addAction("Maximize Window")
-        max_action.triggered.connect(self._toggle_maximize)
-
-        # Minimize action
-        min_action = menu.addAction("Minimize")
-        min_action.triggered.connect(self.showMinimized)
-
-        menu.addSeparator()
-
-        # Close action
-        close_action = menu.addAction("Close")
-        close_action.triggered.connect(self.close)
-
-        # Show menu at global position
-        menu.exec(self.mapToGlobal(pos))
 
 
     def _get_icon_color(self): #vers 3
@@ -4518,37 +4346,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.is_docked and not self.standalone_mode)
 
 
-    #Keep function
-    def _apply_fonts_to_widgets(self): #vers 1
-        """Apply fonts from AppSettings to all widgets"""
-        if not hasattr(self, 'default_font'):
-            return
-
-        print("\n=== Applying Fonts ===")
-        print(f"Default font: {self.default_font.family()} {self.default_font.pointSize()}pt")
-        print(f"Title font: {self.title_font.family()} {self.title_font.pointSize()}pt")
-        print(f"Panel font: {self.panel_font.family()} {self.panel_font.pointSize()}pt")
-        print(f"Button font: {self.button_font.family()} {self.button_font.pointSize()}pt")
-
-        # Apply default font to main window
-        self.setFont(self.default_font)
-
-        # Apply title font to titlebar
-        if hasattr(self, 'title_label'):
-            self.title_label.setFont(self.title_font)
-
-        # Apply panel font to lists
-        if hasattr(self, 'platform_list'):
-            self.platform_list.setFont(self.panel_font)
-        if hasattr(self, 'game_list'):
-            self.game_list.setFont(self.panel_font)
-
-        # Apply button font to all buttons
-        for btn in self.findChildren(QPushButton):
-            btn.setFont(self.button_font)
-
-        print("Fonts applied to widgets")
-        print("======================\n")
 
 
     #Keep function
@@ -4632,21 +4429,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 # - Marker 7
 
-    #Keep function
-    def _enable_txd_features_after_load(self): #vers 2
-        """Enable TXD features after successful texture load."""
-        if self.texture_list:
-            if hasattr(self, 'save_txd_btn'):
-                self.save_txd_btn.setEnabled(True)
-            if hasattr(self, 'export_all_btn'):
-                self.export_all_btn.setEnabled(True)
-            if hasattr(self, 'import_btn'):
-                self.import_btn.setEnabled(True)
-            if hasattr(self, 'new_texture_btn'):
-                self.new_texture_btn.setEnabled(True)
-            if hasattr(self, 'stats_btn'):
-                self.stats_btn.setEnabled(True)
-            self._update_status_indicators()
 
 
     #Keep function
@@ -5293,14 +5075,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return pos_y_ratio < 0.4
 
 
-    #Keep function
-    def _normal_to_bump(self, normal_map): #vers 1
-        """Convert normal map to bump map using Z channel"""
-        n = normal_map.astype(np.float32) / 255.0
-        n = n * 2.0 - 1.0
-        bump = n[:, :, 2]
-        bump = (bump - bump.min()) / (bump.max() - bump.min() + 1e-6)
-        return (bump * 255).astype(np.uint8)
 
 
     #Keep function
@@ -5377,12 +5151,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return result
 
 
-    #Keep function
-    def _normal_map(self, data, width, height, strength): #vers 1
-        """Generate normal map from height data (returns RGB normal map)"""
-        # Normal maps are 3-channel RGB, but we'll store as grayscale for now
-        # Full RGB normal map support would require format changes
-        return self._sobel_filter(data, width, height, strength)
 
 
     #Keep function
@@ -5590,20 +5358,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return False
 
 
-    #Keep function
-    def _mipmap_io_menu(self): #vers 1
-        """Show export/import menu for mipmaps"""
-        if not self.selected_texture:
-            return
-
-        menu = QMenu(self)
-        export_action = menu.addAction("Export All Levels")
-        export_action.triggered.connect(self._export_all_levels)
-
-        import_action = menu.addAction("Import All Levels")
-        import_action.triggered.connect(self._import_all_levels)
-
-        menu.exec(self.mipmap_io_btn.mapToGlobal(self.mipmap_io_btn.rect().bottomLeft()))
 
 
     #Keep function
@@ -5714,111 +5468,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Failed to generate mipmaps: {str(e)}")
 
 
-    #Keep function
-    def _manage_bumpmaps(self): #vers 1
-        """Open bumpmap manager dialog"""
-        if not self.selected_texture:
-            QMessageBox.warning(self, "No Selection", "Please select a texture")
-            return
-
-        # Check if version supports bumpmaps
-        if not is_bumpmap_supported(self.txd_version_id, self.txd_device_id):
-            QMessageBox.warning(self, "Not Supported",
-                f"Bumpmaps not supported for {self.txd_game}\n"
-                f"Only San Andreas and State of Liberty support bumpmaps")
-            return
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Bumpmap Manager")
-        dialog.setMinimumWidth(500)
-        dialog.setMinimumHeight(400)
-
-        layout = QVBoxLayout(dialog)
-
-        # Info section
-        info_group = QGroupBox("Bumpmap Information")
-        info_layout = QFormLayout()
-
-        texture_name = self.selected_texture.get('name', 'Unknown')
-        info_layout.addRow("Texture:", QLabel(texture_name))
-
-        has_bumpmap = self._has_bumpmap_data(self.selected_texture)
-        status = "Present" if has_bumpmap else "Not present"
-        info_layout.addRow("Status:", QLabel(status))
-
-        info_layout.addRow("Format:", QLabel("Environment map (Normal map)"))
-
-        info_group.setLayout(info_layout)
-        layout.addWidget(info_group)
-
-        # Preview section
-        preview_group = QGroupBox("Preview")
-        preview_layout = QVBoxLayout()
-
-        preview_label = QLabel("Bumpmap preview")
-        preview_label.setMinimumHeight(200)
-        preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(base);")
-
-        if has_bumpmap:
-            # STUB: bumpmap preview not yet implemented
-            preview_label.setText("Bumpmap data present\n(Preview coming soon)")
-        else:
-            preview_label.setText("No bumpmap data")
-
-        preview_layout.addWidget(preview_label)
-        preview_group.setLayout(preview_layout)
-        layout.addWidget(preview_group)
-
-        # Action buttons
-        button_layout = QHBoxLayout()
-
-        # View button
-        view_btn = QPushButton("View")
-        view_btn.setIcon(self._create_view_icon())
-        view_btn.clicked.connect(lambda: self._view_bumpmap_in_manager(preview_label))
-        view_btn.setEnabled(has_bumpmap)
-        button_layout.addWidget(view_btn)
-
-        # Generate button
-        generate_btn = QPushButton("Generate")
-        generate_btn.setIcon(self._create_add_icon())
-        generate_btn.clicked.connect(lambda: self._generate_bumpmap_dialog(dialog))
-        generate_btn.setToolTip("Generate bumpmap from texture")
-        button_layout.addWidget(generate_btn)
-
-        # Import buttonraster_format_flags
-        import_btn = QPushButton("Import")
-        import_btn.setIcon(self._create_import_icon())
-        import_btn.clicked.connect(lambda: self._import_bumpmap_in_manager(dialog))
-        button_layout.addWidget(import_btn)
-
-        # Export button
-        export_btn = QPushButton("Export")
-        export_btn.setIcon(self._create_export_icon())
-        export_btn.clicked.connect(self._export_bumpmap)
-        export_btn.setEnabled(has_bumpmap)
-        button_layout.addWidget(export_btn)
-
-        # Delete button
-        delete_btn = QPushButton("Delete")
-        delete_btn.setIcon(self._create_trash_icon())
-        delete_btn.clicked.connect(lambda: self._delete_bumpmap_in_manager(dialog))
-        delete_btn.setEnabled(has_bumpmap)
-        delete_btn.setToolTip("Remove bumpmap from texture")
-        button_layout.addWidget(delete_btn)
-
-        layout.addLayout(button_layout)
-
-        # Close button
-        close_layout = QHBoxLayout()
-        close_layout.addStretch()
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
-        close_layout.addWidget(close_btn)
-        layout.addLayout(close_layout)
-
-        dialog.exec()
 
 
     #Keep function
@@ -5851,59 +5500,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.uncompress_btn.setEnabled(False)
 
 
-    #Keep function
-    def _batch_export_dialog(self): #vers 1
-        """Show batch export options dialog"""
-        if not self.texture_list:
-            QMessageBox.warning(self, "No Textures", "No textures to export")
-            return
-
-        # Create custom dialog
-        dialog = QMessageBox(self)
-        dialog.setWindowTitle("Batch Export Options")
-        dialog.setText(f"Export {len(self.texture_list)} textures:")
-
-        normal_btn = dialog.addButton("Normal Only", QMessageBox.ButtonRole.AcceptRole)
-        alpha_btn = dialog.addButton("Alpha Only", QMessageBox.ButtonRole.AcceptRole)
-        both_btn = dialog.addButton("Both Separate", QMessageBox.ButtonRole.AcceptRole)
-        cancel_btn = dialog.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
-
-        dialog.exec()
-        clicked = dialog.clickedButton()
-
-        if clicked == cancel_btn:
-            return
-
-        # Get output directory
-        output_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
-        if not output_dir:
-            return
-
-        try:
-            exported = 0
-            for texture in self.texture_list:
-                name = texture.get('name', f'texture_{exported}')
-                rgba_data = texture.get('rgba_data')
-                width = texture.get('width', 0)
-                height = texture.get('height', 0)
-
-                if rgba_data and width > 0:
-                    if clicked == normal_btn or clicked == both_btn:
-                        file_path = os.path.join(output_dir, f"{name}.png")
-                        self._save_texture_png(rgba_data, width, height, file_path)
-                        exported += 1
-
-                    if clicked == alpha_btn or clicked == both_btn:
-                        alpha_data = self._extract_alpha_channel(rgba_data)
-                        alpha_path = os.path.join(output_dir, f"{name}_alpha.png")
-                        self._save_texture_png(alpha_data, width, height, alpha_path)
-                        if clicked == alpha_btn:
-                            exported += 1
-
-            QMessageBox.information(self, "Success", f"Exported {exported} files successfully!")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Batch export failed: {str(e)}")
 
 
     #Keep function
@@ -6664,30 +6260,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Delete Error", f"Failed to delete: {str(e)}")
 
 
-    def _delete_texture_simple(self, texture_name): #vers 1
-        """Simple texture deletion without component selection"""
-        reply = QMessageBox.question(self, "Delete Texture",
-            f"Delete texture '{texture_name}'?\n\nThis cannot be undone.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        try:
-            if self.selected_texture in self.texture_list:
-                self.texture_list.remove(self.selected_texture)
-
-            self.selected_texture = None
-            self._reload_texture_table()
-            self._mark_as_modified()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Deleted: {texture_name}")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Delete Error", f"Failed to delete: {str(e)}")
 
 
     def _mark_as_modified(self): #vers 2
@@ -6749,12 +6321,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             for btn in icon_panel.findChildren(QPushButton):
                 btn.setEnabled(enabled)
 
-    def _set_selection_buttons_enabled(self, enabled: bool): #vers 2
-        """Enable/disable buttons that need a texture selected."""
-        self._set_transform_buttons_enabled(enabled)
-        btn = getattr(self, 'props_btn', None)
-        if btn is not None:
-            btn.setEnabled(enabled)
 
     def _on_texture_selected(self): #vers 8
         """Handle texture selection"""
@@ -7623,6 +7189,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 log(f"Adding to table: {tex_name} ({idx+1}/{len(textures)})")
                 update_progress(table_progress)
 
+                from apps.methods.txd_splice import tag_loaded_texture
+                tag_loaded_texture(tex)
                 self.texture_list.append(tex)
                 self._add_texture_to_table(tex)
 
@@ -7687,33 +7255,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.main_window.log_message(f"TXD load error: {str(e)}")
 
 
-    def _verify_alpha_exists(self, texture): #vers 1
-        """Verify texture actually has alpha data, not just alpha_name field"""
-        if not texture.get('has_alpha', False):
-            return False
-
-        # Check if alpha_name exists
-        alpha_name = texture.get('alpha_name', '')
-        if not alpha_name:
-            return False
-
-        # Check actual alpha channel in RGBA data
-        rgba_data = texture.get('rgba_data', b'')
-        if not rgba_data or len(rgba_data) < 4:
-            return False
-
-        # Sample alpha values - if all 255 (opaque), there's no real alpha
-        has_transparency = False
-        sample_size = min(1000, len(rgba_data) // 4)  # Sample first 1000 pixels
-
-        for i in range(0, sample_size * 4, 4):
-            if i + 3 < len(rgba_data):
-                alpha_val = rgba_data[i + 3]
-                if alpha_val < 255:  # Found non-opaque pixel
-                    has_transparency = True
-                    break
-
-        return has_transparency
 
 
     def _upscale_texture_advanced(self): #vers 1
@@ -8456,26 +7997,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Failed to uncompress: {str(e)}")
 
 
-    def _show_name_context_menu(self, position, alpha=False): #vers 1
-        """Show context menu for renaming texture or alpha name"""
-        if not self.selected_texture:
-            return
-
-        # Don't show alpha context menu if no alpha channel
-        if alpha and not self.selected_texture.get('has_alpha', False):
-            return
-
-        menu = QMenu(self)
-
-        if alpha:
-            rename_action = menu.addAction("Rename Alpha")
-            rename_action.triggered.connect(lambda: self._rename_texture(alpha=True))
-        else:
-            rename_action = menu.addAction("Rename Texture")
-            rename_action.triggered.connect(lambda: self._rename_texture(alpha=False))
-
-        # Show menu at the cursor position
-        menu.exec(self.sender().mapToGlobal(position))
 
 
     def _calculate_new_txd_size(self): #vers 1
@@ -8513,7 +8034,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return estimated_size
 
 
-    def _rebuild_txd_data(self): #vers 3
+    def _rebuild_txd_data(self): #vers 4
         """Rebuild TXD data with modified texture names and properties"""
         try:
             if not self.current_txd_data:
@@ -8566,7 +8087,20 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             # If we have original data, update it in place with new header
             if self.current_txd_data and len(self.current_txd_data) > 100:
-                rebuilt_data = bytes(original_header) + self.current_txd_data[28:]
+                # Splice from the original bytes so edits (rename/replace/
+                # delete/add) are kept and untouched textures stay byte-exact
+                from apps.methods.txd_splice import rebuild_txd
+                from apps.methods.txd_splice import build_d3d8_chunk
+                _rw = struct.unpack_from('<I', self.current_txd_data, 8)[0]
+                spliced = rebuild_txd(self.current_txd_data, self.texture_list,
+                                      lambda t: build_d3d8_chunk(t, _rw, _encode_dxt1)) \
+                    if getattr(self, 'texture_list', None) else None
+                base = spliced if spliced else self.current_txd_data
+                if spliced:
+                    original_header = bytearray(spliced[:28])
+                    if target_version != self.txd_version_id:
+                        struct.pack_into('<I', original_header, 4, target_version)
+                rebuilt_data = bytes(original_header) + base[28:]
 
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Rebuilt: {len(rebuilt_data)} bytes")
@@ -8589,32 +8123,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return None
 
 
-    def _update_texture_in_data(self, data, offset, texture_info): #vers 1
-        """Update texture properties in the binary TXD data"""
-        try:
-            import struct
-
-            # Navigate to the texture data location
-            struct_offset = offset + 12
-            struct_type, struct_size, struct_version = struct.unpack('<III', data[struct_offset:struct_offset+12])
-
-            if struct_type == 0x01:  # Struct section
-                name_pos = struct_offset + 12 + 8  # Skip header and platform info
-
-                # Update texture name (32 bytes)
-                new_name = texture_info.get('name', 'texture')[:31]
-                name_bytes = new_name.encode('ascii')[:31].ljust(32, b'\x00')
-                data[name_pos:name_pos+32] = name_bytes
-
-                # Update alpha/mask name if it exists (next 32 bytes)
-                if texture_info.get('has_alpha', False) and texture_info.get('alpha_name'):
-                    alpha_name = texture_info.get('alpha_name', '')[:31]
-                    alpha_bytes = alpha_name.encode('ascii')[:31].ljust(32, b'\x00')
-                    data[name_pos+32:name_pos+64] = alpha_bytes
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Name update error: {str(e)}")
 
 
     def _get_format_description(self) -> str: #vers 1
@@ -9099,6 +8607,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 return
 
             # Write to file
+            from apps.methods.file_backup import backup_file, note_change
+            if os.path.exists(file_path):
+                note_change(f"Save TXD {os.path.basename(file_path)}")
+                if backup_file(file_path) is None:
+                    QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                    return
             with open(file_path, 'wb') as f:
                 f.write(modified_txd_data)
 
@@ -9461,6 +8975,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             log(f"Final TXD size: {len(result):,} bytes ({len(result)/1024:.2f} KB)")
             log(f"Writing to: {file_path}")
 
+            from apps.methods.file_backup import backup_file, note_change
+            if os.path.exists(file_path):
+                note_change(f"Save TXD {os.path.basename(file_path)}")
+                if backup_file(file_path) is None:
+                    QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                    return
             with open(file_path, 'wb') as f:
                 f.write(result)
 
@@ -9592,6 +9112,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 return
 
             # Write to file
+            from apps.methods.file_backup import backup_file, note_change
+            if os.path.exists(file_path):
+                note_change(f"Save TXD {os.path.basename(file_path)}")
+                if backup_file(file_path) is None:
+                    QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                    return
             with open(file_path, 'wb') as f:
                 f.write(modified_txd_data)
 
@@ -9702,202 +9228,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Failed to save to IMG:\n\n{str(e)}")
 
 
-    def _save_txd_with_progress(self): #vers 1
-        """Save TXD with progress indicator"""
-        from PyQt6.QtWidgets import QMessageBox
-
-        if not self.current_img or not self.current_txd_name:
-            QMessageBox.warning(self, "No TXD", "No TXD file is currently loaded")
-            return
-
-        if not self.texture_list:
-            QMessageBox.warning(self, "Empty TXD", "No textures to save")
-            return
-
-        # Create progress dialog
-        progress = QProgressDialog(
-            "Saving TXD...",
-            "Cancel",
-            0,
-            100,
-            self
-        )
-        progress.setWindowTitle("Saving TXD")
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setMinimumDuration(0)
-        progress.setAutoClose(True)
-        progress.setAutoReset(True)
-
-        try:
-            # Step 1: Calculate total work
-            total_textures = len(self.texture_list)
-            total_steps = total_textures * 4 + 3  # Per texture: mipmaps, bumpmap, reflection, compression + header/footer/write
-            current_step = 0
-
-            def update_progress(message, step_increment=1):  #vers 1
-                nonlocal current_step
-                current_step += step_increment
-                progress.setValue(int((current_step / total_steps) * 100))
-                progress.setLabelText(message)
-                QApplication.processEvents()
-                if progress.wasCanceled():
-                    raise InterruptedError("Save cancelled by user")
-
-            # Step 2: Build TXD header
-            update_progress("Building TXD header...")
-            modified_txd_data = self._rebuild_txd_data_with_progress(update_progress)
-
-            if not modified_txd_data:
-                progress.close()
-                QMessageBox.critical(self, "Error", "Failed to rebuild TXD data")
-                return False
-
-            # Step 3: Update IMG
-            update_progress("Writing to IMG archive...")
-            success = self._update_img_with_txd(modified_txd_data)
-
-            if success:
-                progress.setValue(100)
-                progress.setLabelText("Save complete!")
-
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(
-                        f"Saved TXD: {self.current_txd_name} "
-                        f"({len(modified_txd_data)} bytes, {total_textures} textures)"
-                    )
-
-                # Clear modified state
-                if hasattr(self, 'save_txd_btn'):
-                    self.save_txd_btn.setEnabled(False)
-                    self.save_txd_btn.setStyleSheet("")
-                title = self.windowTitle().replace("*", "")
-                self.setWindowTitle(title)
-
-                progress.close()
-                return True
-            else:
-                progress.close()
-                QMessageBox.critical(self, "Error", "Failed to save TXD to IMG")
-                return False
-
-        except InterruptedError as e:
-            progress.close()
-            QMessageBox.information(self, "Cancelled", str(e))
-            return False
-        except Exception as e:
-            progress.close()
-            QMessageBox.critical(self, "Error", f"Save failed: {str(e)}")
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Save error: {str(e)}")
-            return False
 
 
-    def _save_as_txd_file_with_progress(self): #vers 1
-        """Save standalone TXD with progress indicator"""
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QApplication
-        from PyQt6.QtCore import Qt
-        import os
-
-        # Determine default filename
-        if self.current_txd_name:
-            default_name = self.current_txd_name
-        else:
-            default_name = "untitled.txd"
-
-        # Determine initial directory based on setting
-        if self.save_to_source_location:
-            if hasattr(self, 'current_txd_path') and self.current_txd_path:
-                initial_path = self.current_txd_path
-            elif hasattr(self, 'current_img') and self.current_img and hasattr(self.current_img, 'file_path'):
-                img_dir = os.path.dirname(self.current_img.file_path)
-                initial_path = os.path.join(img_dir, default_name)
-            elif hasattr(self, 'last_save_directory') and self.last_save_directory:
-                initial_path = os.path.join(self.last_save_directory, default_name)
-            else:
-                initial_path = default_name
-        else:
-            if hasattr(self, 'last_save_directory') and self.last_save_directory:
-                initial_path = os.path.join(self.last_save_directory, default_name)
-            else:
-                initial_path = default_name
-
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save TXD File",
-            initial_path,
-            "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
-        )
-
-        if not file_path:
-            return False
-
-        # Create progress dialog
-        total_textures = len(self.texture_list)
-        total_steps = total_textures * 3 + 2
-        current_step = [0]  # Use list to allow modification in nested function
-
-        progress = QProgressDialog("Saving TXD...", "Cancel", 0, 100, self)
-        progress.setWindowTitle("Saving TXD File")
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setMinimumDuration(0)
-
-        def update_progress(message):  #vers 1
-            current_step[0] += 1
-            progress.setValue(int((current_step[0] / total_steps) * 100))
-            progress.setLabelText(message)
-            QApplication.processEvents()
-            if progress.wasCanceled():
-                raise InterruptedError("Save cancelled by user")
-
-        try:
-            update_progress("Building TXD structure...")
-
-            # Rebuild with progress
-            modified_txd_data = self._rebuild_txd_data_with_texture_progress(update_progress)
-
-            if not modified_txd_data:
-                progress.close()
-                QMessageBox.critical(self, "Error", "Failed to rebuild TXD data")
-                return False
-
-            update_progress("Writing to file...")
-
-            # Write to file
-            with open(file_path, 'wb') as f:
-                f.write(modified_txd_data)
-
-            # Store paths
-            self.current_txd_path = file_path
-            self.current_txd_name = os.path.basename(file_path)
-            if hasattr(self, 'last_save_directory'):
-                self.last_save_directory = os.path.dirname(file_path)
-
-            progress.setValue(100)
-            progress.setLabelText("Save complete!")
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(
-                    f"Saved TXD file: {file_path} ({len(modified_txd_data)} bytes)"
-                )
-
-            # Clear modified state
-            if hasattr(self, 'save_txd_btn'):
-                self.save_txd_btn.setEnabled(False)
-                self.save_txd_btn.setStyleSheet("")
-            title = self.windowTitle().replace("*", "")
-            self.setWindowTitle(title)
-
-            progress.close()
-            QMessageBox.information(self, "Success", f"TXD saved successfully!\n\n{file_path}")
-            return True
-
-        except InterruptedError:
-            progress.close()
-            QMessageBox.information(self, "Cancelled", "Save cancelled by user")
-            return False
-        except Exception as e:
-            progress.close()
-            QMessageBox.critical(self, "Error", f"Failed to save TXD:\n\n{str(e)}")
-            return False
 
 
     def _force_save_txd(self): #vers 1
@@ -9971,17 +9303,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         QMessageBox.information(self, "Alpha Validity Check", result_text)
 
 
-    def _create_warning_icon_svg(self): #vers 1
-        """Create SVG warning icon for table display"""
-        svg_data = b"""
-        <svg width="16" height="16" viewBox="0 0 16 16">
-            <path fill="#FFA500" d="M8 1l7 13H1z"/>
-            <text x="8" y="12" font-size="10" fill="black" text-anchor="middle">!</text>
-        </svg>
-        """
-        return QIcon(QPixmap.fromImage(
-            QImage.fromData(QByteArray(svg_data))
-        ))
 
 
 #------ Rebuild functions
@@ -10038,139 +9359,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return None
 
 
-    def _build_texture_dictionary_manual(self, texture_sections, texture_count): #vers 2
-        """Manual TXD dictionary builder for serializer - add to TXDSerializer class"""
-        import struct
-
-        # SA (RW >= 0x1803FFFF): struct = uint16 tex_count + uint16 device_id
-        # GTA3/VC: struct = uint32 tex_count
-        struct_size = 4
-        if getattr(self, 'txd_version_id', 0) >= 0x1803FFFF:
-            device_id = getattr(self, 'txd_device_id', 2)
-            struct_data = struct.pack('<HH', texture_count, device_id)
-        else:
-            struct_data = struct.pack('<I', texture_count)
-
-        # Build complete dictionary
-        result = bytearray()
-
-        # Texture Dictionary header
-        total_size = 12 + struct_size + 12  # struct section header + data + extension
-        for tex_section in texture_sections:
-            total_size += len(tex_section)
-
-        result.extend(self._write_section_header(
-            self.SECTION_TEXTURE_DICTIONARY,
-            total_size - 12,
-            self.RW_VERSION
-        ))
-
-        # Struct section (texture count)
-        result.extend(self._write_section_header(
-            self.SECTION_STRUCT,
-            struct_size,
-            self.RW_VERSION
-        ))
-        result.extend(struct_data)
-
-        # Texture sections
-        for tex_section in texture_sections:
-            result.extend(tex_section)
-
-        # Extension section (empty)
-        result.extend(self._write_section_header(
-            self.SECTION_EXTENSION,
-            0,
-            self.RW_VERSION
-        ))
-
-        return result
 
 
-    def _save_to_img(self): #vers 1
-        """Save TXD back to IMG archive"""
-        if not self.current_txd_name:
-            QMessageBox.warning(self, "No TXD", "No TXD file loaded from IMG")
-            return
-
-        try:
-            # Rebuild TXD data
-            modified_txd_data = self._rebuild_txd_data()
-
-            if not modified_txd_data:
-                QMessageBox.critical(self, "Error", "Failed to rebuild TXD data")
-                return
-
-            # Update entry in IMG
-            if hasattr(self.current_img, 'replace_entry'):
-                self.current_img.replace_entry(self.current_txd_name, modified_txd_data)
-
-                # Mark IMG as modified in main window
-                if self.main_window and hasattr(self.main_window, '_mark_as_modified'):
-                    self.main_window._mark_as_modified()
-
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Saved TXD to IMG: {self.current_txd_name}")
-
-                QMessageBox.information(self, "Success",
-                    f"TXD saved to IMG archive\n\n"
-                    f"Remember to save the IMG file to write changes to disk!")
-
-                # Clear modified state
-                if hasattr(self, 'save_txd_btn'):
-                    self.save_txd_btn.setEnabled(False)
-                    self.save_txd_btn.setStyleSheet("")
-                title = self.windowTitle().replace("*", "")
-                self.setWindowTitle(title)
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save to IMG: {str(e)}")
 
 
-    def _get_target_version(self): #vers 1
-        """Get target RenderWare version based on export settings"""
-        from apps.methods.txd_versions import get_recommended_version_for_game
-
-        # Map game setting to game name
-        game_map = {
-            "gta3": "GTA III",
-            "vc": "Vice City",
-            "sa": "San Andreas",
-            "manhunt": "Manhunt"
-        }
-
-        # Map platform setting to platform name
-        platform_map = {
-            "pc": "PC",
-            "xbox": "Xbox",
-            "ps2": "PS2",
-            "android": "Android"
-        }
-
-        game = game_map.get(self.export_target_game, "San Andreas")
-        platform = platform_map.get(self.export_target_platform, "PC")
-
-        return get_recommended_version_for_game(game, platform)
 
 
-    def _create_new_txd_data(self): #vers 2
-        """Create new TXD structure from scratch"""
-        import struct
-
-        try:
-            # Basic RenderWare TXD header
-            # Type, Size, Version
-            header = struct.pack('<III', 0x16, 0, 0x1803FFFF)
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"   Created basic TXD header: {len(header)} bytes")
-
-            return header
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"   Create TXD error: {str(e)}")
-            return None
 
 
     def _update_table_display(self): #vers 2
@@ -10805,26 +9999,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return None
 
 
-    def _convert_rgba_to_bgra(self, rgba_data): #vers 1
-        """Convert RGBA to BGRA byte order for RenderWare"""
-        bgra_data = bytearray(len(rgba_data))
-        for i in range(0, len(rgba_data), 4):
-            bgra_data[i] = rgba_data[i+2]    # B
-            bgra_data[i+1] = rgba_data[i+1]  # G
-            bgra_data[i+2] = rgba_data[i]    # R
-            bgra_data[i+3] = rgba_data[i+3]  # A
-        return bytes(bgra_data)
 
 
-    def _convert_bgra_to_rgba(self, bgra_data): #vers 1
-        """Convert BGRA to RGBA byte order from RenderWare"""
-        rgba_data = bytearray(len(bgra_data))
-        for i in range(0, len(bgra_data), 4):
-            rgba_data[i] = bgra_data[i+2]    # R
-            rgba_data[i+1] = bgra_data[i+1]  # G
-            rgba_data[i+2] = bgra_data[i]    # B
-            rgba_data[i+3] = bgra_data[i+3]  # A
-        return bytes(rgba_data)
 
 
     # Update _decompress_uncompressed method:
@@ -11185,10 +10361,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         dialog.exec()
 
-    #Left side vertical panel
-    def _edit_texture(self): #vers 2
-        """Edit texture in external editor — delegates to _edit_texture_external."""
-        self._edit_texture_external()
 
 
     def _open_paint_editor(self): #vers 4
@@ -11774,13 +10946,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return QImage()
 
 
-    def _extract_alpha_for_display(self, rgba_data): #vers 1
-        """Extract alpha channel as grayscale for display"""
-        alpha_display = bytearray()
-        for i in range(3, len(rgba_data), 4):
-            a = rgba_data[i]
-            alpha_display.extend([a, a, a, 255])  # Grayscale with full opacity
-        return bytes(alpha_display)
 
 
     #    TXD method aliases and stubs (Build 131)                      
@@ -11839,112 +11004,10 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Could not open external editor:\n{e}")
 
 
-    def _convert_texture_format(self): #vers 2
-        """Convert the selected texture to a different format."""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QLabel, QComboBox, QPushButton, QMessageBox)
-
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Texture", "Select a texture first.")
-            return
-
-        tex = self.selected_texture
-        current_fmt = tex.get('format', 'ARGB8888')
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"Convert Format — {tex['name']}")
-        dlg.setFixedSize(320, 160)
-        lay = QVBoxLayout(dlg)
-
-        lay.addWidget(QLabel(f"Current format: <b>{current_fmt}</b>"))
-        lay.addWidget(QLabel("Convert to:"))
-
-        fmt_combo = QComboBox()
-        formats = ['ARGB8888', 'RGB888', 'DXT1', 'DXT3', 'DXT5',
-                   'RGB565', 'ARGB1555', 'ARGB4444']
-        fmt_combo.addItems([f for f in formats if f != current_fmt])
-        lay.addWidget(fmt_combo)
-
-        btns = QHBoxLayout()
-        ok = QPushButton("Convert"); cancel = QPushButton("Cancel")
-        btns.addStretch(); btns.addWidget(ok); btns.addWidget(cancel)
-        lay.addLayout(btns)
-        cancel.clicked.connect(dlg.reject)
-
-        def _do_convert():  #vers 1
-            target = fmt_combo.currentText()
-            try:
-                from PIL import Image
-                img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-                if target == 'RGB888':
-                    img = img.convert('RGB').convert('RGBA')
-                elif target in ('RGB565', 'ARGB1555', 'ARGB4444'):
-                    img = img.convert('RGBA')
-                elif target == 'ARGB8888':
-                    img = img.convert('RGBA')
-                # DXT: just set format flag — compression happens on save
-                self._save_undo_state(f"Convert to {target}")
-                tex['rgba_data'] = img.tobytes()
-                tex['format'] = target
-                tex['has_alpha'] = target not in ('DXT1', 'RGB888', 'RGB565')
-                self._update_texture_info(tex)
-                self._update_table_display()
-                self._mark_as_modified()
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Converted {tex['name']}: {current_fmt} → {target}")
-                dlg.accept()
-            except Exception as e:
-                QMessageBox.critical(dlg, "Convert Error", str(e))
-
-        ok.clicked.connect(_do_convert)
-        dlg.exec()
 
 
-    def flip_texture(self): #vers 2  # deprecated, pending removal
-        """Flip between normal and alpha channel view (only if alpha exists)"""
-        if not self.selected_texture:
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-
-        # Check if texture has alpha
-        if not self.selected_texture.get('has_alpha', False):
-            QMessageBox.information(self, "No Alpha",
-                "This texture has no alpha channel to view.\n\n"
-                "Use 'Import → Import Alpha Channel' to add one.")
-            return
-
-        # Toggle alpha view flag
-        if not hasattr(self, '_show_alpha'):
-            self._show_alpha = False
-
-        self._show_alpha = not self._show_alpha
-        self._update_texture_info(self.selected_texture)
-
-        mode = "Alpha Channel" if self._show_alpha else "Normal View"
-
-        # Update flip button text if it exists
-        if hasattr(self, 'switch_btn'):
-            self.switch_btn.setText("🔄 Normal" if self._show_alpha else "🔄 Alpha")
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Switched to {mode}")
 
 
-    def _refresh_main_window(self): #vers 1
-        """Refresh the main window to show changes"""
-        try:
-            if self.main_window:
-                # Try to refresh the main table
-                if hasattr(self.main_window, 'refresh_table'):
-                    self.main_window.refresh_table()
-                elif hasattr(self.main_window, 'reload_current_file'):
-                    self.main_window.reload_current_file()
-                elif hasattr(self.main_window, 'update_display'):
-                    self.main_window.update_display()
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Refresh error: {str(e)}")
 
 
     def _rename_texture_shortcut(self): #vers 2
@@ -11993,67 +11056,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                     self.main_window.log_message(f"Texture renamed: {current_name} -> {new_name}")
 
 
-    def _update_texture_name_in_data(self, data, offset, texture_info): #vers 1
-        """Update texture name in the binary TXD data"""
-        try:
-            import struct
-
-            # Navigate to the texture name location (offset + 12 for section header + 8 for platform info + name at pos 32)
-            struct_offset = offset + 12
-            struct_type, struct_size, struct_version = struct.unpack('<III', data[struct_offset:struct_offset+12])
-
-            if struct_type == 0x01:  # Struct section
-                name_pos = struct_offset + 12 + 8  # Skip header and platform info
-
-                # Update texture name (32 bytes)
-                new_name = texture_info.get('name', 'texture')[:31]  # Max 31 chars + null terminator
-                name_bytes = new_name.encode('ascii')[:31].ljust(32, b'\x00')
-                data[name_pos:name_pos+32] = name_bytes
-
-                # Update alpha/mask name if it exists (next 32 bytes)
-                if texture_info.get('has_alpha', False) and texture_info.get('alpha_name'):
-                    alpha_name = texture_info.get('alpha_name', '')[:31]
-                    alpha_bytes = alpha_name.encode('ascii')[:31].ljust(32, b'\x00')
-                    data[name_pos+32:name_pos+64] = alpha_bytes
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Name update error: {str(e)}")
-
-        # Update window title to show unsaved changes
-        current_title = self.windowTitle()
-        if not current_title.endswith("*"):
-            self.setWindowTitle(current_title + "*")
 
 
-    def _rebuild_txd_with_size_management(self): #vers 1
-        """Rebuild TXD data with support for large texture replacements"""
-        try:
-            import struct
-
-            if not self.current_txd_data or not self.texture_list:
-                return None
-
-            # Calculate new TXD size requirements
-            estimated_size = self._calculate_new_txd_size()
-            original_size = len(self.current_txd_data)
-
-            if estimated_size > original_size * 3:  # More than 3x size increase
-                reply = QMessageBox.question(self, "Large Texture Replacement",
-                                        f"New TXD will be ~{estimated_size/1024/1024:.1f}MB "
-                                        f"(was {original_size/1024/1024:.1f}MB). "
-                                        f"This may require IMG rebuilding. Continue?",
-                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                if reply != QMessageBox.StandardButton.Yes:
-                    return None
-
-            # Build new TXD from scratch rather than modifying existing
-            return self._build_new_txd_structure()
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"TXD rebuild error: {str(e)}")
-            return None
 
 
     def _requires_img_rebuild(self, new_txd_data): #vers 1
@@ -12065,18 +11069,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return size_ratio > 2.0  # Rebuild if more than 2x size increase
 
 
-    def _update_img_with_large_txd(self, modified_txd_data): #vers 1
-        """Handle IMG update with potentially large TXD replacements"""
-        try:
-            if self._requires_img_rebuild(modified_txd_data):
-                return self._rebuild_img_with_new_txd(modified_txd_data)
-            else:
-                return self._update_img_in_place(modified_txd_data)
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"IMG update error: {str(e)}")
-            return False
 
 
     def _rebuild_img_with_new_txd(self, new_txd_data): #vers 1
@@ -12118,54 +11110,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Failed to open IMG: {str(e)}")
 
 
-    def _find_txd_via_db(self, txd_name: str) -> bool: #vers 1
-        """Look up a TXD by name in the asset DB and load it.
-        txd_name: stem (e.g. 'landstal') or full name ('landstal.txd').
-        Returns True if found and loaded."""
-        import os
-        mw  = getattr(self, 'main_window', None)
-        db  = getattr(mw, 'asset_db', None)
-        if db is None:
-            return False
-        stem  = os.path.splitext(txd_name.lower())[0]
-        fname = stem + '.txd'
-        # find_img_entry looks in img_entries by entry_name
-        row = db.find_img_entry(fname)
-        if row is None:
-            return False
-        src_path = row['source_path']
-        entry_nm = row['entry_name']
-        if not src_path or not os.path.isfile(src_path):
-            return False
-        try:
-            from apps.methods.img_core_classes import IMGFile
-            arc = IMGFile(src_path)
-            arc.open()
-            entry = next(
-                (e for e in arc.entries
-                 if e.name.lower() == entry_nm.lower()),
-                None)
-            if entry is None:
-                return False
-            data = arc.read_entry_data(entry)
-            if not data:
-                return False
-            import tempfile
-            with tempfile.NamedTemporaryFile(
-                    delete=False, suffix='.txd',
-                    prefix=stem + '_') as tf:
-                tf.write(data)
-                tmp = tf.name
-            self.open_txd_file(tmp)
-            if mw and hasattr(mw, 'log_message'):
-                mw.log_message(App_name +
-                    f": loaded {entry_nm} "
-                    f"from {os.path.basename(src_path)} via DB")
-            return True
-        except Exception as e:
-            if mw and hasattr(mw, 'log_message'):
-                mw.log_message(f"TXD DB lookup error: {e}")
-            return False
 
     def open_txd_file(self, file_path=None): #vers 3
         """Open standalone TXD file with version detection"""
@@ -12542,7 +11486,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         """Safe logging — uses print() since Workshop has no log_message."""
         print(f"[" + App_name + "] {msg}")
 
-    def _open_chk_file(self, file_path: str): #vers 1
+    def _open_chk_file(self, file_path: str): #vers 3
         """Open a GTA III PS2 CHK splash texture file."""
         try:
             from apps.methods.chk_parser import load_chk
@@ -12558,22 +11502,22 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                              f"{tex['width']}×{tex['height']}  8bpp palettised")
 
             # Display as a single-texture list
-            if hasattr(self, 'texture_list'):
-                self.texture_list.clear()
+            self.texture_list = [tex]
             if hasattr(self, 'texture_table'):
                 self.texture_table.setRowCount(0)
 
             self._add_texture_to_table(tex)
-            self.textures = [tex]
             self.selected_texture = tex
+            self._update_texture_panel_visibility()
 
-            # Show in preview
-            if tex.get('rgba_data') and tex['width'] > 0:
-                self._display_rgba_preview(tex['rgba_data'], tex['width'], tex['height'])
+            # Selecting the row drives the normal preview/info path
+            if hasattr(self, 'texture_table') and self.texture_table.rowCount():
+                self.texture_table.selectRow(0)
+                self._on_texture_selected()
 
         except Exception as e:
             import traceback; traceback.print_exc()
-            print(f"[" + App_name + "] CHK error: {e}")
+            print(f"[{App_name}] CHK error: {e}")
 
     def _open_mobile_texture_db(self, file_path: str): #vers 1
         """Open a mobile texture database (.txt+.toc+.dat+.tmb quad-file set).
@@ -12664,9 +11608,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         self._log(f"Mobile DB: {db.name}.{db.platform} — {len(real_textures)} textures loaded")
 
-    def _show_mobile_texture(self, row: int): #vers 2
-        """Kept for API compat — texture_table handles selection via _on_texture_selected."""
-        pass
 
 
     def _open_ps2_txd(self, file_path: str): #vers 2
@@ -12746,9 +11687,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "PS2 TXD Error",
                 f"Failed to open PS2 TXD:\n{e}")
 
-    def _show_ps2_texture(self, row: int): #vers 2
-        """Kept for API compat — texture_table handles selection via _on_texture_selected."""
-        pass
 
     def _display_xtx_texture(self, name: str, pixmap, info: dict): #vers 1
         """Show an XTX texture in the workshop preview area."""
@@ -12928,83 +11866,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.main_window.log_message(msg)
 
 
-    def _import_single_texture(self, file_path): #vers 3
-        """Import single texture with format detection and validation"""
-        filename = os.path.basename(file_path)
-        name_only = os.path.splitext(filename)[0]
-
-        # Validate texture name
-        if self.name_limit_enabled:
-            if len(name_only) > self.max_texture_name_length:
-                name_only = name_only[:self.max_texture_name_length]
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Texture name truncated to {self.max_texture_name_length} chars")
-
-        valid, msg = self._validate_texture_name(name_only)
-        if not valid:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Invalid name: {msg}")
-            return False
-
-        # Try indexed color formats first
-        texture_data = None
-
-        if is_indexed_format(file_path):
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Loading indexed format: {filename}")
-
-            texture_data = load_indexed_image(file_path)
-
-        elif is_iff_file(file_path):
-            if not self.iff_import_enabled:
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"IFF import disabled: {filename}")
-                return False
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Loading IFF format: {filename}")
-
-            texture_data = load_iff_image(file_path)
-
-        # Fallback to PIL for standard formats
-        if not texture_data:
-            texture_data = self._load_texture_with_pil(file_path)
-
-        if not texture_data:
-            return False
-
-        # Validate dimensions
-        width = texture_data['width']
-        height = texture_data['height']
-
-        valid, msg = self._validate_texture_dimensions(width, height)
-        if not valid:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{filename}: {msg}")
-            return False
-
-        # Add to texture list
-        new_texture = {
-            'name': name_only,
-            'width': width,
-            'height': height,
-            'rgba_data': texture_data['rgba_data'],
-            'has_alpha': texture_data.get('has_alpha', False),
-            'format': texture_data.get('format', 'ARGB8888'),
-            'alpha_name': name_only + 'a' if texture_data.get('has_alpha') else '',
-            'mipmaps': 1,
-            'original_format': texture_data.get('original_format', 'Unknown')
-        }
-
-        self.texture_list.append(new_texture)
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            format_str = texture_data.get('original_format', 'Unknown')
-            self.main_window.log_message(
-                f"Imported: {name_only} ({width}x{height}, {format_str})"
-            )
-
-        return True
 
 
     def _load_texture_with_pil(self, file_path): #vers 2
@@ -13085,31 +11946,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.main_window.log_message(f" Missing import modules: {', '.join(missing)}")
 
 
-    def _get_import_format_info(self): #vers 1
-        """Get supported import formats as formatted string"""
-        formats = []
-
-        # Standard formats (always available via PIL)
-        formats.append("✓ PNG, JPG, BMP, TGA (standard)")
-
-        # Check indexed format support
-        try:
-            from apps.methods.indexed_color_import import is_indexed_format
-            formats.append("✓ 8-bit BMP, PCX, GIF")
-        except ImportError:
-            formats.append("✗ 8-bit indexed formats (missing module)")
-
-        # Check IFF support
-        if self.iff_import_enabled:
-            try:
-                from apps.methods.iff_import import is_iff_file
-                formats.append("✓ IFF/ILBM (Amiga)")
-            except ImportError:
-                formats.append("✗ IFF format (missing module)")
-        else:
-            formats.append("○ IFF format (disabled)")
-
-        return "\n".join(formats)
 
 
     def show_properties(self): #vers 5
@@ -13214,40 +12050,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.warning(self, "Error", f"Could not show properties: {str(e)}")
 
 
-    def _create_texture_filters(self): #vers 1
-        """Create texture filtering options"""
-        filter_group = QGroupBox("Filters")
-        filter_layout = QVBoxLayout(filter_group)
-
-        # Format filter
-        format_filter_layout = QHBoxLayout()
-        format_filter_layout.addWidget(QLabel("Format:"))
-
-        self.format_filter = QComboBox()
-        self.format_filter.addItems(["All", "DXT1", "DXT3", "DXT5", "ARGB8888", "RGB888"])
-        self.format_filter.currentTextChanged.connect(self._apply_texture_filters)
-        format_filter_layout.addWidget(self.format_filter)
-
-        filter_layout.addLayout(format_filter_layout)
-
-        # Size filter
-        size_filter_layout = QHBoxLayout()
-        size_filter_layout.addWidget(QLabel("Size:"))
-
-        self.size_filter = QComboBox()
-        self.size_filter.addItems(["All", "Small (≤256)", "Medium (512-1024)", "Large (≥2048)"])
-        self.size_filter.currentTextChanged.connect(self._apply_texture_filters)
-        size_filter_layout.addWidget(self.size_filter)
-
-        filter_layout.addLayout(size_filter_layout)
-
-        # Alpha filter
-        self.alpha_filter = QComboBox()
-        self.alpha_filter.addItems(["All", "With Alpha", "No Alpha"])
-        self.alpha_filter.currentTextChanged.connect(self._apply_texture_filters)
-        filter_layout.addWidget(self.alpha_filter)
-
-        return filter_group
 
 
     def _apply_texture_filters(self): #vers 1
@@ -13304,23 +12106,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.search_input.selectAll()
 
 
-    def _create_texture_search(self): #vers 1
-        """Create texture search functionality"""
-        search_layout = QHBoxLayout()
-
-        search_layout.addWidget(QLabel("Search:"))
-
-        from PyQt6.QtWidgets import QLineEdit
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Enter texture name...")
-        self.search_input.textChanged.connect(self._perform_texture_search)
-        search_layout.addWidget(self.search_input)
-
-        clear_search_btn = QPushButton("Clear")
-        clear_search_btn.clicked.connect(self._clear_texture_search)
-        search_layout.addWidget(clear_search_btn)
-
-        return search_layout
 
 
     def _perform_texture_search(self, search_text): #vers 1
@@ -13511,95 +12296,8 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Paste Error", f"Failed to paste texture: {str(e)}")
 
 
-    def _remove_texture(self): #vers 1
-        """Remove selected texture"""
-        if not self.selected_texture:
-            QMessageBox.warning(self, "No Selection", "Please select a texture to remove")
-            return
-
-        texture_name = self.selected_texture.get('name', 'texture')
-
-        reply = QMessageBox.question(self, "Remove Texture",
-                                   f"Remove texture '{texture_name}'?\nThis cannot be undone.",
-                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        try:
-            # Find and remove from list
-            current_row = self.texture_table.currentRow()
-            if 0 <= current_row < len(self.texture_list):
-                self.texture_list.pop(current_row)
-                self.texture_table.removeRow(current_row)
-
-                # Clear selection
-                self.selected_texture = None
-                self._update_editing_controls()
-
-                # Mark as modified
-                self._mark_as_modified()
-
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Removed texture: {texture_name}")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to remove texture: {str(e)}")
 
 
-    def _create_new_texture(self): #vers 1
-        """Create new blank texture"""
-        from PyQt6.QtWidgets import QInputDialog
-
-        # Get texture name
-        name, ok = QInputDialog.getText(self, "New Texture", "Enter texture name:")
-        if not ok or not name:
-            return
-
-        # Check for duplicate names
-        existing_names = [t.get('name', '') for t in self.texture_list]
-        if name in existing_names:
-            QMessageBox.warning(self, "Duplicate Name", f"Texture name '{name}' already exists")
-            return
-
-        # Get dimensions
-        width, ok = QInputDialog.getInt(self, "New Texture", "Width:", value=256, min=4, max=4096)
-        if not ok:
-            return
-
-        height, ok = QInputDialog.getInt(self, "New Texture", "Height:", value=256, min=4, max=4096)
-        if not ok:
-            return
-
-        try:
-            # Create blank RGBA data (transparent)
-            rgba_data = bytearray(width * height * 4)
-            for i in range(0, len(rgba_data), 4):
-                rgba_data[i:i+4] = [0, 0, 0, 0]  # Transparent black
-
-            # Create texture
-            new_texture = {
-                'name': name,
-                'width': width,
-                'height': height,
-                'format': 'ARGB8888',
-                'has_alpha': True,
-                'rgba_data': bytes(rgba_data),
-                'mipmaps': 1
-            }
-
-            # Add to list
-            self.texture_list.append(new_texture)
-            self._add_texture_to_table(new_texture)
-
-            # Mark as modified
-            self._mark_as_modified()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Created new texture: {name} ({width}x{height})")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to create texture: {str(e)}")
 
 
 #------ Tabbing Functions
@@ -13638,19 +12336,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.main_window.log_message(f"Switched to tab: {tab_name}")
 
 
-    def _add_new_txd_tab(self, txd_name, txd_data): #vers 1
-        """Add new TXD as a tab"""
-        # Create new tab widget
-        new_tab = QWidget()
-        tab_layout = QVBoxLayout(new_tab)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Create splitter for this tab
-        # ... similar to initial tab setup ...
-
-        # Add tab
-        tab_index = self.txd_tabs.addTab(new_tab, txd_name)
-        self.txd_tabs.setCurrentIndex(tab_index)
 
 
     def _texture_statistics(self): #vers 1
@@ -14601,12 +13286,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_resize_icon2(self): #vers 1
-        """Resize grip icon - diagonal arrows"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M14 6l-8 8M10 6h4v4M6 14v-4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
 
     def _create_upscale_icon(self): #vers 3
@@ -14637,13 +13316,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_paint_icon(self): #vers 1
-        """Create paint brush icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"
-                fill="currentColor"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
     def _create_compress_icon(self): #vers 2
         """Create compress icon"""
@@ -14653,13 +13325,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_build_icon(self): #vers 1
-        """Create build/construct icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M22,9 L12,2 L2,9 L12,16 L22,9 Z M12,18 L4,13 L4,19 L12,24 L20,19 L20,13 L12,18 Z"
-                fill="currentColor"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
     def _create_uncompress_icon(self): #vers 2
         """Create uncompress icon"""
@@ -14694,130 +13359,20 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_color_picker_icon(self): #vers 1
-        """Color picker icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
-            <path d="M10 3v4M10 13v4M3 10h4M13 10h4" stroke="currentColor" stroke-width="2"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
-    def _create_zoom_in_icon(self): #vers 1
-        """Zoom in icon (+)"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2"/>
-            <path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="2"/>
-            <path d="M13 13l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
-    def _create_zoom_out_icon(self): #vers 1
-        """Zoom out icon (-)"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2"/>
-            <path d="M5 8h6" stroke="currentColor" stroke-width="2"/>
-            <path d="M13 13l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
-    def _create_reset_icon(self): #vers 1
-        """Reset/1:1 icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M16 10A6 6 0 1 1 4 10M4 10l3-3m-3 3l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
-    def _create_fit_icon(self): #vers 1
-        """Fit to window icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3" y="3" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M7 7l6 6M13 7l-6 6" stroke="currentColor" stroke-width="2"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
-    def _create_arrow_up_icon(self): #vers 1
-        """Arrow up"""
-        svg_data = b'''<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8 3v10M4 7l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=16)
 
-    def _create_arrow_down_icon(self): #vers 1
-        """Arrow down"""
-        svg_data = b'''<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8 13V3M12 9l-4 4-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=16)
 
-    def _create_arrow_left_icon(self): #vers 1
-        """Arrow left"""
-        svg_data = b'''<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 8h10M7 4L3 8l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=16)
 
-    def _create_arrow_right_icon(self): #vers 1
-        """Arrow right"""
-        svg_data = b'''<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M13 8H3M9 12l4-4-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=16)
 
-    def _create_flip_vert_icon(self): #vers 1
-        """Create vertical flip SVG icon"""
-        from PyQt6.QtGui import QIcon, QPixmap, QPainter
-        from PyQt6.QtSvg import QSvgRenderer
 
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 12h18M8 7l-4 5 4 5M16 7l4 5-4 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
 
-        return self._svg_to_icon(svg_data)
 
-    def _create_flip_horz_icon(self): #vers 1
-        """Create horizontal flip SVG icon"""
-        from PyQt6.QtGui import QIcon, QPixmap, QPainter
-        from PyQt6.QtSvg import QSvgRenderer
 
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 3v18M7 8l5-4 5 4M7 16l5 4 5-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
 
-        return self._svg_to_icon(svg_data)
-
-    def _create_rotate_cw_icon(self): #vers 1
-        """Create clockwise rotation SVG icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M21 12a9 9 0 11-9-9v6M21 3l-3 6-6-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-
-        return self._svg_to_icon(svg_data)
-
-    def _create_rotate_ccw_icon(self): #vers 1
-        """Create counter-clockwise rotation SVG icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 12a9 9 0 109-9v6M3 3l3 6 6-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-
-        return self._svg_to_icon(svg_data)
-
-    def _create_copy_icon(self): #vers 1
-        """Create copy SVG icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
-            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/>
-        </svg>'''
-
-        return self._svg_to_icon(svg_data)
-
-    def _create_paste_icon(self): #vers 1
-        """Create paste SVG icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" stroke="currentColor" stroke-width="2"/>
-            <rect x="8" y="2" width="8" height="4" rx="1" stroke="currentColor" stroke-width="2"/>
-        </svg>'''
-
-        return self._svg_to_icon(svg_data)
 
     def _create_edit_icon(self): #vers 1
         """Create edit SVG icon"""
@@ -14909,13 +13464,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     # CONTEXT MENU ICONS
 
-    def _create_plus_icon(self): #vers 1
-        """Create New Entry - Plus icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-            <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data)
 
     def _create_document_icon(self): #vers 1
         """Create New TXD - Document icon"""
@@ -14925,17 +13473,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         </svg>'''
         return self._svg_to_icon(svg_data)
 
-    def _create_filter_icon(self): #vers 1
-        """Filter/sliders icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="6" cy="4" r="2" fill="currentColor"/>
-            <rect x="5" y="8" width="2" height="8" fill="currentColor"/>
-            <circle cx="14" cy="12" r="2" fill="currentColor"/>
-            <rect x="13" y="4" width="2" height="6" fill="currentColor"/>
-            <circle cx="10" cy="8" r="2" fill="currentColor"/>
-            <rect x="9" y="12" width="2" height="4" fill="currentColor"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
     def _create_trash_icon(self): #vers 1
         """Delete/trash icon"""
@@ -14944,57 +13481,13 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_duplicate_icon(self): #vers 1
-        """Duplicate/copy icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="6" y="6" width="10" height="10" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M4 4h8v2H6v8H4V4z" fill="currentColor"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_create_icon(self): #vers 1
-        """Create/new icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_pencil_icon(self): #vers 1
-        """Edit - Pencil icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" stroke="currentColor" stroke-width="2"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data)
 
 
-    def _create_check_icon(self): #vers 2
-        """Create check/verify icon - document with checkmark"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                fill="none" stroke="currentColor" stroke-width="2"/>
-            <path d="M14 2v6h6"
-                stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M9 13l2 2 4-4"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_eye_icon(self): #vers 1
-        """View - Eye icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data)
 
 
-    def _create_list_icon(self): #vers 1
-        """Properties List - List icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data)
+
+
+
 
     # WINDOW CONTROL ICONS
 
@@ -15029,19 +13522,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_checkerboard_icon(self): #vers 1
-        """Create checkerboard pattern icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="0" y="0" width="5" height="5" fill="currentColor"/>
-            <rect x="5" y="5" width="5" height="5" fill="currentColor"/>
-            <rect x="10" y="0" width="5" height="5" fill="currentColor"/>
-            <rect x="15" y="5" width="5" height="5" fill="currentColor"/>
-            <rect x="0" y="10" width="5" height="5" fill="currentColor"/>
-            <rect x="5" y="15" width="5" height="5" fill="currentColor"/>
-            <rect x="10" y="10" width="5" height="5" fill="currentColor"/>
-            <rect x="15" y="15" width="5" height="5" fill="currentColor"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
 
     def _svg_to_icon(self, svg_data, size=24): #vers 2
         """Convert SVG data to QIcon with theme color support"""

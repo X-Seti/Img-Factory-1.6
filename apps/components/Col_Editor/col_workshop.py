@@ -1783,17 +1783,23 @@ _SURFACE_FIELDS = [
 
 
 class _SurfaceEntry: #vers 1
-    __slots__ = ('values', 'comment')
+    __slots__ = ('values', 'comment', 'raw_index', 'orig')
     def __init__(self):  #vers 1
         self.values:  list = []
         self.comment: str  = ""
+        self.raw_index: int = -1
+        self.orig:    list = []
 
 
-class _SurfaceParser: #vers 1
+class _SurfaceParser: #vers 2
+    """surface.dat. Keeps the original lines (comments between rows, CRLF, spacing);
+    only edited rows are rewritten, and only their changed values."""
     def __init__(self): #vers 1
         self.entries:      list = []
         self.header_lines: list = []
         self.game:         str  = 'VC'
+        self._lines:       list = []
+        self._eol:         str  = "\n"
 
     def _detect_game(self, entries: list) -> str: #vers 1
         for e in entries:
@@ -1801,39 +1807,74 @@ class _SurfaceParser: #vers 1
                 return 'SA'
         return 'VC'
 
-    def load(self, path: str) -> bool: #vers 1
+    @property
+    def dirty(self) -> bool:
+        return any(getattr(e, 'raw_index', -1) < 0 or list(e.values) != list(getattr(e, 'orig', ()))
+                   for e in self.entries) or len(self.entries) != getattr(self, '_n0', len(self.entries))
+
+    def load(self, path: str) -> bool: #vers 2
         try:
-            import os as _os
+            text = open(path, 'rb').read().decode('latin-1')
+            self._eol = "\r\n" if "\r\n" in text else "\n"
+            self._lines = text.split(self._eol)
             self.entries.clear(); self.header_lines.clear()
-            in_data = False
-            with open(path, 'r', encoding='latin-1') as f:
-                for ln in f:
-                    s = ln.strip()
-                    if not s or s.startswith(';') or s.startswith('#'):
-                        if not in_data: self.header_lines.append(ln)
-                        continue
-                    in_data = True
-                    comment = ""
-                    if ';' in s:
-                        i = s.index(';'); comment = s[i:]; s = s[:i].strip()
-                    parts = s.split()
-                    if len(parts) < 2:
-                        continue
-                    e = _SurfaceEntry(); e.values = parts; e.comment = comment
-                    self.entries.append(e)
+            for i, ln in enumerate(self._lines):
+                s = ln.strip()
+                if not s or s.startswith(';') or s.startswith('#'):
+                    if not self.entries: self.header_lines.append(ln)
+                    continue
+                comment = ""
+                if ';' in s:
+                    k = s.index(';'); comment = s[k:]; s = s[:k].strip()
+                parts = s.split()
+                if len(parts) < 2:
+                    continue
+                e = _SurfaceEntry(); e.values = parts; e.comment = comment
+                e.raw_index, e.orig = i, list(parts)
+                self.entries.append(e)
+            self._n0 = len(self.entries)
             self.game = self._detect_game(self.entries)
             return True
         except Exception as ex:
             print(f"_SurfaceParser.load: {ex}"); return False
 
-    def save(self, path: str) -> bool: #vers 1
+    def to_text(self) -> str:
+        import re as _re
+        alive = {e.raw_index: e for e in self.entries if getattr(e, 'raw_index', -1) >= 0}
+        new = [e for e in self.entries if getattr(e, 'raw_index', -1) < 0]
+        out, last = [], -1
+        for i, ln in enumerate(self._lines):
+            e = alive.get(i)
+            s = ln.strip()
+            is_row = bool(s) and not s.startswith((';', '#')) and len(s.split(';')[0].split()) >= 2
+            if e is None and is_row:
+                continue                                     # a deleted surface
+            if e is not None and list(e.values) != list(e.orig):
+                body, sc, cm = ln.partition(';')
+                toks = _re.split(r'(\s+)', body)
+                slots = [k for k, t in enumerate(toks) if t and not t.isspace()]
+                for k, (o, nv) in enumerate(zip(e.orig, e.values)):
+                    if o != nv and k < len(slots):
+                        toks[slots[k]] = str(nv)
+                if len(e.values) > len(slots):
+                    toks.append('\t' + '\t'.join(str(v) for v in e.values[len(slots):]))
+                ln = ''.join(toks) + sc + cm
+            out.append(ln)
+            if e is not None:
+                last = len(out) - 1
+        if new:
+            at = last + 1 if last >= 0 else len(out)
+            out[at:at] = ['\t'.join(str(v) for v in e.values) + (f'  {e.comment}' if e.comment else '') for e in new]
+        return self._eol.join(out)
+
+    def save(self, path: str) -> bool: #vers 2
         try:
-            with open(path, 'w', encoding='latin-1') as f:
-                for ln in self.header_lines: f.write(ln)
-                for e in self.entries:
-                    line = '\t'.join(str(v) for v in e.values)
-                    if e.comment: line += f'  {e.comment}'
-                    f.write(line + '\n')
+            from apps.methods.file_backup import safe_write_bytes      # backup + atomic write
+            text = self.to_text()
+            safe_write_bytes(path, text.encode('latin-1', errors='replace'))
+            keep = sorted((e for e in self.entries if getattr(e, 'raw_index', -1) >= 0), key=lambda e: e.raw_index) \
+                + [e for e in self.entries if getattr(e, 'raw_index', -1) < 0]
+            self.load(path)                                   # re-baseline
             return True
         except Exception as ex:
             print(f"_SurfaceParser.save: {ex}"); return False
@@ -7634,21 +7675,38 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             QMessageBox.warning(self, "Save", "No models to save.")
             return
 
+        info = getattr(self.current_col_file, 'splice_info', None)
+        if info is None and any(getattr(m, '_orig_record', None) is not None for m in models) is False \
+                and getattr(self.current_col_file, 'raw_data', None):
+            # the file could not be matched model-by-model, so data this editor does not
+            # model (COL2/3 lines, face groups, shadow mesh...) cannot be kept
+            if QMessageBox.question(
+                    self, "Save COL",
+                    "This COL file cannot be saved without dropping data the editor does not model "
+                    "(suspension lines, face groups, shadow mesh...).\n\nSave anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
         try:
             from apps.methods.col_workshop_parser import COLWriter
-            raw = COLWriter.write_file(models)
+            from apps.methods.col_splice import build_col_bytes
+            raw = build_col_bytes(models, COLWriter, info)
         except Exception as e:
             import traceback
             traceback.print_exc()
-            QMessageBox.critical(self, "Serialise Error",
-                f"Failed to serialise COL data:\n{e}")
+            QMessageBox.critical(self, "Save COL", f"Nothing was written:\n{e}")
             return
 
         try:
-            with open(self.current_file_path, 'wb') as f:
-                f.write(raw)
-            # Update raw_data so a second Save uses the fresh bytes
+            from apps.methods.file_backup import safe_write_bytes      # backup first, atomic write
+            safe_write_bytes(self.current_file_path, raw)
+            # Re-tag against what was just written so a second Save starts from it
             self.current_col_file.raw_data = raw
+            try:
+                from apps.methods.col_splice import tag_models
+                self.current_col_file.splice_info = tag_models(models, raw)
+            except Exception:
+                self.current_col_file.splice_info = None
             fname = os.path.basename(self.current_file_path)
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
@@ -8761,25 +8819,13 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             if not file_path:
                 return
 
-            # Build a minimal COL file containing just this model
-            from apps.methods.col_workshop_loader import COLFile
-            out = COLFile()
-            out.models = [model]
-            if hasattr(out, 'save'):
-                if not out.save(file_path):
-                    QMessageBox.warning(self, "Export Failed",
-                        "Could not save COL model — save() returned False.")
-                    return
-            else:
-                # Fallback: write the raw bytes of the model
-                raw = getattr(model, '_raw_bytes', None)
-                if raw:
-                    with open(file_path, 'wb') as f:
-                        f.write(raw)
-                else:
-                    QMessageBox.warning(self, "Export Failed",
-                        "No serialisation method available for this model.")
-                    return
+            # A COL file with just this model: its original record (edited values patched
+            # in) or a freshly written one - never the old lossy COLWriter.
+            from apps.methods.col_workshop_parser import COLWriter
+            from apps.methods.col_splice import build_col_bytes
+            data = build_col_bytes([model], COLWriter, {"head": [], "tail": b""})
+            from apps.methods.file_backup import safe_write_bytes
+            safe_write_bytes(file_path, data)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(

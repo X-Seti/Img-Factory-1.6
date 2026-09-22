@@ -67,7 +67,7 @@ class MasterIDEWorkshop(QWidget): #vers 9
     # layout from an older structure is cleanly rejected instead of
     # silently failing to restore. History: 1 = File/Entries/Tools/
     # Filters ribbons (replaced the old DockableToolbar button row).
-    _RIBBON_LAYOUT_VERSION = 1
+    _RIBBON_LAYOUT_VERSION = 2
 
     def __init__(self, parent, main_window=None): #vers 1
         super().__init__(parent)
@@ -185,6 +185,9 @@ class MasterIDEWorkshop(QWidget): #vers 9
         _act(tb_tools, "ID Utilities...", icons.id_utilities_icon, self._on_id_utilities)
         _act(tb_tools, "TXD Duplicate Check...", icons.txd_dedup_icon, self._on_txd_dedup)
         _act(tb_tools, "IMG / COL Physical Reorder...", icons.database_icon, self._on_img_col_reorder)
+        _act(tb_tools, "Integrity Check...", icons.check_icon, self._on_integrity_check)
+        _act(tb_tools, "Undo Last Change", icons.undo_icon, self._on_undo_last_change)
+        _act(tb_tools, "Export Change Log...", icons.export_icon, self._on_export_change_log)
 
         #    Ribbon: Filters
         tb_filters = _tb("Filters")
@@ -692,6 +695,8 @@ class MasterIDEWorkshop(QWidget): #vers 9
             return
         new_name = new_name.strip()
         source_path = self._resolve_source_path(source_ide)
+        from apps.methods.file_backup import note_change
+        note_change(f"Rename ID {model_id} -> {new_name}")
 
         old_name = None
         for section in ("objs", "tobj", "anim"):
@@ -741,6 +746,8 @@ class MasterIDEWorkshop(QWidget): #vers 9
         if not targets:
             return
         model_ids = {model_id for model_id, _ in targets}
+        from apps.methods.file_backup import note_change
+        note_change(f"Remove {len(model_ids)} ID(s) starting {min(model_ids)}")
 
         from apps.methods.id_reassign import (
             find_usages, find_ipl_usages, find_path_usages,
@@ -918,6 +925,35 @@ class MasterIDEWorkshop(QWidget): #vers 9
             except Exception:
                 pass
         self._reload_after_edit()
+
+    def _on_integrity_check(self): #vers 1
+        from apps.methods.asset_integrity import check_integrity, format_report, show_integrity_dialog
+        from apps.components.Master_Ide.id_tools_dialogs import _collect_ipl_paths
+        if not self.result:
+            QMessageBox.information(self, "Integrity Check", "Nothing loaded.")
+            return
+        rep = check_integrity(self.result, _collect_ipl_paths(self.dat_path, self.game))
+        show_integrity_dialog(self, format_report(rep))
+
+    def _on_undo_last_change(self): #vers 1
+        from apps.methods.file_backup import undo_last_change
+        if QMessageBox.question(self, "Undo Last Change",
+                "Restore every file of the most recent change from its backup?") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        restored = undo_last_change()
+        if restored is None:
+            QMessageBox.information(self, "Undo Last Change", "Nothing to undo.")
+            return
+        QMessageBox.information(self, "Undo Last Change",
+                                "Restored:\n" + "\n".join(os.path.basename(p) for p in restored))
+        self._reload_after_edit()
+
+    def _on_export_change_log(self): #vers 1
+        from apps.methods.file_backup import export_change_log
+        path, _ = QFileDialog.getSaveFileName(self, "Export change log", "change_log.txt", "Text (*.txt)")
+        if path and not export_change_log(path):
+            QMessageBox.information(self, "Change Log", "No changes recorded yet.")
 
     def _on_id_shift(self): #vers 2
         from apps.methods.id_shift_dialog import IDShiftDialog

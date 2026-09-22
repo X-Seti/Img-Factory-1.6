@@ -53,7 +53,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 
-from apps.components.Vehicle_Workshop.depends.gui_workshop import GUIWorkshop
+from apps.methods.gui_workshop import GUIWorkshop
 
 
 #                                                                              

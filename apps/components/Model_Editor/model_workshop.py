@@ -12562,8 +12562,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         data = self._build_txd_from_textures()
         if data:
-            with open(path, 'wb') as f:
-                f.write(data)
+            from apps.methods.file_backup import safe_write_bytes      # backup if it exists + atomic write
+            safe_write_bytes(path, bytes(data))
             self._set_status(f"Saved TXD: {os.path.basename(path)}")
         else:
             QMessageBox.warning(self, "TXD", "Could not build TXD from current textures.")
@@ -13838,20 +13838,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             dff_path = path
 
         try:
-            from apps.components.Model_Editor.depends.dff_parser import DFFWriter
+            from apps.methods.dff_parser import DFFWriter
+            from apps.methods.file_backup import safe_write_bytes
             raw = DFFWriter.write(dff_model)
-            with open(dff_path, 'wb') as f:
-                f.write(raw)
+            report = list(DFFWriter.last_report)
+            safe_write_bytes(dff_path, raw, "model_workshop")     # backup + atomic write
             self._current_dff_path = dff_path
             fname = os.path.basename(dff_path)
             self._set_status(f"Saved: {fname}")
             mw = getattr(self, 'main_window', None)
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"Saved DFF: {fname} ({len(raw):,} bytes)")
-        except NotImplementedError:
-            QMessageBox.information(self, "Save DFF",
-                "DFF round-trip save is not yet fully implemented.\n"
-                "Use Export → OBJ for now.")
+            if report:
+                QMessageBox.information(self, "Save DFF",
+                    f"{fname} saved. These edits could not be written:\n\n" + "\n".join(report))
+        except NotImplementedError as e:
+            QMessageBox.information(self, "Save DFF", str(e))
         except Exception as e:
             QMessageBox.critical(self, "Save Error", str(e))
 
@@ -15105,22 +15107,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # Build a minimal COL file containing just this model
             from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
             out = COLFile()
-            out.models = [model]
-            if hasattr(out, 'save'):
-                if not out.save(file_path):
-                    QMessageBox.warning(self, "Export Failed",
-                        "Could not save COL model — save() returned False.")
-                    return
-            else:
-                # Fallback: write the raw bytes of the model
-                raw = getattr(model, '_raw_bytes', None)
-                if raw:
-                    with open(file_path, 'wb') as f:
-                        f.write(raw)
-                else:
-                    QMessageBox.warning(self, "Export Failed",
-                        "No serialisation method available for this model.")
-                    return
+            # this model's original record (edits patched in) or a freshly written one
+            from apps.methods.col_workshop_parser import COLWriter
+            from apps.methods.col_splice import build_col_bytes
+            from apps.methods.file_backup import safe_write_bytes
+            safe_write_bytes(file_path, build_col_bytes([model], COLWriter, {"head": [], "tail": b""}))
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(

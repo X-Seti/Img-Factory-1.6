@@ -43,6 +43,7 @@ from apps.methods.dff_classes import (
 # DFFParser._parse_atomic
 # detect_dff
 # load_dff
+# DFFWriter.write
 
 
 def read_chunk(data: bytes, pos: int):
@@ -76,6 +77,7 @@ class DFFParser:
             self.errors.append(f"Not a Clump: 0x{ct:08X}")
             return self.model
         self.model.rw_version = lib
+        self.model.raw = bytes(self.data)         # kept so DFFWriter can patch edits back in
         self.rw_ver = _rw_version(lib)
         self._parse_clump(p, p + sz)
         return self.model
@@ -388,4 +390,33 @@ def load_dff(path: str) -> Optional[DFFModel]: #vers 1
         return None
 
 
-__all__ = ['DFFParser', 'detect_dff', 'load_dff', 'read_chunk']
+
+class DFFWriter:
+    """Writes a DFFModel back by patching the bytes it was loaded from
+    (apps/methods/dff_patch.py). Only edited fields change; a model that was
+    not edited comes back byte-identical."""
+
+    last_report: List[str] = []
+
+    @staticmethod
+    def write(dff_model) -> bytes: #vers 2
+        """Return the patched DFF bytes. Raises NotImplementedError when the
+        model has no source bytes (a model built from scratch)."""
+        from apps.methods.dff_patch import patch_dff
+        raw = getattr(dff_model, 'raw', None)
+        if not raw and getattr(dff_model, 'source_path', ''):
+            try:
+                with open(dff_model.source_path, 'rb') as f:
+                    raw = f.read()
+            except OSError:
+                raw = None
+        if not raw:
+            raise NotImplementedError(
+                "this model was not loaded from a DFF, so there is nothing to patch - "
+                "export it as OBJ instead")
+        out, report = patch_dff(raw, dff_model)
+        DFFWriter.last_report = report
+        return out
+
+
+__all__ = ['DFFParser', 'DFFWriter', 'detect_dff', 'load_dff', 'read_chunk']

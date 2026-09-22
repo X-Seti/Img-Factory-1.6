@@ -379,8 +379,10 @@ class IDEFileEditor(QDialog):
     def reload_file(self): #vers 1
         if hasattr(self, 'file_path') and self.file_path:
             try:
-                with open(self.file_path, 'r', encoding='utf-8', errors='replace') as f:
-                    content = f.read()
+                with open(self.file_path, 'rb') as f:
+                    raw = f.read()
+                self._eol = '\r\n' if b'\r\n' in raw else '\n'
+                content = raw.decode('latin-1').replace('\r\n', '\n')     # byte-exact round trip
                 if hasattr(self, 'text_edit'):
                     self.text_edit.setPlainText(content)
             except Exception as e:
@@ -389,11 +391,16 @@ class IDEFileEditor(QDialog):
     def save_file(self): #vers 1
         if hasattr(self, 'file_path') and self.file_path:
             try:
+                from apps.methods.file_backup import safe_write_bytes
                 content = self.text_edit.toPlainText() if hasattr(self, 'text_edit') else ''
-                with open(self.file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
+                eol = getattr(self, '_eol', '\n')
+                data = content.replace('\n', eol).encode('latin-1', 'replace')
+                safe_write_bytes(self.file_path, data, "file_editor")    # backup + atomic write
+                if hasattr(self, 'status_label'):
+                    self.status_label.setText(f"Saved {self.file_path}")
             except Exception as e:
-                print(f"save_file error: {e}")
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Save Error", f"Failed to save file:\n{e}")
 
     def find_text(self): #vers 1
         from PyQt6.QtWidgets import QInputDialog
@@ -1016,8 +1023,8 @@ def save_file(self):
             )
         
         if file_path:
-            with open(file_path, 'w', encoding='ascii', errors='ignore') as f:
-                f.write(content)
+            from apps.methods.file_backup import safe_write_bytes
+            safe_write_bytes(file_path, content.replace('\r\n', '\n').encode('latin-1', 'replace'), "file_editor")
             
             self.is_modified = False
             self.setWindowTitle(f"IDE Editor - {os.path.basename(file_path)}")

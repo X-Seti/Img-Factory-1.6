@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 3
+#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 4
 # X-Seti - May08 2026 - Img Factory 1.6 - Time Cycle Editor
 
 """
@@ -32,7 +32,7 @@ right = live sky colour preview swatch.
 # TimecycWorkshop._build_menus_into_qmenu
 # open_timecyc_editor
 
-import sys, os
+import sys, os, re
 from pathlib import Path
 from typing import List, Optional, Dict, Tuple
 from dataclasses import dataclass, field
@@ -53,7 +53,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QRect, QSize
 from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient
 
-from apps.components.Timecyc_Editor.gui_workshop import GUIWorkshop
+from apps.components.Timecyc_Editor.depends.diffcode import GUIWorkshop
+from apps.methods.ribbon_system import RibbonMixin
 
 
 # Field definitions
@@ -187,19 +188,42 @@ SA_TIME_LABELS = ["Midnight","5AM","6AM","7AM","Noon","7PM","8PM","10PM"]
 # Data
 
 @dataclass
-class TimecycRow: #vers 1
+class TimecycRow: #vers 2
     weather: int = 0
     time:    int = 0
     values:  List[int] = field(default_factory=lambda: [0] * 36)
     comment: str = ""
+    raw_index: int = -1            # line index in the loaded file (-1 = none)
+    orig: tuple = ()               # values as loaded, to know what changed
+
+    @property
+    def changed(self) -> bool:
+        return tuple(self.values) != self.orig
 
 
-class TimecycParser: #vers 1
-    def __init__(self): #vers 1
+def _fmt_value(v, old_token: str = "") -> str:
+    if isinstance(v, float) or '.' in old_token:
+        t = f"{float(v):.4f}".rstrip('0')
+        return t + '0' if t.endswith('.') else t
+    return str(int(v))
+
+
+class TimecycParser: #vers 2
+    """timecyc.dat / timecycp.dat. Keeps the original lines (section comments,
+    spacing, CRLF); only rows whose values changed are rewritten, and only the
+    changed numbers inside them - an untouched file saves byte-identical."""
+
+    def __init__(self): #vers 2
         self.rows:         List[TimecycRow] = []
         self.header_lines: List[str]        = []
         self.game:         str              = 'VC'
         self.cols_per_row: int              = 33
+        self._lines:       List[str]        = []
+        self._eol:         str              = "\n"
+
+    @property
+    def dirty(self) -> bool:
+        return any(r.changed for r in self.rows)
 
     def _detect_game(self, num_values: int, filename: str = '') -> str: #vers 3
         # LC/GTA3=40 fields, VC=52 fields, SA=51 fields, timecycp=52 fields (SA PSP)
@@ -221,7 +245,7 @@ class TimecycParser: #vers 1
         if self.game == 'GTA3': return 8, 12   # 8 logical weathers, 12 time slots
         return 7, 24  # VC
 
-    def _parse_line(self, line: str, weather: int, time: int) -> Optional[TimecycRow]: #vers 2
+    def _parse_line(self, line: str, weather: int, time: int) -> Optional[TimecycRow]: #vers 3
         """Parse one data line into a TimecycRow."""
         s = line.strip()
         if not s or s.startswith('/'):
@@ -238,48 +262,36 @@ class TimecycParser: #vers 1
             values = [(float(p) if '.' in p else int(float(p))) for p in parts]
         except ValueError:
             return None
-        row = TimecycRow(weather=weather, time=time, values=values, comment=comment)
-        return row
+        return TimecycRow(weather=weather, time=time, values=values, comment=comment)
 
-    def load(self, path: str, known_game: str = None) -> bool: #vers 2
+    def load(self, path: str, known_game: str = None) -> bool: #vers 3
         try:
+            text = Path(path).read_bytes().decode("latin1")
+            self._eol = "\r\n" if "\r\n" in text else "\n"
+            self._lines = text.split(self._eol)
             self.rows.clear()
             self.header_lines.clear()
-            with open(path, 'r', encoding='latin-1') as f:
-                lines = [ln for ln in f]
-
+            first = None
+            for ln in self._lines:
+                s = ln.strip()
+                if s and not s.startswith('/'):
+                    parts = s.split('//')[0].split()
+                    if len(parts) >= 10:
+                        first = len(parts)
+                        break
             if known_game:
                 self.game = 'VC' if known_game.lower() == 'sol' else known_game.upper()
-                for ln in lines:
-                    s = ln.strip()
-                    if s and not s.startswith('/'):
-                        parts = s.split()
-                        if len(parts) >= 10:
-                            self.cols_per_row = len(parts)
-                            break
-            else:
-                for ln in lines:
-                    s = ln.strip()
-                    if s and not s.startswith('/'):
-                        parts = s.split()
-                        if len(parts) >= 10:
-                            self.game = self._detect_game(len(parts), path)
-                            self.cols_per_row = len(parts)
-                            break
-
-            # Parse rows — weather-major ordering
+            elif first:
+                self.game = self._detect_game(first, path)
+            if first:
+                self.cols_per_row = first
             n_weathers, n_times = self._get_game_layout()
-
-            data_lines = [ln for ln in lines if ln.strip() and not ln.strip().startswith('/')]
-            comment_lines = [ln for ln in lines if ln.strip().startswith('/')]
-            self.header_lines = comment_lines[:3]
-
+            self.header_lines = [ln for ln in self._lines if ln.strip().startswith('/')][:3]
             row_idx = 0
-            for ln in data_lines:
-                weather = row_idx // n_times
-                time    = row_idx % n_times
-                r = self._parse_line(ln, weather, time)
+            for i, ln in enumerate(self._lines):
+                r = self._parse_line(ln, row_idx // n_times, row_idx % n_times)
                 if r:
+                    r.raw_index, r.orig = i, tuple(r.values)
                     self.rows.append(r)
                     row_idx += 1
             return True
@@ -287,18 +299,47 @@ class TimecycParser: #vers 1
             print(f"TimecycParser.load: {ex}")
             return False
 
-    def save(self, path: str) -> bool: #vers 1
+    def to_text(self) -> str: #vers 1
+        by_line = {r.raw_index: r for r in self.rows}
+        out = []
+        for i, ln in enumerate(self._lines):
+            r = by_line.get(i)
+            if r is None or not r.changed:
+                out.append(ln)
+                continue
+            body, sl, cm = ln.partition('//')
+            toks = re.split(r'(\s+)', body)
+            slots = [k for k, t in enumerate(toks) if t and not t.isspace()]
+            for k, (old, new) in enumerate(zip(r.orig, r.values)):
+                if old != new and k < len(slots):
+                    toks[slots[k]] = _fmt_value(new, toks[slots[k]])
+            out.append(''.join(toks) + sl + cm)
+        return self._eol.join(out)
+
+    def save(self, path: str) -> bool: #vers 2
+        """Atomic write (temp file in the same folder, then swap in), then
+        re-baseline so `changed` is false again."""
+        import tempfile
         try:
-            with open(path, 'w', encoding='latin-1') as f:
-                for ln in self.header_lines:
-                    f.write(ln if ln.endswith('\n') else ln + '\n')
-                # Sort: time-major order (time0/weather0..7, time1/weather0..7 ...)
-                ordered = sorted(self.rows, key=lambda r: (r.weather, r.time))
-                for r in ordered:
-                    line = ' '.join(str(v) for v in r.values)
-                    if r.comment:
-                        line += f'  {r.comment}'
-                    f.write(line + '\n')
+            data = self.to_text().encode("latin1", errors="replace")
+            d = os.path.dirname(os.path.abspath(path))
+            fd, tmp = tempfile.mkstemp(dir=d, prefix=".tcy_", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "wb") as f:
+                    f.write(data)
+                if os.path.exists(path):
+                    try:
+                        os.chmod(tmp, os.stat(path).st_mode & 0o7777)
+                    except OSError:
+                        pass
+                os.replace(tmp, path)
+            except Exception:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+                raise
+            self._lines = data.decode("latin1").split(self._eol)
+            for r in self.rows:
+                r.orig = tuple(r.values)
             return True
         except Exception as ex:
             print(f"TimecycParser.save: {ex}")
@@ -393,11 +434,14 @@ class _RotatedHeaderView(QHeaderView): #vers 1
         painter.restore()
 
 
-class TimecycWorkshop(GUIWorkshop): #vers 1
+class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
     App_name   = "Time Cycle Workshop"
     App_build  = "Build 2"
     App_auth   = "X-Seti"
     config_key = "timecyc_editor"
+    _ribbon_name = "timecyc_editor"
+    # Bump when the set of ribbons changes (1 = File/Edit/Tools)
+    _RIBBON_LAYOUT_VERSION = 1
 
     def __init__(self, main_window=None, parent=None):
         self._defer_setup_ui = True
@@ -410,7 +454,11 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         self._field_widgets: Dict[str, QWidget] = {}
         self._colour_swatches: Dict[str, QLabel] = {}
         self._blocking      = False
+        self._undo_stack, self._redo_stack = [], []
+        self._last_undo_key = None
+        self._clip = None
         self.setup_ui()
+        self.ribbon_restore_state()
         if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
         self._set_status("Open a timecyc.dat file to begin")
 
@@ -588,17 +636,20 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
         # Rebuild for current game
         self._build_field_groups(cg, sf, cg2)
 
-    def _open_file(self, path=None): #vers 3
+    def _open_file(self, path=None): #vers 4
         if path is False or path is True: path = None  # Qt passes checked=bool from button signal
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open timecyc.dat / timecycp.dat", "",
                 "DAT files (timecyc.dat timecycp.dat *.dat);;All files (*)")
         if not path: return
-        if not self._parser.load(path):
+        parser = TimecycParser()
+        if not parser.load(path):
             QMessageBox.critical(self, "Error", f"Failed to load {path}"); return
+        self._parser = parser
         self._current_path = path
-        self._modified = False
+        self._current_row = None
+        self._undo_stack.clear(); self._redo_stack.clear(); self._last_undo_key = None
         game = self._parser.game
         # Resize grid to match actual game data
         n_weathers, n_times = self._parser._get_game_layout()
@@ -619,26 +670,48 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             self._grid.setColumnWidth(c, 48)
         self._rebuild_field_widgets()
         self._populate_grid()
-        self._set_status(f"Loaded {os.path.basename(path)} — {len(self._parser.rows)} rows [{game}]")
-        if hasattr(self, 'save_btn'):    self.save_btn.setEnabled(True)
-        if hasattr(self, 'convert_btn'): self.convert_btn.setEnabled(True)
+        self._update_modified()
+        self._set_status(f"Loaded {os.path.basename(path)} - {len(self._parser.rows)} rows [{game}]")
 
-    def _save_file(self, _checked=False): #vers 3
+    def _save_file(self, _checked=False): #vers 4
+        """Back up the existing file, then write it atomically."""
         if not self._parser.rows:
             self._set_status("Nothing to save"); return
         if not self._current_path:
-            self._current_path, _ = QFileDialog.getSaveFileName(
-                self, "Save timecyc.dat", "timecyc.dat", "DAT files (*.dat);;All files (*)")
-        if not self._current_path:
-            return
-        print(f"[TimecycWorkshop] saving to {self._current_path}")
+            self._save_as(); return
+        if not self._parser.dirty:
+            self._set_status("Nothing to save"); return
+        from apps.methods.file_backup import backup_file, note_change
+        if os.path.exists(self._current_path):
+            note_change(f"Save {os.path.basename(self._current_path)}")
+            if backup_file(self._current_path) is None:
+                QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                return
         if self._parser.save(self._current_path):
-            self._modified = False
-            if hasattr(self, 'save_btn'): self.save_btn.setEnabled(False)
+            self._update_modified()
             self._set_status(f"Saved {os.path.basename(self._current_path)}")
         else:
-            QMessageBox.critical(self, "Save Error",
-                f"Could not save to:\n{self._current_path}")
+            QMessageBox.critical(self, "Save Error", f"Could not save to:\n{self._current_path}")
+
+    def _save_as(self): #vers 2
+        if not self._parser.rows:
+            return
+        p, _ = QFileDialog.getSaveFileName(
+            self, "Save timecyc.dat as", self._current_path or "timecyc.dat", "DAT files (*.dat);;All files (*)")
+        if not p:
+            return
+        from apps.methods.file_backup import backup_file, note_change
+        if os.path.exists(p):
+            note_change(f"Save {os.path.basename(p)}")
+            if backup_file(p) is None:
+                QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                return
+        if self._parser.save(p):
+            self._current_path = p
+            self._update_modified()
+            self._set_status(f"Saved as {os.path.basename(p)}")
+        else:
+            QMessageBox.critical(self, "Save Error", f"Could not save to:\n{p}")
 
     def _populate_grid(self): #vers 3
         n_times    = self._grid.rowCount()
@@ -711,6 +784,7 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
 
         # Update values in current row
         vals = self._current_row.values
+        self._push_undo((id(self._current_row), key))
 
         # Colour group field
         cg, sf, cg2 = self._get_field_groups()
@@ -735,8 +809,7 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
                 vals[idx] = value
                 break
 
-        self._modified = True
-        if hasattr(self, 'save_btn'): self.save_btn.setEnabled(True)
+        self._update_modified()
         self._update_preview(self._current_row)
         # Update grid cell colour using game-correct sky top index
         t, w2 = self._current_row.time, self._current_row.weather
@@ -777,6 +850,136 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
             sun_core = rgb(21)  # VC Sun Core [21-23]
             fog      = sv(34)   # VC Fog Start[34]
         self._sky_preview.set_colors(sky_top, sky_bot, ambient, sun_core, fog)
+
+    # -- tools
+    def _row_at(self, weather: int, time: int):
+        return self._parser.get_row(weather=weather, time=time)
+
+    def _selected_cell(self):
+        r, c = self._grid.currentRow(), self._grid.currentColumn()
+        return (c, r) if r >= 0 and c >= 0 else None     # (weather, time)
+
+    def _copy_cell(self): #vers 1
+        cell = self._selected_cell()
+        row = self._row_at(*cell) if cell else None
+        if row is None:
+            self._set_status("Select a preset first")
+            return
+        self._clip = list(row.values)
+        self._set_status("Preset copied")
+
+    def _paste_cell(self): #vers 1
+        cell = self._selected_cell()
+        row = self._row_at(*cell) if cell else None
+        if row is None or self._clip is None:
+            self._set_status("Copy a preset, then select where to paste")
+            return
+        self._push_undo()
+        row.values = [self._clip[i] if i < len(self._clip) else v for i, v in enumerate(row.values)]
+        self._populate_grid()
+        self._populate_fields(row)
+        self._update_modified()
+        self._set_status("Preset pasted")
+
+    def _copy_weather(self): #vers 1
+        cell = self._selected_cell()
+        if not cell:
+            self._set_status("Select a preset of the weather to copy")
+            return
+        from PyQt6.QtWidgets import QInputDialog
+        n_w = self._grid.columnCount()
+        names = [self._grid.horizontalHeaderItem(c).text() if self._grid.horizontalHeaderItem(c) else str(c)
+                 for c in range(n_w)]
+        pick, ok = QInputDialog.getItem(self, "Copy weather", f"Copy '{names[cell[0]]}' onto:", names, 0, False)
+        if not ok:
+            return
+        dst = names.index(pick)
+        if dst == cell[0]:
+            return
+        self._push_undo()
+        n = 0
+        for t in range(self._grid.rowCount()):
+            a, b = self._row_at(cell[0], t), self._row_at(dst, t)
+            if a is not None and b is not None:
+                b.values = list(a.values)
+                n += 1
+        self._populate_grid()
+        self._update_modified()
+        self._set_status(f"Copied {n} presets from {names[cell[0]]} to {pick}")
+
+    def _blend_times(self): #vers 1
+        """Linear blend of every value between the first and last selected
+        time of the current weather (select the two end presets with Ctrl+click)."""
+        cell = self._selected_cell()
+        sel = sorted({(i.column(), i.row()) for i in self._grid.selectedIndexes()})
+        if not cell or len(sel) < 2 or len({w for w, _ in sel}) != 1:
+            QMessageBox.information(self, "Blend",
+                "Ctrl+click two presets of the SAME weather (the first and last time), then Blend.")
+            return
+        w = sel[0][0]
+        t0, t1 = sel[0][1], sel[-1][1]
+        a, b = self._row_at(w, t0), self._row_at(w, t1)
+        if a is None or b is None or t1 - t0 < 2:
+            return
+        self._push_undo()
+        for t in range(t0 + 1, t1):
+            r = self._row_at(w, t)
+            if r is None:
+                continue
+            f = (t - t0) / (t1 - t0)
+            r.values = [type(x)(round(x + (y - x) * f, 4)) if isinstance(x, float) else int(round(x + (y - x) * f))
+                        for x, y in zip(a.values, b.values)] + list(r.values[len(a.values):])
+        self._populate_grid()
+        self._update_modified()
+        self._set_status(f"Blended {t1 - t0 - 1} preset(s) between times {t0} and {t1}")
+
+    def _tint_dialog(self): #vers 1
+        cg, sf, cg2 = self._get_field_groups()
+        groups = cg + cg2
+        if not self._parser.rows:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Tint a colour group")
+        fl = QFormLayout(dlg)
+        gsel = QComboBox(); gsel.addItems([g for g, _ in groups])
+        n_w = self._grid.columnCount()
+        wsel = QComboBox(); wsel.addItem("All weathers")
+        for c in range(n_w):
+            it = self._grid.horizontalHeaderItem(c)
+            wsel.addItem(it.text() if it else str(c))
+        cur = self._selected_cell()
+        if cur:
+            wsel.setCurrentIndex(cur[0] + 1)
+        sp = []
+        for lab in ("Red", "Green", "Blue"):
+            d = QSpinBox(); d.setRange(-255, 255)
+            fl.addRow(f"Add {lab}:", d); sp.append(d)
+        fl.insertRow(0, "Colour group:", gsel)
+        fl.insertRow(1, "Weather:", wsel)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        fl.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        d = [x.value() for x in sp]
+        if not any(d):
+            return
+        base = groups[gsel.currentIndex()][1]
+        wi = wsel.currentIndex() - 1
+        self._push_undo()
+        n = 0
+        for r in self._parser.rows:
+            if wi >= 0 and r.weather != wi:
+                continue
+            for k in range(3):
+                if base + k < len(r.values):
+                    r.values[base + k] = max(0, min(255, int(r.values[base + k]) + d[k]))
+            n += 1
+        self._populate_grid()
+        if self._current_row is not None:
+            self._populate_fields(self._current_row)
+        self._update_modified()
+        self._set_status(f"Tinted {gsel.currentText()} on {n} preset(s)")
 
     def _export_file(self): #vers 2
         """Export current timecyc to a different game format."""
@@ -937,23 +1140,107 @@ class TimecycWorkshop(GUIWorkshop): #vers 1
 
         return list(v)  # same game, no change
 
-    def setup_ui(self): #vers 7
-        super().setup_ui()
-        # Explicitly rewire toolbar buttons to THIS class's methods
+    def setup_ui(self): #vers 8
+        """Titlebar / [grid | fields + sky preview] inside the ribbon host / status bar."""
+        ml = QVBoxLayout(self)
+        ml.setContentsMargins(*self.get_content_margins())
+        ml.setSpacing(self.setspacing)
+        ml.addWidget(self._create_toolbar())
+        ml.addWidget(self.ribbon_wrap(self._create_centre_panel()), 1)
+        self._build_ribbons()
+        self._status_widget = self._create_status_bar()
+        ml.addWidget(self._status_widget)
+        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        self._set_action_btns_visible(False)      # the ribbons replace the old button bar
+
+    def _create_toolbar(self): #vers 2
+        tb = super()._create_toolbar()
+        for name in ("open_btn", "save_btn", "export_btn", "import_btn"):
+            btn = getattr(self, name, None)
+            if btn:
+                btn.setVisible(False)
+        return tb
+
+    def _build_ribbons(self): #vers 1
+        B = self.ribbon_button
+        tb = self.ribbon_toolbar("File")
+        B(tb, "open_icon",   "Open timecyc.dat / timecycp.dat  (Ctrl+O)", self._open_file)
+        self.save_btn = B(tb, "save_icon", "Save  (Ctrl+S) - backs up the old file first", self._save_file, enabled=False)
+        B(tb, "saveas_icon", "Save As...", self._save_as)
+        tb.addSeparator()
+        B(tb, "convert_icon", "Convert to another game's layout...", self._convert_dialog)
+        B(tb, "import_icon",  "Import from another format", self._import_file)
+        B(tb, "export_icon",  "Export to another format", self._export_file)
+
+        tb = self.ribbon_toolbar("Edit")
+        B(tb, "undo_icon", "Undo  (Ctrl+Z)", self._undo)
+        B(tb, "redo_icon", "Redo  (Ctrl+Y)", self._redo)
+        tb.addSeparator()
+        B(tb, "copy_icon",  "Copy the selected time/weather preset", self._copy_cell)
+        B(tb, "paste_icon", "Paste it onto the selected preset", self._paste_cell)
+
+        tb = self.ribbon_toolbar("Tools")
+        B(tb, "convert_icon", "Tint a colour group: add R/G/B on one weather (or all)...", self._tint_dialog, text="Tint")
+        B(tb, "edit_icon",    "Blend the times between two selected presets of a weather", self._blend_times, text="Blend")
+        B(tb, "package_icon", "Copy the selected weather onto another weather (all times)...", self._copy_weather, text="Wthr")
+
+    def closeEvent(self, ev): #vers 1
+        if self._parser.dirty:
+            r = QMessageBox.question(
+                self, "Time Cycle Workshop", "Save changes before closing?",
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel)
+            if r == QMessageBox.StandardButton.Cancel:
+                ev.ignore()
+                return
+            if r == QMessageBox.StandardButton.Save:
+                self._save_file()
+                if self._parser.dirty:
+                    ev.ignore()
+                    return
+        self.ribbon_save_state()
+        super().closeEvent(ev)
+
+    def _update_modified(self): #vers 1
+        self._modified = self._parser.dirty
         if hasattr(self, 'save_btn'):
-            self.save_btn.clicked.disconnect()
-            self.save_btn.clicked.connect(self._save_file)
-        if hasattr(self, 'convert_btn'):
-            self.convert_btn.clicked.disconnect()
-            self.convert_btn.clicked.connect(self._convert_dialog)
-        if hasattr(self, 'open_btn'):
-            self.open_btn.clicked.disconnect()
-            self.open_btn.clicked.connect(self._open_file)
-        # Disable export/import in toolbar (handled by button bar when docked)
-        if hasattr(self, 'export_btn'): self.export_btn.setEnabled(False)
-        if hasattr(self, 'import_btn'): self.import_btn.setEnabled(False)
-        # Hide left panel action buttons when standalone (show only when docked)
-        self._set_action_btns_visible(bool(self.main_window))
+            self.save_btn.setEnabled(self._modified)
+
+    # -- undo: snapshot of every preset's values (a run of slider moves = one step)
+    def _snap(self):
+        return [(r, list(r.values)) for r in self._parser.rows]
+
+    def _push_undo(self, key=None):
+        if key is not None and self._last_undo_key == key:
+            return
+        self._last_undo_key = key
+        self._undo_stack.append(self._snap())
+        del self._undo_stack[:-60]
+        self._redo_stack.clear()
+
+    def _apply_snap(self, snap):
+        for r, v in snap:
+            r.values = list(v)
+        self._populate_grid()
+        if self._current_row is not None:
+            self._populate_fields(self._current_row)
+        self._update_modified()
+
+    def _undo(self): #vers 1
+        if not self._undo_stack:
+            self._set_status("Nothing to undo")
+            return
+        self._redo_stack.append(self._snap())
+        self._last_undo_key = None
+        self._apply_snap(self._undo_stack.pop())
+
+    def _redo(self): #vers 1
+        if not self._redo_stack:
+            self._set_status("Nothing to redo")
+            return
+        self._undo_stack.append(self._snap())
+        self._last_undo_key = None
+        self._apply_snap(self._redo_stack.pop())
 
     def _set_action_btns_visible(self, visible: bool): #vers 1
         """Show action button bar only when docked in IMG Factory.

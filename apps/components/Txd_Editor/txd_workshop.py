@@ -8215,6 +8215,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 log(f"Adding to table: {tex_name} ({idx+1}/{len(textures)})")
                 update_progress(table_progress)
 
+                from apps.methods.txd_splice import tag_loaded_texture
+                tag_loaded_texture(tex)
                 self.texture_list.append(tex)
                 self._add_texture_to_table(tex)
 
@@ -9101,7 +9103,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         return estimated_size
 
 
-    def _rebuild_txd_data(self): #vers 3
+    def _rebuild_txd_data(self): #vers 4
         """Rebuild TXD data with modified texture names and properties"""
         try:
             if not self.current_txd_data:
@@ -9154,7 +9156,20 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             # If we have original data, update it in place with new header
             if self.current_txd_data and len(self.current_txd_data) > 100:
-                rebuilt_data = bytes(original_header) + self.current_txd_data[28:]
+                # Splice from the original bytes so edits (rename/replace/
+                # delete/add) are kept and untouched textures stay byte-exact
+                from apps.methods.txd_splice import rebuild_txd
+                from apps.methods.txd_splice import build_d3d8_chunk
+                _rw = struct.unpack_from('<I', self.current_txd_data, 8)[0]
+                spliced = rebuild_txd(self.current_txd_data, self.texture_list,
+                                      lambda t: build_d3d8_chunk(t, _rw, _encode_dxt1)) \
+                    if getattr(self, 'texture_list', None) else None
+                base = spliced if spliced else self.current_txd_data
+                if spliced:
+                    original_header = bytearray(spliced[:28])
+                    if target_version != self.txd_version_id:
+                        struct.pack_into('<I', original_header, 4, target_version)
+                rebuilt_data = bytes(original_header) + base[28:]
 
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Rebuilt: {len(rebuilt_data)} bytes")
@@ -9687,6 +9702,12 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 return
 
             # Write to file
+            from apps.methods.file_backup import backup_file, note_change
+            if os.path.exists(file_path):
+                note_change(f"Save TXD {os.path.basename(file_path)}")
+                if backup_file(file_path) is None:
+                    QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                    return
             with open(file_path, 'wb') as f:
                 f.write(modified_txd_data)
 
@@ -10048,6 +10069,12 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             log(f"Final TXD size: {len(result):,} bytes ({len(result)/1024:.2f} KB)")
             log(f"Writing to: {file_path}")
 
+            from apps.methods.file_backup import backup_file, note_change
+            if os.path.exists(file_path):
+                note_change(f"Save TXD {os.path.basename(file_path)}")
+                if backup_file(file_path) is None:
+                    QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                    return
             with open(file_path, 'wb') as f:
                 f.write(result)
 
@@ -10178,6 +10205,12 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 return
 
             # Write to file
+            from apps.methods.file_backup import backup_file, note_change
+            if os.path.exists(file_path):
+                note_change(f"Save TXD {os.path.basename(file_path)}")
+                if backup_file(file_path) is None:
+                    QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                    return
             with open(file_path, 'wb') as f:
                 f.write(modified_txd_data)
 
@@ -10447,6 +10480,12 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             update_progress("Writing to file...")
 
             # Write to file
+            from apps.methods.file_backup import backup_file, note_change
+            if os.path.exists(file_path):
+                note_change(f"Save TXD {os.path.basename(file_path)}")
+                if backup_file(file_path) is None:
+                    QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+                    return
             with open(file_path, 'wb') as f:
                 f.write(modified_txd_data)
 
@@ -13261,18 +13300,17 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                              f"{tex['width']}×{tex['height']}  8bpp palettised")
 
             # Display as a single-texture list
-            if hasattr(self, 'texture_list'):
-                self.texture_list.clear()
+            self.texture_list = [tex]
             if hasattr(self, 'texture_table'):
                 self.texture_table.setRowCount(0)
 
             self._add_texture_to_table(tex)
-            self.textures = [tex]
             self.selected_texture = tex
 
-            # Show in preview
-            if tex.get('rgba_data') and tex['width'] > 0:
-                self._display_rgba_preview(tex['rgba_data'], tex['width'], tex['height'])
+            # Selecting the row drives the normal preview/info path
+            if hasattr(self, 'texture_table') and self.texture_table.rowCount():
+                self.texture_table.selectRow(0)
+                self._on_texture_selected()
 
         except Exception as e:
             import traceback; traceback.print_exc()

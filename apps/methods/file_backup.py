@@ -13,6 +13,9 @@ save, future IMG/COL physical reorder) can reuse this."""
 # backup_files
 # list_backups
 # restore_backup
+# note_change
+# undo_last_change
+# export_change_log
 
 import os
 import shutil
@@ -49,6 +52,7 @@ def backup_file(file_path: str) -> Optional[str]: #vers 1
         # Verify the real copy actually matches before trusting it.
         if os.path.getsize(backup_path) != os.path.getsize(file_path):
             return None
+        _journal_add(file_path, backup_path)
         return backup_path
     except Exception:
         return None
@@ -84,3 +88,135 @@ def restore_backup(backup_path: str, restore_to: str) -> bool: #vers 1
         return os.path.getsize(restore_to) == os.path.getsize(backup_path)
     except Exception:
         return False
+
+
+# - Change journal (Sep 20 2026, per Keith: group undo + change log).
+# Every successful backup_file() is also recorded here, so one
+# operation that rewrites an IDE, several IPLs and an IFX can be
+# undone or logged as ONE change. Backups made within _GROUP_GAP
+# seconds of each other belong to the same change.
+
+import json
+import time
+
+_GROUP_GAP = 5.0
+_pending_label = ""
+
+
+def _journal_path() -> str: #vers 1
+    return os.path.join(os.path.expanduser("~"), ".config", "imgfactory", "change_journal.json")
+
+
+def _journal_load() -> list: #vers 1
+    try:
+        with open(_journal_path(), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _journal_save(entries: list): #vers 1
+    try:
+        os.makedirs(os.path.dirname(_journal_path()), exist_ok=True)
+        with open(_journal_path(), "w", encoding="utf-8") as f:
+            json.dump(entries[-500:], f, indent=1)
+    except Exception:
+        pass
+
+
+def _journal_add(file_path: str, backup_path: str): #vers 1
+    global _pending_label
+    entries = _journal_load()
+    now = time.time()
+    if entries and now - entries[-1]["time"] <= _GROUP_GAP:
+        group = entries[-1]["group"]
+        label = entries[-1].get("label", "")
+    else:
+        group = int(now * 1000)
+        label = _pending_label
+    _pending_label = ""
+    entries.append({"group": group, "time": now, "file": file_path,
+                    "backup": backup_path, "label": label})
+    _journal_save(entries)
+
+
+def note_change(label: str): #vers 1
+    """Name the NEXT change (e.g. "Rename ID 865 ap_tower -> ap_tower_v2")
+    so the change log reads clearly. Call just before the writes."""
+    global _pending_label
+    _pending_label = label
+
+
+def undo_last_change() -> Optional[List[str]]: #vers 1
+    """Restore every file of the most recent change group from its
+    backup, then drop that group. Returns the restored file paths,
+    or None if there's nothing to undo."""
+    entries = _journal_load()
+    if not entries:
+        return None
+    group = entries[-1]["group"]
+    batch = [e for e in entries if e["group"] == group]
+    restored = []
+    # oldest backup per file = the state before this change began
+    first_by_file = {}
+    for e in batch:
+        first_by_file.setdefault(e["file"], e["backup"])
+    for path, bak in first_by_file.items():
+        try:
+            shutil.copy2(bak, path)
+            restored.append(path)
+        except Exception:
+            pass
+    _journal_save([e for e in entries if e["group"] != group])
+    return restored
+
+
+def export_change_log(dest_path: str) -> bool: #vers 1
+    """Write the journal as a readable text log, one block per change."""
+    entries = _journal_load()
+    if not entries:
+        return False
+    groups: Dict[int, list] = {}
+    for e in entries:
+        groups.setdefault(e["group"], []).append(e)
+    lines = ["Img Factory change log", ""]
+    for g in sorted(groups):
+        batch = groups[g]
+        when = datetime.fromtimestamp(batch[0]["time"]).strftime("%Y-%m-%d %H:%M:%S")
+        label = batch[0].get("label") or "(unlabelled change)"
+        lines.append(f"{when}  {label}")
+        for path in sorted({e["file"] for e in batch}):
+            lines.append(f"    {path}")
+        lines.append("")
+    try:
+        with open(dest_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        return True
+    except Exception:
+        return False
+
+
+def safe_write_bytes(path: str, data: bytes, label: str = "") -> None: #vers 1
+    """Write data to path the safe way: note the change in the journal, back
+    the existing file up (raises if that fails - nothing is overwritten), then
+    write to a temp file in the same folder and swap it in."""
+    import tempfile
+    if os.path.exists(path):
+        note_change(label or f"Save {os.path.basename(path)}")
+        if backup_file(path) is None:
+            raise IOError(f"Backup of {os.path.basename(path)} failed - file not overwritten")
+    d = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".sv_", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        if os.path.exists(path):
+            try:
+                os.chmod(tmp, os.stat(path).st_mode & 0o7777)
+            except OSError:
+                pass
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
