@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 193
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 194
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -6335,8 +6335,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         painter.end()
 
 
-    def _get_resize_corner(self, pos): #vers 3
+    def _get_resize_corner(self, pos): #vers 4
         """Determine which corner is under mouse position"""
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
         size = self.corner_size; w = self.width(); h = self.height()
 
         if pos.x() < size and pos.y() < size:

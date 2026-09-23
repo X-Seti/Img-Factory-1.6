@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 91 (Build 418)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 92 (Build 418)
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -15851,7 +15851,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if bir: bir.setVisible(not wide)
 
 
-    def _get_resize_corner(self, pos): #vers 1
+    def _get_resize_corner(self, pos): #vers 2
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
         size = self.corner_size; w = self.width(); h = self.height()
         if pos.x() < size and pos.y() < size:           return "top-left"
         if pos.x() > w - size and pos.y() < size:       return "top-right"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop//asset_workshop.py - Version: 1
+#this belongs in apps/components/Asset_Workshop//asset_workshop.py - Version: 2
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -2365,9 +2365,11 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return False
 
 
-    def paintEvent(self, event): #vers 2
+    def paintEvent(self, event): #vers 3
         """Paint corner resize triangles"""
         super().paintEvent(event)
+        if not self.standalone_mode:           # docked: no corner handles
+            return
 
         from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
 
@@ -2427,8 +2429,10 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         painter.end()
 
 
-    def _get_resize_corner(self, pos): #vers 3
+    def _get_resize_corner(self, pos): #vers 4
         """Determine which corner is under mouse position"""
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
         size = self.corner_size; w = self.width(); h = self.height()
 
         if pos.x() < size and pos.y() < size:

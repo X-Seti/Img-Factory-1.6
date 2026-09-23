@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 193
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 194
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -10660,8 +10660,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         painter.end()
 
 
-    def _get_resize_corner(self, pos): #vers 3
+    def _get_resize_corner(self, pos): #vers 4
         """Determine which corner is under mouse position"""
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
         size = self.corner_size; w = self.width(); h = self.height()
 
         if pos.x() < size and pos.y() < size:

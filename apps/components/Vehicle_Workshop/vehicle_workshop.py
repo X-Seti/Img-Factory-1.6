@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 6
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 7
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -3544,7 +3544,9 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
 
 
     #    Window chrome
-    def _get_resize_corner(self, pos): #Vers 1  #vers 1
+    def _get_resize_corner(self, pos): #Vers 2  #vers 1
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
         s = self.corner_size; x, y = pos.x(), pos.y()
         w, h = self.width(), self.height()
         if x < s and y < s:    return "top-left"

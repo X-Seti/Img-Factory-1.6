@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Ai_Workshop/ai_workshop.py - Version: 1
+# apps/components/Ai_Workshop/ai_workshop.py - Version: 2
 # X-Seti - March 2026 - AI Workshop: Ollama chat interface
 # Based on COL Workshop template (col_workshop.py)
 
@@ -2146,7 +2146,9 @@ class AIWorkshop(QWidget):
     # Corner resize + dragging (identical pattern to COL Workshop)
     # -----------------------------------------------------------------------
 
-    def _get_resize_corner(self, pos):
+    def _get_resize_corner(self, pos): #vers 1
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
         size = self.corner_size; w = self.width(); h = self.height()
         if pos.x() < size and pos.y() < size:           return "top-left"
         if pos.x() > w - size and pos.y() < size:       return "top-right"
@@ -2247,8 +2249,10 @@ class AIWorkshop(QWidget):
             if nw >= min_w and nh >= min_h:
                 self.setGeometry(nx, ny, nw, nh)
 
-    def paintEvent(self, event):
+    def paintEvent(self, event): #vers 1
         super().paintEvent(event)
+        if not self.standalone_mode:           # docked: no corner handles
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if self.app_settings:

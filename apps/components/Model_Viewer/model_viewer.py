@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 2
+#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 3
 # X-Seti - May10 2026 - IMG Factory 1.6 - DFF Model Viewer
 """
 DFF Model Viewer - OpenGL hardware 3D viewer for GTA RenderWare DFF files.
@@ -1650,7 +1650,9 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
 
 
     # - window chrome (from RadarWorkshop)
-    def _get_resize_corner(self, pos): #vers 1
+    def _get_resize_corner(self, pos): #vers 2
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
         s=self.corner_size; w=self.width(); h=self.height()
         if pos.x()<s and pos.y()<s:           return "top-left"
         if pos.x()>w-s and pos.y()<s:         return "top-right"

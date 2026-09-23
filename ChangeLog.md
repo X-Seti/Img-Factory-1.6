@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 129
+#this belongs in root /ChangeLog.md - Version: 130
+
+## Sep 23 2026 - Workshops: no corner handles or corner resize when docked, Build 431.91
+
+_get_resize_corner returns None when docked: AI, Asset, COL, DP5, Map, Model, Model Viewer, Radar, TXD, Vehicle. Corner triangles now standalone only in AI, Asset, COL, TXD.
 
 ## Sep 23 2026 - gui_workshop: no corner handles when docked, Build 431.91
 

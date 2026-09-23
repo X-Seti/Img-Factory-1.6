@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 20
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 21
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -4408,7 +4408,9 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         if bir: bir.setVisible(not wide)
 
 
-    def _get_resize_corner(self, pos): #Vers 1
+    def _get_resize_corner(self, pos): #Vers 2
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
         size = self.corner_size; w = self.width(); h = self.height()
         if pos.x() < size and pos.y() < size:           return "top-left"
         if pos.x() > w - size and pos.y() < size:       return "top-right"
