@@ -978,3 +978,33 @@ Not started - needs its own design pass before implementation:
   cull/occl/grge/inst-conversion/dat-directive-reordering - the
   mechanism is proven, only the actual target ordering rule for
   entries-within-a-file needs to be confirmed first.
+
+## Planned use cases (Sep 23 2026)
+
+### Editing
+- Duplicate / clone object (Ctrl+D) at gizmo position; new line in same IPL.
+- Rotate gizmo: Z/X/Y rings alongside move arrows.
+- Multi-select objects (box select, Shift+click); move/rotate/delete together.
+- Drop to ground: snap Z to collision or terrain below.
+- Align / distribute: line up fences, lamp posts along a line, even spacing.
+- Place from Object Browser: drag model into viewport to create instance.
+
+### Map integrity
+- LOD link checker: find broken or missing lod_index targets; repair on add/delete (SA binary streams).
+- ID conflict checker: duplicate / unused model IDs across IDEs before save.
+- Missing asset report: IDE entries with no DFF / TXD / COL in any IMG.
+- Instance limit meter: per-IPL and per-stream counts vs III / VC / SA engine limits.
+
+### Cross-game conversion
+- Convert IPL between III / VC / SA formats (rotation convention, scale fields).
+- Rebase map area: shift + rotate + save, e.g. merge LC into SA.
+
+### Integration
+- SCM Workshop: show script-placed objects, pickups, car generators from main.scm; jump to opcode.
+- Engine load log: replay IDE / IPL / stream load order for loaded world (Hex Workshop dev console).
+- Radar Workshop: regenerate only radar tiles touched by changed IPLs.
+
+### Workflow
+- Diff view: current vs disk or save point, per-IPL change list.
+- Export changes as mod package: changed IPL / IDE / IMG entries plus readme.
+- Camera bookmarks: jump between work areas.
