@@ -1,20 +1,29 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 16
+# this belongs in apps/methods/dff_viewport.py - Version: 17
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
 Standalone tools import from their own methods/dff_viewport.py.
 
 ##Methods list -
+# DFFViewport.dragEnterEvent
+# DFFViewport.dragMoveEvent
 # DFFViewport._draw_gizmo
+# DFFViewport._draw_rubber_band
+# DFFViewport._draw_selection_marks
+# DFFViewport.dropEvent
+# DFFViewport._entry_for
+# DFFViewport._entry_radius
 # DFFViewport._gizmo_axis_param
 # DFFViewport._gizmo_begin
+# DFFViewport._gizmo_cancel
 # DFFViewport._gizmo_end
 # DFFViewport._gizmo_entry
 # DFFViewport._gizmo_pick_axis
 # DFFViewport._gizmo_project
 # DFFViewport._gizmo_size
 # DFFViewport._gizmo_update
+# DFFViewport.ground_z_below
 # DFFViewport.__init__
 # DFFViewport._anim_tick
 # DFFViewport._apply_selection_click
@@ -43,13 +52,25 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._pick_ray
 # DFFViewport._pick_vertex
 # DFFViewport._point_seg_dist2
+# DFFViewport._quat_axis
+# DFFViewport._quat_mul
+# DFFViewport._quat_rotate
 # DFFViewport._ray_triangle_intersect
 # DFFViewport._rebuild_anim_geoms
 # DFFViewport._refresh
+# DFFViewport._ring_angle
+# DFFViewport._ring_points
+# DFFViewport._rubber_select
 # DFFViewport._rw_wrap_to_gl
+# DFFViewport._seg2d_dist2
+# DFFViewport.selected_instances
 # DFFViewport._selected_set_for_mode
 # DFFViewport.set_gizmo_move_callback
+# DFFViewport.set_gizmo_rotate_callback
 # DFFViewport.set_gizmo_target
+# DFFViewport.set_model_drop_callback
+# DFFViewport.set_selection
+# DFFViewport.set_selection_callback
 # DFFViewport._setup_lighting
 # DFFViewport._strip_tex_suffix
 # DFFViewport._upload_textures
@@ -334,6 +355,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._gizmo_move_callback = None        # fn(inst, dx, dy, dz) on drag end
         self._gizmo_drag = None                 # dict while dragging
         self._gizmo_hover_axis = None
+        self._gizmo_rotate_callback = None      # fn(insts, axis, angle, pivot)
+        self._selection_callback = None         # fn(insts, primary)
+        self._model_drop_callback = None        # fn(model_id, pos)
+        self._sel_insts = []                    # multi-selection
+        self._rubber = None                     # (x0, y0, x1, y1) while box selecting
         # Axis lock (Aug 18 2026)
         self._ipl_drag_axis_lock = None
         # 3-state Drag/Move/Rotate cycle (Aug 19 2026)
@@ -923,7 +949,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_MODELVIEW)
         self._label_widget.move(4, 2)
 
-    def paintGL(self): #vers 8
+    def paintGL(self): #vers 9
         if not OPENGL_AVAILABLE: return
         bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
@@ -985,8 +1011,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_selected_box_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
+            if self._sel_insts:
+                self._draw_selection_marks()
             if self._gizmo_inst is not None:
                 self._draw_gizmo()
+            if self._rubber is not None:
+                self._draw_rubber_band()
             if self._show_grid: self._draw_grid()
             # Water drawn after the grid now (Aug 20 2026)
             if self.show_water:
@@ -3885,7 +3915,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             pass
         self.update()
 
-    def mousePressEvent(self, event): #vers 5
+    def mousePressEvent(self, event): #vers 6
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.RightButton:
             # Tracks where a right-click started (Aug 19 2026)
@@ -3915,9 +3945,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._dragging_box_corner_live_z = info['pos'][2]
                 self.update()
                 return
-            # Single-object gizmo: arrow = axis drag, Ctrl+click object = free drag
+            # Object gizmo / selection: handles, Ctrl+click drag, Shift+click toggle, Shift+drag box
             if self._gizmo_move_callback is not None and not getattr(self, '_ipl_drag_mode', False):
-                if self._gizmo_begin(mx, my, event.modifiers()):
+                mods = event.modifiers()
+                if self._gizmo_begin(mx, my, mods):
+                    return
+                if mods & Qt.KeyboardModifier.ShiftModifier:
+                    idx = self._pick_world_instance(mx, my)
+                    inst = self._world_instances[idx].get('instance') if idx is not None else None
+                    if inst is not None:
+                        sel = [i for i in self._sel_insts if i is not inst]
+                        if len(sel) == len(self._sel_insts):
+                            sel.append(inst)
+                        self.set_selection(sel, sel[-1] if sel else None)
+                    else:
+                        self._rubber = (mx, my, mx, my)
                     return
             # Whole-IPL-section dragging (Aug 18 2026)
             if getattr(self, '_ipl_drag_mode', False):
@@ -4004,7 +4046,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._notify_selection_changed()
                 self.update()
 
-    def mouseMoveEvent(self, event): #vers 4
+    def mouseMoveEvent(self, event): #vers 5
         dx = event.pos().x() - self._last_pos.x()
         dy = event.pos().y() - self._last_pos.y()
         sens = getattr(self, '_mouse_sensitivity', 1.0)
@@ -4058,7 +4100,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self.update()
         elif (event.buttons() & Qt.MouseButton.LeftButton
               and self._gizmo_drag is not None):
-            self._gizmo_update(event.pos().x(), event.pos().y())
+            self._gizmo_update(event.pos().x(), event.pos().y(), event.modifiers())
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and self._rubber is not None):
+            self._rubber = (self._rubber[0], self._rubber[1], event.pos().x(), event.pos().y())
         elif (event.buttons() & Qt.MouseButton.LeftButton
               and getattr(self, '_dragging_ipl_names', None)):
 
@@ -4117,26 +4162,57 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self.set_lod_test_center(ground_pos)
                 callback(ground_pos)
 
-    # -- single-object move gizmo (Sep 23 2026)
-    def set_gizmo_move_callback(self, callback): #vers 1
-        """fn(inst, dx, dy, dz) called when a gizmo move ends; None disables the gizmo."""
+    # -- object gizmo: move arrows, rotate rings, multi-select (Sep 23 2026)
+    def set_gizmo_move_callback(self, callback): #vers 2
+        """fn(insts, dx, dy, dz) after a move drag; None disables gizmo and selection."""
         self._gizmo_move_callback = callback
         if callback is None:
             self._gizmo_inst = None
+            self._sel_insts = []
             self.update()
 
-    def set_gizmo_target(self, inst): #vers 1
-        """Show the move gizmo on this instance (None hides it)."""
-        self._gizmo_inst = inst if self._gizmo_move_callback is not None else None
+    def set_gizmo_rotate_callback(self, callback): #vers 1
+        """fn(insts, axis, angle_deg, pivot) after a rotate drag."""
+        self._gizmo_rotate_callback = callback
+
+    def set_selection_callback(self, callback): #vers 1
+        """fn(insts, primary) whenever the object selection changes."""
+        self._selection_callback = callback
+
+    def set_model_drop_callback(self, callback): #vers 1
+        """fn(model_id, (x, y, z)) when a model is dropped from the Object Browser."""
+        self._model_drop_callback = callback
+        self.setAcceptDrops(callback is not None)
+
+    def set_gizmo_target(self, inst): #vers 2
+        """Select one instance and show the gizmo on it (None clears)."""
+        self.set_selection([inst] if inst is not None else [], inst, notify=False)
+
+    def set_selection(self, insts, primary=None, notify=True): #vers 1
+        """Replace the object selection; primary carries the gizmo."""
+        if self._gizmo_move_callback is None:
+            insts, primary = [], None
+        self._sel_insts = [i for i in insts if i is not None]
+        if primary is None and self._sel_insts:
+            primary = self._sel_insts[-1]
+        self._gizmo_inst = primary
         self._gizmo_drag = None
+        if notify and self._selection_callback is not None:
+            self._selection_callback(list(self._sel_insts), primary)
         self.update()
 
-    def _gizmo_entry(self): #vers 1
-        """World-instance entry of the gizmo target, or None."""
+    def selected_instances(self): #vers 1
+        return list(self._sel_insts)
+
+    def _entry_for(self, inst): #vers 1
         for e in getattr(self, '_world_instances', None) or []:
-            if e.get('instance') is self._gizmo_inst:
+            if e.get('instance') is inst:
                 return e
         return None
+
+    def _gizmo_entry(self): #vers 2
+        """World-instance entry of the gizmo target, or None."""
+        return self._entry_for(self._gizmo_inst) if self._gizmo_inst is not None else None
 
     def _gizmo_size(self, pos): #vers 1
         """Arrow length: scales with camera distance so it stays readable."""
@@ -4166,23 +4242,43 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             try: self.doneCurrent()
             except Exception: pass
             return None
-        return [(x, h - y) for x, y, _z in out]
+        return [(x, h - y, z) for x, y, z in out]
 
-    def _gizmo_pick_axis(self, mx, my): #vers 1
-        """'x' / 'y' / 'z' arrow under the mouse, 'free' for the centre, else None."""
-        e = self._gizmo_entry() if self._gizmo_inst is not None else None
+    _RING_SEGS = 32
+
+    def _ring_points(self, c, axis, r): #vers 1
+        """Points of a rotate ring around axis at centre c."""
+        pts = []
+        for k in range(self._RING_SEGS):
+            a = 2 * math.pi * k / self._RING_SEGS
+            ca, sa = math.cos(a) * r, math.sin(a) * r
+            if axis == 'z':
+                pts.append((c[0] + ca, c[1] + sa, c[2]))
+            elif axis == 'x':
+                pts.append((c[0], c[1] + ca, c[2] + sa))
+            else:
+                pts.append((c[0] + ca, c[1], c[2] + sa))
+        return pts
+
+    def _gizmo_pick_axis(self, mx, my): #vers 2
+        """'x'/'y'/'z' arrow, 'free' centre, 'rx'/'ry'/'rz' ring under the mouse, else None."""
+        e = self._gizmo_entry()
         if e is None:
             return None
         px, py, pz = e['pos']
         L = self._gizmo_size(e['pos'])
-        pts = self._gizmo_project([(px, py, pz), (px + L, py, pz), (px, py + L, pz), (px, py, pz + L)])
+        world = [(px, py, pz), (px + L, py, pz), (px, py + L, pz), (px, py, pz + L)]
+        rings = {ax: self._ring_points((px, py, pz), ax, L * 0.8) for ax in 'xyz'}
+        for ax in 'xyz':
+            world += rings[ax]
+        pts = self._gizmo_project(world)
         if not pts:
             return None
         c = pts[0]
         if (mx - c[0]) ** 2 + (my - c[1]) ** 2 <= 64:
             return 'free'
-        best, best_d = None, 49.0                       # within 7 px of a shaft
-        for axis, tip in zip('xyz', pts[1:]):
+        best, best_d = None, 49.0                       # within 7 px
+        for axis, tip in zip('xyz', pts[1:4]):
             ax, ay = tip[0] - c[0], tip[1] - c[1]
             l2 = ax * ax + ay * ay
             if l2 < 1:
@@ -4191,7 +4287,24 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             d = (mx - c[0] - ax * t) ** 2 + (my - c[1] - ay * t) ** 2
             if t > 0.15 and d < best_d:
                 best, best_d = axis, d
+        if best is not None:
+            return best
+        n = self._RING_SEGS
+        for i, ax in enumerate('xyz'):
+            rp = pts[4 + i * n: 4 + (i + 1) * n]
+            for k in range(n):
+                a, b = rp[k], rp[(k + 1) % n]
+                d = self._seg2d_dist2(mx, my, a, b)
+                if d < best_d:
+                    best, best_d = 'r' + ax, d
         return best
+
+    @staticmethod
+    def _seg2d_dist2(mx, my, a, b): #vers 1
+        ax, ay = b[0] - a[0], b[1] - a[1]
+        l2 = ax * ax + ay * ay
+        t = 0.0 if l2 < 1e-9 else max(0.0, min(1.0, ((mx - a[0]) * ax + (my - a[1]) * ay) / l2))
+        return (mx - a[0] - ax * t) ** 2 + (my - a[1] - ay * t) ** 2
 
     def _gizmo_axis_param(self, ray, origin, axis): #vers 1
         """Parameter along a world axis line nearest the mouse ray, or None if parallel."""
@@ -4206,8 +4319,38 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         aw = a[0] * w0[0] + a[1] * w0[1] + a[2] * w0[2]
         return (b * dw - aw) / den
 
-    def _gizmo_begin(self, mx, my, modifiers): #vers 1
-        """Start a gizmo drag from an arrow, the centre, or Ctrl+click on an object."""
+    @staticmethod
+    def _quat_axis(axis, deg): #vers 1
+        """Quaternion (x, y, z, w) for a rotation about a world axis."""
+        h = math.radians(deg) * 0.5
+        s = math.sin(h)
+        v = {'x': (s, 0.0, 0.0), 'y': (0.0, s, 0.0), 'z': (0.0, 0.0, s)}[axis]
+        return (v[0], v[1], v[2], math.cos(h))
+
+    @staticmethod
+    def _quat_mul(a, b): #vers 1
+        """Hamilton product a*b of (x, y, z, w) quaternions."""
+        ax, ay, az, aw = a; bx, by, bz, bw = b
+        return (aw * bx + ax * bw + ay * bz - az * by,
+                aw * by - ax * bz + ay * bw + az * bx,
+                aw * bz + ax * by - ay * bx + az * bw,
+                aw * bw - ax * bx - ay * by - az * bz)
+
+    @classmethod
+    def _quat_rotate(cls, q, v): #vers 1
+        """Rotate vector v by quaternion q."""
+        x, y, z, w = q
+        r = cls._quat_mul(cls._quat_mul(q, (v[0], v[1], v[2], 0.0)), (-x, -y, -z, w))
+        return (r[0], r[1], r[2])
+
+    def _ring_angle(self, mx, my, axis): #vers 1
+        """Screen angle of the mouse round the pivot, signed for the axis direction."""
+        c = self._gizmo_drag['screen_c']
+        ang = math.degrees(math.atan2(-(my - c[1]), mx - c[0]))
+        return ang * self._gizmo_drag['sign']
+
+    def _gizmo_begin(self, mx, my, modifiers): #vers 2
+        """Start a gizmo drag from an arrow / ring / centre, or Ctrl+click an object."""
         axis = self._gizmo_pick_axis(mx, my) if self._gizmo_inst is not None else None
         if axis is None:
             if not (modifiers & Qt.KeyboardModifier.ControlModifier):
@@ -4215,7 +4358,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             idx = self._pick_world_instance(mx, my)
             if idx is None:
                 return False
-            self._gizmo_inst = self._world_instances[idx].get('instance')
+            inst = self._world_instances[idx].get('instance')
+            if inst is None:
+                return False
+            if inst not in self._sel_insts:
+                if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                    self.set_selection(self._sel_insts + [inst], inst)
+                else:
+                    self.set_selection([inst], inst)
+            else:
+                self._gizmo_inst = inst
             axis = 'free'
         e = self._gizmo_entry()
         if e is None:
@@ -4223,41 +4375,70 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         ray = self._pick_ray(mx, my)
         if ray is None:
             return False
-        start = tuple(e['pos'])
+        pivot = tuple(e['pos'])
+        states = []
+        for inst in (self._sel_insts or [self._gizmo_inst]):
+            se = self._entry_for(inst)
+            if se is not None:
+                states.append((inst, tuple(se['pos']), tuple(se['rot']), se['scale']))
+        drag = {'axis': axis, 'pivot': pivot, 'states': states,
+                'delta': (0.0, 0.0, 0.0), 'angle': 0.0}
         if axis == 'free':
-            ref = self._screen_to_ground_position(mx, my, ground_z=start[2])
+            drag['ref'] = self._screen_to_ground_position(mx, my, ground_z=pivot[2])
+        elif axis in 'xyz':
+            drag['ref'] = self._gizmo_axis_param(ray, pivot, axis)
         else:
-            ref = self._gizmo_axis_param(ray, start, axis)
-        if ref is None:
+            sc = self._gizmo_project([pivot])
+            if not sc:
+                return False
+            drag['screen_c'] = sc[0]
+            a = {'rx': (1, 0, 0), 'ry': (0, 1, 0), 'rz': (0, 0, 1)}[axis]
+            d = ray[1]
+            drag['sign'] = 1.0 if (a[0] * d[0] + a[1] * d[1] + a[2] * d[2]) < 0 else -1.0
+            self._gizmo_drag = drag
+            drag['ref'] = self._ring_angle(mx, my, axis)
+        if drag['ref'] is None:
             return False
-        self._gizmo_drag = {'axis': axis, 'start': start, 'rot': e['rot'], 'scale': e['scale'],
-                            'ref': ref, 'delta': (0.0, 0.0, 0.0)}
+        self._gizmo_drag = drag
         self.update()
         return True
 
-    def _gizmo_update(self, mx, my): #vers 1
-        """Move the gizmo target live while dragging."""
+    def _gizmo_update(self, mx, my, modifiers=None): #vers 2
+        """Move or rotate the selection live while dragging."""
         d = self._gizmo_drag
-        sx, sy, sz = d['start']
-        if d['axis'] == 'free':
+        axis = d['axis']
+        sx, sy, sz = d['pivot']
+        if axis in ('rx', 'ry', 'rz'):
+            ang = self._ring_angle(mx, my, axis) - d['ref']
+            ang = (ang + 180.0) % 360.0 - 180.0
+            if modifiers is not None and modifiers & Qt.KeyboardModifier.ControlModifier:
+                ang = round(ang / 15.0) * 15.0              # Ctrl: 15 degree steps
+            d['angle'] = ang
+            q = self._quat_axis(axis[1], ang)
+            for inst, pos, rot, scale in d['states']:
+                off = self._quat_rotate(q, (pos[0] - sx, pos[1] - sy, pos[2] - sz))
+                self.update_instance_transform(inst, (sx + off[0], sy + off[1], sz + off[2]),
+                                               self._quat_mul(q, rot), scale)
+            return
+        if axis == 'free':
             cur = self._screen_to_ground_position(mx, my, ground_z=sz)
             if cur is None:
                 return
             dx, dy, dz = cur[0] - d['ref'][0], cur[1] - d['ref'][1], 0.0
         else:
             ray = self._pick_ray(mx, my)
-            t = self._gizmo_axis_param(ray, d['start'], d['axis']) if ray else None
+            t = self._gizmo_axis_param(ray, d['pivot'], axis) if ray else None
             if t is None:
                 return
             m = t - d['ref']
-            dx, dy, dz = (m if d['axis'] == 'x' else 0.0, m if d['axis'] == 'y' else 0.0,
-                          m if d['axis'] == 'z' else 0.0)
-        if self._snap_targets.get('centre'):                     # snap centre to nearest other object
+            dx, dy, dz = (m if axis == 'x' else 0.0, m if axis == 'y' else 0.0, m if axis == 'z' else 0.0)
+        if self._snap_targets.get('centre'):                     # snap pivot to nearest other object
             wx, wy, wz = sx + dx, sy + dy, sz + dz
+            moving = {id(s[0]) for s in d['states']}
             best = None
             for e in self._world_instances:
                 other = e.get('instance')
-                if other is None or other is self._gizmo_inst:
+                if other is None or id(other) in moving:
                     continue
                 ox, oy, oz = e['pos']
                 d2 = (ox - wx) ** 2 + (oy - wy) ** 2 + (oz - wz) ** 2
@@ -4266,47 +4447,185 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if best is not None:
                 dx, dy, dz = best[1][0] - sx, best[1][1] - sy, best[1][2] - sz
         d['delta'] = (dx, dy, dz)
-        self.update_instance_transform(self._gizmo_inst, (sx + dx, sy + dy, sz + dz), d['rot'], d['scale'])
+        for inst, pos, rot, scale in d['states']:
+            self.update_instance_transform(inst, (pos[0] + dx, pos[1] + dy, pos[2] + dz), rot, scale)
 
-    def _gizmo_end(self): #vers 1
-        """Finish a gizmo drag: hand the move to the workshop (undo, save tracking)."""
+    def _gizmo_cancel(self): #vers 1
+        """Put the dragged selection back where it started."""
         d, self._gizmo_drag = self._gizmo_drag, None
-        dx, dy, dz = d['delta']
-        if (dx or dy or dz) and self._gizmo_move_callback is not None:
-            self.update_instance_transform(self._gizmo_inst, d['start'], d['rot'], d['scale'])
-            self._gizmo_move_callback(self._gizmo_inst, dx, dy, dz)
+        for inst, pos, rot, scale in d['states']:
+            self.update_instance_transform(inst, pos, rot, scale)
+
+    def _gizmo_end(self): #vers 2
+        """Finish a drag: restore, then hand the move / rotate to the workshop (undo, tracking)."""
+        d = self._gizmo_drag
+        self._gizmo_cancel()
+        insts = [s[0] for s in d['states']]
+        if d['axis'] in ('rx', 'ry', 'rz'):
+            if d['angle'] and self._gizmo_rotate_callback is not None:
+                self._gizmo_rotate_callback(insts, d['axis'][1], d['angle'], d['pivot'])
+        else:
+            dx, dy, dz = d['delta']
+            if (dx or dy or dz) and self._gizmo_move_callback is not None:
+                self._gizmo_move_callback(insts, dx, dy, dz)
         self.update()
 
-    def _draw_gizmo(self): #vers 1
-        """Red X, green Y, blue Z arrows on the gizmo target; hovered/dragged axis yellow."""
+    def _rubber_select(self, rect, add): #vers 1
+        """Select every instance whose centre projects inside the screen rect."""
+        x0, y0, x1, y1 = rect
+        x0, x1 = sorted((x0, x1)); y0, y1 = sorted((y0, y1))
+        entries = [e for e in self._world_instances if e.get('instance') is not None]
+        pts = self._gizmo_project([e['pos'] for e in entries]) or []
+        hit = [e['instance'] for e, p in zip(entries, pts)
+               if x0 <= p[0] <= x1 and y0 <= p[1] <= y1 and 0.0 <= p[2] <= 1.0]
+        base = list(self._sel_insts) if add else []
+        seen = {id(i) for i in base}
+        base += [i for i in hit if id(i) not in seen]
+        self.set_selection(base, base[-1] if base else None)
+
+    def _draw_selection_marks(self): #vers 1
+        """Yellow markers on every selected instance."""
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_POINT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        glColor3f(1.0, 0.85, 0.1)
+        glPointSize(7.0)
+        glBegin(GL_POINTS)
+        for inst in self._sel_insts:
+            e = self._entry_for(inst)
+            if e is not None:
+                glVertex3f(*e['pos'])
+        glEnd()
+        glPopAttrib()
+
+    def _draw_rubber_band(self): #vers 1
+        """Screen-space selection rectangle."""
+        x0, y0, x1, y1 = self._rubber
+        w = max(1, self.width()); h = max(1, self.height())
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+        glOrtho(0, w, h, 0, -1, 1)
+        glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
+        glColor3f(1.0, 0.85, 0.1); glLineWidth(1.0)
+        glBegin(GL_LINE_LOOP)
+        glVertex2f(x0, y0); glVertex2f(x1, y0); glVertex2f(x1, y1); glVertex2f(x0, y1)
+        glEnd()
+        glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
+        glPopAttrib()
+
+    def _draw_gizmo(self): #vers 2
+        """Move arrows (red X, green Y, blue Z), rotate rings, centre dot; active part yellow."""
         e = self._gizmo_entry()
         if e is None:
             return
         px, py, pz = e['pos']
         L = self._gizmo_size(e['pos'])
         active = self._gizmo_drag['axis'] if self._gizmo_drag else self._gizmo_hover_axis
+        cols = {'x': (1.0, 0.2, 0.2), 'y': (0.2, 1.0, 0.2), 'z': (0.3, 0.5, 1.0)}
         glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT | GL_POINT_BIT)
         glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
-        for axis, col, v in (('x', (1.0, 0.2, 0.2), (1, 0, 0)), ('y', (0.2, 1.0, 0.2), (0, 1, 0)),
-                             ('z', (0.3, 0.5, 1.0), (0, 0, 1))):
-            glColor3f(*((1.0, 0.9, 0.1) if active == axis else col))
+        for axis, v in (('x', (1, 0, 0)), ('y', (0, 1, 0)), ('z', (0, 0, 1))):
+            glColor3f(*((1.0, 0.9, 0.1) if active == axis else cols[axis]))
             glLineWidth(4.0 if active == axis else 2.5)
             tip = (px + v[0] * L, py + v[1] * L, pz + v[2] * L)
-            glBegin(GL_LINES)
-            glVertex3f(px, py, pz); glVertex3f(*tip)
-            # arrow head: two short lines back from the tip
             h = L * 0.15
             side = (0, 0, 1) if axis != 'z' else (1, 0, 0)
+            glBegin(GL_LINES)
+            glVertex3f(px, py, pz); glVertex3f(*tip)
             for sgn in (1, -1):
                 glVertex3f(*tip)
                 glVertex3f(tip[0] - v[0] * h + side[0] * h * 0.5 * sgn,
                            tip[1] - v[1] * h + side[1] * h * 0.5 * sgn,
                            tip[2] - v[2] * h + side[2] * h * 0.5 * sgn)
             glEnd()
+        if self._gizmo_rotate_callback is not None:
+            for axis in 'xyz':
+                on = active == 'r' + axis
+                c = cols[axis]
+                glColor3f(*((1.0, 0.9, 0.1) if on else (c[0] * 0.7, c[1] * 0.7, c[2] * 0.7)))
+                glLineWidth(3.0 if on else 1.5)
+                glBegin(GL_LINE_LOOP)
+                for p in self._ring_points((px, py, pz), axis, L * 0.8):
+                    glVertex3f(*p)
+                glEnd()
         glColor3f(*((1.0, 0.9, 0.1) if active == 'free' else (1.0, 1.0, 1.0)))
         glPointSize(9.0)
         glBegin(GL_POINTS); glVertex3f(px, py, pz); glEnd()
         glPopAttrib()
+
+    # -- drop to ground / model drops (Sep 23 2026)
+    def _entry_radius(self, e): #vers 1
+        """Cached XY bounding radius of an entry's model (scaled)."""
+        cache = self.__dict__.setdefault('_radius_cache', {})
+        key = e.get('model_key')
+        r = cache.get(key)
+        if r is None:
+            verts = e.get('col_vertices') or e.get('vertices') or []
+            r = max((math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) for v in verts), default=1.0)
+            cache[key] = r
+        sc = e.get('scale') or (1, 1, 1)
+        return r * max(abs(sc[0]), abs(sc[1]), abs(sc[2]), 1e-3)
+
+    def ground_z_below(self, x, y, z_from, exclude=()): #vers 1
+        """Highest collision / mesh surface at (x, y) at or below z_from; None if nothing."""
+        excl = {id(i) for i in exclude}
+        origin, down = (x, y, z_from), (0.0, 0.0, -1.0)
+        best = None
+        for e in getattr(self, '_world_instances', None) or []:
+            inst = e.get('instance')
+            if inst is not None and id(inst) in excl:
+                continue
+            px, py, pz = e['pos']
+            r = self._entry_radius(e)
+            if (px - x) ** 2 + (py - y) ** 2 > r * r or pz - r > z_from:
+                continue
+            verts = e.get('col_vertices') or e.get('vertices')
+            tris = e.get('col_triangles') if e.get('col_vertices') else e.get('triangles')
+            if not verts or not tris:
+                continue
+            q = e.get('rot') or (0, 0, 0, 1)
+            sc = e.get('scale') or (1, 1, 1)
+            wv = []
+            for v in verts:
+                rv = self._quat_rotate(q, (v[0] * sc[0], v[1] * sc[1], v[2] * sc[2]))
+                wv.append((rv[0] + px, rv[1] + py, rv[2] + pz))
+            for t in tris:
+                try:
+                    a, b, c = wv[t[0]], wv[t[1]], wv[t[2]]
+                except (IndexError, TypeError):
+                    continue
+                hit = self._ray_triangle_intersect(origin, down, a, b, c)
+                if hit is not None:
+                    hz = z_from - hit if isinstance(hit, (int, float)) else hit[2]
+                    if best is None or hz > best:
+                        best = hz
+        return best
+
+    def dragEnterEvent(self, event): #vers 1
+        if self._model_drop_callback is not None and event.mimeData().hasFormat('application/x-imgfactory-model-id'):
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event): #vers 1
+        if self._model_drop_callback is not None and event.mimeData().hasFormat('application/x-imgfactory-model-id'):
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event): #vers 1
+        md = event.mimeData()
+        if self._model_drop_callback is None or not md.hasFormat('application/x-imgfactory-model-id'):
+            super().dropEvent(event)
+            return
+        model_id = int(bytes(md.data('application/x-imgfactory-model-id')).decode())
+        p = event.position()
+        ground = self._screen_to_ground_position(p.x(), p.y(), ground_z=0.0)
+        if ground is None:
+            return
+        z = self.ground_z_below(ground[0], ground[1], 5000.0)
+        self._model_drop_callback(model_id, (ground[0], ground[1], z if z is not None else 0.0))
+        event.acceptProposedAction()
 
     def _screen_to_ground_position(self, mx, my, ground_z=0.0): #vers 1
         """Cast a ray from the camera through the given widget-space
@@ -4364,7 +4683,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix()
         glLineWidth(1.0)
 
-    def mouseReleaseEvent(self, event): #vers 5
+    def mouseReleaseEvent(self, event): #vers 6
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.RightButton:
             # Right-click for options on a hovered instance (Aug 19 2026)
@@ -4420,9 +4739,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._dragging_box_corner_live_z = None
             self.update()
 
-        # Commit a completed gizmo move (Sep 23 2026)
+        # Commit a completed gizmo move / rotate, or box selection (Sep 23 2026)
         if self._gizmo_drag is not None and event.button() == Qt.MouseButton.LeftButton:
             self._gizmo_end()
+        if self._rubber is not None and event.button() == Qt.MouseButton.LeftButton:
+            rect, self._rubber = self._rubber, None
+            if abs(rect[2] - rect[0]) > 3 or abs(rect[3] - rect[1]) > 3:
+                self._rubber_select(rect, add=True)
+            self.update()
 
         # Commit a completed whole-IPL drag (Aug 18 2026)
         dragged_names = getattr(self, '_dragging_ipl_names', None)
@@ -4470,17 +4794,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Toggle zoom-toward-mouse-cursor (Aug 18 2026)"""
         self._zoom_to_cursor = enabled
 
-    def keyPressEvent(self, event): #vers 3
+    def keyPressEvent(self, event): #vers 4
         """Configurable camera controls, held keys giving continuous motion.
         Esc cancels a gizmo drag, or drops the gizmo."""
         key = event.key()
-        if key == Qt.Key.Key_Escape and self._gizmo_inst is not None:
+        if key == Qt.Key.Key_Escape and (self._gizmo_inst is not None or self._sel_insts):
             if self._gizmo_drag is not None:
-                d = self._gizmo_drag
-                self.update_instance_transform(self._gizmo_inst, d['start'], d['rot'], d['scale'])
-                self._gizmo_drag = None
+                self._gizmo_cancel()
             else:
-                self._gizmo_inst = None
+                self.set_selection([], None)
             self.update()
             return
         is_numpad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)

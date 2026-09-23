@@ -982,12 +982,12 @@ Not started - needs its own design pass before implementation:
 ## Planned use cases (Sep 23 2026)
 
 ### Editing
-- Duplicate / clone object (Ctrl+D) at gizmo position; new line in same IPL.
-- Rotate gizmo: Z/X/Y rings alongside move arrows.
-- Multi-select objects (box select, Shift+click); move/rotate/delete together.
-- Drop to ground: snap Z to collision or terrain below.
-- Align / distribute: line up fences, lamp posts along a line, even spacing.
-- Place from Object Browser: drag model into viewport to create instance.
+- [DONE Sep 23 2026] Duplicate / clone object (Ctrl+D) at gizmo position; new line in same IPL.
+- [DONE Sep 23 2026] Rotate gizmo: Z/X/Y rings alongside move arrows.
+- [DONE Sep 23 2026] Multi-select objects (box select, Shift+click); move/rotate/delete together.
+- [DONE Sep 23 2026] Drop to ground: snap Z to collision or terrain below.
+- [DONE Sep 23 2026] Align / distribute: line up fences, lamp posts along a line, even spacing.
+- [DONE Sep 23 2026] Place from Object Browser: drag model into viewport to create instance.
 
 ### Map integrity
 - LOD link checker: find broken or missing lod_index targets; repair on add/delete (SA binary streams).

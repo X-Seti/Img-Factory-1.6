@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 133
+#this belongs in root /ChangeLog.md - Version: 134
+
+## Sep 23 2026 - Map Workshop: duplicate, rotate rings, multi-select, drop to ground, align, place, Build 431.92
+
+Ctrl+D duplicates selection (clones appended to same IPL). Rotate rings on gizmo (Ctrl = 15 deg steps). Shift+click / Shift+drag box multi-select; gizmo moves and rotates all.
+
+End drops selection onto collision below. Align to last selected, distribute evenly (viewport right-click). Delete key removes selection, re-pointing SA LOD indices.
+
+Drag a model from Object Browser into viewport to place it; Add Instance now uses a real IPL at view centre. Fixed Ctrl+D clash with Open DFF.
 
 ## Sep 23 2026 - Map Workshop: move gizmo, editable IPL/IDE lines, IDE write-back, Build 431.92
 

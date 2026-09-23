@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 197
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 198
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -154,6 +154,8 @@ except ImportError:
 # _save_preset
 #
 ##class ModelWorkshop: -
+# _add_instances
+# _align_selected
 # _apply_dirty_highlight
 # _apply_ide_fields
 # _apply_instance_fields
@@ -162,6 +164,11 @@ except ImportError:
 # confirm_close
 # _confirm_discard_ipls
 # _create_savepoint
+# _delete_instances
+# _delete_selected_instances
+# _distribute_selected
+# _drop_selected_to_ground
+# _duplicate_selected
 # _forget_ipl_baseline
 # _ide_abs_path
 # __init__
@@ -274,11 +281,13 @@ except ImportError:
 # _load_txd_file_from_data    load TXD from raw bytes
 # _load_txd_into_workshop
 # _load_viewport_light_settings    restore saved light from model_workshop.json #vers 1
+# _lod_parent_ipl
 # _lookup_ide_for_dff    find IDE entry via xref or IDEDatabase #vers 2
 # _lookup_ide_from_db
 # _mark_ipl_saved
 # _mirror_dialog
 # _move_info_ribbon
+# _new_instance
 # _on_col_selected
 # _on_collision_selected
 # _on_compact_col_selected
@@ -286,10 +295,13 @@ except ImportError:
 # _on_dff_geom_selected_tbl    handle model table row click → show geometry #vers 1
 # _on_frame_tree_clicked
 # _on_gizmo_moved
+# _on_gizmo_rotated
 # _on_menu_btn_clicked
+# _on_model_dropped
 # _on_paint_mode_exited
 # _on_painted_face
 # _on_tex_selected
+# _on_viewport_selection
 # _open_col_file
 # _open_col_from_img_entry
 # _open_dff_material_list    unified Material Editor (3ds Max style) #vers 5
@@ -319,6 +331,7 @@ except ImportError:
 # _project_model_2d
 # _push_undo
 # _rebuild_toolbars
+# _refresh_after_instance_change
 # _refresh_dirty_ipls
 # _refresh_icons    refresh all SVG icons after theme change
 # _regenerate_all_thumbnails
@@ -349,7 +362,9 @@ except ImportError:
 # _saveall_file
 # _savepoint_dir
 # _select_all_models
+# _select_instances
 # _select_model_by_row
+# _selected_instances
 # _set_col_buttons_enabled
 # _set_paint_tool
 # _set_select_mode    switch vertex/edge/face/poly/object select mode #vers 2
@@ -382,6 +397,7 @@ except ImportError:
 # _sync_middle_btn_row_visibility
 # _sync_quad_from_main
 # _sync_selection_to_other_viewports
+# _target_ipl_for_new
 # _tbl_item
 # _tex_context_menu
 # _tick_thumbnail_spin
@@ -4740,6 +4756,23 @@ class _ObjectBrowserModel(QAbstractTableModel):
         if 0 <= row < len(self._rows):
             return self._rows[row]
         return None
+
+    def flags(self, index): #vers 1
+        """Rows can be dragged into the viewport to place the model."""
+        f = super().flags(index)
+        return f | Qt.ItemFlag.ItemIsDragEnabled if index.isValid() else f
+
+    def mimeTypes(self): #vers 1
+        return ['application/x-imgfactory-model-id']
+
+    def mimeData(self, indexes): #vers 1
+        """Model ID of the dragged row for DFFViewport.dropEvent."""
+        from PyQt6.QtCore import QMimeData
+        md = QMimeData()
+        obj = self.object_at(indexes[0].row()) if indexes else None
+        if obj is not None:
+            md.setData('application/x-imgfactory-model-id', str(obj.model_id).encode())
+        return md
 
 
 class _InstanceTableModel(QAbstractTableModel):
@@ -9799,8 +9832,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.open_dff_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
         self.open_dff_btn.setText("DFF/ TXD")
         self.open_dff_btn.setIconSize(QSize(20, 20))
-        self.open_dff_btn.setToolTip("Open a DFF model file directly (Ctrl+D)")
-        self.open_dff_btn.setShortcut("Ctrl+D")
+        self.open_dff_btn.setToolTip("Open a DFF model file directly")
         self.open_dff_btn.clicked.connect(self._open_dff_standalone)
 
         self.load_txd_btn = QPushButton("TXD")
@@ -11369,6 +11401,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Single-object move gizmo (Sep 23 2026)
         if hasattr(self.preview_widget, 'set_gizmo_move_callback'):
             self.preview_widget.set_gizmo_move_callback(self._on_gizmo_moved)
+            self.preview_widget.set_gizmo_rotate_callback(self._on_gizmo_rotated)
+            self.preview_widget.set_selection_callback(self._on_viewport_selection)
+            self.preview_widget.set_model_drop_callback(self._on_model_dropped)
         # Wire the Move/Rotate click callback too (Aug 19 2026)
         if hasattr(self.preview_widget, 'set_ipl_click_callback'):
             self.preview_widget.set_ipl_click_callback(self._on_ipl_click_for_move_or_rotate)
@@ -17459,14 +17494,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Delete (Delete)
         self.hotkey_delete = QShortcut(QKeySequence.StandardKey.Delete, self)
-        if hasattr(self, '_delete_collision'):
-            self.hotkey_delete.activated.connect(self._delete_surface)
+        self.hotkey_delete.activated.connect(self._delete_selected_instances)
+        # Drop selected objects to the ground (End)
+        self.hotkey_drop_ground = QShortcut(QKeySequence("End"), self)
+        self.hotkey_drop_ground.activated.connect(self._drop_selected_to_ground)
 
 
         # Duplicate (Ctrl+D)
         self.hotkey_duplicate = QShortcut(QKeySequence("Ctrl+D"), self)
-        if hasattr(self, '_duplicate_collision'):
-            self.hotkey_duplicate.activated.connect(self._duplicate_surface)
+        self.hotkey_duplicate.activated.connect(self._duplicate_selected)
 
 
         # Rename (F2)
@@ -17826,7 +17862,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             <b>✓ IDE Integration:</b> Link to DAT Browser IDE entries<br>
             <b>✓ TXD:</b> Auto-load matching TXD for textured preview<br><br>
             <b>Shortcuts:</b><br>
-            Ctrl+O: Open  |  Ctrl+S: Save  |  Ctrl+D: Open DFF<br>
+            Ctrl+O: Open  |  Ctrl+S: Save  |  Ctrl+D: Duplicate object  |  End: Drop to ground<br>
             Ctrl+T: Open TXD  |  Ctrl+Z: Undo  |  Delete: Remove
         """)
         lay.addWidget(info, 1)
@@ -18041,6 +18077,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         view.verticalHeader().setVisible(False)
         view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        view.setDragEnabled(True)                 # drag a model into the viewport to place it
+        view.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
         view.doubleClicked.connect(self._on_object_row_double_clicked)
         view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         view.customContextMenuRequested.connect(self._on_object_browser_context_menu)
@@ -18342,12 +18380,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._current_instance_index = idx
         self._center_on_instance(instances[idx], nav_info=(idx, len(instances)))
 
-    def _add_instance_of_model(self, model_id): #vers 2
-        """Add a new placement of an existing model - IN MEMORY ONLY
-        for now, at a default position (origin, identity rotation).
-        Does NOT yet write the new inst line back to the actual IPL
-        file - that needs real file-writing infrastructure, tracked
-        separately.
+    def _add_instance_of_model(self, model_id): #vers 3
+        """Add a new placement of an existing model at the view centre,
+        on the ground, in the target IPL (selected IPL row, or asked).
+        Saved with Ctrl+S like any other edit.
 
         Undoable now (Aug 20 2026,  "Undo/redo for mapping
         changes") - was explicitly called out in TODO.md as an in-
@@ -18356,12 +18392,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         obj = loader.get_object(model_id) if loader else None
         if obj is None:
             return
-        from apps.methods.gta_dat_parser import IPLInstance
-        new_inst = IPLInstance(
-            model_id=model_id, model_name=obj.model_name, interior=0,
-            pos_x=0.0, pos_y=0.0, pos_z=0.0,
-            rot_x=0.0, rot_y=0.0, rot_z=0.0, rot_w=1.0,
-            lod_index=-1, source_ipl="(added this session)", line_no=0)
+        vp = getattr(self, 'preview_widget', None)
+        cx, cy = (-vp._pan_x, -vp._pan_y) if vp is not None else (0.0, 0.0)
+        gz = vp.ground_z_below(cx, cy, 5000.0) if vp is not None and hasattr(vp, 'ground_z_below') else None
+        new_inst = self._new_instance(model_id, (cx, cy, gz if gz is not None else 0.0))
+        if new_inst is None:
+            return
 
         def _do_add():
             self._all_instances = getattr(self, '_all_instances', [])
@@ -18385,8 +18421,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         _do_add()
         self._push_map_undo(_do_remove, _do_add, f"Add instance of '{obj.model_name}'")
         self._center_on_instance(new_inst)
-        self._set_status(f"Added a new instance of '{obj.model_name}' at the origin "
-                         f"(in memory only - not yet written to disk)")
+        self._set_status(f"Added '{obj.model_name}' to {new_inst.source_ipl} at the view centre "
+                         f"- Ctrl+S to save")
 
     def _delete_all_instances_of_model(self, model_id): #vers 2
         """Remove every placement of a model.
@@ -18545,22 +18581,284 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         stems = {s.strip().lower() for s in raw.split(',') if s.strip()}
         loader.vc_layout_ipl_stems = stems
 
-    def _on_gizmo_moved(self, inst, dx, dy, dz): #vers 1
-        """Viewport gizmo finished a move: apply to the instance, undoable."""
-        old = (inst.pos_x, inst.pos_y, inst.pos_z)
-        new = (old[0] + dx, old[1] + dy, old[2] + dz)
+    # -- object operations: select, duplicate, delete, rotate, ground, align, place (Sep 23 2026)
+    def _selected_instances(self): #vers 1
+        """Viewport multi-selection, else the Object Editor's instance."""
+        vp = getattr(self, 'preview_widget', None)
+        sel = vp.selected_instances() if vp is not None and hasattr(vp, 'selected_instances') else []
+        if sel:
+            return sel
+        panel = getattr(self, '_instance_edit_panel', None)
+        inst = getattr(panel, '_inst', None) if panel is not None else None
+        return [inst] if inst is not None else []
 
-        def _set(p):
-            inst.pos_x, inst.pos_y, inst.pos_z = p
+    def _on_viewport_selection(self, insts, primary): #vers 1
+        """Viewport selection changed: Object Editor follows the primary object."""
+        if primary is not None:
+            self._show_instance_edit_panel(primary)
+        self._set_status(f"{len(insts)} object(s) selected" if insts else "Selection cleared")
+
+    def _select_instances(self, insts): #vers 1
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_selection'):
+            vp.set_selection(insts, insts[-1] if insts else None, notify=False)
+        if insts:
+            self._show_instance_edit_panel(insts[-1])
+
+    def _lod_parent_ipl(self, ipl_name): #vers 1
+        """IPL whose instance list a lod_index points into (SA streams -> parent text IPL)."""
+        for parent, streams in getattr(self, '_ipl_names_with_binary_stream', {}).items():
+            if any(en == ipl_name for _a, en in streams):
+                return parent
+        return ipl_name
+
+    def _refresh_after_instance_change(self): #vers 1
+        """Rebuild lists, counts and the viewport after instances were added/removed."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        self._all_instances = list(loader.instances)
+        self._object_instance_counts = None
+        self._populate_object_browser(loader)
+        self._populate_instance_list(loader)
+        self._apply_ipl_visibility_filter(auto_fit=False, clear_display_lists=False)
+
+    def _add_instances(self, insts, label): #vers 1
+        """Append new instances (end of their IPL keeps SA LOD indices valid); undoable."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None or not insts:
+            return
+
+        def _add():
+            loader.instances.extend(insts)
+            self._refresh_after_instance_change()
+            self._select_instances(list(insts))
+
+        def _remove():
+            ids = {id(i) for i in insts}
+            loader.instances[:] = [i for i in loader.instances if id(i) not in ids]
+            self._refresh_after_instance_change()
+            self._select_instances([])
+
+        _add()
+        self._push_map_undo(_remove, _add, label)
+        self._set_status(label)
+
+    def _delete_instances(self, insts): #vers 1
+        """Remove instances, re-pointing SA lod_index links that shift; undoable."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None or not insts:
+            return
+        dead = {id(i) for i in insts}
+        affected = {self._lod_parent_ipl(i.source_ipl) for i in insts}
+        remap = {}                                   # parent ipl -> {old idx: new idx}
+        for p in affected:
+            old = [i for i in loader.instances if i.source_ipl == p]
+            m, n = {}, 0
+            for k, i in enumerate(old):
+                if id(i) in dead:
+                    m[k] = -1
+                else:
+                    m[k] = n
+                    n += 1
+            remap[p] = m
+        lod_changes = []
+        for i in loader.instances:
+            if id(i) in dead or i.lod_index < 0:
+                continue
+            p = self._lod_parent_ipl(i.source_ipl)
+            if p in remap:
+                new = remap[p].get(i.lod_index, -1)
+                if new != i.lod_index:
+                    lod_changes.append((i, i.lod_index, new))
+        positions = [(k, i) for k, i in enumerate(loader.instances) if id(i) in dead]
+
+        def _do():
+            loader.instances[:] = [i for i in loader.instances if id(i) not in dead]
+            for i, _o, n in lod_changes:
+                i.lod_index = n
+            self._refresh_after_instance_change()
+            self._select_instances([])
+
+        def _undo():
+            for k, i in positions:
+                loader.instances.insert(k, i)
+            for i, o, _n in lod_changes:
+                i.lod_index = o
+            self._refresh_after_instance_change()
+            self._select_instances([i for _k, i in positions])
+
+        _do()
+        self._push_map_undo(_undo, _do, f"Delete {len(insts)} object(s)")
+        msg = f"Deleted {len(insts)} object(s)"
+        if lod_changes:
+            msg += f"; {len(lod_changes)} LOD link(s) re-pointed"
+        self._set_status(msg)
+
+    def _delete_selected_instances(self): #vers 1
+        insts = self._selected_instances()
+        if insts and QMessageBox.question(self, "Delete", f"Delete {len(insts)} object(s)?") \
+                == QMessageBox.StandardButton.Yes:
+            self._delete_instances(insts)
+
+    def _duplicate_selected(self): #vers 1
+        """Ctrl+D: clone the selected objects in place; the clones become the selection."""
+        import dataclasses
+        src = self._selected_instances()
+        if not src:
+            self._set_status("Duplicate: select an object first")
+            return
+        clones = [dataclasses.replace(i, line_no=0, raw_line="") for i in src]
+        self._add_instances(clones, f"Duplicated {len(clones)} object(s)")
+
+    def _on_gizmo_moved(self, insts, dx, dy, dz): #vers 2
+        """Gizmo move finished: apply to every dragged instance, undoable."""
+        olds = [(i, (i.pos_x, i.pos_y, i.pos_z)) for i in insts]
+
+        def _apply(sign):
+            for i, (x, y, z) in olds:
+                i.pos_x, i.pos_y, i.pos_z = x + dx * sign, y + dy * sign, z + dz * sign
+                self._on_instance_edited(i)
             panel = getattr(self, '_instance_edit_panel', None)
-            if panel is not None and getattr(panel, '_inst', None) is inst:
+            if panel is not None and getattr(panel, '_inst', None) is not None:
                 panel._refresh_position_spins()
-            self._on_instance_edited(inst)
 
-        _set(new)
-        self._push_map_undo(lambda: _set(old), lambda: _set(new),
-                            f"Move {getattr(inst, 'model_name', '?')} ({dx:+.2f}, {dy:+.2f}, {dz:+.2f})")
-        self._set_status(f"Moved {inst.model_name} to ({new[0]:.2f}, {new[1]:.2f}, {new[2]:.2f})")
+        _apply(1)
+        self._push_map_undo(lambda: _apply(0), lambda: _apply(1),
+                            f"Move {len(insts)} object(s) ({dx:+.2f}, {dy:+.2f}, {dz:+.2f})")
+        self._set_status(f"Moved {len(insts)} object(s) by ({dx:.2f}, {dy:.2f}, {dz:.2f})")
+
+    def _on_gizmo_rotated(self, insts, axis, angle, pivot): #vers 1
+        """Gizmo rotate finished: rotate orientations and positions about the pivot, undoable."""
+        vp = self.preview_widget
+        q = vp._quat_axis(axis, angle)
+        olds = [(i, (i.pos_x, i.pos_y, i.pos_z), (i.rot_x, i.rot_y, i.rot_z, i.rot_w)) for i in insts]
+        news = []
+        for i, pos, rot in olds:
+            eff = self._conjugate_rotation_for_game(*rot)
+            ne = vp._quat_mul(q, eff)
+            off = vp._quat_rotate(q, (pos[0] - pivot[0], pos[1] - pivot[1], pos[2] - pivot[2]))
+            news.append((i, (pivot[0] + off[0], pivot[1] + off[1], pivot[2] + off[2]),
+                         self._conjugate_rotation_for_game(*ne)))
+
+        def _apply(state):
+            for i, pos, rot in state:
+                i.pos_x, i.pos_y, i.pos_z = pos
+                i.rot_x, i.rot_y, i.rot_z, i.rot_w = rot
+                self._on_instance_edited(i)
+            panel = getattr(self, '_instance_edit_panel', None)
+            if panel is not None and getattr(panel, '_inst', None) is not None:
+                panel._refresh_position_spins()
+                panel._refresh_rotation_spins()
+
+        _apply(news)
+        self._push_map_undo(lambda: _apply(olds), lambda: _apply(news),
+                            f"Rotate {len(insts)} object(s) {angle:+.1f} deg about {axis.upper()}")
+        self._set_status(f"Rotated {len(insts)} object(s) {angle:+.1f} deg about {axis.upper()}")
+
+    def _drop_selected_to_ground(self): #vers 1
+        """End key: set each selected object's Z onto the surface below it."""
+        vp = getattr(self, 'preview_widget', None)
+        insts = self._selected_instances()
+        if vp is None or not insts:
+            self._set_status("Drop to ground: select an object first")
+            return
+        moves, missed = [], 0
+        for i in insts:
+            z = vp.ground_z_below(i.pos_x, i.pos_y, i.pos_z + 0.05, exclude=insts)
+            if z is None:
+                missed += 1
+            elif abs(z - i.pos_z) > 1e-4:
+                moves.append((i, i.pos_z, z))
+        if moves:
+            def _apply(k):
+                for i, old, new in moves:
+                    i.pos_z = (old, new)[k]
+                    self._on_instance_edited(i)
+            _apply(1)
+            self._push_map_undo(lambda: _apply(0), lambda: _apply(1), f"Drop {len(moves)} object(s) to ground")
+        self._set_status(f"Dropped {len(moves)} object(s) to ground"
+                         + (f"; {missed} had nothing below" if missed else ""))
+
+    def _align_selected(self, axis): #vers 1
+        """Line selected objects up with the primary (last selected) on one axis."""
+        insts = self._selected_instances()
+        if len(insts) < 2:
+            self._set_status("Align: select two or more objects")
+            return
+        attr = 'pos_' + axis
+        target = getattr(insts[-1], attr)
+        olds = [(i, getattr(i, attr)) for i in insts]
+
+        def _apply(k):
+            for i, old in olds:
+                setattr(i, attr, (old, target)[k])
+                self._on_instance_edited(i)
+        _apply(1)
+        self._push_map_undo(lambda: _apply(0), lambda: _apply(1), f"Align {len(insts)} on {axis.upper()}")
+        self._set_status(f"Aligned {len(insts)} object(s) on {axis.upper()}")
+
+    def _distribute_selected(self): #vers 1
+        """Space selected objects evenly on the line between the two furthest apart."""
+        insts = self._selected_instances()
+        if len(insts) < 3:
+            self._set_status("Distribute: select three or more objects")
+            return
+        pts = [(i.pos_x, i.pos_y, i.pos_z) for i in insts]
+        a, b = max(((p, q) for p in pts for q in pts),
+                   key=lambda pq: sum((pq[0][k] - pq[1][k]) ** 2 for k in range(3)))
+        d = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+        l2 = sum(c * c for c in d) or 1.0
+        order = sorted(insts, key=lambda i: ((i.pos_x - a[0]) * d[0] + (i.pos_y - a[1]) * d[1]
+                                             + (i.pos_z - a[2]) * d[2]) / l2)
+        n = len(order) - 1
+        olds = [(i, (i.pos_x, i.pos_y, i.pos_z)) for i in order]
+        news = [(i, (a[0] + d[0] * k / n, a[1] + d[1] * k / n, a[2] + d[2] * k / n))
+                for k, i in enumerate(order)]
+
+        def _apply(state):
+            for i, p in state:
+                i.pos_x, i.pos_y, i.pos_z = p
+                self._on_instance_edited(i)
+        _apply(news)
+        self._push_map_undo(lambda: _apply(olds), lambda: _apply(news), f"Distribute {len(insts)} objects")
+        self._set_status(f"Distributed {len(insts)} object(s) evenly")
+
+    def _target_ipl_for_new(self): #vers 1
+        """IPL for new objects: selected IPL row, else primary object's IPL, else ask."""
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is not None and table.currentRow() >= 0:
+            it = table.item(table.currentRow(), 0)
+            name = it.data(Qt.ItemDataRole.UserRole) if it is not None else None
+            if name and name in getattr(self, '_ipl_baseline', {}):
+                return name
+        sel = self._selected_instances()
+        if sel:
+            return sel[-1].source_ipl
+        names = sorted(getattr(self, '_ipl_baseline', {}))
+        if not names:
+            return None
+        pick, ok = QInputDialog.getItem(self, "Place Object", "Add to IPL:", names, 0, False)
+        return pick if ok else None
+
+    def _new_instance(self, model_id, pos): #vers 1
+        """IPLInstance for model_id at pos in the target IPL, or None."""
+        loader = getattr(self, '_world_loader', None)
+        obj = loader.get_object(model_id) if loader else None
+        ipl = self._target_ipl_for_new() if obj is not None else None
+        if ipl is None:
+            return None
+        from apps.methods.gta_dat_parser import IPLInstance
+        return IPLInstance(model_id=model_id, model_name=obj.model_name, interior=0,
+                           pos_x=pos[0], pos_y=pos[1], pos_z=pos[2],
+                           rot_x=0.0, rot_y=0.0, rot_z=0.0, rot_w=1.0,
+                           lod_index=-1, source_ipl=ipl, line_no=0)
+
+    def _on_model_dropped(self, model_id, pos): #vers 1
+        """Object Browser model dropped on the viewport: place it there."""
+        inst = self._new_instance(model_id, pos)
+        if inst is not None:
+            self._add_instances([inst], f"Placed {inst.model_name} in {inst.source_ipl}")
 
     def _on_instance_edited(self, inst): #vers 3
         """Called by _InstanceEditPanel."""
@@ -20395,13 +20693,25 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._on_ipl_selection_changed(names)
 
 
-    def _on_hover_context_menu(self, inst): #vers 1
+    def _on_hover_context_menu(self, inst): #vers 2
         """Fired by DFFViewport.set_hover_context_callback on a right-
         click while an instance is currently hover-highlighted (Aug
-        19 2026)"""
+        19 2026). Object actions work on the selection (or this object)."""
+        if inst not in self._selected_instances():
+            self._select_instances([inst])
+        n = len(self._selected_instances())
         menu = QMenu(self)
         info_act = menu.addAction("Info")
         textures_act = menu.addAction("Show Textures")
+        menu.addSeparator()
+        menu.addAction(f"Duplicate ({n})\tCtrl+D", self._duplicate_selected)
+        menu.addAction(f"Drop to Ground ({n})\tEnd", self._drop_selected_to_ground)
+        align = menu.addMenu("Align to last selected")
+        for ax in 'xyz':
+            align.addAction(ax.upper(), lambda a=ax: self._align_selected(a)).setEnabled(n > 1)
+        menu.addAction("Distribute evenly", self._distribute_selected).setEnabled(n > 2)
+        menu.addSeparator()
+        menu.addAction(f"Delete ({n})\tDel", self._delete_selected_instances)
         chosen = menu.exec(QCursor.pos())
         if chosen is info_act:
             self._show_instance_edit_panel(inst)
