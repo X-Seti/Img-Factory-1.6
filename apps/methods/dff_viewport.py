@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 14
+# this belongs in apps/methods/dff_viewport.py - Version: 15
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -455,6 +455,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._view_locked = False
         self._view_label  = ""
         self._projection  = 'perspective'   # 'perspective' or 'ortho'
+        self._capture_ortho = None           # (l, r, b, t) during radar capture
         self._on_geometry_loaded = None     # optional callback, set by host tool
 
         self._label_widget = QLabel(self)
@@ -890,12 +891,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         _libGL.glEnable(_GL_COLOR_MATERIAL)
         _libGL.glColorMaterial(_GL_FRONT_AND_BACK, _GL_AMBIENT_AND_DIFFUSE)
 
-    def resizeGL(self, w, h): #vers 2
+    def resizeGL(self, w, h): #vers 3
         if not OPENGL_AVAILABLE: return
         glViewport(0, 0, max(1, w), max(1, h))
         glMatrixMode(GL_PROJECTION); glLoadIdentity()
         aspect = max(1, w) / max(1, h)
-        if self._projection == 'ortho':
+        if self._capture_ortho is not None:          # pixel-exact radar tile
+            l, r, b, t = self._capture_ortho
+            glOrtho(l, r, b, t, -100000.0, 100000.0)
+        elif self._projection == 'ortho':
             half_h = max(0.01, self._dist * 0.5)
             glOrtho(-half_h*aspect, half_h*aspect, -half_h, half_h, -100000.0, 100000.0)
         else:
@@ -3799,12 +3803,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._auto_fit(); self.update()
 
     def capture_radar_tile(self, center_x: float, center_y: float, tile_size: float,
-                           show_grid: bool = False): #vers 2
-        """Capture one, exact, correctly-oriented top-down orthographic
-        snapshot of the currently loaded world, centred on a real
-        RadarTile's own world-space centre (Aug 20 2026)"""
+                           show_grid: bool = False): #vers 3
+        """Top-down ortho snapshot of one radar tile, square and pixel-exact.
+        Ortho spans the whole framebuffer at one world scale; the tile is the
+        centred square crop, so non-square or HiDPI views no longer stretch."""
         saved = (self._yaw, self._pitch, self._dist, self._pan_x,
                  self._pan_y, self._projection, self._show_grid)
+        dpr = self.devicePixelRatioF()
+        fw, fh = round(self.width() * dpr), round(self.height() * dpr)
         try:
             self._yaw = 0.0
             self._pitch = 0.0
@@ -3813,11 +3819,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._pan_y = -center_y
             self._projection = 'ortho'
             self._show_grid = show_grid
-            self.makeCurrent()
-            self.resizeGL(self.width(), self.height())
-            self.paintGL()
-            image = self.grabFramebuffer()
+            image = None
+            for _ in range(2):                           # retry once if FBO size differs
+                side = min(fw, fh)
+                x0, y0 = (fw - side) // 2, (fh - side) // 2
+                px = tile_size / side                    # world units per pixel
+                left = -tile_size * 0.5 - x0 * px
+                bottom = -tile_size * 0.5 - (fh - y0 - side) * px
+                self._capture_ortho = (left, left + fw * px, bottom, bottom + fh * px)
+                self.makeCurrent()
+                self.resizeGL(self.width(), self.height())
+                image = self.grabFramebuffer()
+                if (image.width(), image.height()) == (fw, fh):
+                    break
+                fw, fh = image.width(), image.height()
+            image = image.copy(x0, y0, side, side)
         finally:
+            self._capture_ortho = None
             self._yaw, self._pitch, self._dist, self._pan_x, \
                 self._pan_y, self._projection, self._show_grid = saved
             self.makeCurrent()

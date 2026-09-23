@@ -1,4 +1,4 @@
-#this belongs in root /TODO.md - Version: 10
+#this belongs in root /TODO.md - Version: 11
 
 ## July 2026 - Map Editor (Map Workshop) - status and plan
 
@@ -759,7 +759,7 @@ separate, larger piece of work, not started.
 ## July 2026 - Next up: DP5 Workshop
 
 ### DP5 Workshop - ribbon rebuild + sidebar sectioning
-**Status**: PLANNED
+**Status**: Ribbons DONE (Sep 2026); sidebar sectioning not confirmed
 Apply the same treatment Model Workshop just went through:
 - Keep all existing functionality intact - this is a UI/layout pass, not
   a feature change.

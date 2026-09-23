@@ -1,4 +1,14 @@
-#this belongs in root /ChangeLog.md - Version: 130
+#this belongs in root /ChangeLog.md - Version: 131
+
+## Sep 23 2026 - Map Workshop: dead code removed, Save IPL, radar tile fix, Build 431.91
+
+Removed ~4,600 unreachable lines from map_workshop.py (125 methods/classes, old COL editor leftovers, unused imports).
+
+New Save IPL: writes edits back to original text IPL, loose binary IPL, or SA binary stream inside IMG (backup first). Binary save refused if parked cars present.
+
+Save Text as Binary IPL menu shown for SA only. Save As builder split into _build_ipl_text_lines.
+
+Radar tile capture: pixel-exact square ortho crop; fixes stretched, repeating tiles on non-square or HiDPI viewports.
 
 ## Sep 23 2026 - Workshops: no corner handles or corner resize when docked, Build 431.91
 

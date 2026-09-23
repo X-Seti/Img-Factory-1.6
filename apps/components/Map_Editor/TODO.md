@@ -51,19 +51,9 @@ Extracted from inline `#TODO` comments in map_workshop.py, .per
 
 ## Stub / not-yet-built functionality
 
-- `apply_changes` - commit pending edits back to DFF/COL data isn't
-  wired up yet.
-- `_apply_prelighting` - bake ambient + directional light into DFF
-  vertex colour channel isn't implemented (needs light_dir,
-  ambient_colour, diffuse_colour from a setup dialog that doesn't
-  exist yet either).
-- Object Browser's Add/Delete/Rename actions are in-memory only for
-  now (mutating `self._all_instances` and the loader's own instances
-  list) - writing changes back to the actual IPL/IDE files on disk
-  isn't built yet.
-- No write-back infrastructure exists for any file type in Map
-  Workshop yet (creating/deleting IPL files from disk, etc. are all
-  stubs).
+- [REMOVED Sep 23 2026] `apply_changes`, `_apply_prelighting` stubs were dead code; removed.
+- [DONE Sep 23 2026] IPL write-back: "Save IPL" overwrites original (text, loose binary, or SA stream in IMG), backup first.
+- Still missing: IDE write-back (Item Editor, 2DFX); prelight bake to DFF.
 - [DONE Aug 20 2026] Undo/redo for mapping changes - the core stack
   (_push_map_undo/_map_undo/_map_redo, Aug 18 2026) was already wired
   to Position/Rotation/Scale nudges; this turn added: Ctrl+Z/Ctrl+Y
