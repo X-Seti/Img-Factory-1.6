@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 125
+#this belongs in root /ChangeLog.md - Version: 126
+
+## Sep 23 2026 - Hex Workshop: bug fixes, dead code removed, Build 431.91
+
+Docked mode: main_window now reaches base class. Revert icon uses get_refresh_icon. Binary IPL reads header offsets. Single replace is one undo step.
+
+RW tools disabled for non-RW files. Added import/paste section as first child. Tree click tints the section in hex view.
+
+Removed unused aliases (HexViewWidget, StructureView, HexEditorDialog), _goto_offset, select_range, unused imports, dead diffcode flags.
 
 ## Sep 12 2026 - Fix real ID-shift engine gaps: anim scope + 2dfx write-back, Build 430.90
 

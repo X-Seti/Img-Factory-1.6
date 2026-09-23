@@ -1,4 +1,4 @@
-#this belongs in apps/methods/rw_chunks.py - Version: 1
+#this belongs in apps/methods/rw_chunks.py - Version: 2
 # X-Seti - September 2026 - IMG Factory 1.6 - RenderWare stream section tree
 
 """rw_chunks.py - Parse a RenderWare binary stream (.dff .txd .rws .anm .bsp ...)
@@ -265,14 +265,14 @@ def insert_section(data: bytes, before: Optional[RWNode], chunk: bytes, parent: 
     `parent`, or at the end of the stream when both are None. Ancestors' sizes grow."""
     buf = bytearray(data)
     if before is not None:
-        at, holder = before.end, before
+        at = before.end
     elif parent is not None:
-        at, holder = parent.data_start, None
+        at = parent.data_start
     else:
         buf += chunk
         return bytes(buf)
     buf[at:at] = chunk
-    target = before if before is not None else None
+    target = before
     if target is not None:
         for a in _ancestors(target):
             struct.pack_into("<I", buf, a.offset + 4, struct.unpack_from("<I", buf, a.offset + 4)[0] + len(chunk))

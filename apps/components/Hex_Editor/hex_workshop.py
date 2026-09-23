@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 4
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 5
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -28,7 +28,6 @@ RW Analyze for RenderWare streams (.dff .txd .rws ...).
 
 import os
 import sys
-import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -37,11 +36,11 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QKeySequence, QShortcut
+from PyQt6.QtGui import QColor, QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
-    QApplication, QComboBox, QFileDialog, QFormLayout, QDialog, QDialogButtonBox, QHBoxLayout,
+    QApplication, QComboBox, QFileDialog, QFormLayout, QDialog, QDialogButtonBox,
     QInputDialog, QLabel, QLineEdit, QMessageBox, QSpinBox, QSplitter, QTabWidget, QVBoxLayout,
-    QWidget, QPlainTextEdit)
+    QWidget)
 
 from apps.methods.ribbon_system import RibbonMixin
 from apps.components.Hex_Editor.depends.diffcode import GUIWorkshop
@@ -53,13 +52,10 @@ App_name   = "Hex Workshop"
 App_build  = "Build 2"
 config_key = "hex_workshop"
 
-HexViewWidget = HexCanvas          # old names kept for imports elsewhere
-StructureView = StructurePanel
-
 _BIG = 48 * 1024 * 1024            # above this the structure tree is not rebuilt on every edit
 
 
-class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
+class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
     App_name   = App_name
     App_build  = App_build
     App_auth   = "X-Seti"
@@ -68,7 +64,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
     # Bump when the set of ribbons changes (2 = File/Edit/Search/View/Tools)
     _RIBBON_LAYOUT_VERSION = 2
 
-    def __init__(self, parent=None, main_window=None):
+    def __init__(self, parent=None, main_window=None): #vers 2
         self._defer_setup_ui = True
         self.doc = HexDoc()
         self._file_path: Optional[str] = None
@@ -76,8 +72,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
         self._entry_label = ""
         self._loading = False
         self._struct_timer = None
-        super().__init__(parent)
-        self.main_window = main_window
+        super().__init__(parent, main_window)
         self.setup_ui()
         self.setAcceptDrops(True)
         self._set_status("Open a file to begin (File ribbon, or drop a file here)")
@@ -91,7 +86,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
                 b.setVisible(False)
         return tb
 
-    def setup_ui(self):
+    def setup_ui(self): #vers 2
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
@@ -148,6 +143,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
         self.canvas.status.connect(self._set_status)
         self.doc.changed.connect(self._on_doc_changed)
         self.structure.goto.connect(self._goto_range)
+        self.structure.goto.connect(self._mark_region)
         self.structure.apply_bytes.connect(self._apply_whole)
         self.search.find_requested.connect(self._find)
         self.search.all_requested.connect(self._find_all)
@@ -162,13 +158,13 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
                          ("Shift+F3", lambda: self.search._emit_find(False)), ("Ctrl+B", self._add_bookmark)):
             QShortcut(QKeySequence(keys), self, activated=fn)
 
-    def _build_ribbons(self):
+    def _build_ribbons(self): #vers 2
         B, C = self.ribbon_button, self.canvas
         tb = self.ribbon_toolbar("File")
         B(tb, "open_icon",   "Open a file  (Ctrl+O)", self._open_file)
         self.save_btn = B(tb, "save_icon", "Save - backs the old file up first  (Ctrl+S)", self._save_file, enabled=False)
         B(tb, "saveas_icon", "Save As...", self._save_as)
-        B(tb, "refresh_icon", "Revert: reload the file and drop all edits", self._revert, text="Rev")
+        B(tb, "get_refresh_icon", "Revert: reload the file and drop all edits", self._revert, text="Rev")
         tb.addSeparator()
         B(tb, "import_icon", "Insert / overwrite a file's bytes at the cursor...", self._import_bytes, text="Imp")
         B(tb, "export_icon", "Save the selected bytes to a new file...", self._export_selection, text="Exp")
@@ -177,7 +173,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
         B(tb, "undo_icon", "Undo  (Ctrl+Z)", lambda: self.doc.undo())
         B(tb, "redo_icon", "Redo  (Ctrl+Y)", lambda: self.doc.redo())
         tb.addSeparator()
-        B(tb, "cut_icon" if False else "copy_icon", "Copy as hex  (Ctrl+C)", C.copy_hex)
+        B(tb, "copy_icon", "Copy as hex  (Ctrl+C)", C.copy_hex)
         B(tb, "copy_icon", "Copy as text  (Ctrl+Shift+C)", C.copy_text, text="Txt")
         B(tb, "paste_icon", "Paste  (Ctrl+V) - hex text or plain text", C.paste)
         B(tb, "trash_icon", "Delete the selection (or the byte at the cursor)", C.delete_selection)
@@ -208,12 +204,14 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
 
         tb = self.ribbon_toolbar("Tools")
         B(tb, "check_icon", "Hashes of the file / selection (CRC32, MD5, SHA1, SHA256)", self._show_hashes, text="Hash")
-        B(tb, "convert_icon", "RenderWare: recompute every section size", lambda: self.structure._emit(
-            __import__("apps.methods.rw_chunks", fromlist=["x"]).recompute_sizes(bytes(self.doc.data)), "Recompute sizes"), text="Size")
-        B(tb, "convert_icon", "RenderWare: change the version of every section...", self.structure.change_version, text="Ver")
-        B(tb, "package_icon", "RenderWare: append another file's sections...", self.structure.append_file, text="App")
-        B(tb, "info_icon", "RenderWare: list texture names", self.structure.show_textures, text="Tex")
-        B(tb, "export_icon", "Export the section tree as a text file...", self._export_tree, text="Tree")
+        self._rw_btns = [
+            B(tb, "convert_icon", "RenderWare: recompute every section size", self.structure.recompute, text="Size"),
+            B(tb, "convert_icon", "RenderWare: change the version of every section...", self.structure.change_version, text="Ver"),
+            B(tb, "package_icon", "RenderWare: append another file's sections...", self.structure.append_file, text="App"),
+            B(tb, "info_icon", "RenderWare: list texture names", self.structure.show_textures, text="Tex"),
+            B(tb, "export_icon", "Export the section tree as a text file...", self._export_tree, text="Tree")]
+        for b in self._rw_btns:
+            b.setEnabled(False)
         tb.addSeparator()
         B(tb, "convert_icon", "Convert DFF / TXD / COL up or down between GTA III, Vice City and San Andreas (also batch)...",
           self._convert_dialog, text="Conv")
@@ -233,7 +231,14 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
         self.canvas.hits = []
         self._on_cursor(self.canvas.cur)
 
-    def _refresh_structure(self):
+    def _refresh_structure(self): #vers 2
+        self._build_structure()
+        is_rw = self.structure.mode == "rw"
+        for b in self._rw_btns:
+            b.setEnabled(is_rw)
+
+    def _build_structure(self): #vers 1
+        """Rebuild the structure tree; big files get IMG directory only."""
         name = os.path.basename(self._file_path or self._entry_label or "")
         if len(self.doc) > _BIG:
             head = bytes(self.doc.data[:16])
@@ -434,7 +439,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
         self.canvas.hits = [(h, h + len(pat)) for h in hits[:50000]]
         self.canvas.viewport().update()
 
-    def _replace(self, pat: bytes, rep: bytes, all_: bool):
+    def _replace(self, pat: bytes, rep: bytes, all_: bool): #vers 2
         if all_:
             n = bytes(self.doc.data).count(pat)
             if not n:
@@ -446,8 +451,11 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
         a, n = self.canvas.selection()
         if n == len(pat) and self.canvas.selected_bytes() == pat:
             self.canvas.anchor, self.canvas.cur = None, a
-            self.doc.delete(a, len(pat))
-            self.doc.insert(a, rep)
+            if len(rep) == len(pat):
+                self.doc.replace(a, rep)
+            else:                                   # one undo step
+                d = bytes(self.doc.data)
+                self.doc.replace_all(d[:a] + rep + d[a + len(pat):])
             self.canvas.cur = a + len(rep)
         self._find(pat, True)
 
@@ -521,6 +529,11 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
         if p:
             Path(p).write_text(rw.dump_tree_text(roots), encoding="utf-8")
 
+    def _mark_region(self, off: int, length: int): #vers 1
+        """Tint the structure node picked in the tree."""
+        self.canvas.regions = [(off, off + length, QColor(70, 130, 220, 60))] if length else []
+        self.canvas.viewport().update()
+
     def _set_diffs(self, ranges):
         self.canvas.diffs = list(ranges)[:50000]
         self.canvas.viewport().update()
@@ -544,10 +557,6 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 3
             self._conv = ConvertDialog(self)
             self._conv.convert_open.connect(lambda new, label: self._apply_whole(new, label))
         self._conv.start(bytes(self.doc.data), os.path.basename(self._file_path or self._entry_label or "open file"))
-
-    # kept for callers of the old API
-    def _goto_offset(self):
-        self._goto_dialog()
 
 
 def show_hex_editor_for_file(main_window, file_path, entry_info=None):  #vers 2

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Hex_Editor/hex_canvas.py - Version: 1
+#this belongs in apps/components/Hex_Editor/hex_canvas.py - Version: 2
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop editing canvas
 
 """hex_canvas.py - The byte document and the paint-on-demand hex view of the Hex Workshop.
@@ -15,8 +15,8 @@ HexCanvas: QAbstractScrollArea that paints ONLY the visible rows, so multi-hundr
 
 from typing import Dict, List, Optional, Tuple
 
-from PyQt6.QtCore import Qt, QRect, QPoint, pyqtSignal, QObject
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QKeySequence
+from PyQt6.QtCore import Qt, QPoint, pyqtSignal, QObject
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PyQt6.QtWidgets import QAbstractScrollArea, QApplication, QMenu
 
 _HEX = "0123456789abcdefABCDEF"
@@ -290,12 +290,6 @@ class HexCanvas(QAbstractScrollArea):
     def selected_bytes(self) -> bytes:
         a, n = self.selection()
         return bytes(self.doc.data[a:a + n])
-
-    def select_range(self, start: int, length: int):
-        self.anchor, self.cur = start, min(len(self.doc), start + length)
-        self.nib = 0
-        self._ensure_visible(self.cur)
-        self._notify()
 
     def goto(self, off: int, length: int = 0):
         off = max(0, min(off, len(self.doc)))

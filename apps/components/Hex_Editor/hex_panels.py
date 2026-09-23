@@ -1,4 +1,4 @@
-#this belongs in apps/components/Hex_Editor/hex_panels.py - Version: 1
+#this belongs in apps/components/Hex_Editor/hex_panels.py - Version: 2
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop side panels
 
 """hex_panels.py - Inspector (values at the cursor), Structure (RenderWare section tree with
@@ -196,7 +196,7 @@ class StructurePanel(QWidget):
         self.tree.clear()
         self.roots = []
         low = filename.lower()
-        if low.endswith(".dir") or (len(data) % 32 == 0 and len(data) and low.endswith(".dir")):
+        if low.endswith(".dir"):
             self._build_dir()
         elif data[:4] == b"VER2":
             self._build_img2()
@@ -281,12 +281,22 @@ class StructurePanel(QWidget):
             name = self.data[i * 32 + 8:i * 32 + 32].split(b"\0", 1)[0].decode("latin1")
             self._item(None, [name, f"0x{off * 2048:08X}", str(sz * 2048), ""], i * 32, 32)
 
-    def _build_bnry(self):
+    def _build_bnry(self): #vers 2
+        """SA binary IPL: offsets read from the 76-byte header."""
         self.mode = "bnry"
-        cnt, = struct.unpack_from("<I", self.data, 4) if len(self.data) >= 8 else (0,)
-        self.kind_lbl.setText(f"Binary IPL - {cnt} instances (header + inst array)")
-        self._item(None, ["Header 'bnry'", "0x00000000", "32", ""], 0, 32)
-        self._item(None, ["Instances (40 bytes each)", "0x00000004", str(cnt * 40), ""], 32, cnt * 40)
+        if len(self.data) < 76:
+            self.kind_lbl.setText("Binary IPL - header too short")
+            return
+        inst, cars = struct.unpack_from("<I", self.data, 4)[0], struct.unpack_from("<I", self.data, 20)[0]
+        inst_off, cars_off = struct.unpack_from("<I", self.data, 28)[0], struct.unpack_from("<I", self.data, 60)[0]
+        self.kind_lbl.setText(f"Binary IPL - {inst} instance(s), {cars} parked car(s)")
+        self._item(None, ["Header 'bnry'", "0x00000000", "76", ""], 0, 76)
+        for label, cnt, off, size in (("Instances (40 bytes each)", inst, inst_off, 40),
+                                      ("Parked cars (48 bytes each)", cars, cars_off, 48)):
+            if cnt:
+                bad = off + cnt * size > len(self.data)
+                self._item(None, [label, f"0x{off:08X}", str(cnt * size), ""], off, cnt * size,
+                           _KIND_COLOURS["faulty"] if bad else None)
 
     # -- interaction
     def _clicked(self, item, _col):
@@ -305,7 +315,7 @@ class StructurePanel(QWidget):
     def node_of(self, item) -> Optional[rw.RWNode]:
         return item.data(1, Qt.ItemDataRole.UserRole) if item else None
 
-    def _menu(self, pos):
+    def _menu(self, pos): #vers 2
         it = self.tree.itemAt(pos)
         m = QMenu(self)
         if it is not None:
@@ -320,12 +330,16 @@ class StructurePanel(QWidget):
                 m.addAction("Import section after this one...", lambda: self._import_after(n))
                 if self._clip:
                     m.addAction("Paste copied section after this one", lambda: self._paste_after(n))
+                if n.type in rw.CONTAINERS:
+                    m.addAction("Import section as first child...", lambda: self._import_child(n))
+                    if self._clip:
+                        m.addAction("Paste copied section as first child", lambda: self._paste_child(n))
                 m.addSeparator()
                 m.addAction("Clear payload (keep header)", lambda: self._emit(rw.clear_section(self.data, n), f"Clear {n.name}"))
                 m.addAction("Delete section", lambda: self._delete(n))
         if self.mode == "rw":
             m.addSeparator()
-            m.addAction("Recompute all section sizes", lambda: self._emit(rw.recompute_sizes(self.data), "Recompute sizes"))
+            m.addAction("Recompute all section sizes", self.recompute)
             m.addAction("Change RW version...", self.change_version)
             m.addAction("Append a file's sections...", self.append_file)
             m.addAction("Copy tree as text", self.copy_text)
@@ -358,6 +372,23 @@ class StructurePanel(QWidget):
         p, _ = QFileDialog.getOpenFileName(self, "Import section (bytes of one whole section)", "", "All files (*)")
         if p:
             self._emit(rw.insert_section(self.data, n, open(p, "rb").read()), "Import section")
+
+    def _paste_child(self, n): #vers 1
+        """Paste copied section as first child of container n."""
+        if self._clip:
+            self._emit(rw.insert_section(self.data, None, self._clip, parent=n), "Paste section")
+
+    def _import_child(self, n): #vers 1
+        """Import a section file as first child of container n."""
+        p, _ = QFileDialog.getOpenFileName(self, "Import section (bytes of one whole section)", "", "All files (*)")
+        if p:
+            with open(p, "rb") as f:
+                self._emit(rw.insert_section(self.data, None, f.read(), parent=n), "Import section")
+
+    def recompute(self): #vers 1
+        """Recompute every RW section size."""
+        if self.mode == "rw":
+            self._emit(rw.recompute_sizes(self.data), "Recompute sizes")
 
     def change_version(self):
         if self.mode != "rw":
@@ -573,7 +604,6 @@ class ConvertDialog(QWidget):
     convert_open = pyqtSignal(bytes, str)        # converted bytes for the open file, report
 
     def __init__(self, parent=None):
-        from PyQt6.QtWidgets import QDialog
         super().__init__(parent)
         self.setWindowFlag(Qt.WindowType.Window, True)
         self.setWindowTitle("Convert DFF / TXD / COL")
