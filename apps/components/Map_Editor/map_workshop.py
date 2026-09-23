@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 198
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 199
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -377,6 +377,7 @@ except ImportError:
 # _show_detailed_info
 # _show_dff_geometry    push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_dff_material_context_menu
+# _show_map_checks
 # _show_model_details
 # _show_model_search
 # _show_quad_pane_menu
@@ -20088,7 +20089,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_settings.set('ipl_sections_order', order)
         self.map_settings.save()
 
-    def _on_ipl_sections_context_menu(self, pos): #vers 4
+    def _on_ipl_sections_context_menu(self, pos): #vers 5
         """Right-click a row for Move Up/Down/Load Selected - explicit
         menu actions rather than drag-and-drop, since QTableWidget's
         built-in InternalMove drag-drop is a known source of subtle
@@ -20202,6 +20203,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         sp_create.triggered.connect(lambda checked=False: self._create_savepoint("Manual"))
         sp_menu.addAction("Restore Save Point...").triggered.connect(
             lambda checked=False: self._restore_savepoint_dialog())
+        menu.addAction("Map Checks...").triggered.connect(
+            lambda checked=False: self._show_map_checks())
 
         if getattr(loader, 'game', None) == 'sa':            # binary IPL is SA only
             savebin_act = menu.addAction("Save Text as Binary IPL...")
@@ -21553,6 +21556,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._baseline_loader_id = id(loader)
             self._ipl_baseline, self._inst_baseline = {}, {}
             self._ide_pending = {}
+            self._map_checks_dlg = None
         sigs = ipl_signatures(loader)
         new = {n for n in sigs if n not in self._ipl_baseline}
         if new:
@@ -21647,7 +21651,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                           list(getattr(self, '_ipl_baseline', {})), action,
                                           include_ide=True)
 
-    def _save_all_ipls(self): #vers 2
+    def _save_all_ipls(self): #vers 3
         """Save every changed IPL back to its own original file."""
         self._refresh_dirty_ipls()
         names = sorted(self._dirty_ipls)
@@ -21661,6 +21665,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"back to their original files?\n\n"
                 + "\n".join(names[:20]) + ("\n..." if len(names) > 20 else "")
                 + "\n\nBackups are made first.") != QMessageBox.StandardButton.Yes:
+            return False
+        from apps.components.Map_Editor.depends.map_checks import check_lod_links
+        loader = self._world_loader
+        broken = [r for r in check_lod_links(loader.instances, self._lod_parent_ipl)
+                  if 'warning' not in r[1] and r[0].source_ipl in names]
+        if broken and QMessageBox.question(
+                self, "Save Map Changes",
+                f"{len(broken)} broken LOD link(s) in the IPLs being saved "
+                f"(see Map Checks).\n\nSave anyway?") != QMessageBox.StandardButton.Yes:
+            self._show_map_checks()
             return False
         failed = [n for n in names if not self._save_ipl_in_place(n, confirm=False)]
         if ides and not self._save_pending_ide(ides):
@@ -21759,6 +21773,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_dirty_ipls()
         self._apply_dirty_highlight()
         return not missing and not errors
+
+    def _show_map_checks(self): #vers 1
+        """LOD links, IDE ID conflicts, missing assets and limits in one dialog."""
+        if getattr(self, '_world_loader', None) is None:
+            QMessageBox.information(self, "Map Checks", "Load a world first.")
+            return
+        from apps.components.Map_Editor.depends.map_checks import MapChecksDialog
+        dlg = getattr(self, '_map_checks_dlg', None)
+        if dlg is None:
+            dlg = self._map_checks_dlg = MapChecksDialog(self)
+        dlg.show()
+        dlg.raise_()
+        dlg._run_lod()
 
     def _savepoint_dir(self): #vers 1
         """Save point folder for the loaded world (per game root / dat)."""

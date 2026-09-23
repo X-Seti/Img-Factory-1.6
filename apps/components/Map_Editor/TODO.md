@@ -990,10 +990,10 @@ Not started - needs its own design pass before implementation:
 - [DONE Sep 23 2026] Place from Object Browser: drag model into viewport to create instance.
 
 ### Map integrity
-- LOD link checker: find broken or missing lod_index targets; repair on add/delete (SA binary streams).
-- ID conflict checker: duplicate / unused model IDs across IDEs before save.
-- Missing asset report: IDE entries with no DFF / TXD / COL in any IMG.
-- Instance limit meter: per-IPL and per-stream counts vs III / VC / SA engine limits.
+- [DONE Sep 23 2026] LOD link checker: find broken or missing lod_index targets; repair on add/delete (SA binary streams).
+- [DONE Sep 23 2026] ID conflict checker: duplicate / unused model IDs across IDEs before save.
+- [DONE Sep 23 2026] Missing asset report: IDE entries with no DFF / TXD / COL in any IMG.
+- [DONE Sep 23 2026] Instance limit meter: per-IPL and per-stream counts vs III / VC / SA engine limits.
 
 ### Cross-game conversion
 - Convert IPL between III / VC / SA formats (rotation convention, scale fields).

@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 134
+#this belongs in root /ChangeLog.md - Version: 135
+
+## Sep 23 2026 - Map Workshop: Map Checks dialog, Build 431.92
+
+New depends/map_checks.py. Tabs: LOD links (broken / non-LOD targets, clear broken undoable), IDE IDs (duplicates, multi-ID names, free ranges), missing DFF/TXD/COL, instance and model-ID limits (editable).
+
+Save All warns about broken LOD links in IPLs being saved. Opened from IPL list right-click > Map Checks.
 
 ## Sep 23 2026 - Map Workshop: duplicate, rotate rings, multi-select, drop to ground, align, place, Build 431.92
 
