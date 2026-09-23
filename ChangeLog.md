@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 128
+#this belongs in root /ChangeLog.md - Version: 129
+
+## Sep 23 2026 - gui_workshop: no corner handles when docked, Build 431.91
+
+Corner overlay and corner resize now standalone only. Affects all GUIWorkshop tools: Breakable, Handling, Hex, IPL, Timecyc, Vehicle, Water.
 
 ## Sep 23 2026 - Hex Workshop app icon, right bar button, Build 431.91
 

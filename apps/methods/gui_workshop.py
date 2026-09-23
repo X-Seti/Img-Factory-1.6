@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/methods/gui_workshop.py - Version: 3
+# apps/methods/gui_workshop.py - Version: 4
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -1085,6 +1085,10 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     #  Window chrome
     def showEvent(self, ev):
         super().showEvent(ev)
+        if not self.standalone_mode:                 # docked: no corner handles
+            if hasattr(self, "_corner_overlay"):
+                self._corner_overlay.hide()
+            return
         if not hasattr(self, "_corner_overlay"):
             self._corner_overlay = _CornerOverlay(self)
             self._corner_overlay.update_state(None, self.app_settings)
@@ -1098,6 +1102,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
 
     def _get_resize_corner(self, pos):
+        if not self.standalone_mode:
+            return None
         s = self.corner_size; x, y = pos.x(), pos.y()
         w, h = self.width(), self.height()
         if x < s and y < s:    return "top-left"
