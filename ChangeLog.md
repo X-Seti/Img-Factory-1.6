@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 135
+#this belongs in root /ChangeLog.md - Version: 136
+
+## Sep 23 2026 - Map Workshop: convert IPL game format, rebase area, Build 431.92
+
+IPL right-click > Convert to Game Format: inst section in III / VC / SA layout; reports dropped sections, scale (to SA), LOD indices (from SA).
+
+Rebase Area: shift + Z rotate selected IPLs about a pivot (undoable), optionally export converted copies to a folder.
 
 ## Sep 23 2026 - Map Workshop: Map Checks dialog, Build 431.92
 

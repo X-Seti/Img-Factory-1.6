@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 199
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 200
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -330,6 +330,7 @@ except ImportError:
 # _populate_texture_list    fill texture panel table from _mod_textures
 # _project_model_2d
 # _push_undo
+# _rebase_ipls_dialog
 # _rebuild_toolbars
 # _refresh_after_instance_change
 # _refresh_dirty_ipls
@@ -350,6 +351,7 @@ except ImportError:
 # _save_col_file
 # _save_file
 # _save_file_as
+# _save_ipl_as_game
 # _save_ipl_in_place
 # _save_map_or_model
 # _save_outer_layout
@@ -452,6 +454,7 @@ except ImportError:
 # show_help
 # show_settings_dialog
 # toggle_dock_mode
+# _write_ipl_as_game
 # _write_ipl_in_place
 #
 # __init__
@@ -20089,7 +20092,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_settings.set('ipl_sections_order', order)
         self.map_settings.save()
 
-    def _on_ipl_sections_context_menu(self, pos): #vers 5
+    def _on_ipl_sections_context_menu(self, pos): #vers 6
         """Right-click a row for Move Up/Down/Load Selected - explicit
         menu actions rather than drag-and-drop, since QTableWidget's
         built-in InternalMove drag-drop is a known source of subtle
@@ -20211,6 +20214,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             savebin_act.setEnabled(is_loaded)
             savebin_act.triggered.connect(
                 lambda checked=False, n=ipl_name: self._save_ipl_data_as_binary(n))
+
+        conv_act = menu.addAction("Convert to Game Format...")
+        conv_act.setEnabled(is_loaded)
+        conv_act.triggered.connect(lambda checked=False, n=ipl_name: self._save_ipl_as_game(n))
+        rb_names = [table.item(r, 0).data(Qt.ItemDataRole.UserRole)
+                    for r in sorted({x.row() for x in table.selectionModel().selectedRows()})
+                    if table.item(r, 0) is not None] or [ipl_name]
+        rebase_act = menu.addAction(f"Rebase Area ({len(rb_names)} IPL)...")
+        rebase_act.triggered.connect(lambda checked=False, ns=rb_names: self._rebase_ipls_dialog(ns))
 
         # Save IPL Data As... / Unload (Aug 16 2026)
         save_full_act = menu.addAction("Save IPL Data As...")
@@ -21343,8 +21355,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             f"Saved {total_written} entries across {len(section_order)} section(s) "
             f"from {ipl_name} to {path}")
 
-    def _build_ipl_text_lines(self, ipl_name): #vers 1
-        """Text IPL lines for all sections; (lines, count, sections) or None."""
+    def _build_ipl_text_lines(self, ipl_name, target_game=None): #vers 2
+        """Text IPL lines for all sections; (lines, count, sections) or None.
+        target_game other than the loaded game writes inst only, in that game's layout."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return None
@@ -21372,6 +21385,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         STRUCTURED = {'inst', 'cull', 'zone', 'path', 'grge', 'enex', 'occl', 'auzo'}
         game = getattr(loader, 'game', None)
+        if target_game and target_game != game:
+            game = target_game
+            section_order = ['inst']                # other sections differ per game
         all_inst = getattr(self, '_all_instances', None) or []
 
         def _fmt(v):
@@ -21508,6 +21524,119 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 lines_out.append("end")
 
         return lines_out, total_written, section_order
+
+    _GAME_LABELS = {'gta3': "GTA III", 'vc': "Vice City", 'sa': "San Andreas"}
+
+    def _write_ipl_as_game(self, ipl_name, target, path): #vers 1
+        """Write one IPL in another game's inst layout; returns (count, notes)."""
+        loader = self._world_loader
+        built = self._build_ipl_text_lines(ipl_name, target_game=target)
+        if not built or not built[0]:
+            raise ValueError(f"no loaded data for {ipl_name}")
+        lines, total, _order = built
+        notes = []
+        src_game = getattr(loader, 'game', None)
+        if target != src_game:
+            other = sorted({c for c, attr in (('cull', 'culls'), ('zone', 'zones'), ('path', 'paths'),
+                                              ('grge', 'grges'), ('enex', 'enexes'), ('occl', 'occls'),
+                                              ('auzo', 'auzos'))
+                            for o in getattr(loader, attr, []) or []
+                            if (o.get('source_ipl') if isinstance(o, dict) else o.source_ipl) == ipl_name})
+            if other:
+                notes.append("sections not converted: " + ", ".join(other))
+            insts = [i for i in loader.instances if i.source_ipl == ipl_name]
+            if target in ('sa', 'sol') and any((i.scale_x, i.scale_y, i.scale_z) != (1.0, 1.0, 1.0) for i in insts):
+                notes.append("scale dropped (SA inst has no scale)")
+            if src_game in ('sa', 'sol') and target not in ('sa', 'sol') and any(i.lod_index >= 0 for i in insts):
+                notes.append("LOD indices dropped")
+        _write_ipl_lines(path, [l + '\n' for l in lines])
+        return total, notes
+
+    def _save_ipl_as_game(self, ipl_name): #vers 1
+        """Save As an IPL converted to another game's format."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        keys = list(self._GAME_LABELS)
+        labels = [self._GAME_LABELS[k] for k in keys]
+        cur = getattr(loader, 'game', 'sa')
+        pick, ok = QInputDialog.getItem(self, "Convert IPL", f"{ipl_name}: save in which game's format?",
+                                        labels, keys.index(cur) if cur in keys else 0, False)
+        if not ok:
+            return
+        target = keys[labels.index(pick)]
+        default = os.path.splitext(ipl_name)[0] + f"_{target}.ipl"
+        path, _f = QFileDialog.getSaveFileName(self, "Convert IPL", default, "IPL files (*.ipl);;All files (*)")
+        if not path:
+            return
+        try:
+            total, notes = self._write_ipl_as_game(ipl_name, target, path)
+        except Exception as e:
+            QMessageBox.warning(self, "Convert IPL", f"Failed: {e}")
+            return
+        msg = f"Wrote {total} instance(s) as {pick} to {os.path.basename(path)}"
+        if notes:
+            QMessageBox.information(self, "Convert IPL", msg + "\n\n" + "\n".join(notes))
+        self._set_status(msg)
+
+    def _rebase_ipls_dialog(self, names): #vers 1
+        """Shift + rotate several IPLs together, optionally writing converted copies."""
+        loader = getattr(self, '_world_loader', None)
+        names = [n for n in names if n]
+        if loader is None or not names:
+            return
+        insts = [i for i in loader.instances if i.source_ipl in set(names)]
+        cx = sum(i.pos_x for i in insts) / len(insts) if insts else 0.0
+        cy = sum(i.pos_y for i in insts) / len(insts) if insts else 0.0
+        from PyQt6.QtWidgets import QFormLayout, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Rebase {len(names)} IPL(s)")
+        form = QFormLayout(dlg)
+        spins = {}
+        for key, label, val, rng in (('dx', "Shift X:", 0.0, 100000), ('dy', "Shift Y:", 0.0, 100000),
+                                     ('dz', "Shift Z:", 0.0, 10000), ('ang', "Rotate (deg, Z):", 0.0, 360),
+                                     ('px', "Pivot X:", cx, 100000), ('py', "Pivot Y:", cy, 100000)):
+            sp = QDoubleSpinBox()
+            sp.setRange(-rng, rng)
+            sp.setDecimals(3)
+            sp.setValue(val)
+            form.addRow(label, sp)
+            spins[key] = sp
+        fmt = QComboBox()
+        fmt.addItem("Don't export (edit in place)", None)
+        for k, v in self._GAME_LABELS.items():
+            fmt.addItem(f"Export copies as {v}", k)
+        form.addRow("After rebase:", fmt)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept)
+        bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        v = {k: sp.value() for k, sp in spins.items()}
+        for n in names:
+            if v['ang']:
+                self._rotate_ipl_coordinates(n, v['px'], v['py'], v['ang'])
+            if v['dx'] or v['dy'] or v['dz']:
+                self._shift_ipl_coordinates(n, v['dx'], v['dy'], v['dz'])
+        target = fmt.currentData()
+        if target is None:
+            self._set_status(f"Rebased {len(names)} IPL(s) - Ctrl+S to save")
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Folder for converted IPLs")
+        if not folder:
+            return
+        notes, done = [], 0
+        for n in names:
+            try:
+                out = os.path.join(folder, os.path.splitext(n)[0] + ".ipl")
+                _t, nn = self._write_ipl_as_game(n, target, out)
+                done += 1
+                notes += [f"{n}: {x}" for x in nn]
+            except Exception as e:
+                notes.append(f"{n}: failed - {e}")
+        QMessageBox.information(self, "Rebase", f"Exported {done} of {len(names)} IPL(s) to {folder}"
+                                + ("\n\n" + "\n".join(notes[:30]) if notes else ""))
 
     def _binary_stream_source(self, ipl_name): #vers 1
         """(archive_path, entry_name) if ipl_name is a loaded IMG binary stream."""

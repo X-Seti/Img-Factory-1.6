@@ -996,8 +996,8 @@ Not started - needs its own design pass before implementation:
 - [DONE Sep 23 2026] Instance limit meter: per-IPL and per-stream counts vs III / VC / SA engine limits.
 
 ### Cross-game conversion
-- Convert IPL between III / VC / SA formats (rotation convention, scale fields).
-- Rebase map area: shift + rotate + save, e.g. merge LC into SA.
+- [DONE Sep 23 2026] Convert IPL between III / VC / SA formats (rotation convention, scale fields).
+- [DONE Sep 23 2026] Rebase map area: shift + rotate + save, e.g. merge LC into SA.
 
 ### Integration
 - SCM Workshop: show script-placed objects, pickups, car generators from main.scm; jump to opcode.
