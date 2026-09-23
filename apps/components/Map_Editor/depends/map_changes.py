@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/depends/map_changes.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_changes.py - Version: 2
 # X-Seti - September23 2026 - IMG Factory 1.6 - Map Workshop change tracking and save points
 
 """
@@ -9,6 +9,8 @@ snapshot / restore of edited IPL data, save point files (json.gz).
 
 ##Methods list -
 # collect_ipl_state
+# ide_field_positions
+# ide_line_update
 # ipl_signatures
 # list_savepoints
 # prune_savepoints
@@ -16,6 +18,7 @@ snapshot / restore of edited IPL data, save point files (json.gz).
 # replace_ipl_state
 # state_from_json
 # state_to_json
+# write_ide_objects
 # write_savepoint
 # _freeze
 # _inst_key
@@ -181,3 +184,68 @@ def prune_savepoints(folder: str, keep: int): #vers 1
             os.remove(s['path'])
         except OSError as e:
             print(f"[Map save points] couldn't remove {s['path']}: {e}")
+
+
+def ide_field_positions(parts, section) -> dict: #vers 1
+    """Column index of each editable objs/tobj field in a split IDE line."""
+    pos = {'model_name': 1, 'txd_name': 2}
+    n = len(parts)
+    if (section == 'objs' and n == 5) or (section == 'tobj' and n == 7):
+        pos.update(draw_dist=3, flags=4)
+        if section == 'tobj':
+            pos.update(time_on=5, time_off=6)
+        return pos
+    mc = int(parts[3])                                  # mesh-count chain (III / VC)
+    pos['draw_dist'] = 4
+    if mc > 1:
+        pos['draw_dist2'] = 5
+    pos['flags'] = 4 + mc
+    if section == 'tobj':
+        pos.update(time_on=5 + mc, time_off=6 + mc)
+    return pos
+
+
+def ide_line_update(raw_line: str, section: str, model_id: int, values: dict) -> str: #vers 1
+    """Rewrite only the changed fields of one objs/tobj line; keeps comments/spacing of the rest."""
+    body, sep, comment = raw_line.partition('#')
+    eol = raw_line[len(raw_line.rstrip('\r\n')):]
+    if sep:
+        comment = comment.rstrip('\r\n')
+    else:
+        body = body.rstrip('\r\n')
+    parts = body.split(',')
+    if int(parts[0].strip()) != model_id:
+        raise ValueError(f"line holds ID {parts[0].strip()}, expected {model_id}")
+    pos = ide_field_positions([p.strip() for p in parts], section)
+    for key, val in values.items():
+        if key not in pos:
+            raise ValueError(f"field {key} not in this line layout")
+        i = pos[key]
+        old = parts[i]
+        lead = old[:len(old) - len(old.lstrip())]
+        trail = old[len(old.rstrip()):]
+        txt = (str(int(val)) if val.is_integer() else repr(val)) if isinstance(val, float) else str(val)
+        parts[i] = lead + txt + trail
+    return ','.join(parts) + (sep + comment if sep else '') + eol
+
+
+def write_ide_objects(path: str, objs) -> int: #vers 1
+    """Write edited IDEObjects back into one .ide file (backup first). Returns lines changed."""
+    from apps.methods.file_backup import safe_write_bytes
+    with open(path, 'rb') as f:
+        text = f.read().decode('latin-1')
+    lines = text.splitlines(keepends=True)
+    changed = 0
+    for o in objs:
+        i = o.line_no - 1
+        if not (0 <= i < len(lines)):
+            raise ValueError(f"{os.path.basename(path)}: line {o.line_no} out of range")
+        values = {'model_name': o.model_name, 'txd_name': o.txd_name}
+        values.update({k: v for k, v in o.extra.items() if k != 'mesh_count'})
+        new = ide_line_update(lines[i], o.section, o.model_id, values)
+        if new != lines[i]:
+            lines[i] = new
+            changed += 1
+    if changed:
+        safe_write_bytes(path, ''.join(lines).encode('latin-1'), label=f"IDE edit {os.path.basename(path)}")
+    return changed

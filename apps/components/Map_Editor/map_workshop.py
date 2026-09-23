@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 196
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 197
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -155,12 +155,15 @@ except ImportError:
 #
 ##class ModelWorkshop: -
 # _apply_dirty_highlight
+# _apply_ide_fields
+# _apply_instance_fields
 # _apply_savepoint_settings
 # _auto_savepoint
 # confirm_close
 # _confirm_discard_ipls
 # _create_savepoint
 # _forget_ipl_baseline
+# _ide_abs_path
 # __init__
 # _add_textures_from_txd
 # _align_dialog
@@ -282,6 +285,7 @@ except ImportError:
 # _on_dff_geom_selected
 # _on_dff_geom_selected_tbl    handle model table row click → show geometry #vers 1
 # _on_frame_tree_clicked
+# _on_gizmo_moved
 # _on_menu_btn_clicked
 # _on_paint_mode_exited
 # _on_painted_face
@@ -336,6 +340,7 @@ except ImportError:
 # _save_ipl_in_place
 # _save_map_or_model
 # _save_outer_layout
+# _save_pending_ide
 # _save_quad_layout
 # _save_settings
 # _save_texlist_setting
@@ -3590,7 +3595,7 @@ class _InstanceEditPanel(QWidget):
     _SCALE_SMALL_STEP = 0.1
     _SCALE_LARGE_STEP = 1.0
 
-    def __init__(self, workshop, parent=None): #vers 3
+    def __init__(self, workshop, parent=None): #vers 4
         super().__init__(parent)
         self._workshop = workshop
         self._inst = None
@@ -3672,17 +3677,12 @@ class _InstanceEditPanel(QWidget):
 
         bottom_row = QHBoxLayout()
         apply_btn = self._make_standard_button("Apply", get_checkmark_icon(18, icon_color), tooltip=
-            "STUB - edits made here (Position/Rotation/Scale) already\n"
-            "apply live and update the viewport immediately as you nudge\n"
-            "them, so there's nothing separate to 'Apply' yet. Will do\n"
-            "something once raw-line editing (per the redesign spec) is\n"
-            "built - see TODO.md.")
+            "Apply the edited IPL and IDE lines above (undoable).\n"
+            "Position/Rotation/Scale nudges already apply live.")
         undo_btn = self._make_standard_button("Undo", get_undo_icon(18, icon_color))
         close_btn = self._make_standard_button("Close", get_close_icon(18, icon_color))
         save_btn = self._make_standard_button("Save", get_save_icon(18, icon_color), tooltip=
-            "STUB - no write-back infrastructure exists for any file type\n"
-            "in Map Workshop yet (see TODO.md) - edits stay in memory only,\n"
-            "nothing gets written back to the .ipl/.ide file on disk.")
+            "Write this object's IPL and IDE changes to disk (backup first).")
         apply_btn.clicked.connect(self._on_apply_clicked)
         undo_btn.clicked.connect(self._on_undo_clicked)
         close_btn.clicked.connect(self._on_close_clicked)
@@ -3776,7 +3776,7 @@ class _InstanceEditPanel(QWidget):
             if nested is not None:
                 self._clear_layout_recursive(nested)
 
-    def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 3
+    def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 4
         """Identity section: raw IPL line, raw IDE line, and a 3rd row
         with the TXD's real status - one of three messages depending
         on what actually happened when looking it up (Aug 1 2026)"""
@@ -3794,8 +3794,11 @@ class _InstanceEditPanel(QWidget):
         ipl_show_btn.clicked.connect(
             lambda: self._workshop._jump_to_ipl_line(self._inst.source_ipl, self._inst.line_no))
         ipl_row.addWidget(ipl_show_btn)
-        ipl_row.addWidget(QLabel(ipl_line))
-        ipl_row.addStretch()
+        self._ipl_line_edit = QLineEdit(ipl_line)
+        self._ipl_line_edit.setToolTip(
+            "id, name, interior, pos x/y/z, scale x/y/z, rot x/y/z/w\nEdit and press Apply")
+        self._ipl_line_edit.returnPressed.connect(self._on_apply_clicked)
+        ipl_row.addWidget(self._ipl_line_edit, 1)
         lay.addLayout(ipl_row)
 
         ide_row = QHBoxLayout()
@@ -3808,8 +3811,16 @@ class _InstanceEditPanel(QWidget):
                 lambda: self._workshop._jump_to_ide_line(
                     self._current_ide_obj.source_ide, self._current_ide_obj.line_no))
         ide_row.addWidget(ide_show_btn)
-        ide_row.addWidget(QLabel(ide_line))
-        ide_row.addStretch()
+        obj = self._current_ide_obj
+        self._ide_line_edit = QLineEdit(ide_line)
+        self._ide_line_edit.setEnabled(obj is not None and obj.section in ('objs', 'tobj'))
+        self._ide_line_edit.setToolTip(
+            "id, model, txd, then the IDE fields (draw distance, flags, times)\nEdit and press Apply")
+        self._ide_line_edit.returnPressed.connect(self._on_apply_clicked)
+        ide_row.addWidget(self._ide_line_edit, 1)
+        if obj is not None:
+            src = QLabel(f"{obj.source_ide} (line {obj.line_no})")
+            ide_row.addWidget(src)
         lay.addLayout(ide_row)
 
         row = QHBoxLayout()
@@ -4305,7 +4316,7 @@ class _InstanceEditPanel(QWidget):
         self._nav_prev_btn.setVisible(visible)
         self._nav_next_btn.setVisible(visible)
 
-    def show_for_instance(self, inst, loader, nav_info=None, model_cache=None): #vers 3
+    def show_for_instance(self, inst, loader, nav_info=None, model_cache=None): #vers 4
         """Refresh every section for a (possibly new) instance - called
         both when first opening the panel and whenever the selection
         changes (Instance List, or the merged Object Browser), so the
@@ -4334,8 +4345,7 @@ class _InstanceEditPanel(QWidget):
         if obj is not None:
             ide_fields = [str(obj.model_id), obj.model_name, obj.txd_name]
             ide_fields += [str(v) for v in obj.extra.values()]
-            ide_line = (", ".join(ide_fields) +
-                       f"  -  Source {obj.source_ide} (line {obj.line_no})")
+            ide_line = ", ".join(ide_fields)
             txd_name = obj.txd_name
         else:
             ide_line = "(no matching IDE entry found)"
@@ -4521,10 +4531,50 @@ class _InstanceEditPanel(QWidget):
         else:
             self.hide()
 
-    def _on_apply_clicked(self): #vers 1
-        QMessageBox.information(self, "Apply",
-            "Position/Rotation/Scale edits already apply live as you\n"
-            "nudge them - there's nothing separate to Apply yet.")
+    def _on_apply_clicked(self): #vers 2
+        """Parse the edited IPL / IDE lines and apply them (undoable)."""
+        inst = self._inst
+        if inst is None:
+            return
+        ws = self._workshop
+        try:
+            p = [x.strip() for x in self._ipl_line_edit.text().split(',')]
+            if len(p) != 13:
+                raise ValueError(f"IPL line needs 13 fields, got {len(p)}")
+            new_inst = {'model_id': int(p[0]), 'model_name': p[1], 'interior': int(p[2]),
+                        'pos_x': float(p[3]), 'pos_y': float(p[4]), 'pos_z': float(p[5]),
+                        'scale_x': float(p[6]), 'scale_y': float(p[7]), 'scale_z': float(p[8]),
+                        'rot_x': float(p[9]), 'rot_y': float(p[10]), 'rot_z': float(p[11]),
+                        'rot_w': float(p[12])}
+        except ValueError as e:
+            QMessageBox.warning(self, "Apply", f"IPL line: {e}")
+            return
+        ide_vals = None
+        obj = self._current_ide_obj
+        if obj is not None and self._ide_line_edit.isEnabled():
+            try:
+                q = [x.strip() for x in self._ide_line_edit.text().split(',')]
+                keys = list(obj.extra.keys())
+                if len(q) != 3 + len(keys):
+                    raise ValueError(f"IDE line needs {3 + len(keys)} fields, got {len(q)}")
+                if int(q[0]) != obj.model_id:
+                    raise ValueError("the IDE model ID can't be changed here")
+                extra = {}
+                for k, raw in zip(keys, q[3:]):
+                    old = obj.extra[k]
+                    extra[k] = int(raw) if isinstance(old, int) else float(raw)
+                if extra.get('mesh_count', None) != obj.extra.get('mesh_count', None):
+                    raise ValueError("mesh count can't be changed here")
+                ide_vals = (q[1], q[2], extra)
+            except ValueError as e:
+                QMessageBox.warning(self, "Apply", f"IDE line: {e}")
+                return
+        ws._apply_instance_fields(inst, new_inst)
+        if ide_vals is not None:
+            ws._apply_ide_fields(obj, *ide_vals)
+        self._refresh_position_spins()
+        self._refresh_rotation_spins()
+        self._refresh_scale_spins()
 
     def _on_undo_clicked(self): #vers 2
         """Undo/redo for mapping changes (Aug 18 2026)"""
@@ -4533,11 +4583,24 @@ class _InstanceEditPanel(QWidget):
         else:
             self._workshop._map_undo()
 
-    def _on_save_clicked(self): #vers 1
-        QMessageBox.information(self, "Save",
-            "STUB - no write-back infrastructure exists for any file\n"
-            "type in Map Workshop yet (see TODO.md) - edits stay in\n"
-            "memory only, nothing gets written back to disk.")
+    def _on_save_clicked(self): #vers 2
+        """Save this object's IPL (if changed) and its IDE line (if edited)."""
+        inst = self._inst
+        if inst is None:
+            return
+        ws = self._workshop
+        ws._refresh_dirty_ipls()
+        saved = []
+        if inst.source_ipl in ws._dirty_ipls:
+            if not ws._save_ipl_in_place(inst.source_ipl):
+                return
+            saved.append(inst.source_ipl)
+        obj = self._current_ide_obj
+        if obj is not None and obj.model_id in ws._ide_pending:
+            if not ws._save_pending_ide([obj]):
+                return
+            saved.append(obj.source_ide)
+        ws._set_status("Saved " + ", ".join(saved) if saved else "Nothing to save for this object")
 
 
 class _FilteredLoaderStub:
@@ -11303,6 +11366,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # construction (Aug 18 2026)
         if hasattr(self.preview_widget, 'set_ipl_drag_callback'):
             self.preview_widget.set_ipl_drag_callback(self._on_ipl_dragged)
+        # Single-object move gizmo (Sep 23 2026)
+        if hasattr(self.preview_widget, 'set_gizmo_move_callback'):
+            self.preview_widget.set_gizmo_move_callback(self._on_gizmo_moved)
         # Wire the Move/Rotate click callback too (Aug 19 2026)
         if hasattr(self.preview_widget, 'set_ipl_click_callback'):
             self.preview_widget.set_ipl_click_callback(self._on_ipl_click_for_move_or_rotate)
@@ -18373,7 +18439,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 
 
-    def _center_on_instance(self, inst, nav_info=None): #vers 3
+    def _center_on_instance(self, inst, nav_info=None): #vers 4
         """Centre all three World View panes' cameras on an instance,
         show an XYZ gizmo at its position, and show/update its edit
         panel - the shared behaviour for both single- and double-
@@ -18398,7 +18464,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pane._yaw = 0.0
                 pane._pitch = 89.0
                 pane._dist = focus_dist
-            pane.set_gizmo_position((inst.pos_x, inst.pos_y, inst.pos_z))
+            pane.set_gizmo_target(inst)
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_gizmo_target'):
+            vp.set_gizmo_target(inst)
         self._show_instance_edit_panel(inst, nav_info)
 
     def _show_instance_edit_panel(self, inst, nav_info=None): #vers 4
@@ -18475,6 +18544,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         raw = self.map_settings.get('vc_layout_ipl_stems', '') or ''
         stems = {s.strip().lower() for s in raw.split(',') if s.strip()}
         loader.vc_layout_ipl_stems = stems
+
+    def _on_gizmo_moved(self, inst, dx, dy, dz): #vers 1
+        """Viewport gizmo finished a move: apply to the instance, undoable."""
+        old = (inst.pos_x, inst.pos_y, inst.pos_z)
+        new = (old[0] + dx, old[1] + dy, old[2] + dz)
+
+        def _set(p):
+            inst.pos_x, inst.pos_y, inst.pos_z = p
+            panel = getattr(self, '_instance_edit_panel', None)
+            if panel is not None and getattr(panel, '_inst', None) is inst:
+                panel._refresh_position_spins()
+            self._on_instance_edited(inst)
+
+        _set(new)
+        self._push_map_undo(lambda: _set(old), lambda: _set(new),
+                            f"Move {getattr(inst, 'model_name', '?')} ({dx:+.2f}, {dy:+.2f}, {dz:+.2f})")
+        self._set_status(f"Moved {inst.model_name} to ({new[0]:.2f}, {new[1]:.2f}, {new[2]:.2f})")
 
     def _on_instance_edited(self, inst): #vers 3
         """Called by _InstanceEditPanel."""
@@ -21119,12 +21205,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return None
 
     # -- change tracking, save all, save points (Sep 23 2026)
-    def _init_change_tracking(self): #vers 1
+    def _init_change_tracking(self): #vers 2
         """Start the changed-IPL poll and the save point timer."""
         self._ipl_baseline = {}          # ipl name -> signature at load / last save
         self._inst_baseline = {}         # id(inst) -> state tuple at load / last save
         self._baseline_loader_id = None
         self._dirty_ipls = set()
+        self._ide_pending = {}           # model_id -> edited IDEObject not yet written
         self._last_savepoint_sig = None
         self._dirty_timer = QTimer(self)
         self._dirty_timer.timeout.connect(self._refresh_dirty_ipls)
@@ -21141,7 +21228,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._savepoint_timer.stop()
 
-    def _refresh_dirty_ipls(self): #vers 1
+    def _refresh_dirty_ipls(self): #vers 2
         """Compare each loaded IPL with its baseline; update highlights."""
         if not hasattr(self, '_ipl_baseline'):
             return
@@ -21155,6 +21242,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if id(loader) != self._baseline_loader_id:
             self._baseline_loader_id = id(loader)
             self._ipl_baseline, self._inst_baseline = {}, {}
+            self._ide_pending = {}
         sigs = ipl_signatures(loader)
         new = {n for n in sigs if n not in self._ipl_baseline}
         if new:
@@ -21177,7 +21265,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         b = self._inst_baseline.get(id(inst))
         return b is None or b != _inst_key(inst)
 
-    def _apply_dirty_highlight(self): #vers 1
+    def _apply_dirty_highlight(self): #vers 2
         """Bold orange rows for changed IPLs and instances; status count."""
         dirty = getattr(self, '_dirty_ipls', set())
         table = getattr(self, '_ipl_sections_table', None)
@@ -21200,8 +21288,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if model is not None and model.rowCount() and model.columnCount():
             model.dataChanged.emit(model.index(0, 0),
                                    model.index(model.rowCount() - 1, model.columnCount() - 1))
-        if dirty:
-            self._set_status(f"{len(dirty)} IPL(s) with unsaved changes - Ctrl+S to save")
+        pend = getattr(self, '_ide_pending', {})
+        if dirty or pend:
+            self._set_status(f"Unsaved: {len(dirty)} IPL(s), {len(pend)} IDE object(s) - Ctrl+S to save")
 
     def _mark_ipl_saved(self, ipl_name): #vers 1
         """Reset the baseline for one IPL after a successful save."""
@@ -21221,42 +21310,51 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             getattr(self, '_ipl_baseline', {}).pop(n, None)
             getattr(self, '_dirty_ipls', set()).discard(n)
 
-    def _confirm_discard_ipls(self, names, action): #vers 1
+    def _confirm_discard_ipls(self, names, action, include_ide=False): #vers 2
         """Ask before dropping unsaved edits in these IPLs; True to go ahead."""
         self._refresh_dirty_ipls()
         hit = sorted(set(names) & getattr(self, '_dirty_ipls', set()))
-        if not hit:
+        ides = list(getattr(self, '_ide_pending', {}).values()) if include_ide else []
+        if not hit and not ides:
             return True
+        lines = hit[:20] + (["..."] if len(hit) > 20 else [])
+        if ides:
+            lines.append(f"{len(ides)} edited IDE object(s)")
         r = QMessageBox.question(
-            self, action, f"{len(hit)} IPL(s) have unsaved changes:\n\n" + "\n".join(hit[:20])
-            + ("\n..." if len(hit) > 20 else "") + "\n\nSave them first?",
+            self, action, "Unsaved changes:\n\n" + "\n".join(lines) + "\n\nSave them first?",
             QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
             | QMessageBox.StandardButton.Cancel)
         if r == QMessageBox.StandardButton.Cancel:
             return False
         if r == QMessageBox.StandardButton.Save:
-            return all(self._save_ipl_in_place(n, confirm=False) for n in hit)
+            ok = all([self._save_ipl_in_place(n, confirm=False) for n in hit])
+            return (self._save_pending_ide(ides) if ides else True) and ok
         return True
 
-    def confirm_close(self, action="Map Workshop"): #vers 1
+    def confirm_close(self, action="Map Workshop"): #vers 2
         """Unsaved-work reminder for close, quit or world reload; True to continue."""
         return self._confirm_discard_ipls(list(getattr(self, '_dirty_ipls', set())) or
-                                          list(getattr(self, '_ipl_baseline', {})), action)
+                                          list(getattr(self, '_ipl_baseline', {})), action,
+                                          include_ide=True)
 
-    def _save_all_ipls(self): #vers 1
+    def _save_all_ipls(self): #vers 2
         """Save every changed IPL back to its own original file."""
         self._refresh_dirty_ipls()
         names = sorted(self._dirty_ipls)
-        if not names:
+        ides = list(self._ide_pending.values())
+        if not names and not ides:
             self._set_status("No unsaved map changes")
             return True
         if QMessageBox.question(
                 self, "Save Map Changes",
-                f"Save {len(names)} changed IPL(s) back to their original files?\n\n"
+                f"Save {len(names)} changed IPL(s) and {len(ides)} edited IDE object(s) "
+                f"back to their original files?\n\n"
                 + "\n".join(names[:20]) + ("\n..." if len(names) > 20 else "")
                 + "\n\nBackups are made first.") != QMessageBox.StandardButton.Yes:
             return False
         failed = [n for n in names if not self._save_ipl_in_place(n, confirm=False)]
+        if ides and not self._save_pending_ide(ides):
+            failed.append("IDE edits")
         if failed:
             QMessageBox.warning(self, "Save Map Changes",
                                 f"{len(names) - len(failed)} saved, {len(failed)} not saved:\n\n"
@@ -21265,13 +21363,92 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status(f"Saved {len(names)} IPL(s)")
         return not failed
 
-    def _save_map_or_model(self): #vers 1
+    def _save_map_or_model(self): #vers 2
         """Ctrl+S / Save: changed IPLs first, otherwise the open model."""
         self._refresh_dirty_ipls()
-        if getattr(self, '_dirty_ipls', None):
+        if getattr(self, '_dirty_ipls', None) or getattr(self, '_ide_pending', None):
             self._save_all_ipls()
         else:
             self._save_file()
+
+    def _apply_instance_fields(self, inst, values): #vers 1
+        """Set IPL instance fields from the object editor (undoable)."""
+        old = {k: getattr(inst, k) for k in values}
+        if old == values:
+            return
+        model_changed = old.get('model_id') != values.get('model_id') or \
+            old.get('model_name') != values.get('model_name')
+
+        def _set(v):
+            for k, x in v.items():
+                setattr(inst, k, x)
+            if model_changed:
+                self._apply_ipl_visibility_filter(auto_fit=False)
+            else:
+                self._on_instance_edited(inst)
+
+        _set(values)
+        self._push_map_undo(lambda: _set(old), lambda: _set(values),
+                            f"Edit {inst.model_name} IPL line")
+
+    def _apply_ide_fields(self, obj, model_name, txd_name, extra): #vers 1
+        """Set IDE object fields from the object editor (undoable, saved with Ctrl+S)."""
+        old = (obj.model_name, obj.txd_name, dict(obj.extra))
+        new = (model_name, txd_name, dict(extra))
+        if old == new:
+            return
+
+        def _set(v):
+            obj.model_name, obj.txd_name = v[0], v[1]
+            obj.extra.clear()
+            obj.extra.update(v[2])
+            self._ide_pending[obj.model_id] = obj
+            self._refresh_dirty_ipls()
+            self._apply_dirty_highlight()
+
+        _set(new)
+        self._push_map_undo(lambda: _set(old), lambda: _set(new), f"Edit IDE {obj.model_name}")
+
+    def _ide_abs_path(self, obj): #vers 1
+        """Full path of an IDE object's source file (matched by name and line ID)."""
+        loader = getattr(self, '_world_loader', None)
+        cands = [p for _ph, et, p, ok in getattr(loader, 'load_log', []) or []
+                 if et == "IDE" and ok and os.path.basename(p) == obj.source_ide]
+        for p in cands:
+            try:
+                with open(p, 'rb') as f:
+                    lines = f.read().decode('latin-1').splitlines()
+                if 0 < obj.line_no <= len(lines) and \
+                        lines[obj.line_no - 1].split(',')[0].strip() == str(obj.model_id):
+                    return p
+            except OSError:
+                continue
+        return None
+
+    def _save_pending_ide(self, objs): #vers 1
+        """Write edited IDE objects to their .ide files; True if all written."""
+        from apps.components.Map_Editor.depends.map_changes import write_ide_objects
+        by_file, missing = {}, []
+        for o in objs:
+            p = self._ide_abs_path(o)
+            if p is None:
+                missing.append(f"{o.model_name} ({o.source_ide})")
+            else:
+                by_file.setdefault(p, []).append(o)
+        errors = []
+        for p, group in by_file.items():
+            try:
+                write_ide_objects(p, group)
+                for o in group:
+                    self._ide_pending.pop(o.model_id, None)
+            except Exception as e:
+                errors.append(f"{os.path.basename(p)}: {e}")
+        if missing or errors:
+            QMessageBox.warning(self, "Save IDE",
+                                "Not saved:\n\n" + "\n".join(missing + errors))
+        self._refresh_dirty_ipls()
+        self._apply_dirty_highlight()
+        return not missing and not errors
 
     def _savepoint_dir(self): #vers 1
         """Save point folder for the loaded world (per game root / dat)."""

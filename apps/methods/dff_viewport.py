@@ -1,11 +1,20 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 15
+# this belongs in apps/methods/dff_viewport.py - Version: 16
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
 Standalone tools import from their own methods/dff_viewport.py.
 
 ##Methods list -
+# DFFViewport._draw_gizmo
+# DFFViewport._gizmo_axis_param
+# DFFViewport._gizmo_begin
+# DFFViewport._gizmo_end
+# DFFViewport._gizmo_entry
+# DFFViewport._gizmo_pick_axis
+# DFFViewport._gizmo_project
+# DFFViewport._gizmo_size
+# DFFViewport._gizmo_update
 # DFFViewport.__init__
 # DFFViewport._anim_tick
 # DFFViewport._apply_selection_click
@@ -39,6 +48,8 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._refresh
 # DFFViewport._rw_wrap_to_gl
 # DFFViewport._selected_set_for_mode
+# DFFViewport.set_gizmo_move_callback
+# DFFViewport.set_gizmo_target
 # DFFViewport._setup_lighting
 # DFFViewport._strip_tex_suffix
 # DFFViewport._upload_textures
@@ -318,6 +329,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dragging_ipl_clicked_start_pos = None
         self._ipl_drag_callback = None
         self._ipl_selection_callback = None
+        # Single-object move gizmo (Sep 23 2026)
+        self._gizmo_inst = None                 # IPLInstance being moved
+        self._gizmo_move_callback = None        # fn(inst, dx, dy, dz) on drag end
+        self._gizmo_drag = None                 # dict while dragging
+        self._gizmo_hover_axis = None
         # Axis lock (Aug 18 2026)
         self._ipl_drag_axis_lock = None
         # 3-state Drag/Move/Rotate cycle (Aug 19 2026)
@@ -907,7 +923,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_MODELVIEW)
         self._label_widget.move(4, 2)
 
-    def paintGL(self): #vers 7
+    def paintGL(self): #vers 8
         if not OPENGL_AVAILABLE: return
         bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
@@ -969,6 +985,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_selected_box_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
+            if self._gizmo_inst is not None:
+                self._draw_gizmo()
             if self._show_grid: self._draw_grid()
             # Water drawn after the grid now (Aug 20 2026)
             if self.show_water:
@@ -3897,6 +3915,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._dragging_box_corner_live_z = info['pos'][2]
                 self.update()
                 return
+            # Single-object gizmo: arrow = axis drag, Ctrl+click object = free drag
+            if self._gizmo_move_callback is not None and not getattr(self, '_ipl_drag_mode', False):
+                if self._gizmo_begin(mx, my, event.modifiers()):
+                    return
             # Whole-IPL-section dragging (Aug 18 2026)
             if getattr(self, '_ipl_drag_mode', False):
                 mx, my = event.pos().x(), event.pos().y()
@@ -3982,7 +4004,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._notify_selection_changed()
                 self.update()
 
-    def mouseMoveEvent(self, event): #vers 3
+    def mouseMoveEvent(self, event): #vers 4
         dx = event.pos().x() - self._last_pos.x()
         dy = event.pos().y() - self._last_pos.y()
         sens = getattr(self, '_mouse_sensitivity', 1.0)
@@ -4035,6 +4057,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
                 self.update()
         elif (event.buttons() & Qt.MouseButton.LeftButton
+              and self._gizmo_drag is not None):
+            self._gizmo_update(event.pos().x(), event.pos().y())
+        elif (event.buttons() & Qt.MouseButton.LeftButton
               and getattr(self, '_dragging_ipl_names', None)):
 
             start_ground = self._dragging_ipl_ground_start
@@ -4081,6 +4106,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
             idx = self._pick_world_instance(event.pos().x(), event.pos().y())
             self._hovered_instance_idx = idx
+        if event.buttons() == Qt.MouseButton.NoButton and self._gizmo_inst is not None:
+            self._gizmo_hover_axis = self._gizmo_pick_axis(event.pos().x(), event.pos().y())
         self._last_pos = event.pos(); self.update()
 
         callback = getattr(self, '_lod_test_callback', None)
@@ -4089,6 +4116,197 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if ground_pos is not None:
                 self.set_lod_test_center(ground_pos)
                 callback(ground_pos)
+
+    # -- single-object move gizmo (Sep 23 2026)
+    def set_gizmo_move_callback(self, callback): #vers 1
+        """fn(inst, dx, dy, dz) called when a gizmo move ends; None disables the gizmo."""
+        self._gizmo_move_callback = callback
+        if callback is None:
+            self._gizmo_inst = None
+            self.update()
+
+    def set_gizmo_target(self, inst): #vers 1
+        """Show the move gizmo on this instance (None hides it)."""
+        self._gizmo_inst = inst if self._gizmo_move_callback is not None else None
+        self._gizmo_drag = None
+        self.update()
+
+    def _gizmo_entry(self): #vers 1
+        """World-instance entry of the gizmo target, or None."""
+        for e in getattr(self, '_world_instances', None) or []:
+            if e.get('instance') is self._gizmo_inst:
+                return e
+        return None
+
+    def _gizmo_size(self, pos): #vers 1
+        """Arrow length: scales with camera distance so it stays readable."""
+        return max(0.5, self._dist * 0.12)
+
+    def _gizmo_project(self, pts): #vers 1
+        """World points -> widget pixels using the pick camera; None on failure."""
+        if not OPENGL_AVAILABLE or not self.isValid():
+            return None
+        try:
+            self.makeCurrent()
+            glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+            w = max(1, self.width()); h = max(1, self.height())
+            gluPerspective(45.0, w / h, 0.01, 100000.0)
+            glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
+            gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
+            glRotatef(-self._pitch, 1, 0, 0)
+            glRotatef(self._yaw, 0, 0, 1)
+            glTranslatef(self._pan_x, self._pan_y, 0)
+            mm = glGetDoublev(GL_MODELVIEW_MATRIX)
+            pm = glGetDoublev(GL_PROJECTION_MATRIX)
+            vp = (0, 0, w, h)
+            out = [gluProject(p[0], p[1], p[2], mm, pm, vp) for p in pts]
+            glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
+            self.doneCurrent()
+        except Exception:
+            try: self.doneCurrent()
+            except Exception: pass
+            return None
+        return [(x, h - y) for x, y, _z in out]
+
+    def _gizmo_pick_axis(self, mx, my): #vers 1
+        """'x' / 'y' / 'z' arrow under the mouse, 'free' for the centre, else None."""
+        e = self._gizmo_entry() if self._gizmo_inst is not None else None
+        if e is None:
+            return None
+        px, py, pz = e['pos']
+        L = self._gizmo_size(e['pos'])
+        pts = self._gizmo_project([(px, py, pz), (px + L, py, pz), (px, py + L, pz), (px, py, pz + L)])
+        if not pts:
+            return None
+        c = pts[0]
+        if (mx - c[0]) ** 2 + (my - c[1]) ** 2 <= 64:
+            return 'free'
+        best, best_d = None, 49.0                       # within 7 px of a shaft
+        for axis, tip in zip('xyz', pts[1:]):
+            ax, ay = tip[0] - c[0], tip[1] - c[1]
+            l2 = ax * ax + ay * ay
+            if l2 < 1:
+                continue
+            t = max(0.0, min(1.0, ((mx - c[0]) * ax + (my - c[1]) * ay) / l2))
+            d = (mx - c[0] - ax * t) ** 2 + (my - c[1] - ay * t) ** 2
+            if t > 0.15 and d < best_d:
+                best, best_d = axis, d
+        return best
+
+    def _gizmo_axis_param(self, ray, origin, axis): #vers 1
+        """Parameter along a world axis line nearest the mouse ray, or None if parallel."""
+        a = {'x': (1.0, 0.0, 0.0), 'y': (0.0, 1.0, 0.0), 'z': (0.0, 0.0, 1.0)}[axis]
+        (ox, oy, oz), d = ray
+        w0 = (origin[0] - ox, origin[1] - oy, origin[2] - oz)
+        b = a[0] * d[0] + a[1] * d[1] + a[2] * d[2]
+        den = 1.0 - b * b
+        if abs(den) < 1e-6:
+            return None
+        dw = d[0] * w0[0] + d[1] * w0[1] + d[2] * w0[2]
+        aw = a[0] * w0[0] + a[1] * w0[1] + a[2] * w0[2]
+        return (b * dw - aw) / den
+
+    def _gizmo_begin(self, mx, my, modifiers): #vers 1
+        """Start a gizmo drag from an arrow, the centre, or Ctrl+click on an object."""
+        axis = self._gizmo_pick_axis(mx, my) if self._gizmo_inst is not None else None
+        if axis is None:
+            if not (modifiers & Qt.KeyboardModifier.ControlModifier):
+                return False
+            idx = self._pick_world_instance(mx, my)
+            if idx is None:
+                return False
+            self._gizmo_inst = self._world_instances[idx].get('instance')
+            axis = 'free'
+        e = self._gizmo_entry()
+        if e is None:
+            return False
+        ray = self._pick_ray(mx, my)
+        if ray is None:
+            return False
+        start = tuple(e['pos'])
+        if axis == 'free':
+            ref = self._screen_to_ground_position(mx, my, ground_z=start[2])
+        else:
+            ref = self._gizmo_axis_param(ray, start, axis)
+        if ref is None:
+            return False
+        self._gizmo_drag = {'axis': axis, 'start': start, 'rot': e['rot'], 'scale': e['scale'],
+                            'ref': ref, 'delta': (0.0, 0.0, 0.0)}
+        self.update()
+        return True
+
+    def _gizmo_update(self, mx, my): #vers 1
+        """Move the gizmo target live while dragging."""
+        d = self._gizmo_drag
+        sx, sy, sz = d['start']
+        if d['axis'] == 'free':
+            cur = self._screen_to_ground_position(mx, my, ground_z=sz)
+            if cur is None:
+                return
+            dx, dy, dz = cur[0] - d['ref'][0], cur[1] - d['ref'][1], 0.0
+        else:
+            ray = self._pick_ray(mx, my)
+            t = self._gizmo_axis_param(ray, d['start'], d['axis']) if ray else None
+            if t is None:
+                return
+            m = t - d['ref']
+            dx, dy, dz = (m if d['axis'] == 'x' else 0.0, m if d['axis'] == 'y' else 0.0,
+                          m if d['axis'] == 'z' else 0.0)
+        if self._snap_targets.get('centre'):                     # snap centre to nearest other object
+            wx, wy, wz = sx + dx, sy + dy, sz + dz
+            best = None
+            for e in self._world_instances:
+                other = e.get('instance')
+                if other is None or other is self._gizmo_inst:
+                    continue
+                ox, oy, oz = e['pos']
+                d2 = (ox - wx) ** 2 + (oy - wy) ** 2 + (oz - wz) ** 2
+                if d2 < 9.0 and (best is None or d2 < best[0]):
+                    best = (d2, (ox, oy, oz))
+            if best is not None:
+                dx, dy, dz = best[1][0] - sx, best[1][1] - sy, best[1][2] - sz
+        d['delta'] = (dx, dy, dz)
+        self.update_instance_transform(self._gizmo_inst, (sx + dx, sy + dy, sz + dz), d['rot'], d['scale'])
+
+    def _gizmo_end(self): #vers 1
+        """Finish a gizmo drag: hand the move to the workshop (undo, save tracking)."""
+        d, self._gizmo_drag = self._gizmo_drag, None
+        dx, dy, dz = d['delta']
+        if (dx or dy or dz) and self._gizmo_move_callback is not None:
+            self.update_instance_transform(self._gizmo_inst, d['start'], d['rot'], d['scale'])
+            self._gizmo_move_callback(self._gizmo_inst, dx, dy, dz)
+        self.update()
+
+    def _draw_gizmo(self): #vers 1
+        """Red X, green Y, blue Z arrows on the gizmo target; hovered/dragged axis yellow."""
+        e = self._gizmo_entry()
+        if e is None:
+            return
+        px, py, pz = e['pos']
+        L = self._gizmo_size(e['pos'])
+        active = self._gizmo_drag['axis'] if self._gizmo_drag else self._gizmo_hover_axis
+        glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT | GL_POINT_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        for axis, col, v in (('x', (1.0, 0.2, 0.2), (1, 0, 0)), ('y', (0.2, 1.0, 0.2), (0, 1, 0)),
+                             ('z', (0.3, 0.5, 1.0), (0, 0, 1))):
+            glColor3f(*((1.0, 0.9, 0.1) if active == axis else col))
+            glLineWidth(4.0 if active == axis else 2.5)
+            tip = (px + v[0] * L, py + v[1] * L, pz + v[2] * L)
+            glBegin(GL_LINES)
+            glVertex3f(px, py, pz); glVertex3f(*tip)
+            # arrow head: two short lines back from the tip
+            h = L * 0.15
+            side = (0, 0, 1) if axis != 'z' else (1, 0, 0)
+            for sgn in (1, -1):
+                glVertex3f(*tip)
+                glVertex3f(tip[0] - v[0] * h + side[0] * h * 0.5 * sgn,
+                           tip[1] - v[1] * h + side[1] * h * 0.5 * sgn,
+                           tip[2] - v[2] * h + side[2] * h * 0.5 * sgn)
+            glEnd()
+        glColor3f(*((1.0, 0.9, 0.1) if active == 'free' else (1.0, 1.0, 1.0)))
+        glPointSize(9.0)
+        glBegin(GL_POINTS); glVertex3f(px, py, pz); glEnd()
+        glPopAttrib()
 
     def _screen_to_ground_position(self, mx, my, ground_z=0.0): #vers 1
         """Cast a ray from the camera through the given widget-space
@@ -4146,7 +4364,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix()
         glLineWidth(1.0)
 
-    def mouseReleaseEvent(self, event): #vers 4
+    def mouseReleaseEvent(self, event): #vers 5
         self._last_pos = event.pos()
         if event.button() == Qt.MouseButton.RightButton:
             # Right-click for options on a hovered instance (Aug 19 2026)
@@ -4202,6 +4420,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._dragging_box_corner_live_z = None
             self.update()
 
+        # Commit a completed gizmo move (Sep 23 2026)
+        if self._gizmo_drag is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._gizmo_end()
+
         # Commit a completed whole-IPL drag (Aug 18 2026)
         dragged_names = getattr(self, '_dragging_ipl_names', None)
         if dragged_names:
@@ -4248,9 +4470,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Toggle zoom-toward-mouse-cursor (Aug 18 2026)"""
         self._zoom_to_cursor = enabled
 
-    def keyPressEvent(self, event): #vers 2
-        """Configurable camera controls, held keys giving continuous motion."""
+    def keyPressEvent(self, event): #vers 3
+        """Configurable camera controls, held keys giving continuous motion.
+        Esc cancels a gizmo drag, or drops the gizmo."""
         key = event.key()
+        if key == Qt.Key.Key_Escape and self._gizmo_inst is not None:
+            if self._gizmo_drag is not None:
+                d = self._gizmo_drag
+                self.update_instance_transform(self._gizmo_inst, d['start'], d['rot'], d['scale'])
+                self._gizmo_drag = None
+            else:
+                self._gizmo_inst = None
+            self.update()
+            return
         is_numpad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)
         bindings = getattr(self, '_key_bindings', None) or DEFAULT_KEY_BINDINGS
         for action, spec in bindings.items():

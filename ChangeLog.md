@@ -1,4 +1,14 @@
-#this belongs in root /ChangeLog.md - Version: 132
+#this belongs in root /ChangeLog.md - Version: 133
+
+## Sep 23 2026 - Map Workshop: move gizmo, editable IPL/IDE lines, IDE write-back, Build 431.92
+
+Viewport gizmo: Ctrl+click object to drag it; click X/Y/Z arrow to drag along that axis; centre dot = free move. Esc cancels. Undoable, snap-to-centre honoured.
+
+Object Editor: IPL and IDE lines now editable; Apply is undoable; Save writes this object's IPL and IDE line.
+
+IDE write-back (objs/tobj): only changed fields rewritten in place, comments and spacing kept, backup first. Included in Ctrl+S and unsaved reminders.
+
+Fixed dead set_gizmo_position call in _center_on_instance.
 
 ## Sep 23 2026 - Map Workshop: unsaved change tracking, Save All, save points, Build 431.92
 

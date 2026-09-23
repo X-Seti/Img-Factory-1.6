@@ -53,9 +53,10 @@ Extracted from inline `#TODO` comments in map_workshop.py, .per
 
 - [REMOVED Sep 23 2026] `apply_changes`, `_apply_prelighting` stubs were dead code; removed.
 - [DONE Sep 23 2026] IPL write-back: "Save IPL" overwrites original (text, loose binary, or SA stream in IMG), backup first.
-- Still missing: IDE write-back (Item Editor, 2DFX); prelight bake to DFF.
+- Still missing: prelight bake to DFF.
 - [DONE Sep 23 2026] Unsaved change highlight, Save All (Ctrl+S), close/quit reminder, save points.
-- Next: gizmo drag of single objects in the viewport.
+- [DONE Sep 23 2026] Gizmo drag of single objects; editable IPL/IDE lines in Object Editor; IDE objs/tobj write-back.
+- Still open: IDE write-back for other sections (cars/peds/hier/2dfx); IDE edits not in save points; object-to-object side/edge snapping.
 - [DONE Aug 20 2026] Undo/redo for mapping changes - the core stack
   (_push_map_undo/_map_undo/_map_redo, Aug 18 2026) was already wired
   to Position/Rotation/Scale nudges; this turn added: Ctrl+Z/Ctrl+Y
