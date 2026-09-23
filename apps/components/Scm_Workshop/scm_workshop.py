@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Scm_Workshop/scm_workshop.py — Version 2
+# apps/components/Scm_Workshop/scm_workshop.py — Version 3
 # X-Seti / Claudia — IMG Factory 1.6 — SCM Script Workshop
 # GTA III / VC / SA main.scm browser, coord searcher and patcher.
 
@@ -350,6 +350,12 @@ will be world coords. Always keep a backup of the original main.scm.</p>
                 if getattr(self,'_patched',False): ev.ignore(); return
         self.ribbon_save_state()
         super().closeEvent(ev)
+
+    def goto_offset(self, offset: int): #vers 1
+        """Show the hex view at a byte offset (used by Map Workshop script placements)."""
+        self._hex_offset.setText(f"0x{offset:08X}")
+        self._update_hex_view()
+        self._tabs.setCurrentIndex(2)
 
     def _update_hex_view(self):
         if not self._parser.data: self._hex_view.setPlainText("No SCM loaded."); return

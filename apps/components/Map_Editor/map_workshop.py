@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 200
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 201
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -335,6 +335,7 @@ except ImportError:
 # _refresh_after_instance_change
 # _refresh_dirty_ipls
 # _refresh_icons    refresh all SVG icons after theme change
+# _regen_changed_radar_tiles
 # _regenerate_all_thumbnails
 # _reload_surface_table
 # _remove_selected_textures
@@ -379,10 +380,12 @@ except ImportError:
 # _show_detailed_info
 # _show_dff_geometry    push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_dff_material_context_menu
+# _show_engine_load_log
 # _show_map_checks
 # _show_model_details
 # _show_model_search
 # _show_quad_pane_menu
+# _show_script_placements
 # _show_settings_context_menu
 # _show_settings_dialog
 # _show_settings_hotkeys
@@ -20208,6 +20211,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lambda checked=False: self._restore_savepoint_dialog())
         menu.addAction("Map Checks...").triggered.connect(
             lambda checked=False: self._show_map_checks())
+        menu.addAction("Script Placements (main.scm)...").triggered.connect(
+            lambda checked=False: self._show_script_placements())
+        menu.addAction("Engine Load Log...").triggered.connect(
+            lambda checked=False: self._show_engine_load_log())
 
         if getattr(loader, 'game', None) == 'sa':            # binary IPL is SA only
             savebin_act = menu.addAction("Save Text as Binary IPL...")
@@ -21064,9 +21071,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_settings.set('radar_tiles_output_dir', output_dir)
         self._generate_radar_tiles(output_dir)
 
-    def _generate_radar_tiles(self, output_dir): #vers 2
+    def _generate_radar_tiles(self, output_dir, only=None): #vers 3
         """Generate every real radar/minimap tile for the currently
-        loaded world (Aug 20 2026)"""
+        loaded world (Aug 20 2026). only: tile indices to redo, None = all."""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not getattr(loader, 'instances', None):
             QMessageBox.information(self, "Generate Radar Tiles",
@@ -21082,6 +21089,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         game_key = getattr(loader, 'game', 'sa')
         preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])
         tiles = compute_radar_grid(**preset)
+        if only is not None:
+            tiles = [t for t in tiles if t.index in set(only)]
         os.makedirs(output_dir, exist_ok=True)
 
         progress = QProgressDialog(
@@ -21090,11 +21099,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         saved = 0
 
         #  paths of every tile actually saved this run (Aug 20 2026)
-        self._last_radar_tile_paths = []
+        if only is None or not getattr(self, '_last_radar_tile_paths', None):
+            self._last_radar_tile_paths = []
         for tile in tiles:
             if progress.wasCanceled():
                 break
-            progress.setValue(tile.index)
+            progress.setValue(tiles.index(tile))
             progress.setLabelText(
                 f"Tile {tile.index} (row {tile.row}, col {tile.col})...")
             QApplication.processEvents()
@@ -21106,18 +21116,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 image = vp.capture_radar_tile(cx, cy, tile_size, show_grid=show_grid)
                 out_path = os.path.join(output_dir, f"radar{tile.index:02d}.png")
                 image.save(out_path)
-                self._last_radar_tile_paths.append(out_path)
+                if out_path not in self._last_radar_tile_paths:
+                    self._last_radar_tile_paths.append(out_path)
                 saved += 1
             except Exception as e:
                 print(f"[Radar Generator] Failed tile {tile.index}: {e}")
         progress.setValue(len(tiles))
         self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
 
-    def _on_radar_tiles_context_menu(self, button, pos): #vers 3
+    def _on_radar_tiles_context_menu(self, button, pos): #vers 4
         """Right-click menu on the Radar button - "Send to TXD
         Workshop" (Aug 20 2026)"""
         menu = QMenu(button)
         tiles = getattr(self, '_last_radar_tile_paths', None)
+        regen = menu.addAction("Regenerate tiles touched by unsaved edits")
+        regen.setEnabled(bool(getattr(self, '_dirty_ipls', None)))
+        regen.triggered.connect(self._regen_changed_radar_tiles)
+        menu.addSeparator()
         act = menu.addAction("Send to TXD Workshop (pack PNGs into TXDs)")
         act.setEnabled(bool(tiles))
         if not tiles:
@@ -21670,7 +21685,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._savepoint_timer.stop()
 
-    def _refresh_dirty_ipls(self): #vers 2
+    def _refresh_dirty_ipls(self): #vers 3
         """Compare each loaded IPL with its baseline; update highlights."""
         if not hasattr(self, '_ipl_baseline'):
             return
@@ -21691,9 +21706,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if new:
             for n in new:
                 self._ipl_baseline[n] = sigs[n]
+            src = self.__dict__.setdefault('_inst_baseline_src', {})
             for i in loader.instances:
                 if i.source_ipl in new:
                     self._inst_baseline[id(i)] = _inst_key(i)
+                    src[id(i)] = i.source_ipl
         empty = hash(())
         dirty = {n for n, b in self._ipl_baseline.items() if sigs.get(n, empty) != b}
         if dirty != self._dirty_ipls:
@@ -21902,6 +21919,66 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._refresh_dirty_ipls()
         self._apply_dirty_highlight()
         return not missing and not errors
+
+    def _show_script_placements(self): #vers 1
+        """Scan main.scm for script-placed objects, pickups and car generators."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            QMessageBox.information(self, "Script Placements", "Load a world first.")
+            return
+        root = getattr(self, '_game_root', '') or ''
+        path = os.path.join(root, 'data', 'main.scm')
+        if not os.path.isfile(path):
+            path, _f = QFileDialog.getOpenFileName(self, "Open main.scm", root, "SCM (*.scm);;All files (*)")
+            if not path:
+                return
+        from apps.methods.scm_placements import scan_placements
+        from apps.components.Map_Editor.depends.map_integration import ScriptPlacementsDialog
+        with open(path, 'rb') as f:
+            data = f.read()
+        self._set_status(f"Scanning {os.path.basename(path)}...")
+        QApplication.processEvents()
+        hits = scan_placements(data, getattr(loader, 'game', 'sa'))
+        dlg = ScriptPlacementsDialog(self, path, hits)
+        dlg.show()
+        self._script_dlg = dlg
+        self._set_status(f"{len(hits)} script placement(s) in {os.path.basename(path)}")
+
+    def _show_engine_load_log(self): #vers 1
+        """Replay the loaded world's DAT / IDE / IPL / stream load order as a log."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            QMessageBox.information(self, "Engine Load Log", "Load a world first.")
+            return
+        from apps.components.Map_Editor.depends.map_integration import build_load_log, EngineLoadLogDialog
+        streams = {p: [en for _a, en in lst] for p, lst in getattr(self, '_ipl_names_with_binary_stream', {}).items()}
+        dlg = EngineLoadLogDialog(self, build_load_log(loader, self._lod_parent_ipl, streams))
+        dlg.show()
+        self._load_log_dlg = dlg
+
+    def _regen_changed_radar_tiles(self): #vers 1
+        """Re-render only radar tiles covering old or new positions of unsaved edits."""
+        loader = getattr(self, '_world_loader', None)
+        self._refresh_dirty_ipls()
+        dirty = getattr(self, '_dirty_ipls', set())
+        if loader is None or not dirty:
+            self._set_status("No unsaved edits - nothing to regenerate")
+            return
+        out = self.map_settings.get('radar_tiles_output_dir')
+        if not out:
+            self._on_generate_radar_tiles_clicked()
+            return
+        from apps.methods.gta_dat_parser import compute_radar_grid, RADAR_GRID_PRESETS
+        from apps.components.Map_Editor.depends.map_integration import tiles_touching
+        pts = [(i.pos_x, i.pos_y) for i in loader.instances if i.source_ipl in dirty]
+        src = getattr(self, '_inst_baseline_src', {})
+        pts += [(k[3], k[4]) for key, k in self._inst_baseline.items() if src.get(key) in dirty]
+        preset = RADAR_GRID_PRESETS.get(getattr(loader, 'game', 'sa'), RADAR_GRID_PRESETS['sa'])
+        idx = tiles_touching(compute_radar_grid(**preset), pts)
+        if not idx:
+            self._set_status("Edits are outside the radar grid")
+            return
+        self._generate_radar_tiles(out, only=idx)
 
     def _show_map_checks(self): #vers 1
         """LOD links, IDE ID conflicts, missing assets and limits in one dialog."""

@@ -1000,9 +1000,9 @@ Not started - needs its own design pass before implementation:
 - [DONE Sep 23 2026] Rebase map area: shift + rotate + save, e.g. merge LC into SA.
 
 ### Integration
-- SCM Workshop: show script-placed objects, pickups, car generators from main.scm; jump to opcode.
-- Engine load log: replay IDE / IPL / stream load order for loaded world (Hex Workshop dev console).
-- Radar Workshop: regenerate only radar tiles touched by changed IPLs.
+- [DONE Sep 23 2026] SCM Workshop: show script-placed objects, pickups, car generators from main.scm; jump to opcode.
+- [DONE Sep 23 2026] Engine load log: replay IDE / IPL / stream load order for loaded world (Hex Workshop dev console).
+- [DONE Sep 23 2026] Radar Workshop: regenerate only radar tiles touched by changed IPLs.
 
 ### Workflow
 - Diff view: current vs disk or save point, per-IPL change list.

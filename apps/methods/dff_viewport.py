@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 17
+# this belongs in apps/methods/dff_viewport.py - Version: 18
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -10,6 +10,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.dragMoveEvent
 # DFFViewport._draw_gizmo
 # DFFViewport._draw_rubber_band
+# DFFViewport._draw_script_markers
 # DFFViewport._draw_selection_marks
 # DFFViewport.dropEvent
 # DFFViewport._entry_for
@@ -69,6 +70,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.set_gizmo_rotate_callback
 # DFFViewport.set_gizmo_target
 # DFFViewport.set_model_drop_callback
+# DFFViewport.set_script_markers
 # DFFViewport.set_selection
 # DFFViewport.set_selection_callback
 # DFFViewport._setup_lighting
@@ -360,6 +362,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._model_drop_callback = None        # fn(model_id, pos)
         self._sel_insts = []                    # multi-selection
         self._rubber = None                     # (x0, y0, x1, y1) while box selecting
+        self._script_markers = []               # [(x, y, z, (r, g, b))] from main.scm
         # Axis lock (Aug 18 2026)
         self._ipl_drag_axis_lock = None
         # 3-state Drag/Move/Rotate cycle (Aug 19 2026)
@@ -1011,6 +1014,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_selected_box_highlight()
             if getattr(self, '_lod_test_center', None) is not None:
                 self._draw_lod_test_circle()
+            if self._script_markers:
+                self._draw_script_markers()
             if self._sel_insts:
                 self._draw_selection_marks()
             if self._gizmo_inst is not None:
@@ -4494,6 +4499,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             e = self._entry_for(inst)
             if e is not None:
                 glVertex3f(*e['pos'])
+        glEnd()
+        glPopAttrib()
+
+    def set_script_markers(self, markers): #vers 1
+        """[(x, y, z, (r, g, b))] - script placements drawn as pins; [] clears."""
+        self._script_markers = list(markers or [])
+        self.update()
+
+    def _draw_script_markers(self): #vers 1
+        """Coloured pins (point + short upright line) for script placements."""
+        h = max(2.0, self._dist * 0.02)
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_POINT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D)
+        glLineWidth(2.0)
+        glBegin(GL_LINES)
+        for x, y, z, c in self._script_markers:
+            glColor3f(*c); glVertex3f(x, y, z); glVertex3f(x, y, z + h)
+        glEnd()
+        glPointSize(8.0)
+        glBegin(GL_POINTS)
+        for x, y, z, c in self._script_markers:
+            glColor3f(*c); glVertex3f(x, y, z + h)
         glEnd()
         glPopAttrib()
 

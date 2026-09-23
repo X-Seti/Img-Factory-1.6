@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 136
+#this belongs in root /ChangeLog.md - Version: 137
+
+## Sep 23 2026 - Map Workshop: script placements, engine load log, partial radar regen, Build 431.92
+
+New methods/scm_placements.py: finds CREATE_OBJECT / PICKUP / PICKUP_WITH_AMMO / CAR_GENERATOR in main.scm (III / VC / SA). Viewport pins, click centres, opens SCM Workshop at the opcode (new goto_offset).
+
+Engine Load Log: DAT / IDE / IPL / stream replay with filter and export. Radar right-click: regenerate only tiles touched by unsaved edits.
 
 ## Sep 23 2026 - Map Workshop: convert IPL game format, rebase area, Build 431.92
 
