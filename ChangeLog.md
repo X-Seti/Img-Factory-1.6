@@ -1,4 +1,14 @@
-#this belongs in root /ChangeLog.md - Version: 131
+#this belongs in root /ChangeLog.md - Version: 132
+
+## Sep 23 2026 - Map Workshop: unsaved change tracking, Save All, save points, Build 431.92
+
+Changed IPLs (instances, paths, zones, culls, occlusion, garages, enex, auzo) shown bold orange; changed instances orange in Instance List.
+
+Ctrl+S / Save saves all changed IPLs to their original files; model save when no IPL changes. Removed duplicate Ctrl+S shortcuts.
+
+Unsaved reminder on close, quit, tab close, world reload, unload. New confirm_close() hook in tab_system and imgfactory.
+
+Save points: snapshots of unsaved edits (depends/map_changes.py), manual or timed via Settings > Save Points; restore is undoable.
 
 ## Sep 23 2026 - Map Workshop: dead code removed, Save IPL, radar tile fix, Build 431.91
 

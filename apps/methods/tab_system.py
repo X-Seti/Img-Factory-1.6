@@ -1,4 +1,4 @@
-#this belongs in methods/tab_system.py - Version: 7
+#this belongs in methods/tab_system.py - Version: 8
 # X-Seti - November15 2025 - IMG Factory 1.5 - Complete Tab System
 
 """
@@ -311,7 +311,19 @@ def clear_tab(main_window, tab_index: int): #vers 1
         return False
 
 
-def close_tab(main_window, tab_index: int): #vers 4
+def _tab_allows_close(tab_widget, action="Close Tab") -> bool: #vers 1
+    """Ask any embedded tool with confirm_close() about unsaved work."""
+    from PyQt6.QtWidgets import QWidget as _QW
+    if tab_widget is None:
+        return True
+    for child in [tab_widget] + tab_widget.findChildren(_QW):
+        fn = getattr(child, 'confirm_close', None)
+        if callable(fn) and not fn(action):
+            return False
+    return True
+
+
+def close_tab(main_window, tab_index: int): #vers 5
     """Close and remove tab.
     For the DAT Browser tab the widget is kept alive on main_window.dat_browser
     so it can be re-opened via show_dat_browser().
@@ -322,6 +334,8 @@ def close_tab(main_window, tab_index: int): #vers 4
             return False
 
         tab_widget = main_window.main_tab_widget.widget(tab_index)
+        if not _tab_allows_close(tab_widget):
+            return False
 
         # WORKSHOP tab — find embedded workshop and clean up menu + taskbar
         if getattr(tab_widget, 'file_type', None) == 'WORKSHOP':

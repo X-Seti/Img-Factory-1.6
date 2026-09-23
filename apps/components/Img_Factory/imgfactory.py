@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 91
+#this belongs in components/Img_Factory/imgfactory.py - Version: 92
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -7592,8 +7592,18 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 5
+    def closeEvent(self, event): #vers 6
         """Handle application close"""
+        # Tools with unsaved work (confirm_close) can cancel the quit
+        try:
+            from apps.methods.tab_system import _tab_allows_close
+            if hasattr(self, 'main_tab_widget'):
+                for i in range(self.main_tab_widget.count()):
+                    if not _tab_allows_close(self.main_tab_widget.widget(i), "Quit IMG Factory"):
+                        event.ignore()
+                        return
+        except ImportError as e:
+            print(f"closeEvent: unsaved-work check unavailable: {e}")
         # Give any docked workshop tabs (Model/COL/TXD Workshop etc) a
         # chance to save their ribbon layout - closing the whole app used
         # to skip this entirely since only close_tab() emitted

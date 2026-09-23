@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 195
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 196
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -154,6 +154,13 @@ except ImportError:
 # _save_preset
 #
 ##class ModelWorkshop: -
+# _apply_dirty_highlight
+# _apply_savepoint_settings
+# _auto_savepoint
+# confirm_close
+# _confirm_discard_ipls
+# _create_savepoint
+# _forget_ipl_baseline
 # __init__
 # _add_textures_from_txd
 # _align_dialog
@@ -248,7 +255,9 @@ except ImportError:
 # _import_surface
 # _import_via_ide
 # _info_ribbon_menu
+# _init_change_tracking
 # _initialize_features
+# _inst_changed
 # _invert_selection
 # _is_model_pinned
 # _is_on_draggable_area
@@ -264,6 +273,7 @@ except ImportError:
 # _load_viewport_light_settings    restore saved light from model_workshop.json #vers 1
 # _lookup_ide_for_dff    find IDE entry via xref or IDEDatabase #vers 2
 # _lookup_ide_from_db
+# _mark_ipl_saved
 # _mirror_dialog
 # _move_info_ribbon
 # _on_col_selected
@@ -305,6 +315,7 @@ except ImportError:
 # _project_model_2d
 # _push_undo
 # _rebuild_toolbars
+# _refresh_dirty_ipls
 # _refresh_icons    refresh all SVG icons after theme change
 # _regenerate_all_thumbnails
 # _reload_surface_table
@@ -315,12 +326,15 @@ except ImportError:
 # _render_collision_preview
 # _reset_hotkeys_to_defaults
 # _restore_outer_layout
+# _restore_savepoint_dialog
 # _restore_toolbar_state
+# _save_all_ipls
 # _save_as_col_file
 # _save_col_file
 # _save_file
 # _save_file_as
 # _save_ipl_in_place
+# _save_map_or_model
 # _save_outer_layout
 # _save_quad_layout
 # _save_settings
@@ -328,6 +342,7 @@ except ImportError:
 # _save_textures_as_txd    save current textures as new TXD file
 # _save_toolbar_state
 # _saveall_file
+# _savepoint_dir
 # _select_all_models
 # _select_model_by_row
 # _set_col_buttons_enabled
@@ -415,6 +430,7 @@ except ImportError:
 # show_help
 # show_settings_dialog
 # toggle_dock_mode
+# _write_ipl_in_place
 #
 # __init__
 # fit_to_window
@@ -3170,6 +3186,10 @@ class MapSettings(QObject):
         'radar_tiles_copy_to_assists': True,
         #  bug fixed (Aug 20 2026)
         'radar_tiles_show_grid':  False,
+        # Save points - snapshots of unsaved map edits (Sep 23 2026)
+        'savepoints_enabled':      False,
+        'savepoints_interval_min': 10,
+        'savepoints_keep':         20,
         # The real "other grid options" this same comment block above
         # already flagged as coming later (Aug 20 2026)
         'grid_type': 'lines',
@@ -4674,11 +4694,12 @@ class _InstanceTableModel(QAbstractTableModel):
 
     _HEADERS = ["ID", "Model"]
 
-    def __init__(self, instances, loader, parent=None): #vers 2
+    def __init__(self, instances, loader, parent=None, changed_fn=None): #vers 3
         super().__init__(parent)
         self._instances = instances
         self._loader = loader
         self._txd_cache = {}   # model_id -> resolved TXD name, filled lazily
+        self._changed_fn = changed_fn   # inst -> True if edited since last save
 
     def rowCount(self, parent=None): #vers 1
         return len(self._instances)
@@ -4694,8 +4715,14 @@ class _InstanceTableModel(QAbstractTableModel):
         return str(section + 1)
 
 
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 2
-        if role != Qt.ItemDataRole.DisplayRole or not index.isValid():
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole): #vers 3
+        if not index.isValid():
+            return None
+        if role == Qt.ItemDataRole.ForegroundRole:
+            if self._changed_fn is not None and self._changed_fn(self._instances[index.row()]):
+                return QBrush(QColor(230, 140, 30))
+            return None
+        if role != Qt.ItemDataRole.DisplayRole:
             return None
         inst = self._instances[index.row()]
         col = index.column()
@@ -5057,6 +5084,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # so this runs after the UI is fully constructed and visible,
         # not blocking the initial show.
         QTimer.singleShot(0, self._auto_load_last_world)
+        self._init_change_tracking()
 
 
     def setup_ui(self): #vers 14
@@ -7131,7 +7159,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn = getattr(self, 'menu_btn', None)
         if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _build_workshop_settings_tabs(self): #vers 4
+    def _build_workshop_settings_tabs(self): #vers 5
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -8356,6 +8384,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         as_lay.addStretch()
         tabs.addTab(assets_tab, "Map Assets")
 
+        # - Save Points tab (Sep 23 2026)
+        sp_tab = QWidget()
+        sp_lay = QVBoxLayout(sp_tab)
+        sp_form = QFormLayout()
+        sp_enabled_chk = QCheckBox("Automatic save points")
+        sp_enabled_chk.setChecked(bool(self.map_settings.get('savepoints_enabled')))
+        sp_enabled_chk.setToolTip("Snapshot unsaved map edits on a timer.\n"
+                                  "Game files are not touched; restore from the IPL list menu.")
+        sp_form.addRow(sp_enabled_chk)
+        sp_interval_spin = QSpinBox()
+        sp_interval_spin.setRange(1, 240)
+        sp_interval_spin.setSuffix(" min")
+        sp_interval_spin.setValue(int(self.map_settings.get('savepoints_interval_min') or 10))
+        sp_form.addRow("Every:", sp_interval_spin)
+        sp_keep_spin = QSpinBox()
+        sp_keep_spin.setRange(1, 500)
+        sp_keep_spin.setValue(int(self.map_settings.get('savepoints_keep') or 20))
+        sp_keep_spin.setToolTip("Oldest automatic save points beyond this are deleted")
+        sp_form.addRow("Keep automatic:", sp_keep_spin)
+        sp_lay.addLayout(sp_form)
+        sp_btn_row = QHBoxLayout()
+        sp_now_btn = QPushButton("Create Save Point Now")
+        sp_now_btn.clicked.connect(lambda: self._create_savepoint("Manual"))
+        sp_restore_btn = QPushButton("Restore...")
+        sp_restore_btn.clicked.connect(self._restore_savepoint_dialog)
+        sp_btn_row.addWidget(sp_now_btn)
+        sp_btn_row.addWidget(sp_restore_btn)
+        sp_lay.addLayout(sp_btn_row)
+        sp_lay.addStretch()
+        tabs.addTab(sp_tab, "Save Points")
+
         # - Navigation tab (Aug 1 2026)
         nav_tab = QWidget()
         nav_lay = QVBoxLayout(nav_tab)
@@ -8661,6 +8720,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if vp is not None and hasattr(vp, 'set_no_clip_boxes'):
                 vp.set_no_clip_boxes(no_clip_chk.isChecked())
             self.map_settings.set('radar_tiles_show_grid', radar_show_grid_chk.isChecked())
+            self.map_settings.set('savepoints_enabled', sp_enabled_chk.isChecked())
+            self.map_settings.set('savepoints_interval_min', sp_interval_spin.value())
+            self.map_settings.set('savepoints_keep', sp_keep_spin.value())
+            if hasattr(self, '_savepoint_timer'):
+                self._apply_savepoint_settings()
             grid_type_key = grid_type_combo.currentData()
             self.map_settings.set('grid_type', grid_type_key)
             if vp is not None and hasattr(vp, 'set_grid_type'):
@@ -9489,8 +9553,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 5
-        """Handle close — _save_toolbar_state fires via window_closed
+    def closeEvent(self, event): #vers 6
+        """Handle close — asks about unsaved IPL edits first; _save_toolbar_state fires via window_closed
         signal. Flushes any still-pending debounced settings save
         (Aug 16 2026)
 
@@ -9501,6 +9565,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         rotate change - those fire on every single mouse-drag frame,
         so debouncing wouldn't meaningfully reduce the write volume
         the way it does for a settings-dialog Apply click."""
+        if not self.confirm_close():
+            event.ignore()
+            return
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(self, 'map_settings'):
             try:
@@ -9708,12 +9775,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.save_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
         self.save_btn.setText("Save")
         self.save_btn.setIconSize(QSize(20, 20))
-        self.save_btn.setShortcut("Ctrl+S")
         if self.button_display_mode == 'icons':
             self.save_btn.setFixedSize(40, 40)
         self.save_btn.setEnabled(True)
-        self.save_btn.setToolTip("Export/save model (Ctrl+S)")
-        self.save_btn.clicked.connect(self._save_file)
+        self.save_btn.setToolTip("Save changed IPLs, or the open model (Ctrl+S)")
+        self.save_btn.clicked.connect(self._save_map_or_model)
         layout.addWidget(self.save_btn)
 
         # Save button
@@ -9722,7 +9788,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.saveall_btn.setIcon(self.icon_factory.saveas_icon(color=icon_color))
         self.saveall_btn.setText("Save All")
         self.saveall_btn.setIconSize(QSize(20, 20))
-        self.saveall_btn.setShortcut("Ctrl+S")
         if self.button_display_mode == 'icons':
             self.saveall_btn.setFixedSize(40, 40)
         self.saveall_btn.setEnabled(True)
@@ -10700,8 +10765,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Save
         self.save_col_btn = _icon_btn(
             self.icon_factory.save_icon(color=icon_color),
-            "Save current file",
-            self._save_file)
+            "Save changed IPLs, or the open model (Ctrl+S)",
+            self._save_map_or_model)
         btn_layout.addWidget(self.save_col_btn)
 
         # Import (other formats)
@@ -17258,10 +17323,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Save col (Ctrl+S)
         self.hotkey_save = QShortcut(QKeySequence.StandardKey.Save, self)
-        if hasattr(self, '_save_col_file'):
-            self.hotkey_save.activated.connect(self._save_col_file)
-        elif hasattr(self, 'save_col_file'):
-            self.hotkey_save.activated.connect(self.save_col_file)
+        self.hotkey_save.activated.connect(self._save_map_or_model)
 
         # Force Save col (Alt+Shift+S)
         self.hotkey_force_save = QShortcut(QKeySequence("Alt+Shift+S"), self)
@@ -18464,7 +18526,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._on_ctrl_z_pressed()
 
-    def _push_map_undo(self, undo_fn, redo_fn, description=""): #vers 1
+    def _push_map_undo(self, undo_fn, redo_fn, description=""): #vers 2
         """Record one undoable map edit (Aug 18 2026)."""
         self.map_undo_stack = getattr(self, 'map_undo_stack', [])
         self.map_redo_stack = getattr(self, 'map_redo_stack', [])
@@ -18473,8 +18535,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if len(self.map_undo_stack) > 100:
             self.map_undo_stack.pop(0)
         self.map_redo_stack.clear()
+        QTimer.singleShot(0, self._refresh_dirty_ipls)
 
-    def _map_undo(self): #vers 1
+    def _map_undo(self): #vers 2
         """Reverse the most recent map edit."""
         stack = getattr(self, 'map_undo_stack', [])
         if not stack:
@@ -18488,6 +18551,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         redo_stack = self.map_redo_stack = getattr(self, 'map_redo_stack', [])
         redo_stack.append(entry)
+        QTimer.singleShot(0, self._refresh_dirty_ipls)
         desc = entry.get('description', '')
         self._set_status(f"Undo: {desc}" if desc else "Undo applied")
 
@@ -18529,7 +18593,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         view = getattr(self, '_instance_table', None)
         if view is None:
             return
-        model = _InstanceTableModel(loader.instances, loader)
+        model = _InstanceTableModel(loader.instances, loader, changed_fn=self._inst_changed)
         view.setModel(model)
         sel_model = view.selectionModel()
         if sel_model is not None:
@@ -18557,7 +18621,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
     # --- Editing Panel: IPL/IDE/DAT/IMG tabs (ported from map_workshop_old_version.py) ---
 
-    def _load_game_folder(self, preset_root: str = None): #vers 2
+    def _load_game_folder(self, preset_root: str = None): #vers 3
         """Load a GTA game's world data (DAT -> IDE -> IPL, full engine-
         order two-phase load) via the existing GTAWorldLoader - this is
         the Map Editor's actual data layer, already handling multi-game
@@ -18565,6 +18629,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         nothing new needed here beyond wiring it into the UI."""
         from PyQt6.QtWidgets import QFileDialog
         from apps.methods.gta_dat_parser import detect_game, GTAWorldLoader
+        if not self.confirm_close("Load World"):
+            return
 
         if preset_root:
             folder = preset_root
@@ -18626,11 +18692,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         QApplication.processEvents()
         self._load_game_dat_file(preset_dat_path=recent[0])
 
-    def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 2
+    def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 3
         """Load a GTA game's world data starting from one specific .dat
         file, rather than a whole game folder."""
         from PyQt6.QtWidgets import QFileDialog
         from apps.methods.gta_dat_parser import detect_game_from_dat_filename, GTAWorldLoader
+        if not self.confirm_close("Load World"):
+            return
 
         if preset_dat_path:
             dat_path = preset_dat_path
@@ -19539,7 +19607,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"Found {found_count} binary IPL(s) in indexed IMG archives "
                 f"({associated_count} matched to a parent text IPL, {standalone_count} standalone)")
 
-    def _rebuild_ipl_sections_rows(self): #vers 3
+    def _rebuild_ipl_sections_rows(self): #vers 4
         """(Re)build every row from self._ipl_display_order - shared by
         the initial populate and by _move_ipl_section, so reordering
         doesn't duplicate the row-construction logic.."""
@@ -19619,6 +19687,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if fmt_tooltip:
                 fmt_item.setToolTip(fmt_tooltip)
             table.setItem(row, 2, fmt_item)
+        self._apply_dirty_highlight()
 
     def _move_ipl_section(self, ipl_name, direction): #vers 1
         """Move one IPL section up (-1) or down (+1) in the display
@@ -19635,7 +19704,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_settings.set('ipl_sections_order', order)
         self.map_settings.save()
 
-    def _on_ipl_sections_context_menu(self, pos): #vers 3
+    def _on_ipl_sections_context_menu(self, pos): #vers 4
         """Right-click a row for Move Up/Down/Load Selected - explicit
         menu actions rather than drag-and-drop, since QTableWidget's
         built-in InternalMove drag-drop is a known source of subtle
@@ -19740,6 +19809,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         save_act.setEnabled(is_loaded)
         save_act.triggered.connect(
             lambda checked=False, n=ipl_name: self._save_ipl_in_place(n))
+        save_all_act = menu.addAction(f"Save All Changed IPLs ({len(getattr(self, '_dirty_ipls', ()))})")
+        save_all_act.setEnabled(bool(getattr(self, '_dirty_ipls', None)))
+        save_all_act.triggered.connect(lambda checked=False: self._save_all_ipls())
+        sp_menu = menu.addMenu("Save Points")
+        sp_create = sp_menu.addAction("Create Save Point")
+        sp_create.setEnabled(bool(getattr(self, '_dirty_ipls', None)))
+        sp_create.triggered.connect(lambda checked=False: self._create_savepoint("Manual"))
+        sp_menu.addAction("Restore Save Point...").triggered.connect(
+            lambda checked=False: self._restore_savepoint_dialog())
 
         if getattr(loader, 'game', None) == 'sa':            # binary IPL is SA only
             savebin_act = menu.addAction("Save Text as Binary IPL...")
@@ -19782,13 +19860,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         down_act.triggered.connect(lambda checked=False, n=ipl_name: self._move_ipl_section(n, 1))
         menu.exec(table.viewport().mapToGlobal(pos))
 
-    def _unload_ipl_section(self, ipl_name): #vers 1
+    def _unload_ipl_section(self, ipl_name): #vers 2
         """Actually remove an IPL's loaded content from memory -
         freeing it up, distinct from Hide (which only filters what's
         drawn; the data stays loaded either way)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
+        if not self._confirm_discard_ipls([ipl_name], "Unload"):
+            return
+        self._forget_ipl_baseline([ipl_name])
         stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
 
         loader.instances[:] = [i for i in loader.instances if i.source_ipl != ipl_name]
@@ -19814,7 +19895,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._apply_ipl_visibility_filter()
         self._set_status(f"Unloaded {ipl_name}")
 
-    def _unload_all_ipl_sections(self): #vers 1
+    def _unload_all_ipl_sections(self): #vers 2
         """Unload every currently-loaded IPL at once (Aug 19 2026)"""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
@@ -19824,6 +19905,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not loaded_names:
             self._set_status("No loaded IPLs to unload")
             return
+        if not self._confirm_discard_ipls(loaded_names, "Unload All"):
+            return
+        self._forget_ipl_baseline(loaded_names)
         loaded_set = set(loaded_names)
 
         loader.instances[:] = [i for i in loader.instances if i.source_ipl not in loaded_set]
@@ -21034,13 +21118,270 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     return archive_path, entry_name
         return None
 
-    def _save_ipl_in_place(self, ipl_name): #vers 1
-        """Save edits back to the original IPL: text file, loose binary, or IMG stream."""
+    # -- change tracking, save all, save points (Sep 23 2026)
+    def _init_change_tracking(self): #vers 1
+        """Start the changed-IPL poll and the save point timer."""
+        self._ipl_baseline = {}          # ipl name -> signature at load / last save
+        self._inst_baseline = {}         # id(inst) -> state tuple at load / last save
+        self._baseline_loader_id = None
+        self._dirty_ipls = set()
+        self._last_savepoint_sig = None
+        self._dirty_timer = QTimer(self)
+        self._dirty_timer.timeout.connect(self._refresh_dirty_ipls)
+        self._dirty_timer.start(1500)
+        self._savepoint_timer = QTimer(self)
+        self._savepoint_timer.timeout.connect(self._auto_savepoint)
+        self._apply_savepoint_settings()
+
+    def _apply_savepoint_settings(self): #vers 1
+        """Start or stop automatic save points from map settings."""
+        mins = max(1, int(self.map_settings.get('savepoints_interval_min') or 10))
+        if self.map_settings.get('savepoints_enabled'):
+            self._savepoint_timer.start(mins * 60000)
+        else:
+            self._savepoint_timer.stop()
+
+    def _refresh_dirty_ipls(self): #vers 1
+        """Compare each loaded IPL with its baseline; update highlights."""
+        if not hasattr(self, '_ipl_baseline'):
+            return
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            if self._dirty_ipls:
+                self._dirty_ipls = set()
+                self._apply_dirty_highlight()
+            return
+        from apps.components.Map_Editor.depends.map_changes import ipl_signatures, _inst_key
+        if id(loader) != self._baseline_loader_id:
+            self._baseline_loader_id = id(loader)
+            self._ipl_baseline, self._inst_baseline = {}, {}
+        sigs = ipl_signatures(loader)
+        new = {n for n in sigs if n not in self._ipl_baseline}
+        if new:
+            for n in new:
+                self._ipl_baseline[n] = sigs[n]
+            for i in loader.instances:
+                if i.source_ipl in new:
+                    self._inst_baseline[id(i)] = _inst_key(i)
+        empty = hash(())
+        dirty = {n for n, b in self._ipl_baseline.items() if sigs.get(n, empty) != b}
+        if dirty != self._dirty_ipls:
+            self._dirty_ipls = dirty
+            self._apply_dirty_highlight()
+
+    def _inst_changed(self, inst): #vers 1
+        """True if this instance was moved, edited or added since last save."""
+        if inst.source_ipl not in getattr(self, '_dirty_ipls', ()):
+            return False
+        from apps.components.Map_Editor.depends.map_changes import _inst_key
+        b = self._inst_baseline.get(id(inst))
+        return b is None or b != _inst_key(inst)
+
+    def _apply_dirty_highlight(self): #vers 1
+        """Bold orange rows for changed IPLs and instances; status count."""
+        dirty = getattr(self, '_dirty_ipls', set())
+        table = getattr(self, '_ipl_sections_table', None)
+        if table is not None:
+            orange = QBrush(QColor(230, 140, 30))
+            for r in range(table.rowCount()):
+                first = table.item(r, 0)
+                name = first.data(Qt.ItemDataRole.UserRole) if first is not None else None
+                on = name in dirty
+                for c in range(table.columnCount()):
+                    cell = table.item(r, c)
+                    if cell is None:
+                        continue
+                    f = cell.font()
+                    f.setBold(on)
+                    cell.setFont(f)
+                    cell.setData(Qt.ItemDataRole.ForegroundRole, orange if on else None)
+        view = getattr(self, '_instance_table', None)
+        model = view.model() if view is not None else None
+        if model is not None and model.rowCount() and model.columnCount():
+            model.dataChanged.emit(model.index(0, 0),
+                                   model.index(model.rowCount() - 1, model.columnCount() - 1))
+        if dirty:
+            self._set_status(f"{len(dirty)} IPL(s) with unsaved changes - Ctrl+S to save")
+
+    def _mark_ipl_saved(self, ipl_name): #vers 1
+        """Reset the baseline for one IPL after a successful save."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None or not hasattr(self, '_ipl_baseline'):
+            return
+        from apps.components.Map_Editor.depends.map_changes import ipl_signatures, _inst_key
+        self._ipl_baseline[ipl_name] = ipl_signatures(loader).get(ipl_name, hash(()))
+        for i in loader.instances:
+            if i.source_ipl == ipl_name:
+                self._inst_baseline[id(i)] = _inst_key(i)
+        self._refresh_dirty_ipls()
+
+    def _forget_ipl_baseline(self, names): #vers 1
+        """Stop tracking IPLs that are being unloaded."""
+        for n in names:
+            getattr(self, '_ipl_baseline', {}).pop(n, None)
+            getattr(self, '_dirty_ipls', set()).discard(n)
+
+    def _confirm_discard_ipls(self, names, action): #vers 1
+        """Ask before dropping unsaved edits in these IPLs; True to go ahead."""
+        self._refresh_dirty_ipls()
+        hit = sorted(set(names) & getattr(self, '_dirty_ipls', set()))
+        if not hit:
+            return True
+        r = QMessageBox.question(
+            self, action, f"{len(hit)} IPL(s) have unsaved changes:\n\n" + "\n".join(hit[:20])
+            + ("\n..." if len(hit) > 20 else "") + "\n\nSave them first?",
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel)
+        if r == QMessageBox.StandardButton.Cancel:
+            return False
+        if r == QMessageBox.StandardButton.Save:
+            return all(self._save_ipl_in_place(n, confirm=False) for n in hit)
+        return True
+
+    def confirm_close(self, action="Map Workshop"): #vers 1
+        """Unsaved-work reminder for close, quit or world reload; True to continue."""
+        return self._confirm_discard_ipls(list(getattr(self, '_dirty_ipls', set())) or
+                                          list(getattr(self, '_ipl_baseline', {})), action)
+
+    def _save_all_ipls(self): #vers 1
+        """Save every changed IPL back to its own original file."""
+        self._refresh_dirty_ipls()
+        names = sorted(self._dirty_ipls)
+        if not names:
+            self._set_status("No unsaved map changes")
+            return True
+        if QMessageBox.question(
+                self, "Save Map Changes",
+                f"Save {len(names)} changed IPL(s) back to their original files?\n\n"
+                + "\n".join(names[:20]) + ("\n..." if len(names) > 20 else "")
+                + "\n\nBackups are made first.") != QMessageBox.StandardButton.Yes:
+            return False
+        failed = [n for n in names if not self._save_ipl_in_place(n, confirm=False)]
+        if failed:
+            QMessageBox.warning(self, "Save Map Changes",
+                                f"{len(names) - len(failed)} saved, {len(failed)} not saved:\n\n"
+                                + "\n".join(failed))
+        else:
+            self._set_status(f"Saved {len(names)} IPL(s)")
+        return not failed
+
+    def _save_map_or_model(self): #vers 1
+        """Ctrl+S / Save: changed IPLs first, otherwise the open model."""
+        self._refresh_dirty_ipls()
+        if getattr(self, '_dirty_ipls', None):
+            self._save_all_ipls()
+        else:
+            self._save_file()
+
+    def _savepoint_dir(self): #vers 1
+        """Save point folder for the loaded world (per game root / dat)."""
+        import hashlib
+        key = getattr(self, '_loaded_dat_path', '') or getattr(self, '_game_root', '') or 'world'
+        sub = hashlib.md5(os.path.abspath(key).encode('utf-8')).hexdigest()[:12]
+        return str(_model_workshop_config_dir() / 'savepoints' / sub)
+
+    def _create_savepoint(self, label="Manual"): #vers 1
+        """Snapshot every changed IPL's data to a save point file."""
+        loader = getattr(self, '_world_loader', None)
+        self._refresh_dirty_ipls()
+        names = sorted(getattr(self, '_dirty_ipls', set()))
+        if loader is None or not names:
+            self._set_status("Save point: no unsaved changes to record")
+            return None
+        from apps.components.Map_Editor.depends.map_changes import collect_ipl_state, write_savepoint
+        meta = {'game_root': getattr(self, '_game_root', ''),
+                'dat_path': getattr(self, '_loaded_dat_path', ''),
+                'game': getattr(loader, 'game', '')}
+        try:
+            path = write_savepoint(self._savepoint_dir(), label, meta, collect_ipl_state(loader, names))
+        except Exception as e:
+            QMessageBox.warning(self, "Save Point", f"Couldn't write save point: {e}")
+            return None
+        self._set_status(f"Save point: {len(names)} IPL(s) -> {os.path.basename(path)}")
+        return path
+
+    def _auto_savepoint(self): #vers 1
+        """Timer: save point only if edits changed since the last one."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        from apps.components.Map_Editor.depends.map_changes import ipl_signatures, prune_savepoints
+        self._refresh_dirty_ipls()
+        if not self._dirty_ipls:
+            return
+        sigs = ipl_signatures(loader)
+        sig = hash(tuple(sorted((n, sigs.get(n)) for n in self._dirty_ipls)))
+        if sig == self._last_savepoint_sig:
+            return
+        if self._create_savepoint("Auto"):
+            self._last_savepoint_sig = sig
+            prune_savepoints(self._savepoint_dir(), int(self.map_settings.get('savepoints_keep') or 20))
+
+    def _restore_savepoint_dialog(self): #vers 1
+        """Pick a save point and load its IPL data back in (undoable)."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            QMessageBox.information(self, "Restore Save Point", "Load a world first.")
+            return
+        from datetime import datetime
+        from apps.components.Map_Editor.depends.map_changes import (
+            list_savepoints, read_savepoint, state_from_json, collect_ipl_state, replace_ipl_state)
+        points = list_savepoints(self._savepoint_dir())
+        if not points:
+            QMessageBox.information(self, "Restore Save Point", "No save points for this world yet.")
+            return
+        labels = [f"{datetime.fromtimestamp(p['created']):%Y-%m-%d %H:%M:%S}  {p['label']}  "
+                  f"({len(p['ipls'])} IPL: {', '.join(p['ipls'][:4])}{'...' if len(p['ipls']) > 4 else ''})"
+                  for p in points]
+        pick, ok = QInputDialog.getItem(self, "Restore Save Point", "Save point:", labels, 0, False)
+        if not ok:
+            return
+        chosen = points[labels.index(pick)]
+        try:
+            snap = state_from_json(read_savepoint(chosen['path']).get('ipls', {}))
+        except Exception as e:
+            QMessageBox.warning(self, "Restore Save Point", f"Couldn't read save point: {e}")
+            return
+        loaded = {i.source_ipl for i in loader.instances} | set(getattr(self, '_ipl_baseline', {}))
+        missing = sorted(n for n in snap if n not in loaded)
+        snap = {n: v for n, v in snap.items() if n in loaded}
+        if not snap:
+            QMessageBox.warning(self, "Restore Save Point",
+                                "None of this save point's IPLs are loaded:\n\n" + "\n".join(missing))
+            return
+        before = collect_ipl_state(loader, list(snap))
+        before = {n: {c: list(v) for c, v in cats.items()} for n, cats in before.items()}
+
+        def _apply(state):
+            replace_ipl_state(loader, state)
+            self._all_instances = list(loader.instances)
+            self._populate_object_browser(loader)
+            self._populate_instance_list(loader)
+            self._apply_ipl_visibility_filter(clear_display_lists=False)
+            self._refresh_dirty_ipls()
+
+        _apply(snap)
+        self._push_map_undo(lambda: _apply(before), lambda: _apply(snap),
+                            f"Restore save point ({len(snap)} IPL)")
+        msg = f"Restored {len(snap)} IPL(s) from save point - not written to game files until you save"
+        if missing:
+            msg += f"; skipped {len(missing)} not loaded"
+        self._set_status(msg)
+
+    def _save_ipl_in_place(self, ipl_name, confirm=True): #vers 2
+        """Save edits back to the original IPL: text file, loose binary, or IMG stream. Returns True on success."""
+        ok = self._write_ipl_in_place(ipl_name, confirm)
+        if ok:
+            self._mark_ipl_saved(ipl_name)
+        return ok
+
+    def _write_ipl_in_place(self, ipl_name, confirm): #vers 1
+        """Worker for _save_ipl_in_place; False on refusal, cancel or error."""
         import struct as _struct
         from apps.methods.gta_dat_parser import write_binary_ipl_inst_only, detect_ipl_format
         loader = getattr(self, '_world_loader', None)
         if loader is None:
-            return
+            return False
         title = "Save IPL"
         matching = [i for i in (getattr(self, '_all_instances', None) or []) if i.source_ipl == ipl_name]
 
@@ -21055,33 +21396,33 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 img = IMGFile(archive_path)
                 if not img.open():
                     QMessageBox.warning(self, title, f"Couldn't open {archive_path}")
-                    return
+                    return False
             entry = next((e for e in img.entries if getattr(e, 'name', '') == entry_name), None)
             if entry is None:
                 QMessageBox.warning(self, title, f"{entry_name} not found in {archive_path}")
-                return
+                return False
             old = img.read_entry_data(entry)
             if len(old) >= 24 and _struct.unpack_from("<I", old, 20)[0]:
                 QMessageBox.warning(self, title,
                     f"{entry_name} has parked cars; the binary writer only writes instances. Not saved.")
-                return
-            if QMessageBox.question(self, title,
+                return False
+            if confirm and QMessageBox.question(self, title,
                     f"Write {len(matching)} instance(s) back into {entry_name} "
                     f"inside {os.path.basename(archive_path)}?\n(The archive is backed up first.)"
                     ) != QMessageBox.StandardButton.Yes:
-                return
+                return False
             if not img.add_entry(entry_name, write_binary_ipl_inst_only(matching)):
                 QMessageBox.warning(self, title, f"Couldn't write {entry_name}: "
                                     f"{getattr(img, 'last_error', 'archive refused the data')}")
-                return
+                return False
             self._set_status(f"Saved {len(matching)} instance(s) into {entry_name} ({os.path.basename(archive_path)})")
-            return
+            return True
 
         stem = getattr(self, '_ipl_display_to_stem', {}).get(ipl_name)
         entry = loader.available_ipls.get(stem) if stem else None
         if entry is None or not entry.exists:
             QMessageBox.warning(self, title, f"No file on disk for {ipl_name}. Use Save IPL Data As...")
-            return
+            return False
         path = entry.abs_path
         with open(path, 'rb') as f:
             head = f.read(64)
@@ -21093,32 +21434,37 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if len(old) >= 24 and _struct.unpack_from("<I", old, 20)[0]:
                 QMessageBox.warning(self, title,
                     f"{ipl_name} has parked cars; the binary writer only writes instances. Not saved.")
-                return
-            if QMessageBox.question(self, title,
+                return False
+            if confirm and QMessageBox.question(self, title,
                     f"Overwrite {path} with {len(matching)} instance(s)?\n(A backup is made first.)"
                     ) != QMessageBox.StandardButton.Yes:
-                return
+                return False
             from apps.methods.file_backup import safe_write_bytes
-            safe_write_bytes(path, write_binary_ipl_inst_only(matching))
+            try:
+                safe_write_bytes(path, write_binary_ipl_inst_only(matching))
+            except Exception as e:
+                QMessageBox.warning(self, title, f"Failed to save: {e}")
+                return False
             self._set_status(f"Saved {len(matching)} instance(s) to {path}")
-            return
+            return True
 
         # text IPL
         built = self._build_ipl_text_lines(ipl_name)
         if not built or not built[0]:
             QMessageBox.information(self, title, f"No loaded data found for {ipl_name}.")
-            return
+            return False
         lines_out, total_written, section_order = built
-        if QMessageBox.question(self, title,
+        if confirm and QMessageBox.question(self, title,
                 f"Overwrite {path} ({total_written} entries, {len(section_order)} section(s))?\n"
                 f"(A backup is made first.)") != QMessageBox.StandardButton.Yes:
-            return
+            return False
         try:
             _write_ipl_lines(path, [l + '\n' for l in lines_out])
         except Exception as e:
             QMessageBox.warning(self, title, f"Failed to save: {e}")
-            return
+            return False
         self._set_status(f"Saved {total_written} entries to {path}")
+        return True
 
     def _verify_binary_ipl_parser(self, archive_path, entry_name): #vers 1
         """Diagnostic dry run - reads and parses one binary IPL entry
