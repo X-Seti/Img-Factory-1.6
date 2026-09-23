@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 137
+#this belongs in root /ChangeLog.md - Version: 138
+
+## Sep 23 2026 - Map Workshop: diff view, mod package export, camera bookmarks, Build 431.92
+
+Show Changes: per-IPL changed / added / removed objects vs last load/save or any save point. Export Mod Package: changed and saved IPL / IDE / stream files, game-relative, readme + zip (new depends/map_workflow.py).
+
+Camera bookmarks: Ctrl+Shift+1..9 save, Ctrl+1..9 go, per world; rename/delete from IPL menu. Map Checks limits now persist (added settings keys).
 
 ## Sep 23 2026 - Map Workshop: script placements, engine load log, partial radar regen, Build 431.92
 

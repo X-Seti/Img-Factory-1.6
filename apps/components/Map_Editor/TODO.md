@@ -1005,6 +1005,6 @@ Not started - needs its own design pass before implementation:
 - [DONE Sep 23 2026] Radar Workshop: regenerate only radar tiles touched by changed IPLs.
 
 ### Workflow
-- Diff view: current vs disk or save point, per-IPL change list.
-- Export changes as mod package: changed IPL / IDE / IMG entries plus readme.
-- Camera bookmarks: jump between work areas.
+- [DONE Sep 23 2026] Diff view: current vs disk or save point, per-IPL change list.
+- [DONE Sep 23 2026] Export changes as mod package: changed IPL / IDE / IMG entries plus readme.
+- [DONE Sep 23 2026] Camera bookmarks: jump between work areas.

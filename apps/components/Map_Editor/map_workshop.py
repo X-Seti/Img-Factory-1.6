@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 201
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 202
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -161,15 +161,19 @@ except ImportError:
 # _apply_instance_fields
 # _apply_savepoint_settings
 # _auto_savepoint
+# _camera_bookmarks_menu
 # confirm_close
 # _confirm_discard_ipls
 # _create_savepoint
+# _delete_camera_bookmark
 # _delete_instances
 # _delete_selected_instances
 # _distribute_selected
 # _drop_selected_to_ground
 # _duplicate_selected
+# _export_mod_package
 # _forget_ipl_baseline
+# _goto_camera_bookmark
 # _ide_abs_path
 # __init__
 # _add_textures_from_txd
@@ -340,6 +344,7 @@ except ImportError:
 # _reload_surface_table
 # _remove_selected_textures
 # _remove_via_ide
+# _rename_camera_bookmark
 # _rename_col_model
 # _rename_shadow_shortcut
 # _render_collision_preview
@@ -349,6 +354,7 @@ except ImportError:
 # _restore_toolbar_state
 # _save_all_ipls
 # _save_as_col_file
+# _save_camera_bookmark
 # _save_col_file
 # _save_file
 # _save_file_as
@@ -382,6 +388,7 @@ except ImportError:
 # _show_dff_material_context_menu
 # _show_engine_load_log
 # _show_map_checks
+# _show_map_diff
 # _show_model_details
 # _show_model_search
 # _show_quad_pane_menu
@@ -431,6 +438,7 @@ except ImportError:
 # _update_transform_text_panel_visibility
 # _wire_col_buttons
 # _wire_dff_buttons
+# _world_key
 # _wrap_middle_panel_with_own_dock_areas
 # closeEvent
 # export_all
@@ -3218,6 +3226,13 @@ class MapSettings(QObject):
         'savepoints_enabled':      False,
         'savepoints_interval_min': 10,
         'savepoints_keep':         20,
+        # Map Checks limits (None = built-in default per game) (Sep 23 2026)
+        'limit_gta3_model_infos': None, 'limit_gta3_buildings': None,
+        'limit_vc_model_infos':   None, 'limit_vc_buildings':   None,
+        'limit_sa_model_infos':   None, 'limit_sa_buildings':   None,
+        'limit_sol_model_infos':  None, 'limit_sol_buildings':  None,
+        # Camera bookmarks per world: {world key: {slot: [pan_x, pan_y, dist, yaw, pitch, name]}}
+        'camera_bookmarks': {},
         # The real "other grid options" this same comment block above
         # already flagged as coming later (Aug 20 2026)
         'grid_type': 'lines',
@@ -17511,6 +17526,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.hotkey_duplicate = QShortcut(QKeySequence("Ctrl+D"), self)
         self.hotkey_duplicate.activated.connect(self._duplicate_selected)
 
+        # Camera bookmarks: Ctrl+1..9 go, Ctrl+Shift+1..9 save
+        self._camera_bookmark_keys = []
+        for slot in range(1, 10):
+            go = QShortcut(QKeySequence(f"Ctrl+{slot}"), self)
+            go.activated.connect(lambda s=slot: self._goto_camera_bookmark(s))
+            sv = QShortcut(QKeySequence(f"Ctrl+Shift+{slot}"), self)
+            sv.activated.connect(lambda s=slot: self._save_camera_bookmark(s))
+            self._camera_bookmark_keys += [go, sv]
+
 
         # Rename (F2)
         self.hotkey_rename = QShortcut(QKeySequence("F2"), self)
@@ -17869,7 +17893,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             <b>✓ IDE Integration:</b> Link to DAT Browser IDE entries<br>
             <b>✓ TXD:</b> Auto-load matching TXD for textured preview<br><br>
             <b>Shortcuts:</b><br>
-            Ctrl+O: Open  |  Ctrl+S: Save  |  Ctrl+D: Duplicate object  |  End: Drop to ground<br>
+            Ctrl+O: Open  |  Ctrl+S: Save  |  Ctrl+D: Duplicate object  |  End: Drop to ground  |  Ctrl+1..9 / Ctrl+Shift+1..9: Camera bookmarks<br>
             Ctrl+T: Open TXD  |  Ctrl+Z: Undo  |  Delete: Remove
         """)
         lay.addWidget(info, 1)
@@ -20215,6 +20239,11 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lambda checked=False: self._show_script_placements())
         menu.addAction("Engine Load Log...").triggered.connect(
             lambda checked=False: self._show_engine_load_log())
+        menu.addAction("Show Changes (Diff)...").triggered.connect(
+            lambda checked=False: self._show_map_diff())
+        menu.addAction("Export Changes as Mod Package...").triggered.connect(
+            lambda checked=False: self._export_mod_package())
+        self._camera_bookmarks_menu(menu)
 
         if getattr(loader, 'game', None) == 'sa':            # binary IPL is SA only
             savebin_act = menu.addAction("Save Text as Binary IPL...")
@@ -21701,6 +21730,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._ipl_baseline, self._inst_baseline = {}, {}
             self._ide_pending = {}
             self._map_checks_dlg = None
+            self._session_saved_ipls, self._session_saved_ides = set(), set()
         sigs = ipl_signatures(loader)
         new = {n for n in sigs if n not in self._ipl_baseline}
         if new:
@@ -21752,13 +21782,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if dirty or pend:
             self._set_status(f"Unsaved: {len(dirty)} IPL(s), {len(pend)} IDE object(s) - Ctrl+S to save")
 
-    def _mark_ipl_saved(self, ipl_name): #vers 1
+    def _mark_ipl_saved(self, ipl_name): #vers 2
         """Reset the baseline for one IPL after a successful save."""
         loader = getattr(self, '_world_loader', None)
         if loader is None or not hasattr(self, '_ipl_baseline'):
             return
         from apps.components.Map_Editor.depends.map_changes import ipl_signatures, _inst_key
         self._ipl_baseline[ipl_name] = ipl_signatures(loader).get(ipl_name, hash(()))
+        self.__dict__.setdefault('_session_saved_ipls', set()).add(ipl_name)
         for i in loader.instances:
             if i.source_ipl == ipl_name:
                 self._inst_baseline[id(i)] = _inst_key(i)
@@ -21895,7 +21926,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue
         return None
 
-    def _save_pending_ide(self, objs): #vers 1
+    def _save_pending_ide(self, objs): #vers 2
         """Write edited IDE objects to their .ide files; True if all written."""
         from apps.components.Map_Editor.depends.map_changes import write_ide_objects
         by_file, missing = {}, []
@@ -21909,6 +21940,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for p, group in by_file.items():
             try:
                 write_ide_objects(p, group)
+                self.__dict__.setdefault('_session_saved_ides', set()).add(p)
                 for o in group:
                     self._ide_pending.pop(o.model_id, None)
             except Exception as e:
@@ -21979,6 +22011,150 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._set_status("Edits are outside the radar grid")
             return
         self._generate_radar_tiles(out, only=idx)
+
+    def _show_map_diff(self): #vers 1
+        """Changed / added / removed objects per IPL vs last save or a save point."""
+        if getattr(self, '_world_loader', None) is None:
+            return
+        from apps.components.Map_Editor.depends.map_workflow import MapDiffDialog
+        dlg = MapDiffDialog(self)
+        dlg.show()
+        self._diff_dlg = dlg
+
+    def _export_mod_package(self): #vers 1
+        """Changed and saved-this-session IPL / IDE files, as game-relative copies + readme + zip."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            return
+        import time
+        from apps.methods.gta_dat_parser import write_binary_ipl_inst_only, detect_ipl_format
+        from apps.components.Map_Editor.depends.map_changes import ide_line_update
+        from apps.components.Map_Editor.depends.map_workflow import export_mod_package, package_name
+        self._refresh_dirty_ipls()
+        ipls = sorted(set(self._dirty_ipls) | getattr(self, '_session_saved_ipls', set()))
+        root = getattr(self, '_game_root', '') or ''
+        files, notes = {}, []
+
+        def rel(p):
+            try:
+                return os.path.relpath(p, root) if root else os.path.basename(p)
+            except ValueError:
+                return os.path.basename(p)
+
+        for n in ipls:
+            insts = [i for i in loader.instances if i.source_ipl == n]
+            src = self._binary_stream_source(n)
+            if src is not None:
+                files[os.path.join('img', os.path.basename(src[0]), n)] = write_binary_ipl_inst_only(insts)
+                notes.append(f"img/{os.path.basename(src[0])}/{n}: import into {os.path.basename(src[0])}")
+                continue
+            stem = self._ipl_display_to_stem.get(n)
+            entry = loader.available_ipls.get(stem) if stem else None
+            if entry is None or not entry.exists:
+                notes.append(f"{n}: no source file, skipped")
+                continue
+            with open(entry.abs_path, 'rb') as f:
+                head = f.read(64)
+            if detect_ipl_format(head) == 'binary':
+                files[rel(entry.abs_path)] = write_binary_ipl_inst_only(insts)
+            else:
+                built = self._build_ipl_text_lines(n)
+                files[rel(entry.abs_path)] = ('\r\n'.join(built[0]) + '\r\n').encode('latin-1', 'replace')
+        ide_files = set(getattr(self, '_session_saved_ides', set()))
+        pend_by = {}
+        for o in self._ide_pending.values():
+            p = self._ide_abs_path(o)
+            if p:
+                ide_files.add(p)
+                pend_by.setdefault(p, []).append(o)
+        for p in sorted(ide_files):
+            with open(p, 'rb') as f:
+                lines = f.read().decode('latin-1').splitlines(keepends=True)
+            for o in pend_by.get(p, []):
+                vals = {'model_name': o.model_name, 'txd_name': o.txd_name}
+                vals.update({k: v for k, v in o.extra.items() if k != 'mesh_count'})
+                lines[o.line_no - 1] = ide_line_update(lines[o.line_no - 1], o.section, o.model_id, vals)
+            files[rel(p)] = ''.join(lines).encode('latin-1')
+        if not files:
+            QMessageBox.information(self, "Export Mod Package", "No changed or saved map files this session.")
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Folder for the mod package")
+        if not folder:
+            return
+        game = getattr(loader, 'game', 'game')
+        readme = [f"Map mod package - {self._GAME_LABELS.get(game, game)}",
+                  f"Created {time.strftime('%Y-%m-%d %H:%M')} with IMG Factory 1.6 Map Workshop", "",
+                  "Copy the folders over your game folder (back it up first).",
+                  "Files under img/<archive>/ go inside that IMG archive - import them with IMG Factory.", "",
+                  "Files:"] + [f"  {k}" for k in sorted(files)] + ([""] + notes if notes else [])
+        try:
+            out = export_mod_package(folder, package_name(game), files, readme)
+        except OSError as e:
+            QMessageBox.warning(self, "Export Mod Package", f"Failed: {e}")
+            return
+        QMessageBox.information(self, "Export Mod Package", f"{len(files)} file(s) written to\n{out}\n(and {out}.zip)")
+
+    def _world_key(self): #vers 1
+        return os.path.abspath(getattr(self, '_loaded_dat_path', '') or getattr(self, '_game_root', '') or 'world')
+
+    def _save_camera_bookmark(self, slot): #vers 1
+        """Ctrl+Shift+1..9: store the camera in a slot for this world."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        allb = dict(self.map_settings.get('camera_bookmarks') or {})
+        mine = dict(allb.get(self._world_key(), {}))
+        old = mine.get(str(slot))
+        name = old[5] if old else f"Bookmark {slot}"
+        mine[str(slot)] = [vp._pan_x, vp._pan_y, vp._dist, vp._yaw, vp._pitch, name]
+        allb[self._world_key()] = mine
+        self.map_settings.set('camera_bookmarks', allb)
+        self._set_status(f"Camera saved to slot {slot} (Ctrl+{slot} to return)")
+
+    def _goto_camera_bookmark(self, slot): #vers 1
+        """Ctrl+1..9: jump the camera to a saved slot."""
+        vp = getattr(self, 'preview_widget', None)
+        b = (self.map_settings.get('camera_bookmarks') or {}).get(self._world_key(), {}).get(str(slot))
+        if vp is None or not b:
+            self._set_status(f"No camera bookmark in slot {slot} (Ctrl+Shift+{slot} saves one)")
+            return
+        vp._pan_x, vp._pan_y, vp._dist, vp._yaw, vp._pitch = b[:5]
+        if getattr(vp, '_projection', '') == 'ortho':
+            vp.makeCurrent(); vp.resizeGL(vp.width(), vp.height())
+        vp.update()
+        self._set_status(f"Camera: {b[5]}")
+
+    def _camera_bookmarks_menu(self, parent_menu): #vers 1
+        """Submenu listing slots with go / rename / delete."""
+        m = parent_menu.addMenu("Camera Bookmarks")
+        mine = (self.map_settings.get('camera_bookmarks') or {}).get(self._world_key(), {})
+        for slot in range(1, 10):
+            b = mine.get(str(slot))
+            sub = m.addMenu(f"{slot}: {b[5] if b else '(empty)'}")
+            sub.addAction("Go (Ctrl+%d)" % slot, lambda s=slot: self._goto_camera_bookmark(s)).setEnabled(bool(b))
+            sub.addAction("Save current view here (Ctrl+Shift+%d)" % slot, lambda s=slot: self._save_camera_bookmark(s))
+            sub.addAction("Rename...", lambda s=slot: self._rename_camera_bookmark(s)).setEnabled(bool(b))
+            sub.addAction("Delete", lambda s=slot: self._delete_camera_bookmark(s)).setEnabled(bool(b))
+        return m
+
+    def _rename_camera_bookmark(self, slot): #vers 1
+        allb = dict(self.map_settings.get('camera_bookmarks') or {})
+        mine = dict(allb.get(self._world_key(), {}))
+        b = mine.get(str(slot))
+        if not b:
+            return
+        name, ok = QInputDialog.getText(self, "Camera Bookmark", "Name:", text=b[5])
+        if ok and name.strip():
+            mine[str(slot)] = b[:5] + [name.strip()]
+            allb[self._world_key()] = mine
+            self.map_settings.set('camera_bookmarks', allb)
+
+    def _delete_camera_bookmark(self, slot): #vers 1
+        allb = dict(self.map_settings.get('camera_bookmarks') or {})
+        mine = dict(allb.get(self._world_key(), {}))
+        mine.pop(str(slot), None)
+        allb[self._world_key()] = mine
+        self.map_settings.set('camera_bookmarks', allb)
 
     def _show_map_checks(self): #vers 1
         """LOD links, IDE ID conflicts, missing assets and limits in one dialog."""
