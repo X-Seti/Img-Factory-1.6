@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 5
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 6
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -26,6 +26,7 @@ RW Analyze for RenderWare streams (.dff .txd .rws ...).
 # open_hex_workshop
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -39,7 +40,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QFormLayout, QDialog, QDialogButtonBox,
-    QInputDialog, QLabel, QLineEdit, QMessageBox, QSpinBox, QSplitter, QTabWidget, QVBoxLayout,
+    QInputDialog, QLabel, QLineEdit, QMessageBox, QSizePolicy, QSpinBox, QSplitter, QTabWidget, QVBoxLayout,
     QWidget)
 
 from apps.methods.ribbon_system import RibbonMixin
@@ -86,7 +87,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                 b.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 2
+    def setup_ui(self): #vers 3
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
@@ -106,6 +107,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
         self._info_lbl = QLabel("No file loaded")
         self._info_lbl.setWordWrap(True)
         self._info_lbl.setFont(QFont("Monospace", 9))
+        self._info_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         ll.addWidget(self._info_lbl)
         ll.addWidget(self.inspector, 1)
 
@@ -116,6 +118,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
         cl.addWidget(self.canvas, 1)
         self._pos_lbl = QLabel("")
         self._pos_lbl.setStyleSheet("padding:2px 6px;")
+        self._pos_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         cl.addWidget(self._pos_lbl)
 
         self._tabs = QTabWidget()
@@ -129,7 +132,13 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
         sp.addWidget(centre)
         sp.addWidget(self._tabs)
         sp.setStretchFactor(1, 4)
-        sp.setSizes([300, 700, 380])
+        sp.setCollapsible(1, False)
+        sp.setSizes(self._load_splitter() or [300, 700, 380])
+        self._splitter = sp
+        self._split_timer = QTimer(self)
+        self._split_timer.setSingleShot(True)
+        self._split_timer.timeout.connect(self._save_splitter)
+        sp.splitterMoved.connect(lambda _p, _i: self._split_timer.start(500))
         ml.addWidget(self.ribbon_wrap(sp), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
@@ -157,6 +166,25 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                          ("Ctrl+G", self._goto_dialog), ("F3", lambda: self.search._emit_find(True)),
                          ("Shift+F3", lambda: self.search._emit_find(False)), ("Ctrl+B", self._add_bookmark)):
             QShortcut(QKeySequence(keys), self, activated=fn)
+
+    def _splitter_path(self) -> Path: #vers 1
+        """Splitter sizes file beside the other workshop settings."""
+        return Path.home() / ".config" / "imgfactory" / f"{config_key}_splitter.json"
+
+    def _load_splitter(self): #vers 1
+        try:
+            s = json.loads(self._splitter_path().read_text()).get("sizes")
+            return s if isinstance(s, list) and len(s) == 3 and sum(s) > 0 else None
+        except Exception:
+            return None
+
+    def _save_splitter(self): #vers 1
+        try:
+            p = self._splitter_path()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps({"sizes": self._splitter.sizes()}))
+        except Exception as ex:
+            print(f"[hex_workshop] splitter save error: {ex}")
 
     def _build_ribbons(self): #vers 2
         B, C = self.ribbon_button, self.canvas
@@ -362,6 +390,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                 if self.doc.modified:
                     ev.ignore()
                     return
+        self._save_splitter()
         self.ribbon_save_state()
         super().closeEvent(ev)
 

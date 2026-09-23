@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 126
+#this belongs in root /ChangeLog.md - Version: 127
+
+## Sep 23 2026 - Hex Workshop: resizable panes, splitter sizes saved, Build 431.91
+
+Long labels no longer force pane minimum widths, so panes resize instead of snapping. Splitter sizes saved to ~/.config/imgfactory/hex_workshop_splitter.json.
 
 ## Sep 23 2026 - Hex Workshop: bug fixes, dead code removed, Build 431.91
 

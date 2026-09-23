@@ -1,4 +1,4 @@
-#this belongs in apps/components/Hex_Editor/hex_panels.py - Version: 2
+#this belongs in apps/components/Hex_Editor/hex_panels.py - Version: 3
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop side panels
 
 """hex_panels.py - Inspector (values at the cursor), Structure (RenderWare section tree with
@@ -25,7 +25,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
-    QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPushButton, QTableWidget,
+    QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPushButton, QSizePolicy, QTableWidget,
     QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from apps.methods import rw_chunks as rw
@@ -169,6 +169,8 @@ class StructurePanel(QWidget):
         lay.setContentsMargins(2, 2, 2, 2)
         top = QHBoxLayout()
         self.kind_lbl = QLabel("No structure")
+        self.kind_lbl.setWordWrap(True)
+        self.kind_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         top.addWidget(self.kind_lbl, 1)
         self.btn_validate = QPushButton("Validate")
         self.btn_validate.setMinimumHeight(28)
@@ -184,6 +186,7 @@ class StructurePanel(QWidget):
         lay.addWidget(self.tree, 1)
         self.legend = QLabel("blue = has sections   green = data   orange = empty   red = faulty")
         self.legend.setStyleSheet("padding:2px;")
+        self.legend.setWordWrap(True)
         lay.addWidget(self.legend)
         self.data = b""
         self.roots: List[rw.RWNode] = []
@@ -473,6 +476,7 @@ class SearchPanel(QWidget):
         self.results.itemClicked.connect(lambda it: self.goto.emit(*it.data(Qt.ItemDataRole.UserRole)))
         lay.addWidget(self.results, 1)
         self.info = QLabel("")
+        self.info.setWordWrap(True)
         lay.addWidget(self.info)
 
     def pattern(self, text_edit=None) -> Optional[bytes]:
