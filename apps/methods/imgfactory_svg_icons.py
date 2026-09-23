@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 20
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 21
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -4770,6 +4770,31 @@ def get_timecyc_workshop_icon(size: int = 24, color: str = None, bg_color: str =
     </svg>''', size, color, bg_color)
 
 
+def get_hex_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Hex Workshop - window with offset column and hex byte pairs"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="3" width="20" height="18" rx="2"
+              stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <line x1="2" y1="7" x2="22" y2="7" stroke="currentColor" stroke-width="1.2"/>
+        <circle cx="4.5" cy="5" r="0.7" fill="currentColor"/>
+        <circle cx="6.8" cy="5" r="0.7" fill="currentColor"/>
+        <!-- Offset column -->
+        <line x1="7.5" y1="7" x2="7.5" y2="21" stroke="currentColor" stroke-width="1.2" opacity="0.6"/>
+        <line x1="4" y1="10.5" x2="6" y2="10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.6"/>
+        <line x1="4" y1="14" x2="6" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.6"/>
+        <line x1="4" y1="17.5" x2="6" y2="17.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.6"/>
+        <!-- Hex byte pairs, cursor byte filled -->
+        <line x1="9.5" y1="10.5" x2="11.5" y2="10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="13.5" y1="10.5" x2="15.5" y2="10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="17.5" y1="10.5" x2="19.5" y2="10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="9.5" y1="14" x2="11.5" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <rect x="12.8" y="12.6" width="3.4" height="2.8" rx="0.5" fill="currentColor"/>
+        <line x1="17.5" y1="14" x2="19.5" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="9.5" y1="17.5" x2="11.5" y2="17.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="13.5" y1="17.5" x2="15.5" y2="17.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
 def get_weather_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Weather / timecyc editor — cloud"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -5572,6 +5597,8 @@ SVGIconFactory.radar_workshop_icon    = staticmethod(get_radar_workshop_icon)
 SVGIconFactory.water_workshop_icon    = staticmethod(get_water_workshop_icon)
 SVGIconFactory.timecyc_workshop_icon  = staticmethod(get_timecyc_workshop_icon)
 SVGIconFactory.get_timecyc_workshop_icon = staticmethod(get_timecyc_workshop_icon)
+SVGIconFactory.hex_workshop_icon      = staticmethod(get_hex_workshop_icon)
+SVGIconFactory.get_hex_workshop_icon  = staticmethod(get_hex_workshop_icon)
 
 
 def get_cull_zone_icon(size: int = 24, color: str = None) -> QIcon: #vers 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 6
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 7
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -65,7 +65,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
     # Bump when the set of ribbons changes (2 = File/Edit/Search/View/Tools)
     _RIBBON_LAYOUT_VERSION = 2
 
-    def __init__(self, parent=None, main_window=None): #vers 2
+    def __init__(self, parent=None, main_window=None): #vers 3
         self._defer_setup_ui = True
         self.doc = HexDoc()
         self._file_path: Optional[str] = None
@@ -74,6 +74,8 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
         self._loading = False
         self._struct_timer = None
         super().__init__(parent, main_window)
+        if self.standalone_mode:
+            self.setWindowIcon(self.icon_factory.get_hex_workshop_icon(64))
         self.setup_ui()
         self.setAcceptDrops(True)
         self._set_status("Open a file to begin (File ribbon, or drop a file here)")
@@ -625,7 +627,7 @@ def show_hex_editor_for_entry(main_window, row, entry_info):  #vers 2
         return None
 
 
-def open_hex_workshop(main_window=None, file_path=None):  #vers 3
+def open_hex_workshop(main_window=None, file_path=None):  #vers 4
     """Open Hex Workshop - embedded in a tab if main_window has a tab widget, standalone otherwise."""
     mw = main_window
     if mw and hasattr(mw, 'main_tab_widget'):
@@ -643,6 +645,8 @@ def open_hex_workshop(main_window=None, file_path=None):  #vers 3
             w.load_file(file_path)
         return w
     app = QApplication.instance() or QApplication(sys.argv)
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+    app.setWindowIcon(SVGIconFactory.get_hex_workshop_icon(64))
     w = HexWorkshop(main_window=main_window)
     w.resize(1300, 800)
     w.show()

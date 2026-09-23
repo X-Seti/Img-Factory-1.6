@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 127
+#this belongs in root /ChangeLog.md - Version: 128
+
+## Sep 23 2026 - Hex Workshop app icon, right bar button, Build 431.91
+
+New get_hex_workshop_icon: intro card, right bar icon mode, standalone window icon. Right bar Notepad placeholder replaced by Hex (opens docked Hex Workshop).
 
 ## Sep 23 2026 - Hex Workshop: resizable panes, splitter sizes saved, Build 431.91
 

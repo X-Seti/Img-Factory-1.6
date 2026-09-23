@@ -1,4 +1,4 @@
-#this belongs in gui/ gui_layout.py - Version: 34
+#this belongs in gui/ gui_layout.py - Version: 35
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -34,7 +34,7 @@ from apps.methods.imgfactory_svg_icons import (
     get_radar_workshop_icon, get_water_workshop_icon,
     get_dp5_panel_icon, get_ipl_editor_icon, get_paths_map_icon,
     get_weather_icon,
-    get_timecyc_workshop_icon
+    get_timecyc_workshop_icon, get_hex_workshop_icon
 )
 from apps.locals.localization import tr_button
 from typing import Optional, Dict, Any, List, Callable
@@ -456,6 +456,7 @@ class IMGFactoryGUILayout:
             'edit_handling': lambda: getattr(self.main_window, 'open_handling_editor', lambda: None)(),
             'edit_carcols':  lambda: getattr(self.main_window, 'open_carcols_editor', lambda: None)(),
             'edit_timecyc':  lambda: getattr(self.main_window, 'open_timecyc_editor', lambda: None)(),
+            'edit_hex':      lambda: getattr(self.main_window, 'open_hex_workshop_docked', lambda: None)(),
             'edit_dat_file': lambda: self._open_dat_browser(),
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
@@ -723,7 +724,7 @@ class IMGFactoryGUILayout:
         return [
             ("Dir Tree",   "dir_tree",   "dir-tree",   colors['editor_data'],    "toggle_dir_tree"), #Dir_tree
             ("Dat Browser","dat_edit",   "dat-edit",   colors['editor_data'],    "edit_dat_file"), #dat_browser
-            ("Notepad",    "placeholder","placeholder",colors['editor_data'],    "edit_dummy"),
+            ("Hex",        "hex_edit",   "hex-edit",   colors['editor_data'],    "edit_hex"),
 
             ("Collisions", "col_edit",   "col-edit",   colors['editor_col'],     "edit_col_file"),
             ("Models",     "dff_edit",   "dff-edit",   colors['editor_dff'],     "edit_dff_file"),
@@ -1612,6 +1613,7 @@ class IMGFactoryGUILayout:
             "radar-map": get_radar_workshop_icon,
             "paths-map": get_paths_map_icon,
             "timecyc": get_timecyc_workshop_icon,
+            "hex-edit": get_hex_workshop_icon,
             "weather": get_weather_icon,
             "handling": get_tba_icon,
             "ojs-breakble": get_tba_icon,
@@ -1648,7 +1650,7 @@ class IMGFactoryGUILayout:
             "Sort via": "Sort", "Pin selected": "Pin",
 
             #Editors
-            "Dir Tree": "Dir", "Dat Browser": "Dat Dir", "Notepad": "Notes",
+            "Dir Tree": "Dir", "Dat Browser": "Dat Dir", "Hex": "Hex",
             "Collisions": "Col Edit", "Models": "Dff Edit", "Textures": "Txd Edit",
             "Radar": "Radar", "Waterpro": "Waterpro", "Paint": "Paint",
             "IDE Edit": "IDE Edit","IPL Edit": "IPL Edit", "Objects": "Objects",

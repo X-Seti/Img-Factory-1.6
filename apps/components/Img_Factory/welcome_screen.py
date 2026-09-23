@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 20
+# apps/components/Img_Factory/welcome_screen.py — Version 21
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -490,7 +490,7 @@ class WelcomeScreen(QWidget):
              "Edit compiled GTA mission scripts — decompile, browse opcodes "
              "and patch main.scm / script.img.",
              self.open_scm_workshop),
-            (_SVG.surface_hex_icon(36, _ic), "Hex Workshop",
+            (_SVG.get_hex_workshop_icon(36, _ic), "Hex Workshop",
              "Raw hex/binary editor for any file — inspect and patch bytes "
              "directly with offset and ASCII views.",
              self.open_hex_workshop),
