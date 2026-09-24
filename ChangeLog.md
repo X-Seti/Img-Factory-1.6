@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 155
+#this belongs in root /ChangeLog.md - Version: 156
+
+## Sep 24 2026 - Unused modules, IMG core leftovers, Build 431.92
+- Removed 19 unused/duplicate modules incl. gui/main_window.py, File_Browser/; gui/__init__ emptied.
+- Convert IMG Format was overridden by a broken copy; now uses core/convert.py.
+- replace/convert: missing tab_system import added; dead IMG_Editor core branches removed.
 
 ## Sep 24 2026 - IMG Factory imports, Build 431.92
 - Export Via, Quick Export, Dump, Import Via, Remove Via pointed at real core modules; removed shadowed open_file_dialog and 2 unused setup methods.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 93
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 94
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -97,7 +97,6 @@ from apps.core.col_viewer_integration import integrate_col_viewer
 # GUI Layout
 from apps.gui.ide_dialog import integrate_ide_dialog
 from apps.gui.gui_backend import ButtonDisplayMode, GUIBackend
-from apps.gui.main_window import IMGFactoryMainWindow
 from apps.gui.col_display import update_col_info_bar_enhanced
 from apps.gui.gui_layout import IMGFactoryGUILayout
 from apps.gui.unified_button_theme import apply_unified_button_theme

@@ -1,4 +1,4 @@
-#this belongs in core/ imgcol_convert.py - Version: 3
+#this belongs in apps/core/imgcol_convert.py - Version: 4
 # X-Seti - September02 2025 - IMG Factory 1.5 - IMG and COL Convert Functions
 
 """
@@ -19,30 +19,20 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from apps.methods.file_validation import validate_img_file, validate_any_file, get_selected_entries_for_operation
+from apps.methods.tab_system import get_current_file_from_active_tab, validate_tab_before_operation, get_current_file_type_from_tab
+from apps.core.convert import convert_img_format
 
-# IMG_Editor core integration support
-try:
-    from apps.components.img_integration import IMGArchive, IMG_Operations
-    IMG_INTEGRATION_AVAILABLE = True
-except ImportError:
-    IMG_INTEGRATION_AVAILABLE = False
 
 ##Methods list -
 # convert_selected
-# convert_img_format
 # convert_col_format
 # _show_convert_dialog
 # _browse_output_file
-# _validate_conversion_settings
-# _convert_with_img_core
 # _convert_with_fallback
 # _create_conversion_backup
-# _get_img_version
-# _get_col_version
-# _convert_to_img_archive
 # integrate_imgcol_convert_functions
 
-def convert_selected(main_window): #vers 1
+def convert_selected(main_window): #vers 2
     """Main convert function - handles both IMG and COL format conversions"""
     try:
         # Use same tab awareness as other core functions
@@ -64,103 +54,6 @@ def convert_selected(main_window): #vers 1
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Convert selected error: {str(e)}")
         QMessageBox.critical(main_window, "Convert Error", f"Convert failed: {str(e)}")
-        return False
-
-
-def convert_img_format(main_window): #vers 1
-    """Convert IMG between V1 and V2 formats using IMG_Editor core"""
-    try:
-        # Validate tab and get file object
-        if not validate_tab_before_operation(main_window, "Convert IMG Format"):
-            return False
-        
-        file_object, file_type = get_current_file_from_active_tab(main_window)
-        
-        if file_type != 'IMG' or not file_object:
-            QMessageBox.warning(main_window, "No IMG File", "Current tab does not contain an IMG file")
-            return False
-        
-        # Get current IMG version
-        current_version = _get_img_version(file_object)
-        if not current_version:
-            QMessageBox.warning(main_window, "Unknown Version", "Cannot determine IMG file version")
-            return False
-        
-        # Get file path
-        file_path = getattr(file_object, 'file_path', '')
-        if not file_path:
-            QMessageBox.warning(main_window, "No File Path", "Cannot determine IMG file path")
-            return False
-        
-        entry_count = len(getattr(file_object, 'entries', []))
-        file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-        
-        # Show convert dialog
-        conversion_settings = _show_convert_dialog(main_window, "IMG", {
-            'current_version': current_version,
-            'file_path': file_path,
-            'entry_count': entry_count,
-            'file_size': file_size
-        })
-        
-        if not conversion_settings:
-            if hasattr(main_window, 'log_message'):
-                main_window.log_message("Convert operation cancelled")
-            return False
-        
-        target_version = conversion_settings['target_version']
-        output_path = conversion_settings['output_path']
-        create_backup = conversion_settings['create_backup']
-        
-        # Validate conversion settings
-        if not _validate_conversion_settings(conversion_settings, "IMG"):
-            return False
-        
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Converting IMG: {current_version} → {target_version}")
-            main_window.log_message(f"Output: {output_path}")
-        
-        # Create backup if requested
-        if create_backup:
-            backup_success = _create_conversion_backup(main_window, file_path)
-            if not backup_success:
-                reply = QMessageBox.question(main_window, "Backup Failed", "Failed to create backup. Continue with conversion anyway?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No)
-                if reply != QMessageBox.StandardButton.Yes:
-                    return False
-        
-        # Convert using IMG_Editor core
-        success = _convert_with_img_core(main_window, file_object, conversion_settings)
-        
-        if success:
-            QMessageBox.information(main_window, "Convert Complete", 
-                f"Successfully converted IMG from {current_version} to {target_version}\nOutput: {output_path}")
-            
-            if hasattr(main_window, 'log_message'):
-                main_window.log_message("IMG format conversion completed")
-                
-            # Ask if user wants to open the converted file
-            reply = QMessageBox.question(main_window, "Open Converted File", "Would you like to open the converted IMG file?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes)
-            if reply == QMessageBox.StandardButton.Yes:
-                # Open the converted file
-                if hasattr(main_window, 'open_img_file'):
-                    try:
-                        main_window.open_img_file(output_path)
-                    except Exception as e:
-                        if hasattr(main_window, 'log_message'):
-                            main_window.log_message(f"Could not open converted file: {str(e)}")
-        else:
-            QMessageBox.critical(main_window, "Convert Failed", "Failed to convert IMG format. Check debug log for details.")
-        
-        return success
-        
-    except Exception as e:
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Convert IMG format error: {str(e)}")
-        QMessageBox.critical(main_window, "Convert IMG Format Error", f"Convert IMG format failed: {str(e)}")
         return False
 
 
@@ -202,7 +95,7 @@ def convert_col_format(main_window): #vers 1
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"COL format conversion requested: COL1 → {target_version}")
             main_window.log_message(f"Output: {output_path}")
-            main_window.log_message("⚠COL format conversion requires COL parser integration")
+            main_window.log_message("COL format conversion requires COL parser integration")
         
         # Create backup if requested
         if create_backup and file_path:
@@ -463,107 +356,6 @@ def _browse_output_file(output_edit: QLineEdit, file_type: str): #vers 1
         print(f"Browse output file error: {str(e)}")
 
 
-def _validate_conversion_settings(settings: Dict, file_type: str) -> bool: #vers 1
-    """Validate conversion settings"""
-    try:
-        output_path = settings.get('output_path', '')
-        if not output_path:
-            QMessageBox.critical(None, "No Output Path", "Output file path is required")
-            return False
-        
-        # Check output directory exists
-        output_dir = os.path.dirname(output_path)
-        if output_dir and not os.path.exists(output_dir):
-            try:
-                os.makedirs(output_dir, exist_ok=True)
-            except Exception as e:
-                QMessageBox.critical(None, "Directory Error", f"Cannot create output directory: {str(e)}")
-                return False
-        
-        # Check if we can write to output location
-        try:
-            test_file = output_path + '.test'
-            with open(test_file, 'w') as f:
-                f.write('test')
-            os.remove(test_file)
-        except Exception as e:
-            QMessageBox.critical(None, "Write Permission Error", f"Cannot write to output location: {str(e)}")
-            return False
-        
-        return True
-        
-    except Exception as e:
-        QMessageBox.critical(None, "Validation Error", f"Error validating conversion settings: {str(e)}")
-        return False
-
-
-def _convert_with_img_core(main_window, file_object, settings: Dict) -> bool: #vers 1
-    """Convert using IMG_Editor core if available"""
-    try:
-        
-        # Convert to IMG archive format
-        archive = _convert_to_img_archive(file_object, main_window)
-        if not archive:
-            if hasattr(main_window, 'log_message'):
-                main_window.log_message("Could not convert file to IMG_Editor format")
-            return False
-        
-        target_version = settings['target_version']
-        output_path = settings['output_path']
-        
-        # Show progress dialog
-        progress = QProgressDialog("Converting IMG format...", "Cancel", 0, 100, main_window)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.show()
-        
-        def progress_callback(percent, message):
-            if progress.wasCanceled():
-                return False
-            progress.setValue(percent)
-            progress.setLabelText(message)
-            QApplication.processEvents()
-            return True
-        
-        try:
-            # Use IMG_Editor core conversion
-            converted_archive = IMG_Operations.convert_format(
-                archive, 
-                output_path, 
-                target_version
-            )
-            
-            if converted_archive:
-                # Verify integrity if requested
-                if settings.get('verify_integrity', True):
-                    progress_callback(90, "Verifying converted file...")
-                    
-                    # Try to load the converted file
-                    test_archive = IMGArchive()
-                    if not test_archive.load_from_file(output_path):
-                        if hasattr(main_window, 'log_message'):
-                            main_window.log_message("Converted file failed integrity check")
-                        QMessageBox.warning(main_window, "Integrity Check Failed", "Converted file may be corrupted. Check the output file manually.")
-                
-                progress_callback(100, "Conversion complete")
-                
-                if hasattr(main_window, 'log_message'):
-                    main_window.log_message("IMG format converted using IMG_Editor core")
-                
-                return True
-            else:
-                if hasattr(main_window, 'log_message'):
-                    main_window.log_message("IMG_Editor core conversion failed")
-                return False
-        
-        finally:
-            progress.close()
-        
-    except Exception as e:
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Core conversion error: {str(e)}")
-        return True
-
-
 def _create_conversion_backup(main_window, file_path: str) -> bool: #vers 1
     """Create backup before conversion"""
     try:
@@ -600,88 +392,7 @@ def _create_conversion_backup(main_window, file_path: str) -> bool: #vers 1
         return False
 
 
-def _get_img_version(file_object) -> Optional[str]: #vers 3
-    """Get IMG file version - NO FALLBACK"""
-    try:
-        # Method 1: Check version attribute
-        if hasattr(file_object, 'version'):
-            version = getattr(file_object, 'version')
-            if version in ['V1', 'VER1']:
-                return 'V1'
-            elif version in ['V2', 'VER2']:
-                return 'V2'
-
-        # Method 2: Check format_version attribute
-        if hasattr(file_object, 'format_version'):
-            version = getattr(file_object, 'format_version')
-            if version == 1:
-                return 'V1'
-            elif version == 2:
-                return 'V2'
-
-        # Method 3: Direct file signature check (if file_path available)
-        file_path = getattr(file_object, 'file_path', None)
-        if file_path and os.path.exists(file_path):
-            with open(file_path, 'rb') as f:
-                signature = f.read(4)
-                if signature == b'VER2':
-                    return 'V2'
-                # V1 has no signature, check for .dir file
-                dir_file = file_path.replace('.img', '.dir')
-                if os.path.exists(dir_file):
-                    return 'V1'
-
-        # Cannot determine version
-        return None
-
-    except Exception:
-        return None
-
-
-def _get_col_version(file_object) -> Optional[str]: #vers 1
-    """Get COL file version (placeholder)"""
-    try:
-        # Placeholder for COL version detection
-        if hasattr(file_object, 'col_version'):
-            return getattr(file_object, 'col_version')
-        
-        # Default assumption
-        return 'COL1'
-        
-    except Exception:
-        return None
-
-
-def _convert_to_img_archive(file_object, main_window): #vers 1
-    """Convert file object to IMG_Editor archive format"""
-    try:
-        if not IMG_INTEGRATION_AVAILABLE:
-            return None
-        
-        # If already IMG_Editor format, return as-is
-        if isinstance(file_object, IMGArchive):
-            return file_object
-        
-        # Load IMG file using IMG_Editor
-        file_path = getattr(file_object, 'file_path', None)
-        if not file_path or not os.path.exists(file_path):
-            return None
-        
-        # Create and load IMG_Editor archive
-        archive = IMGArchive()
-        if archive.load_from_file(file_path):
-            if hasattr(main_window, 'log_message'):
-                entry_count = len(archive.entries) if archive.entries else 0
-                main_window.log_message(f"Converted to IMG archive format: {entry_count} entries")
-            return archive
-        
-        return None
-        
-    except Exception:
-        return None
-
-
-def integrate_imgcol_convert_functions(main_window) -> bool: #vers 1
+def integrate_imgcol_convert_functions(main_window) -> bool: #vers 2
     """Integrate IMG and COL convert functions into main window"""
     try:
         # Add main convert functions
@@ -696,8 +407,6 @@ def integrate_imgcol_convert_functions(main_window) -> bool: #vers 1
         
         if hasattr(main_window, 'log_message'):
             integration_msg = "IMG/COL convert functions integrated with tab awareness"
-            if IMG_INTEGRATION_AVAILABLE:
-                integration_msg += " + IMG_Editor core"
             main_window.log_message(integration_msg)
         
         return True

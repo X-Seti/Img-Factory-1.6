@@ -1,4 +1,4 @@
-#this belongs in core/ rename.py - Version: 4
+#this belongs in apps/core/rename.py - Version: 5
 # X-Seti - August24 2025 - IMG Factory 1.5 - Rename Functions for IMG and COL
 
 """
@@ -16,30 +16,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from apps.methods.file_validation import validate_img_file, validate_any_file, get_selected_entries_for_operation
-try:
-    from apps.methods.tab_system import get_current_file_from_active_tab, validate_tab_before_operation, get_current_file_type_from_tab
-except ImportError:
-    # Fallback if tab_system is not available
-    def validate_tab_before_operation(main_window, operation_name):
-        # Simple fallback that always allows the operation
-        return True
-    def get_current_file_from_active_tab(main_window):
-        # Fallback that returns current_img if available
-        if hasattr(main_window, 'current_img'):
-            return main_window.current_img, 'IMG'
-        return None, None
-    def get_current_file_type_from_tab(main_window):
-        # Fallback that returns IMG if current_img is available
-        if hasattr(main_window, 'current_img'):
-            return 'IMG'
-        return None
+from apps.methods.tab_system import get_current_file_from_active_tab, validate_tab_before_operation, get_current_file_type_from_tab
 
-# IMG_Editor core integration support
-try:
-    from apps.components.img_integration import IMGArchive, IMGEntry
-    IMG_INTEGRATION_AVAILABLE = True
-except ImportError:
-    IMG_INTEGRATION_AVAILABLE = False
 
 ##Methods list -
 # rename_entry
@@ -422,63 +400,15 @@ def _check_duplicate_name(file_object, new_name: str, current_entry) -> bool: #v
         return False
 
 
-def _rename_with_img_core(main_window, file_object, entry, new_name: str) -> bool: #vers 2
+def _rename_with_img_core(main_window, file_object, entry, new_name: str) -> bool: #vers 3
     """Rename entry using IMG_Editor core if available"""
     try:
-        if IMG_INTEGRATION_AVAILABLE:
-            # Try using IMG_Editor core
-            try:
-                # Convert to IMG_Editor archive if needed
-                img_archive = _convert_to_img_archive(file_object, main_window)
-                if img_archive:
-                    return _rename_with_img_archive(main_window, img_archive, entry, new_name)
-            except Exception as e:
-                if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"IMG core rename failed, using fallback: {str(e)}")
-        
         # Fallback to direct rename
         return _rename_with_fallback_method(main_window, entry, new_name)
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Core rename error: {str(e)}")
-        return False
-
-
-def _rename_with_img_archive(main_window, img_archive, entry, new_name: str) -> bool: #vers 4 Fixed
-    """Rename using IMG_Editor archive - also updates original entry object"""
-    try:
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message("Using IMG_Editor core for reliable rename")
-
-        entry_name = getattr(entry, 'name', '')
-
-        # Update the archive copy if it exists
-        for archive_entry in img_archive.entries:
-            if getattr(archive_entry, 'name', '') == entry_name:
-                archive_entry.name = new_name
-                if hasattr(img_archive, 'modified'):
-                    img_archive.modified = True
-                break
-
-        # Always update the original entry object (the one in file_object.entries)
-        if not hasattr(entry, 'original_name'):
-            entry.original_name = entry_name
-        entry.name = new_name
-        entry.is_modified = True
-        # Rename pin key FIRST so set_entry_date saves under the new name
-        _ip = getattr(file_object, 'file_path', None)
-        from apps.core.undo_system import pin_file_sync_rename, set_entry_date
-        pin_file_sync_rename(_ip, entry_name, new_name)
-        set_entry_date(entry, _ip)
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Renamed entry using IMG_Editor core")
-
-        return True
-
-    except Exception as e:
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"IMG archive rename error: {str(e)}")
         return False
 
 
@@ -622,33 +552,6 @@ def _get_selected_col_model_safe(main_window, file_object): #vers 2
         return None, -1
 
 
-def _convert_to_img_archive(file_object, main_window):
-    """Convert file object to IMG_Editor archive format"""
-    try:
-        if not IMG_INTEGRATION_AVAILABLE:
-            return None
-        
-        # If already IMG_Editor format, return as-is
-        if isinstance(file_object, IMGArchive):
-            return file_object
-        
-        # Load IMG file using IMG_Editor
-        file_path = getattr(file_object, 'file_path', None)
-        if not file_path or not os.path.exists(file_path):
-            return None
-        
-        # Create and load IMG_Editor archive
-        from apps.components.img_integration import IMGArchive
-        archive = IMGArchive()
-        if archive.load_from_file(file_path):
-            return archive
-        
-        return None
-        
-    except Exception:
-        return None
-
-
 def integrate_rename_functions(main_window) -> bool: #vers 3 Fixed
     """Integrate rename functions into main window"""
     try:
@@ -664,8 +567,6 @@ def integrate_rename_functions(main_window) -> bool: #vers 3 Fixed
         
         if hasattr(main_window, 'log_message'):
             integration_msg = "Rename functions integrated with tab awareness"
-            if IMG_INTEGRATION_AVAILABLE:
-                integration_msg += " + IMG_Editor core"
             main_window.log_message(integration_msg)
         
         return True

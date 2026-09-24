@@ -1,4 +1,4 @@
-#this belongs in core/ imgcol_replace.py - Version: 1
+#this belongs in apps/core/imgcol_replace.py - Version: 2
 # X-Seti - September02 2025 - IMG Factory 1.5 - IMG and COL Replace Functions
 
 """
@@ -18,14 +18,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from apps.methods.file_validation import validate_img_file, validate_any_file, get_selected_entries_for_operation
+from apps.methods.tab_system import get_current_file_from_active_tab, validate_tab_before_operation, get_current_file_type_from_tab
 
 
-# IMG_Editor core integration support
-try:
-    from apps.components.img_integration import IMGArchive, IMGEntry, Import_Export
-    IMG_INTEGRATION_AVAILABLE = True
-except ImportError:
-    IMG_INTEGRATION_AVAILABLE = False
 
 ##Methods list -
 # replace_selected
@@ -60,7 +55,7 @@ def replace_selected(main_window): #vers 1
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Replace selected error: {str(e)}")
+            main_window.log_message(f"Replace selected error: {str(e)}")
         QMessageBox.critical(main_window, "Replace Error", f"Replace failed: {str(e)}")
         return False
 
@@ -113,7 +108,7 @@ def replace_img_entry(main_window): #vers 1
             return False
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"🔄 Replacing IMG entry: '{entry_name}' with '{replacement_file}'")
+            main_window.log_message(f"Replacing IMG entry: '{entry_name}' with '{replacement_file}'")
         
         # Create backup if requested
         if create_backup:
@@ -153,7 +148,7 @@ def replace_img_entry(main_window): #vers 1
                 f"Successfully replaced '{entry_name}' with new file\nNew size: {file_size:,} bytes")
             
             if hasattr(main_window, 'log_message'):
-                main_window.log_message("💾 Remember to rebuild IMG to save changes")
+                main_window.log_message("Remember to rebuild IMG to save changes")
         else:
             QMessageBox.critical(main_window, "Replace Failed", 
                 "Failed to replace IMG entry. Check debug log for details.")
@@ -162,7 +157,7 @@ def replace_img_entry(main_window): #vers 1
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Replace IMG entry error: {str(e)}")
+            main_window.log_message(f"Replace IMG entry error: {str(e)}")
         QMessageBox.critical(main_window, "Replace IMG Entry Error", f"Replace IMG entry failed: {str(e)}")
         return False
 
@@ -214,7 +209,7 @@ def replace_col_model_data(main_window): #vers 1
             return False
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"🔄 Replacing COL model: '{model_name}' with '{replacement_file}'")
+            main_window.log_message(f"Replacing COL model: '{model_name}' with '{replacement_file}'")
         
         try:
             # Load new COL data (basic implementation)
@@ -228,8 +223,8 @@ def replace_col_model_data(main_window): #vers 1
             # For COL replacement, we would need COL parser integration
             # This is a placeholder for the actual COL data replacement
             if hasattr(main_window, 'log_message'):
-                main_window.log_message("⚠️ COL model replacement requires COL parser integration")
-                main_window.log_message("✅ COL replacement functionality is prepared but needs COL core integration")
+                main_window.log_message("COL model replacement requires COL parser integration")
+                main_window.log_message("COL replacement functionality is prepared but needs COL core integration")
             
             QMessageBox.information(main_window, "COL Replace", 
                 "COL model replacement prepared.\nFull implementation requires COL parser integration.")
@@ -242,7 +237,7 @@ def replace_col_model_data(main_window): #vers 1
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Replace COL model error: {str(e)}")
+            main_window.log_message(f"Replace COL model error: {str(e)}")
         QMessageBox.critical(main_window, "Replace COL Model Error", f"Replace COL model failed: {str(e)}")
         return False
 
@@ -374,7 +369,7 @@ def _show_replace_dialog(main_window, item_name: str, item_info: str, item_type:
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Replace dialog error: {str(e)}")
+            main_window.log_message(f"Replace dialog error: {str(e)}")
         return None
 
 
@@ -440,39 +435,15 @@ def _validate_replacement_file(file_path: str, original_name: str) -> bool: #ver
         return False
 
 
-def _replace_with_img_core(main_window, file_object, entry, replacement_file: str, keep_name: bool) -> bool: #vers 1
+def _replace_with_img_core(main_window, file_object, entry, replacement_file: str, keep_name: bool) -> bool: #vers 2
     """Replace entry using IMG_Editor core if available"""
     try:
-        if IMG_INTEGRATION_AVAILABLE:
-            # Convert to IMG archive format if needed
-            archive = _convert_to_img_archive(file_object, main_window)
-            if archive:
-                # Read replacement file data
-                with open(replacement_file, 'rb') as f:
-                    new_data = f.read()
-                
-                # Use IMG_Editor core replace
-                from apps.components.img_integration import Entries_and_Selection
-                success = Entries_and_Selection.replace_entry(archive, entry, new_data)
-                
-                if success:
-                    # Update name if not keeping original
-                    if not keep_name:
-                        new_name = os.path.basename(replacement_file)
-                        entry.name = new_name
-                    
-                    if hasattr(main_window, 'log_message'):
-                        main_window.log_message("✅ Entry replaced using IMG_Editor core")
-                        main_window.log_message("💾 Remember to rebuild IMG to save changes")
-                    
-                    return True
-        
         # Fallback to basic replace
         return _replace_with_fallback(main_window, entry, replacement_file, keep_name)
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Core replace error: {str(e)}")
+            main_window.log_message(f"Core replace error: {str(e)}")
         return _replace_with_fallback(main_window, entry, replacement_file, keep_name)
 
 
@@ -480,7 +451,7 @@ def _replace_with_fallback(main_window, entry, replacement_file: str, keep_name:
     """Fallback replace method"""
     try:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("⚠️ Using fallback replace method")
+            main_window.log_message("Using fallback replace method")
         
         # Read new file data
         with open(replacement_file, 'rb') as f:
@@ -505,14 +476,14 @@ def _replace_with_fallback(main_window, entry, replacement_file: str, keep_name:
             entry.modified = True
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ Entry replaced using fallback method")
-            main_window.log_message("💾 Remember to save/rebuild file to preserve changes")
+            main_window.log_message("Entry replaced using fallback method")
+            main_window.log_message("Remember to save/rebuild file to preserve changes")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Fallback replace error: {str(e)}")
+            main_window.log_message(f"Fallback replace error: {str(e)}")
         return False
 
 
@@ -535,28 +506,20 @@ def _backup_original_entry(main_window, file_object, entry) -> bool: #vers 1
             # Direct data access
             with open(backup_path, 'wb') as f:
                 f.write(entry.data)
-        elif IMG_INTEGRATION_AVAILABLE:
-            # Use IMG_Editor core to extract
-            archive = _convert_to_img_archive(file_object, main_window)
-            if archive:
-                from apps.components.img_integration import Import_Export
-                success = Import_Export.export_entry(archive, entry, str(backup_path))
-                if not success:
-                    return False
         else:
             # Can't backup without data access
             if hasattr(main_window, 'log_message'):
-                main_window.log_message("⚠️ Cannot create backup - no data access method available")
+                main_window.log_message("Cannot create backup - no data access method available")
             return False
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"✅ Created backup: {backup_path}")
+            main_window.log_message(f"Created backup: {backup_path}")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Backup creation error: {str(e)}")
+            main_window.log_message(f"Backup creation error: {str(e)}")
         return False
 
 
@@ -659,35 +622,6 @@ def _get_selected_col_model_safe(main_window, file_object): #vers 1
         return None, -1
 
 
-def _convert_to_img_archive(file_object, main_window): #vers 1
-    """Convert file object to IMG_Editor archive format"""
-    try:
-        if not IMG_INTEGRATION_AVAILABLE:
-            return None
-        
-        # If already IMG_Editor format, return as-is
-        if isinstance(file_object, IMGArchive):
-            return file_object
-        
-        # Load IMG file using IMG_Editor
-        file_path = getattr(file_object, 'file_path', None)
-        if not file_path or not os.path.exists(file_path):
-            return None
-        
-        # Create and load IMG_Editor archive
-        archive = IMGArchive()
-        if archive.load_from_file(file_path):
-            if hasattr(main_window, 'log_message'):
-                entry_count = len(archive.entries) if archive.entries else 0
-                main_window.log_message(f"✅ Converted to IMG archive format: {entry_count} entries")
-            return archive
-        
-        return None
-        
-    except Exception:
-        return None
-
-
 def integrate_imgcol_replace_functions(main_window) -> bool: #vers 1
     """Integrate IMG and COL replace functions into main window"""
     try:
@@ -702,16 +636,14 @@ def integrate_imgcol_replace_functions(main_window) -> bool: #vers 1
         main_window.replace_item = main_window.replace_selected
         
         if hasattr(main_window, 'log_message'):
-            integration_msg = "✅ IMG/COL replace functions integrated with tab awareness"
-            if IMG_INTEGRATION_AVAILABLE:
-                integration_msg += " + IMG_Editor core"
+            integration_msg = "IMG/COL replace functions integrated with tab awareness"
             main_window.log_message(integration_msg)
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Failed to integrate IMG/COL replace functions: {str(e)}")
+            main_window.log_message(f"Failed to integrate IMG/COL replace functions: {str(e)}")
         return False
 
 
