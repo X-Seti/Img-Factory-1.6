@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 144
+#this belongs in root /ChangeLog.md - Version: 145
+
+## Sep 24 2026 - SCM Workshop: rule cleanup, Build 431.92
+
+Removed local icon fallback class and bare except (rule 11), tick emoji and arrow glyph (rule 4), duplicate and unused imports; standard file header.
 
 ## Sep 24 2026 - Hex Workshop: RW Analyze parity, Build 431.92
 

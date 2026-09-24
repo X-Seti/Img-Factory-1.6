@@ -1,39 +1,28 @@
 #!/usr/bin/env python3
-# apps/components/Scm_Workshop/scm_workshop.py — Version 3
-# X-Seti / Claudia — IMG Factory 1.6 — SCM Script Workshop
+#this belongs in apps/components/Scm_Workshop/scm_workshop.py - Version: 4
+# X-Seti - September24 2026 - IMG Factory 1.6 - SCM Script Workshop
 # GTA III / VC / SA main.scm browser, coord searcher and patcher.
 
-import sys, os
+import os
+import struct
+import sys
 from pathlib import Path
+from typing import List
+
 _root = Path(__file__).resolve().parents[3]
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
-
-import os, struct
-from typing import List, Optional
-from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
     QPushButton, QLineEdit, QTableWidget, QTableWidgetItem,
     QAbstractItemView, QTextEdit, QDoubleSpinBox, QGroupBox,
     QProgressBar, QCheckBox, QFileDialog, QMessageBox,
-    QTabWidget, QDialog, QDialogButtonBox, QFormLayout
+    QTabWidget, QFormLayout
 )
-from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtGui import QFont
 
-try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
-except ImportError:
-    class SVGIconFactory:
-        @staticmethod
-        def open_icon(sz=20, c=None): return QIcon()
-        @staticmethod
-        def save_icon(sz=20, c=None): return QIcon()
-        @staticmethod
-        def export_icon(sz=20, c=None): return QIcon()
-        @staticmethod
-        def get_terminal_icon(*a, **kw): return QIcon()
+from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 
 from apps.methods.ribbon_system import RibbonMixin
@@ -106,7 +95,7 @@ class SCMParser:
             chunk=self.data[row:row+16]
             hp=' '.join(f'{b:02x}' for b in chunk)
             ap=''.join(chr(b) if 32<=b<127 else '.' for b in chunk)
-            m='►' if row<=offset<row+16 else ' '
+            m='>' if row<=offset<row+16 else ' '
             lines.append(f"{m} {row:08X}  {hp:<48}  {ap}")
         return '\n'.join(lines)
 
@@ -311,7 +300,7 @@ will be world coords. Always keep a backup of the original main.scm.</p>
             tbl.setItem(r,1,QTableWidgetItem(f"{h.x:.4f}"))
             tbl.setItem(r,2,QTableWidgetItem(f"{h.y:.4f}"))
             tbl.setItem(r,3,QTableWidgetItem(f"{h.z:.4f}"))
-            tbl.setItem(r,4,QTableWidgetItem("✓" if h.patched else ""))
+            tbl.setItem(r,4,QTableWidgetItem("yes" if h.patched else ""))
             tbl.setRowHeight(r,20)
         tbl.setSortingEnabled(True)
         if self.main_window and hasattr(self.main_window,'log_message'):
@@ -372,9 +361,7 @@ def open_scm_workshop(main_window, file_path=None):
             c=QWidget(); l=QVBoxLayout(c); l.setContentsMargins(0,0,0,0)
             w=SCMWorkshop(c,mw); l.addWidget(w)
             tw=mw.main_tab_widget
-            try: icon=SVGIconFactory.get_terminal_icon()
-            except: icon=None
-            idx=tw.addTab(c,icon,"SCM Workshop") if icon else tw.addTab(c,"SCM Workshop")
+            idx=tw.addTab(c,SVGIconFactory.get_terminal_icon(),"SCM Workshop")
             tw.setCurrentIndex(idx)
             if hasattr(mw, '_ensure_tab_area_visible'):
                 mw._ensure_tab_area_visible()
