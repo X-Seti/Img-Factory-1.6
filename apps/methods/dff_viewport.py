@@ -1,11 +1,13 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 19
+# this belongs in apps/methods/dff_viewport.py - Version: 20
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
 Standalone tools import from their own methods/dff_viewport.py.
 
 ##Methods list -
+# DFFViewport._apply_move
+# DFFViewport._apply_rotate
 # DFFViewport._build_gizmo_chips
 # DFFViewport._constraint_axis
 # DFFViewport._cycle_constraint
@@ -14,14 +16,19 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._draw_cone
 # DFFViewport._draw_footprint
 # DFFViewport._draw_gizmo
+# DFFViewport._draw_reticle
 # DFFViewport._draw_rubber_band
 # DFFViewport._draw_script_markers
 # DFFViewport._draw_selection_marks
+# DFFViewport._draw_snap_feedback
 # DFFViewport.dropEvent
+# DFFViewport._edge_snap
+# DFFViewport._entry_box
 # DFFViewport._entry_for
 # DFFViewport._entry_radius
 # DFFViewport.focusNextPrevChild
 # DFFViewport._footprint
+# DFFViewport.gamepad_step
 # DFFViewport._gizmo_axis_param
 # DFFViewport._gizmo_begin
 # DFFViewport._gizmo_cancel
@@ -55,6 +62,9 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._get_ui_color
 # DFFViewport._get_wheel_geom_data
 # DFFViewport._notify_selection_changed
+# DFFViewport._pad_begin_grab
+# DFFViewport._pad_end_grab
+# DFFViewport._pad_pick_centre
 # DFFViewport._pick_edge
 # DFFViewport._pick_face
 # DFFViewport._pick_ray
@@ -75,6 +85,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._seg2d_dist2
 # DFFViewport.selected_instances
 # DFFViewport._selected_set_for_mode
+# DFFViewport.set_gamepad
 # DFFViewport.set_gizmo_constraint
 # DFFViewport.set_gizmo_mode
 # DFFViewport.set_gizmo_move_callback
@@ -84,6 +95,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.set_script_markers
 # DFFViewport.set_selection
 # DFFViewport.set_selection_callback
+# DFFViewport._set_snap_feedback
 # DFFViewport._setup_lighting
 # DFFViewport._strip_tex_suffix
 # DFFViewport._sync_gizmo_chips
@@ -381,6 +393,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._gizmo_ground = None               # ground z under the gizmo target
         self._gizmo_chips = None                # floating chip bar (built on first use)
         self._footprint_cache = {}
+        self._snap_feedback = []                # [(other entry, axis, kind)] while snapped
+        self._gamepad = None                    # GamepadPoller (rumble), set by the workshop
+        self._pad_grab = False                  # controller is moving / rotating the selection
+        self._pad_fine = False
         # Axis lock (Aug 18 2026)
         self._ipl_drag_axis_lock = None
         # 3-state Drag/Move/Rotate cycle (Aug 19 2026)
@@ -970,7 +986,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_MODELVIEW)
         self._label_widget.move(4, 2)
 
-    def paintGL(self): #vers 9
+    def paintGL(self): #vers 10
         if not OPENGL_AVAILABLE: return
         bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
@@ -1036,8 +1052,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._draw_script_markers()
             if self._sel_insts:
                 self._draw_selection_marks()
+            if self._snap_feedback and self._gizmo_drag is not None:
+                self._draw_snap_feedback()
             if self._gizmo_inst is not None:
                 self._draw_gizmo()
+            if self._gamepad is not None:
+                self._draw_reticle()
             if self._rubber is not None:
                 self._draw_rubber_band()
             if self._show_grid: self._draw_grid()
@@ -4437,8 +4457,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.update()
         return True
 
-    def _gizmo_update(self, mx, my, modifiers=None): #vers 3
-        """Move or rotate the selection live while dragging."""
+    def _gizmo_update(self, mx, my, modifiers=None): #vers 4
+        """Mouse drag: work out the raw move / angle, then apply with snapping."""
         d = self._gizmo_drag
         axis = d['axis']
         sx, sy, sz = d['pivot']
@@ -4447,12 +4467,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             ang = (ang + 180.0) % 360.0 - 180.0
             if modifiers is not None and modifiers & Qt.KeyboardModifier.ControlModifier:
                 ang = round(ang / 15.0) * 15.0              # Ctrl: 15 degree steps
-            d['angle'] = ang
-            q = self._quat_axis(axis[1], ang)
-            for inst, pos, rot, scale in d['states']:
-                off = self._quat_rotate(q, (pos[0] - sx, pos[1] - sy, pos[2] - sz))
-                self.update_instance_transform(inst, (sx + off[0], sy + off[1], sz + off[2]),
-                                               self._quat_mul(q, rot), scale)
+            self._apply_rotate(d, ang)
             return
         if axis == 'free':
             cur = self._screen_to_ground_position(mx, my, ground_z=sz)
@@ -4466,9 +4481,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 return
             m = t - d['ref']
             dx, dy, dz = (m if axis == 'x' else 0.0, m if axis == 'y' else 0.0, m if axis == 'z' else 0.0)
-        if self._snap_targets.get('centre'):                     # snap pivot to nearest other object
+        self._apply_move(d, dx, dy, dz)
+
+    def _apply_rotate(self, d, ang): #vers 1
+        """Rotate every dragged instance about the pivot by ang degrees (live)."""
+        axis = d['axis']
+        sx, sy, sz = d['pivot']
+        d['angle'] = ang
+        q = self._quat_axis(axis[1], ang)
+        for inst, pos, rot, scale in d['states']:
+            off = self._quat_rotate(q, (pos[0] - sx, pos[1] - sy, pos[2] - sz))
+            self.update_instance_transform(inst, (sx + off[0], sy + off[1], sz + off[2]),
+                                           self._quat_mul(q, rot), scale)
+
+    def _apply_move(self, d, dx, dy, dz): #vers 1
+        """Snap (centre, then edge / side / middle) and move every dragged instance (live)."""
+        sx, sy, sz = d['pivot']
+        moving = {id(st[0]) for st in d['states']}
+        snapped = False
+        if self._snap_targets.get('centre'):                     # pivot onto nearest other pivot
             wx, wy, wz = sx + dx, sy + dy, sz + dz
-            moving = {id(s[0]) for s in d['states']}
             best = None
             for e in self._world_instances:
                 other = e.get('instance')
@@ -4477,9 +4509,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 ox, oy, oz = e['pos']
                 d2 = (ox - wx) ** 2 + (oy - wy) ** 2 + (oz - wz) ** 2
                 if d2 < 9.0 and (best is None or d2 < best[0]):
-                    best = (d2, (ox, oy, oz))
+                    best = (d2, e)
             if best is not None:
-                dx, dy, dz = best[1][0] - sx, best[1][1] - sy, best[1][2] - sz
+                ox, oy, oz = best[1]['pos']
+                dx, dy, dz = ox - sx, oy - sy, oz - sz
+                self._set_snap_feedback([(best[1], 'xyz', 'centre')])
+                snapped = True
+        if not snapped and self._snap_targets.get('edge'):
+            allowed = {'free': 'xy', 'x': 'x', 'y': 'y', 'z': 'z'}.get(d['axis'], 'xy')
+            if d.get('pad'):
+                allowed = {'xy': 'xy', 'x': 'x', 'y': 'y', 'z': 'z'}[self._gizmo_constraint] + 'z'
+            cx, cy, cz, fb = self._edge_snap(self._gizmo_entry(), (sx + dx, sy + dy, sz + dz), moving, allowed)
+            dx, dy, dz = cx - sx, cy - sy, cz - sz
+            self._set_snap_feedback(fb)
+        elif not snapped:
+            self._set_snap_feedback([])
         d['delta'] = (dx, dy, dz)
         for inst, pos, rot, scale in d['states']:
             self.update_instance_transform(inst, (pos[0] + dx, pos[1] + dy, pos[2] + dz), rot, scale)
@@ -4488,6 +4532,91 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             d['ground_t'] = _t.monotonic()
             self._update_gizmo_ground()
             self._sync_gizmo_chips()
+
+    def _entry_box(self, e): #vers 1
+        """Local (minx, maxx, miny, maxy, minz, maxz) of an entry's model, cached with the footprint."""
+        fp = self._footprint(e)
+        return fp[2] if fp else None
+
+    def _edge_snap(self, e, pos, moving, allowed): #vers 1
+        """Snap the moving box to touch sides (X / Y), stack on top (Z) or line up centres
+        with nearby objects. Returns (x, y, z, feedback)."""
+        if e is None:
+            return pos[0], pos[1], pos[2], []
+        box = self._entry_box(e)
+        if box is None:
+            return pos[0], pos[1], pos[2], []
+        T = max(0.3, self._dist * 0.012)
+        b = [pos[0] + box[0], pos[0] + box[1], pos[1] + box[2], pos[1] + box[3], pos[2] + box[4], pos[2] + box[5]]
+        rp = self._entry_radius(e)
+        best = {}                                     # axis -> (|gap|, correction, entry, kind)
+
+        def offer(ax, gap, other, kind):
+            if ax in allowed and abs(gap) < T and (ax not in best or abs(gap) < best[ax][0]):
+                best[ax] = (abs(gap), gap, other, kind)
+
+        def ov(a0, a1, b0, b1):
+            return a0 < b1 - 1e-4 and b0 < a1 - 1e-4
+        for o in self._world_instances:
+            inst = o.get('instance')
+            if inst is None or id(inst) in moving:
+                continue
+            ox, oy, oz = o['pos']
+            r = rp + self._entry_radius(o) + T
+            if abs(ox - pos[0]) > r or abs(oy - pos[1]) > r or abs(oz - pos[2]) > r:
+                continue
+            ob = self._entry_box(o)
+            if ob is None:
+                continue
+            q = [ox + ob[0], ox + ob[1], oy + ob[2], oy + ob[3], oz + ob[4], oz + ob[5]]
+            oxy, oyy, ozz = ov(b[0], b[1], q[0], q[1]), ov(b[2], b[3], q[2], q[3]), ov(b[4], b[5], q[4], q[5])
+            if oyy and ozz:
+                offer('x', q[0] - b[1], o, 'side')
+                offer('x', q[1] - b[0], o, 'side')
+            if oxy and ozz:
+                offer('y', q[2] - b[3], o, 'side')
+                offer('y', q[3] - b[2], o, 'side')
+            if oxy and oyy:
+                offer('z', q[5] - b[4], o, 'top')
+                offer('z', q[4] - b[5], o, 'under')
+            if oyy or oxy:
+                offer('x', (q[0] + q[1] - b[0] - b[1]) / 2, o, 'middle') if oyy else None
+                offer('y', (q[2] + q[3] - b[2] - b[3]) / 2, o, 'middle') if oxy else None
+        x, y, z = pos
+        fb = []
+        for ax, (_g, gap, other, kind) in best.items():
+            if ax == 'x':
+                x += gap
+            elif ax == 'y':
+                y += gap
+            else:
+                z += gap
+            fb.append((other, ax, kind))
+        return x, y, z, fb
+
+    def _set_snap_feedback(self, fb): #vers 1
+        """Store what is snapped; rumble the pad when a new contact is made."""
+        old = {(id(o), a, k) for o, a, k in self._snap_feedback}
+        new = {(id(o), a, k) for o, a, k in fb}
+        self._snap_feedback = fb
+        if new - old and self._gamepad is not None:
+            self._gamepad.rumble(0.25, 0.55, 70)
+
+    def _draw_snap_feedback(self): #vers 1
+        """Green footprint on snapped neighbours."""
+        glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        for other, _ax, _kind in self._snap_feedback:
+            fp = self._footprint(other)
+            if fp is None:
+                continue
+            ox, oy, oz = other['pos']
+            glColor3f(0.2, 1.0, 0.35); glLineWidth(3.0)
+            glBegin(GL_LINE_LOOP)
+            for x, y in fp[0]:
+                glVertex3f(ox + x, oy + y, oz + fp[1] + 0.06)
+            glEnd()
+        glPopAttrib()
 
     def _gizmo_cancel(self): #vers 1
         """Put the dragged selection back where it started."""
@@ -4499,6 +4628,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Finish a drag: restore, then hand the move / rotate to the workshop (undo, tracking)."""
         d = self._gizmo_drag
         self._gizmo_cancel()
+        self._snap_feedback = []
         insts = [s[0] for s in d['states']]
         if d['axis'] in ('rx', 'ry', 'rz'):
             if d['angle'] and self._gizmo_rotate_callback is not None:
@@ -4642,8 +4772,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                        base[2] + u[2] * ca + w[2] * sa)
         glEnd()
 
-    def _footprint(self, e): #vers 1
-        """(hull points relative to pos, min z offset) of an entry's model, cached."""
+    def _footprint(self, e): #vers 2
+        """(hull points relative to pos, min z offset, local box) of an entry's model, cached."""
         verts = e.get('col_vertices') or e.get('vertices') or []
         if not verts:
             return None
@@ -4652,12 +4782,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if hit is not None:
             return hit
         q, sc = e['rot'], e['scale']
-        pts, minz = [], None
+        pts, zs = [], []
         step = max(1, len(verts) // 4000)
         for v in verts[::step]:
             r = self._quat_rotate(q, (v[0] * sc[0], v[1] * sc[1], v[2] * sc[2]))
             pts.append((r[0], r[1]))
-            minz = r[2] if minz is None or r[2] < minz else minz
+            zs.append(r[2])
+        minz = min(zs)
+        box = (min(p_[0] for p_ in pts), max(p_[0] for p_ in pts),
+               min(p_[1] for p_ in pts), max(p_[1] for p_ in pts), minz, max(zs))
         pts = sorted(set((round(x, 3), round(y, 3)) for x, y in pts))
         if len(pts) < 3:
             return None
@@ -4673,7 +4806,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             while len(upper) >= 2 and cross(upper[-2], upper[-1], p_) <= 0:
                 upper.pop()
             upper.append(p_)
-        hit = (lower[:-1] + upper[:-1], minz)
+        hit = (lower[:-1] + upper[:-1], minz, box)
         if len(self._footprint_cache) > 500:
             self._footprint_cache.clear()
         self._footprint_cache[key] = hit
@@ -4866,6 +4999,171 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         z = self.ground_z_below(ground[0], ground[1], 5000.0)
         self._model_drop_callback(model_id, (ground[0], ground[1], z if z is not None else 0.0))
         event.acceptProposedAction()
+
+    # -- game controller (Sep 24 2026)
+    def set_gamepad(self, poller): #vers 1
+        """Attach a GamepadPoller (None detaches); its state drives camera and editing."""
+        if self._gamepad is not None:
+            try:
+                self._gamepad.state.disconnect(self.gamepad_step)
+            except TypeError:
+                pass
+        self._gamepad = poller
+        if poller is not None:
+            poller.state.connect(self.gamepad_step)
+        self.update()
+
+    def _draw_reticle(self): #vers 1
+        """Centre crosshair: what Cross / Square pick."""
+        w = max(1, self.width()); h = max(1, self.height())
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+        glOrtho(0, w, h, 0, -1, 1)
+        glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
+        glColor3f(0.6, 0.95, 1.0); glLineWidth(2.0)
+        cx, cy = w / 2, h / 2
+        glBegin(GL_LINES)
+        for a, b in (((cx - 12, cy), (cx - 4, cy)), ((cx + 4, cy), (cx + 12, cy)),
+                     ((cx, cy - 12), (cx, cy - 4)), ((cx, cy + 4), (cx, cy + 12))):
+            glVertex2f(*a); glVertex2f(*b)
+        glEnd()
+        glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
+        glPopAttrib()
+
+    def _pad_pick_centre(self): #vers 1
+        idx = self._pick_world_instance(self.width() / 2, self.height() / 2)
+        return self._world_instances[idx].get('instance') if idx is not None else None
+
+    def _pad_begin_grab(self): #vers 1
+        """Start moving / rotating the selection with the sticks."""
+        e = self._gizmo_entry()
+        if e is None:
+            return
+        states = []
+        for inst in (self._sel_insts or [self._gizmo_inst]):
+            se = self._entry_for(inst)
+            if se is not None:
+                states.append((inst, tuple(se['pos']), tuple(se['rot']), se['scale']))
+        axis = 'r' + self._rot_axis() if self._gizmo_mode == 'rotate' else \
+            ('free' if self._gizmo_constraint == 'xy' else self._gizmo_constraint)
+        self._gizmo_drag = {'axis': axis, 'pivot': tuple(e['pos']), 'states': states, 'pad': True,
+                            'delta': (0.0, 0.0, 0.0), 'angle': 0.0, 'raw': [0.0, 0.0, 0.0], 'raw_ang': 0.0}
+        self._pad_grab = True
+        if self._gamepad is not None:
+            self._gamepad.rumble(0.2, 0.2, 40)
+
+    def _pad_end_grab(self, commit): #vers 1
+        self._pad_grab = False
+        if self._gizmo_drag is None:
+            return
+        if commit:
+            self._gizmo_end()
+        else:
+            self._gizmo_cancel()
+            self._snap_feedback = []
+        self.update()
+
+    def gamepad_step(self, st): #vers 1
+        """One controller frame. Right stick orbits, L2/R2 zoom, left stick pans or moves the grab.
+        Cross select / grab / drop, Square add to selection, Circle cancel / clear, Triangle Move/Rotate,
+        L1/R1 constraint, D-pad Z / 15 deg, Options edge snap, Create duplicate, touchpad drop to ground,
+        L3 fine speed."""
+        if self._gizmo_move_callback is None:
+            return
+        dt, pr = st['dt'], st['pressed']
+        ws = getattr(self, '_workshop_ref', None)
+        if 'l3' in pr:
+            self._pad_fine = not self._pad_fine
+        fine = 0.2 if self._pad_fine else 1.0
+        # camera
+        if st['rx'] or st['ry']:
+            self._yaw += st['rx'] * 120.0 * dt
+            self._pitch = max(-89.0, min(89.0, self._pitch + st['ry'] * 90.0 * dt))
+        if st['lt'] or st['rt']:
+            self._dist = max(0.5, min(50000.0, self._dist * (1.0 + (st['lt'] - st['rt']) * 1.5 * dt)))
+            if self._projection == 'ortho':
+                self.makeCurrent(); self.resizeGL(self.width(), self.height())
+        # buttons
+        if 'y' in pr:
+            self.set_gizmo_mode('rotate' if self._gizmo_mode == 'move' else 'move')
+            if self._pad_grab:
+                self._pad_end_grab(True); self._pad_begin_grab()
+        if 'l1' in pr or 'r1' in pr:
+            self._cycle_constraint(-1 if 'l1' in pr else 1)
+            if self._pad_grab:
+                self._pad_end_grab(True); self._pad_begin_grab()
+        if 'start' in pr:
+            self._snap_targets['edge'] = not self._snap_targets.get('edge')
+            if ws is not None and hasattr(ws, '_on_pad_snap_toggled'):
+                ws._on_pad_snap_toggled(self._snap_targets['edge'])
+        if 'b' in pr:
+            if self._pad_grab:
+                self._pad_end_grab(False)
+            else:
+                self.set_selection([], None)
+        if 'a' in pr:
+            if self._pad_grab:
+                self._pad_end_grab(True)
+            else:
+                inst = self._pad_pick_centre()
+                if inst is not None and inst in self._sel_insts:
+                    self._gizmo_inst = inst
+                    self._pad_begin_grab()
+                elif inst is not None:
+                    self.set_selection([inst], inst)
+        if 'x' in pr and not self._pad_grab:
+            inst = self._pad_pick_centre()
+            if inst is not None:
+                sel = [i for i in self._sel_insts if i is not inst]
+                if len(sel) == len(self._sel_insts):
+                    sel.append(inst)
+                self.set_selection(sel, sel[-1] if sel else None)
+        if 'back' in pr and not self._pad_grab and ws is not None and hasattr(ws, '_duplicate_selected'):
+            ws._duplicate_selected()
+        if 'touchpad' in pr and not self._pad_grab and ws is not None and hasattr(ws, '_drop_selected_to_ground'):
+            ws._drop_selected_to_ground()
+        # left stick: move the grab, or pan the camera
+        if self._pad_grab and self._gizmo_drag is not None:
+            d = self._gizmo_drag
+            if d['axis'].startswith('r'):
+                step = st['lx'] * 90.0 * dt * fine
+                if 'left' in pr:
+                    step -= 15.0
+                if 'right' in pr:
+                    step += 15.0
+                if step:
+                    d['raw_ang'] += step
+                    self._apply_rotate(d, d['raw_ang'])
+            else:
+                spd = max(1.0, self._dist * 0.5) * dt * fine
+                rad = math.radians(-self._yaw)
+                rx_, ry_ = math.cos(rad), math.sin(rad)          # screen right in world
+                ux, uy = -math.sin(rad), math.cos(rad)           # screen up in world
+                mx_ = st['lx'] * spd
+                my_ = -st['ly'] * spd
+                ddx, ddy = mx_ * rx_ + my_ * ux, mx_ * ry_ + my_ * uy
+                ddz = 0.0
+                con = self._gizmo_constraint
+                if con == 'x':
+                    ddy = 0.0
+                elif con == 'y':
+                    ddx = 0.0
+                elif con == 'z':
+                    ddx = ddy = 0.0
+                    ddz = my_
+                if 'up' in st['held']:
+                    ddz += spd
+                if 'down' in st['held']:
+                    ddz -= spd
+                if ddx or ddy or ddz:
+                    raw = d['raw']
+                    raw[0] += ddx; raw[1] += ddy; raw[2] += ddz
+                    self._apply_move(d, *raw)
+        elif st['lx'] or st['ly']:
+            spd = max(1.0, self._dist * 0.8) * dt * fine
+            self._apply_pan_step(-st['lx'] * spd, st['ly'] * spd)
+        self.update()
 
     def _screen_to_ground_position(self, mx, my, ground_z=0.0): #vers 1
         """Cast a ray from the camera through the given widget-space

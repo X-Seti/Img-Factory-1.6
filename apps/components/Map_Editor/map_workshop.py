@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 203
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 204
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -157,6 +157,7 @@ except ImportError:
 # _add_instances
 # _align_selected
 # _apply_dirty_highlight
+# _apply_gamepad_setting
 # _apply_ide_fields
 # _apply_instance_fields
 # _apply_savepoint_settings
@@ -302,6 +303,7 @@ except ImportError:
 # _on_gizmo_rotated
 # _on_menu_btn_clicked
 # _on_model_dropped
+# _on_pad_snap_toggled
 # _on_paint_mode_exited
 # _on_painted_face
 # _on_tex_selected
@@ -3233,6 +3235,9 @@ class MapSettings(QObject):
         'limit_sol_model_infos':  None, 'limit_sol_buildings':  None,
         # Camera bookmarks per world: {world key: {slot: [pan_x, pan_y, dist, yaw, pitch, name]}}
         'camera_bookmarks': {},
+        # Game controller (Sep 24 2026)
+        'gamepad_enabled':  False,
+        'gamepad_deadzone': 0.15,
         # The real "other grid options" this same comment block above
         # already flagged as coming later (Aug 20 2026)
         'grid_type': 'lines',
@@ -5203,6 +5208,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # not blocking the initial show.
         QTimer.singleShot(0, self._auto_load_last_world)
         self._init_change_tracking()
+        QTimer.singleShot(0, self._apply_gamepad_setting)
 
 
     def setup_ui(self): #vers 14
@@ -7277,7 +7283,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         btn = getattr(self, 'menu_btn', None)
         if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _build_workshop_settings_tabs(self): #vers 5
+    def _build_workshop_settings_tabs(self): #vers 6
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -8642,6 +8648,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         vc_layout_row.addWidget(vc_layout_ipl_stems_edit)
         nav_lay.addLayout(vc_layout_row)
 
+        nav_lay.addWidget(QLabel(""))
+        nav_lay.addWidget(QLabel("—  Game Controller  —"))
+        pad_chk = QCheckBox("Use game controller (PS5 / PS4 / Xbox, needs pygame)")
+        pad_chk.setChecked(bool(self.map_settings.get('gamepad_enabled')))
+        pad_chk.setToolTip(
+            "Right stick orbit, L2/R2 zoom, left stick pan / move grab.\n"
+            "Cross select, grab, drop | Square add to selection | Circle cancel / clear\n"
+            "Triangle Move/Rotate | L1/R1 constraint | D-pad Z or 15 deg\n"
+            "Options edge snap | Create duplicate | Touchpad drop to ground | L3 fine")
+        nav_lay.addWidget(pad_chk)
+        pad_dz_row = QHBoxLayout()
+        pad_dz_row.addWidget(QLabel("Stick deadzone:"))
+        pad_dz_spin = QDoubleSpinBox()
+        pad_dz_spin.setRange(0.0, 0.5)
+        pad_dz_spin.setSingleStep(0.01)
+        pad_dz_spin.setValue(float(self.map_settings.get('gamepad_deadzone') or 0.15))
+        pad_dz_row.addWidget(pad_dz_spin)
+        pad_dz_row.addStretch()
+        nav_lay.addLayout(pad_dz_row)
+
         nav_lay.addStretch()
         tabs.addTab(nav_tab, "Navigation")
 
@@ -8838,6 +8864,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if vp is not None and hasattr(vp, 'set_no_clip_boxes'):
                 vp.set_no_clip_boxes(no_clip_chk.isChecked())
             self.map_settings.set('radar_tiles_show_grid', radar_show_grid_chk.isChecked())
+            self.map_settings.set('gamepad_enabled', pad_chk.isChecked())
+            self.map_settings.set('gamepad_deadzone', pad_dz_spin.value())
+            self._apply_gamepad_setting()
             self.map_settings.set('savepoints_enabled', sp_enabled_chk.isChecked())
             self.map_settings.set('savepoints_interval_min', sp_interval_spin.value())
             self.map_settings.set('savepoints_keep', sp_keep_spin.value())
@@ -11645,11 +11674,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # exists anywhere in this viewport yet to snap an edge to, and
         # faking it with an arbitrary offset would be worse than
         # admitting it isn't built.
-        self._snap_edge_act.setEnabled(False)
         self._snap_edge_act.setToolTip(
-            "Not yet available - needs each model's own loaded\n"
-            "geometry bounding box, which this viewport doesn't\n"
-            "compute yet. Snap: Centre of Model is fully working.")
+            "Snap moved objects side-to-side, on top of, or centre-to-centre\n"
+            "with nearby objects (model bounding boxes). Snapped neighbours\n"
+            "light up green; the controller rumbles on contact.")
         self._snap_centre_act.setToolTip(
             "While dragging a whole IPL, snaps the clicked instance's\n"
             "position to align exactly with the nearest other\n"
@@ -22156,6 +22184,42 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         mine.pop(str(slot), None)
         allb[self._world_key()] = mine
         self.map_settings.set('camera_bookmarks', allb)
+
+    def _apply_gamepad_setting(self): #vers 1
+        """Start or stop the game controller from map settings."""
+        vp = getattr(self, 'preview_widget', None)
+        pad = getattr(self, '_gamepad', None)
+        want = bool(self.map_settings.get('gamepad_enabled'))
+        if not want or vp is None or not hasattr(vp, 'set_gamepad'):
+            if pad is not None:
+                pad.stop()
+                vp.set_gamepad(None)
+                self._gamepad = None
+            return
+        if pad is None:
+            from apps.methods.gamepad_input import GamepadPoller
+            pad = GamepadPoller(self, deadzone=float(self.map_settings.get('gamepad_deadzone') or 0.15))
+            pad.connected.connect(lambda n: self._set_status(
+                f"Controller connected: {n}" if n else "Controller disconnected"))
+            try:
+                pad.start()
+            except ImportError:
+                QMessageBox.warning(self, "Game Controller",
+                                    "Controller support needs pygame 2:\n\npip install pygame")
+                self.map_settings.set('gamepad_enabled', False)
+                return
+            self._gamepad = pad
+            vp.set_gamepad(pad)
+        pad.deadzone = float(self.map_settings.get('gamepad_deadzone') or 0.15)
+
+    def _on_pad_snap_toggled(self, on): #vers 1
+        """Options button toggled edge snap: keep the ribbon button in step."""
+        act = getattr(self, '_snap_edge_act', None)
+        if act is not None:
+            act.blockSignals(True)
+            act.setChecked(on)
+            act.blockSignals(False)
+        self._set_status(f"Edge snap {'on' if on else 'off'}")
 
     def _show_map_checks(self): #vers 1
         """LOD links, IDE ID conflicts, missing assets and limits in one dialog."""

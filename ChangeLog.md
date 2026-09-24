@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 139
+#this belongs in root /ChangeLog.md - Version: 140
+
+## Sep 24 2026 - Map Workshop: game controller, edge snapping, Build 431.92
+
+New methods/gamepad_input.py (pygame SDL GameController, PS5/PS4/Xbox). Settings > Navigation enables it. Right stick orbit, L2/R2 zoom, left stick pan or move grab, Cross select/grab/drop, Square add, Circle cancel.
+
+Triangle Move/Rotate, L1/R1 constraint, D-pad Z / 15 deg, Options edge snap, Create duplicate, touchpad drop to ground, L3 fine. Centre reticle.
+
+Edge snap now works: side-to-side, stack on top/under, centre-to-centre via model bounding boxes; snapped neighbours outlined green, rumble on contact. pygame added to requirements.
 
 ## Sep 24 2026 - Map Workshop gizmo: chips, move/rotate modes, arrowheads, footprint, height line, Build 431.92
 
