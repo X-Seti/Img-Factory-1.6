@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 150
+#this belongs in root /ChangeLog.md - Version: 151
+
+## Sep 24 2026 - Map Workshop: IPL Object Editor, SOL VC IPLs, Build 431.92
+- IPL Object Editor now a plain window; floating dock came up black on Wayland.
+- SOL: IPLs with 13-field inst lines parsed and saved in VC layout, cull too.
 
 ## Sep 24 2026 - Import fixes, Build 431.92
 - Fixed 9 broken import paths; col_operations moved to methods/ with 5 missing functions added.

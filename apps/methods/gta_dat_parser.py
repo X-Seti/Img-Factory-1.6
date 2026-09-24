@@ -1,4 +1,4 @@
-#this belongs in methods/gta_dat_parser.py - Version: 5
+#this belongs in apps/methods/gta_dat_parser.py - Version: 6
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -1428,9 +1428,27 @@ class IPLParser: #vers 2
         self.stats      = ParseStats()
         self._valid     = GTAGame.IPL_SECTIONS.get(game, GTAGame.IPL_SECTIONS[GTAGame.GTA3])
         self._current_inst_layout = game
+        self.layout     = game
 
-    def parse(self, ipl_path: str, layout_override: str = None) -> bool: #vers 3
-        """layout_override (Sep 5 2026)"""
+    @staticmethod
+    def _detect_sol_layout(lines) -> str: #vers 1
+        """SOL mixes SA and VC IPLs: 13+ inst fields means VC layout."""
+        in_inst = False
+        for raw in lines:
+            line = raw.split("#")[0].strip()
+            low = line.lower()
+            if not line:
+                continue
+            if low == "inst":
+                in_inst = True
+            elif low == "end":
+                in_inst = False
+            elif in_inst:
+                return GTAGame.VC if len(line.split(",")) >= 13 else GTAGame.SOL
+        return GTAGame.SOL
+
+    def parse(self, ipl_path: str, layout_override: str = None) -> bool: #vers 4
+        """layout_override (Sep 5 2026); SOL auto-detects VC-format files."""
         if not os.path.isfile(ipl_path):
             self.stats.errors.append(f"IPL not found: {ipl_path}")
             return False
@@ -1448,6 +1466,9 @@ class IPLParser: #vers 2
         # Layout override applies for just this one parse() call - see
         # this method's own docstring above for the real reason.
         effective_layout = layout_override or self.game
+        if layout_override is None and self.game == GTAGame.SOL:
+            effective_layout = self._detect_sol_layout(lines)
+        self.layout = effective_layout
         self._valid = GTAGame.IPL_SECTIONS.get(effective_layout, GTAGame.IPL_SECTIONS[GTAGame.GTA3])
         self._current_inst_layout = effective_layout
 
@@ -1671,7 +1692,7 @@ class IPLParser: #vers 2
             pass
         return None
 
-    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 4
+    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 5
         """Parse one "cull" section line.
 
         III/VC: CenterX/Y/Z, X1/Y1/Z1, X2/Y2/Z2, Flags,
@@ -1683,7 +1704,7 @@ class IPLParser: #vers 2
                 return None
             cx, cy, cz = float(p[0]), float(p[1]), float(p[2])
             #  fix (Aug 21 2026)
-            if self.game in (GTAGame.SA, GTAGame.SOL):
+            if self._current_inst_layout in (GTAGame.SA, GTAGame.SOL):
                 xskew, length, bottom = float(p[3]), float(p[4]), float(p[5])
                 width, yskew, top = float(p[6]), float(p[7]), float(p[8])
                 corners = [
@@ -1996,6 +2017,7 @@ class GTAWorldLoader: #vers 3
         # section set and instance field layout instead of self.game's
         # default (Sep 5 2026)
         self.vc_layout_ipl_stems: set = set()
+        self.ipl_layouts: Dict[str, str] = {}   # lowercase stem -> layout used to parse
 
     def load(self, game_root: str, progress_cb=None) -> bool: #vers 5
         """Full load from a game root directory.
@@ -2440,7 +2462,7 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def load_ipl_by_name(self, ipl_stem: str) -> IPLLoadResult: #vers 2
+    def load_ipl_by_name(self, ipl_stem: str) -> IPLLoadResult: #vers 3
         """Actually parse and load one specific IPL's content."""
         if ipl_stem in self.loaded_ipls:
             return IPLLoadResult(success=True)   # already loaded, nothing to do
@@ -2454,6 +2476,7 @@ class GTAWorldLoader: #vers 3
         parser = IPLParser(self.game)
         layout_override = GTAGame.VC if ipl_stem.lower() in self.vc_layout_ipl_stems else None
         ok = parser.parse(entry.abs_path, layout_override=layout_override)
+        self.ipl_layouts[ipl_stem.lower()] = parser.layout
         self.load_log.append(("on-demand", "IPL", entry.abs_path, ok))
         self.instances += parser.instances
         self.paths     += parser.paths
@@ -2474,7 +2497,7 @@ class GTAWorldLoader: #vers 3
             errors=list(parser.stats.errors),
             warnings=list(parser.stats.warnings))
 
-    def _load_ipl(self, entry: DATEntry, phase: str): #vers 2
+    def _load_ipl(self, entry: DATEntry, phase: str): #vers 3
         if not entry.exists:
             self.stats.warnings.append(f"[{phase}] IPL missing: {entry.path}")
             self.load_log.append((phase, "IPL", entry.abs_path, False))
@@ -2483,6 +2506,7 @@ class GTAWorldLoader: #vers 3
         ipl_stem = os.path.splitext(os.path.basename(entry.abs_path))[0].lower()
         layout_override = GTAGame.VC if ipl_stem in self.vc_layout_ipl_stems else None
         ok     = parser.parse(entry.abs_path, layout_override=layout_override)
+        self.ipl_layouts[ipl_stem] = parser.layout
         self.load_log.append((phase, "IPL", entry.abs_path, ok))
         self.instances += parser.instances
         self.paths     += parser.paths
@@ -2495,7 +2519,8 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 6
+    def _reset(self): #vers 7
+        self.ipl_layouts.clear()
         self.objects.clear(); self.effects_2dfx.clear()
         self.timed_objects.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()

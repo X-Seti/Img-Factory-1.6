@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 206
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 207
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -4577,12 +4577,8 @@ class _InstanceEditPanel(QWidget):
             lines.append(f"{t.model_name} (ID {t.model_id}, {t.source_ide} line {t.line_no}){time_part}")
         QMessageBox.information(self, "TOBJ (Timed Object) Variants", "\n".join(lines))
 
-    def _on_close_clicked(self): #vers 1
-        dock = getattr(self._workshop, '_instance_edit_dock', None)
-        if dock is not None:
-            dock.hide()
-        else:
-            self.hide()
+    def _on_close_clicked(self): #vers 2
+        self.hide()
 
     def _on_apply_clicked(self): #vers 3
         """Parse the edited IPL / IDE lines and apply them (undoable)."""
@@ -18566,68 +18562,39 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             vp.set_gizmo_target(inst)
         self._show_instance_edit_panel(inst, nav_info)
 
-    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 4
-        """Show (creating on first use) the non-modal object edit panel
-        for one instance - stays open and gets its content refreshed
-        for whichever instance is currently selected, rather than a
-        modal dialog that blocks interaction and needs reopening each
-        time.
-
-        Wrapped in a real QDockWidget (Aug 1 2026)"""
-        dock = getattr(self, '_instance_edit_dock', None)
-        if dock is None:
-            panel = _InstanceEditPanel(self)
-            self._instance_edit_panel = panel
-            dock = QDockWidget("IPL Object Editor", self)
-            dock.setObjectName("IPL Object Editor")
-            dock.setWidget(panel)
-            dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
-                            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
-                            QDockWidget.DockWidgetFeature.DockWidgetClosable)
-            outer_mw = getattr(self, '_outer_mw', None)
-            if outer_mw is not None:
-                outer_mw.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
-            dock.setFloating(True)
-            dock.setWindowFlags(
-                (dock.windowFlags() & ~Qt.WindowType.WindowType_Mask) | Qt.WindowType.Window)
+    def _show_instance_edit_panel(self, inst, nav_info=None): #vers 5
+        """Show the non-modal IPL Object Editor window for one instance.
+        Plain top-level window: floating QDockWidget came up black on Wayland."""
+        win = getattr(self, '_instance_edit_panel', None)
+        if win is None:
+            win = _InstanceEditPanel(self, self)
+            win.setWindowFlags(Qt.WindowType.Window)
+            win.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            win.setAutoFillBackground(True)
+            self._instance_edit_panel = win
             self._apply_ipl_editor_on_top_setting()
-            dock.show()
-            dock.resize(620, 400)
+            win.resize(620, 400)
+            top_level = self.window()
+            win.move(top_level.mapToGlobal(top_level.rect().topLeft()) + QPoint(8, 8))
+        win.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,
+                              getattr(self, '_model_cache', None))
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
-            if dock.isFloating():
-                top_level = self.window()
-                dock.move(top_level.mapToGlobal(top_level.rect().topLeft()) +
-                         QPoint(8, 8))
-            self._instance_edit_dock = dock
-        panel = self._instance_edit_panel
-        panel.show_for_instance(inst, getattr(self, '_world_loader', None), nav_info,
-                                getattr(self, '_model_cache', None))
-        dock.show()
-        dock.raise_()
-
-    def _apply_ipl_editor_on_top_setting(self): #vers 1
-        """Apply the ipl_editor_always_on_top setting (Sep 5 2026, per
-         : "the IPL file editor should stay on top, with a
-        settings toggle option") to the IPL Object Editor dock, if it
-        exists yet. Qt requires re-showing a window after changing its
-        flags while visible for the change to actually take effect,
-        so this re-shows it when already visible rather than just
-        setting the flag and leaving the old window state up."""
-        dock = getattr(self, '_instance_edit_dock', None)
-        if dock is None:
+    def _apply_ipl_editor_on_top_setting(self): #vers 2
+        """Apply ipl_editor_always_on_top to the IPL Object Editor window."""
+        win = getattr(self, '_instance_edit_panel', None)
+        if win is None:
             return
         on_top = self.map_settings.get('ipl_editor_always_on_top', False)
-        flags = dock.windowFlags()
-        wants = bool(flags & Qt.WindowType.WindowStaysOnTopHint)
-        if wants == on_top:
+        flags = win.windowFlags()
+        if bool(flags & Qt.WindowType.WindowStaysOnTopHint) == on_top:
             return
-        was_visible = dock.isVisible()
-        if on_top:
-            dock.setWindowFlags(flags | Qt.WindowType.WindowStaysOnTopHint)
-        else:
-            dock.setWindowFlags(flags & ~Qt.WindowType.WindowStaysOnTopHint)
+        was_visible = win.isVisible()
+        win.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on_top)
         if was_visible:
-            dock.show()
+            win.show()
 
     def _apply_vc_layout_ipl_stems(self, loader): #vers 1
         """Populate loader.vc_layout_ipl_stems from the vc_layout_ipl_
@@ -21429,7 +21396,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             f"Saved {total_written} entries across {len(section_order)} section(s) "
             f"from {ipl_name} to {path}")
 
-    def _build_ipl_text_lines(self, ipl_name, target_game=None): #vers 2
+    def _build_ipl_text_lines(self, ipl_name, target_game=None): #vers 3
         """Text IPL lines for all sections; (lines, count, sections) or None.
         target_game other than the loaded game writes inst only, in that game's layout."""
         loader = getattr(self, '_world_loader', None)
@@ -21462,6 +21429,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if target_game and target_game != game:
             game = target_game
             section_order = ['inst']                # other sections differ per game
+        elif stem:
+            game = getattr(loader, 'ipl_layouts', {}).get(stem.lower(), game)   # SOL VC-format IPLs
         all_inst = getattr(self, '_all_instances', None) or []
 
         def _fmt(v):
