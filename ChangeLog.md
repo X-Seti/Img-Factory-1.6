@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 148
+#this belongs in root /ChangeLog.md - Version: 149
+
+## Sep 24 2026 - Components: removed 53 unused duplicate files, Build 431.92
+
+COL 37, TXD 6, Vehicle 5, File_Editor 2, Asset / Dat / Master IDE 1 each. Nothing imports them; live code uses apps/methods and apps/core copies.
 
 ## Sep 24 2026 - Model_Editor: removed 33 unused files, Build 431.92
 
