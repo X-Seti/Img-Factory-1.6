@@ -350,7 +350,7 @@ class IMGCOLTearOffWindow(QWidget): #vers 1
 
         self.log_message("✏️ Opening COL editor")
         try:
-            from gui.gui_context import open_col_editor_dialog
+            from apps.gui.gui_context import open_col_editor_dialog
             open_col_editor_dialog(self.parent_window)
         except Exception as e:
             self.log_message(f"❌ COL editor error: {str(e)}")

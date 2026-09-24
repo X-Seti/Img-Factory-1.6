@@ -130,7 +130,7 @@ def setup_col_shortcuts(main_window): #vers 11
             # Check gui_context module
             if not method:
                 try:
-                    from gui.gui_context import (
+                    from apps.gui.gui_context import (
                         open_col_file_dialog, 
                         open_col_batch_proc_dialog,
                         open_col_editor_dialog,

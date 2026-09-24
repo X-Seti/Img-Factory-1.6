@@ -298,11 +298,6 @@ class IMGFactoryMainWindow(QMainWindow):
             # Setup logging
             setup_logging_for_main_window(self)
             
-            # Add context menu to the table if it exists
-            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
-                from .gui_context import add_img_context_menu_to_entries_table
-                add_img_context_menu_to_entries_table(self)
-            
             # Set up keyboard shortcuts for undo/redo
             undo_shortcut = QKeySequence('Ctrl+Z')
             redo_shortcut = QKeySequence('Ctrl+Y')

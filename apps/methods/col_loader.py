@@ -207,7 +207,7 @@ def update_col_info_bar(main_window, col_file: Any, file_path: str): #vers 8
     try:
         # Try to use GUI version first
         try:
-            from gui.gui_infobar import update_col_info_bar_enhanced
+            from apps.gui.gui_infobar import update_col_info_bar as update_col_info_bar_enhanced
             update_col_info_bar_enhanced(main_window, col_file, file_path)
             return
         except ImportError:

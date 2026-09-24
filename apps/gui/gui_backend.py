@@ -100,7 +100,7 @@ class GUIBackend:
     def _open_col_editor(self): #vers 1
         """Open COL editor using working implementation"""
         try:
-            from gui.gui_context import open_col_editor_dialog
+            from apps.gui.gui_context import open_col_editor_dialog
             return open_col_editor_dialog(self.main_window)
         except Exception as e:
             self.main_window.log_message(f"❌ COL editor error: {str(e)}")

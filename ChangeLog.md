@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 151
+#this belongs in root /ChangeLog.md - Version: 152
+
+## Sep 24 2026 - Context menu imports, Build 431.92
+- gui_context: removed 3 duplicate COL functions, now imports shared ones; fixed 16 "from gui" imports.
+- Removed duplicate get_selected_entry_info, view_txd_textures, col_workshop_display.py.
 
 ## Sep 24 2026 - Map Workshop: IPL Object Editor, SOL VC IPLs, Build 431.92
 - IPL Object Editor now a plain window; floating dock came up black on Wayland.

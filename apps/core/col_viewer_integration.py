@@ -145,7 +145,7 @@ def add_view_col_3d_to_context_menu(main_window) -> bool: #vers 1
     """Add 'View COL (3D)' option to right-click context menu"""
     try:
         # Patch the context_menu_event function
-        from gui import gui_context
+        from apps.gui import gui_context
         
         # Store original function
         if not hasattr(gui_context, '_original_context_menu'):
@@ -165,7 +165,7 @@ def add_view_col_3d_to_context_menu(main_window) -> bool: #vers 1
                 row = item.row()
                 
                 # Get entry info
-                from gui.gui_context import get_selected_entry_info
+                from apps.gui.gui_context import get_selected_entry_info
                 entry_info = get_selected_entry_info(main_window, row)
                 if not entry_info:
                     return

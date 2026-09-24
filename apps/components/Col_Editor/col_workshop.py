@@ -8114,7 +8114,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
 
             # Import analysis functions
             from apps.methods.col_operations import get_col_detailed_analysis
-            from gui.col_dialogs import show_col_analysis_dialog
+            from apps.gui.col_dialogs import show_col_analysis_dialog
 
             # Get detailed analysis
             analysis_data = get_col_detailed_analysis(self.current_file_path)
@@ -10104,7 +10104,7 @@ class COLEditorDialog(QDialog): #vers 3
 
             # Import locally when needed
             from apps.methods.col_operations import get_col_detailed_analysis
-            from gui.col_dialogs import show_col_analysis_dialog
+            from apps.gui.col_dialogs import show_col_analysis_dialog
 
             self.status_bar.showMessage("Analyzing COL file...")
 

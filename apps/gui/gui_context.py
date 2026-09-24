@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_context.py - Version: 10
+#this belongs in apps/gui/gui_context.py - Version: 11
 # X-Seti - August13 2025 - IMG Factory 1.5 - Context Menu Functions - WORKING COL IMPLEMENTATION
 
 """
@@ -21,24 +21,23 @@ try:
 except ImportError:
     from PyQt6.QtWidgets import QAction
 from apps.methods.img_core_classes import format_file_size
+from apps.core.right_click_actions import (
+    get_selected_entry_info, edit_col_from_img_entry, view_col_collision,
+    analyze_col_from_img_entry, move_selected_file, analyze_selected_file,
+    show_hex_editor_selected, show_dff_texture_list, analyze_file)
+from apps.methods.comprehensive import (
+    setup_double_click_rename, add_requested_file_operations, add_common_operations)
 
 ##Methods list -
-# add_col_context_menu_to_entries_table
-# add_img_context_menu_to_entries_table
 # analyze_col_file_dialog
-# analyze_col_from_img_entry
 # edit_col_collision
-# edit_col_from_img_entry
 # edit_dff_model
 # edit_txd_textures
-# enhanced_context_menu_event
-# get_selected_entry_info
 # open_col_batch_proc_dialog
 # open_col_editor_dialog
 # open_col_file_dialog
 # replace_selected_entry
 # show_entry_properties
-# view_col_collision
 # view_dff_model
 # view_txd_textures
 
@@ -191,7 +190,7 @@ def set_game_path(main_window):
         )
 
 
-def show_dff_texture_list_from_selection(main_window):
+def show_dff_texture_list_from_selection(main_window): #vers 2
     """
     Show DFF texture list for currently selected entry
     """
@@ -201,9 +200,9 @@ def show_dff_texture_list_from_selection(main_window):
             selected_items = table.selectedItems()
             if selected_items:
                 row = selected_items[0].row()
-                entry_info = get_entry_info(main_window, row)
+                entry_info = get_selected_entry_info(main_window, row)
                 if entry_info and entry_info['is_dff']:
-                    show_dff_texture_list(main_window, row, entry_info)
+                    show_dff_texture_list(main_window, row)
                 else:
                     # Check if it's a DFF file in the IMG that we need to extract and parse
                     if entry_info and entry_info['name'].lower().endswith('.dff'):
@@ -334,7 +333,7 @@ def parse_dff_textures_from_data(dff_path):
         return []
 
 
-def show_dff_model_viewer_from_selection(main_window):
+def show_dff_model_viewer_from_selection(main_window): #vers 2
     """
     Show DFF model viewer for currently selected entry
     """
@@ -344,7 +343,7 @@ def show_dff_model_viewer_from_selection(main_window):
             selected_items = table.selectedItems()
             if selected_items:
                 row = selected_items[0].row()
-                entry_info = get_entry_info(main_window, row)
+                entry_info = get_selected_entry_info(main_window, row)
                 if entry_info and entry_info['is_dff']:
                     from apps.core.right_click_actions import show_dff_model_viewer
                     show_dff_model_viewer(main_window, row)
@@ -376,63 +375,6 @@ def fix_rename_functionality(main_window):
 
     except Exception as e:
         main_window.log_message(f"Error fixing rename functionality: {str(e)}")
-
-
-def edit_col_from_img_entry(main_window, row): #vers 2
-    """Edit COL file from IMG entry - WORKING VERSION"""
-    try:
-        entry_info = get_selected_entry_info(main_window, row)
-        if not entry_info or not entry_info['is_col']:
-            main_window.log_message("Selected entry is not a COL file")
-            return False
-        
-        entry = entry_info['entry']
-        main_window.log_message(f"Opening COL editor for: {entry.name}")
-        
-        # Use methods from col_operations
-        from apps.methods.col_operations import extract_col_from_img_entry, create_temporary_col_file, cleanup_temporary_file
-        
-        # Extract COL data
-        extraction_result = extract_col_from_img_entry(main_window, row)
-        if not extraction_result:
-            main_window.log_message("Failed to extract COL data")
-            return False
-        
-        col_data, entry_name = extraction_result
-        
-        # Create temporary COL file
-        temp_path = create_temporary_col_file(col_data, entry_name)
-        if not temp_path:
-            main_window.log_message("Failed to create temporary COL file")
-            return False
-        
-        try:
-            # Import and open COL editor
-            from apps.components.Col_Editor.col_workshop import COLWorkshop as COLEditorDialog
-            editor = COLEditorDialog(main_window)
-            
-            # Load the temporary COL file
-            if editor.load_col_file(temp_path):
-                editor.setWindowTitle(f"COL Editor - {entry.name}")
-                editor.show()  # Use show() instead of exec() for non-modal
-                main_window.log_message(f"COL editor opened for: {entry.name}")
-                return True
-            else:
-                main_window.log_message("Failed to load COL file in editor")
-                return False
-                
-        finally:
-            # Clean up temporary file
-            cleanup_temporary_file(temp_path)
-        
-    except ImportError:
-        QMessageBox.information(main_window, "COL Editor", 
-            "COL editor component not available. Please check components.Col_Editor.col_workshop.py")
-        return False
-    except Exception as e:
-        main_window.log_message(f"Error editing COL file: {str(e)}")
-        QMessageBox.critical(main_window, "Error", f"Failed to edit COL file: {str(e)}")
-        return False
 
 
 def show_main_context_menu(main_window, position):
@@ -512,116 +454,6 @@ def implement_tab_context_menu(main_window):
 
     except Exception as e:
         main_window.log_message(f"Error implementing tab context menu: {str(e)}")
-
-
-def view_col_collision(main_window, row): #vers 2
-    """View COL collision - WORKING VERSION"""
-    try:
-        entry_info = get_selected_entry_info(main_window, row)
-        if not entry_info or not entry_info['is_col']:
-            main_window.log_message("Selected entry is not a COL file")
-            return False
-        
-        entry = entry_info['entry']
-        main_window.log_message(f"Viewing COL collision for: {entry.name}")
-        
-        # Use methods from col_operations
-        from apps.methods.col_operations import extract_col_from_img_entry, get_col_basic_info
-        
-        # Extract COL data
-        extraction_result = extract_col_from_img_entry(main_window, row)
-        if not extraction_result:
-            main_window.log_message("Failed to extract COL data")
-            return False
-        
-        col_data, entry_name = extraction_result
-        
-        # Get basic info
-        basic_info = get_col_basic_info(col_data)
-        
-        if 'error' in basic_info:
-            main_window.log_message(f"COL analysis error: {basic_info['error']}")
-            return False
-        
-        # Build info display
-        info_text = f"COL File: {entry.name}\n"
-        info_text += f"Size: {format_file_size(len(col_data))}\n"
-        info_text += f"Version: {basic_info.get('version', 'Unknown')}\n"
-        info_text += f"Models: {basic_info.get('model_count', 0)}\n"
-        info_text += f"Signature: {basic_info.get('signature', b'Unknown')}\n"
-        
-        # Show info dialog
-        from gui.col_dialogs import show_col_info_dialog
-        show_col_info_dialog(main_window, info_text, f"COL Collision Info - {entry.name}")
-        
-        main_window.log_message(f"COL collision viewed for: {entry.name}")
-        return True
-        
-    except ImportError:
-        main_window.log_message("COL operations not available")
-        return False
-    except Exception as e:
-        main_window.log_message(f"Error viewing COL collision: {str(e)}")
-        return False
-
-
-def analyze_col_from_img_entry(main_window, row): #vers 2
-    """Analyze COL file from IMG entry - WORKING VERSION"""
-    try:
-        entry_info = get_selected_entry_info(main_window, row)
-        if not entry_info or not entry_info['is_col']:
-            main_window.log_message("Selected entry is not a COL file")
-            return False
-        
-        entry = entry_info['entry']
-        main_window.log_message(f"Analyzing COL file: {entry.name}")
-        
-        # Use methods from col_operations
-        from apps.methods.col_operations import extract_col_from_img_entry, validate_col_data, create_temporary_col_file, cleanup_temporary_file, get_col_detailed_analysis
-        
-        # Extract COL data
-        extraction_result = extract_col_from_img_entry(main_window, row)
-        if not extraction_result:
-            main_window.log_message("Failed to extract COL data")
-            return False
-        
-        col_data, entry_name = extraction_result
-        
-        # Validate COL data
-        validation_result = validate_col_data(col_data)
-        
-        # Get detailed analysis if possible
-        temp_path = create_temporary_col_file(col_data, entry_name)
-        analysis_data = {}
-        
-        if temp_path:
-            try:
-                detailed_analysis = get_col_detailed_analysis(temp_path)
-                if 'error' not in detailed_analysis:
-                    analysis_data.update(detailed_analysis)
-            finally:
-                cleanup_temporary_file(temp_path)
-        
-        # Combine validation and analysis data
-        final_analysis = {
-            'size': len(col_data),
-            **analysis_data,
-            **validation_result
-        }
-        
-        # Show analysis dialog
-        from gui.col_dialogs import show_col_analysis_dialog
-        show_col_analysis_dialog(main_window, final_analysis, entry.name)
-        
-        main_window.log_message(f"COL analysis completed for: {entry.name}")
-        return True
-        
-    except ImportError:
-        main_window.log_message("COL analysis components not available")
-        return False
-    except Exception as e:
-        main_window.log_message(f"Error analyzing COL file: {str(e)}")
-        return False
 
 
 def edit_col_collision(main_window, row): #vers 2
@@ -751,7 +583,7 @@ def analyze_col_file_dialog(main_window): #vers 3
                 }
                 
                 # Show analysis dialog
-                from gui.col_dialogs import show_col_analysis_dialog
+                from apps.gui.col_dialogs import show_col_analysis_dialog
                 show_col_analysis_dialog(main_window, final_analysis, os.path.basename(file_path))
 
                 main_window.log_message(f"COL analysis completed for: {os.path.basename(file_path)}")
@@ -950,7 +782,7 @@ def handle_double_click_rename(main_window, row, col):
 
 
 # Context menu setup functions (enhanced versions)
-def context_menu_event(main_window, event): #vers 2
+def context_menu_event(main_window, event): #vers 3
     """Context menu with working COL functions"""
     try:
         if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'table'):
@@ -996,20 +828,8 @@ def context_menu_event(main_window, event): #vers 2
             analyze_action.triggered.connect(lambda: analyze_col_from_img_entry(main_window, row))
             menu.addAction(analyze_action)
             
-            analyze_action = QAction("Analyze DFF", table)
-            analyze_action.triggered.connect(lambda: analyze_dff_from_img_entry(main_window, row))
-            menu.addAction(analyze_action)
-
-            analyze_action = QAction("Analyze TXD", table)
-            analyze_action.triggered.connect(lambda: analyze_txd_from_img_entry(main_window, row))
-            menu.addAction(analyze_action)
-
-            analyze_action = QAction("Analyze IMG", table)
-            analyze_action.triggered.connect(lambda: analyze_img_from_img_entry(main_window, row))
-            menu.addAction(analyze_action)
-
             analyze_action = QAction("Analyze File", table)
-            analyze_action.triggered.connect(lambda: analyze_file_from_img_entry(main_window, row))
+            analyze_action.triggered.connect(lambda: analyze_file(main_window, row, entry_info))
             menu.addAction(analyze_action)
 
             menu.addSeparator()

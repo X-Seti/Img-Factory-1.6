@@ -16637,7 +16637,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
             # Import analysis functions
             from apps.methods.col_operations import get_col_detailed_analysis
-            from gui.col_dialogs import show_col_analysis_dialog
+            from apps.gui.col_dialogs import show_col_analysis_dialog
 
             # Get detailed analysis
             analysis_data = get_col_detailed_analysis(self.current_file_path)

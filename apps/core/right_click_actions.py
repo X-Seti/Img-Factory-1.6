@@ -1,4 +1,4 @@
-#this belongs in apps/core/right_click_actions.py - Version: 6
+#this belongs in apps/core/right_click_actions.py - Version: 7
 # X-Seti - August07 2025 - IMG Factory 1.5 - Complete Right-Click Actions
 # Combined: Basic copying + Advanced file operations + Extraction functionality
 
@@ -577,21 +577,6 @@ def show_dff_info(main_window, row: int): #vers 1
                     main_window.log_message("DFF info viewer not available")
     except Exception as e:
         main_window.log_message(f"DFF info error: {str(e)}")
-
-def view_txd_textures(main_window, row: int): #vers 1
-    """View TXD textures from table row"""
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                
-                # Check if TXD viewer is available
-                if hasattr(main_window, 'view_txd_textures'):
-                    main_window.view_txd_textures(entry)
-                else:
-                    main_window.log_message("TXD viewer not available")
-    except Exception as e:
-        main_window.log_message(f"TXD view error: {str(e)}")
 
 # EXTRACTION SUPPORT
 def get_selected_entries_for_extraction(main_window) -> List: #vers 1
@@ -1314,28 +1299,6 @@ def copy_entry_info(main_window, row):
         main_window.log_message(f"Error copying entry info: {str(e)}")
 
 
-def get_selected_entry_info(main_window, row):
-    """
-    Get entry information for a given row
-    """
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                return {
-                    'entry': entry,
-                    'name': entry.name,
-                    'is_col': entry.name.lower().endswith('.col'),
-                    'is_dff': entry.name.lower().endswith('.dff'),
-                    'is_txd': entry.name.lower().endswith('.txd'),
-                    'size': entry.size,
-                    'offset': entry.offset
-                }
-        return None
-    except Exception:
-        return None
-
-
 # Export main functions
 __all__ = [
     'setup_table_context_menu',
@@ -1375,6 +1338,5 @@ __all__ = [
     'show_hex_editor',
     'show_hex_editor_selected',
     'copy_entry_name',
-    'copy_entry_info',
-    'get_selected_entry_info'
+    'copy_entry_info'
 ]

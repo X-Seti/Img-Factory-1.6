@@ -373,7 +373,7 @@ def integrate_col_editor(main_window) -> bool: #vers 2
         main_window.open_col_editor = lambda file_path=None: open_col_editor(main_window, file_path)
 
         # Add method for editing COL from IMG entry
-        from gui.gui_context import edit_col_from_img_entry
+        from apps.gui.gui_context import edit_col_from_img_entry
         main_window.edit_col_from_img_entry = lambda row: edit_col_from_img_entry(main_window, row)
 
         img_debugger.debug("✅ COL editor integrated")
@@ -415,7 +415,7 @@ def integrate_col_functionality(img_factory_instance): #vers 1
 def integrate_col_dialogs(main_window) -> bool: #vers 1
     """Integrate COL dialog functionality"""
     try:
-        from gui.gui_context import (
+        from apps.gui.gui_context import (
             open_col_editor_dialog,
             open_col_batch_proc_dialog,
             open_col_file_dialog,
@@ -1035,7 +1035,7 @@ def verify_col_components() -> bool: #vers 2
         missing_components.append("methods.col_operations")
 
     try:
-        from gui.col_dialogs import show_col_analysis_dialog
+        from apps.gui.col_dialogs import show_col_analysis_dialog
         img_debugger.debug("✅ COL GUI dialogs available")
     except ImportError:
         missing_components.append("gui.col_dialogs")
