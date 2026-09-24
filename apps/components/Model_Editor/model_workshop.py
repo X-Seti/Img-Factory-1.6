@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 194
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 195
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -202,6 +202,7 @@ except ImportError:
 # _save_preset
 #
 ##class ModelWorkshop: -
+# _close_open_model
 # __init__
 # _add_geometry_to_dff
 # _add_textures_from_txd
@@ -343,7 +344,9 @@ except ImportError:
 # _load_viewport_light_settings    restore saved light from model_workshop.json #vers 1
 # _lookup_ide_for_dff    find IDE entry via xref or IDEDatabase #vers 2
 # _lookup_ide_from_db
+# _mark_model_item
 # _mirror_dialog
+# _model_is_dirty
 # _move_info_ribbon
 # _on_col_selected
 # _on_collision_selected
@@ -352,6 +355,7 @@ except ImportError:
 # _on_dff_geom_selected_tbl    handle model table row click → show geometry #vers 1
 # _on_frame_tree_clicked
 # _on_menu_btn_clicked
+# _on_model_list_menu
 # _on_paint_mode_exited
 # _on_painted_face
 # _on_splitter_moved
@@ -442,6 +446,7 @@ except ImportError:
 # _show_amiga_locale_error
 # _show_collision_context_menu
 # _show_detailed_info
+# _show_dff
 # _show_dff_geometry    push _DFFGeometryAdapter into COL3DViewport #vers 1
 # _show_dff_material_context_menu
 # _show_model_details
@@ -8285,6 +8290,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.col_list_widget = QListWidget()
         self.col_list_widget.setAlternatingRowColors(True)
         self.col_list_widget.itemClicked.connect(self._on_col_selected)
+        self.col_list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.col_list_widget.customContextMenuRequested.connect(self._on_model_list_menu)
         layout.addWidget(self.col_list_widget)
         return panel
 
@@ -12981,7 +12988,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             f"TXD={obj.txd_name}  section={obj.section}  "
             f"source={os.path.basename(obj.source_ide or '')}")
 
-    def open_dff_file(self, file_path: str): #vers 1
+    def open_dff_file(self, file_path: str): #vers 2
         """Open and display a GTA DFF model file."""
         self.current_col_file = None   # clear COL mode
         # Hide COL format combo when DFF is loaded
@@ -12999,6 +13006,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if model is None:
                 QMessageBox.warning(self, "DFF Error", "Failed to parse DFF file.")
                 return
+            self._show_dff(file_path, model)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            QMessageBox.critical(self, "DFF Error", f"Failed to open DFF:\n{e}")
+
+    def _show_dff(self, file_path, model): #vers 1
+        """Make model current and fill the viewport, tree, table and toolbars."""
+        try:
             self._current_dff_path = file_path
             self._current_dff_model = model
             name = os.path.basename(file_path)
@@ -13821,7 +13836,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             QMessageBox.warning(self, "Extract Failed", msg)
 
-    def _save_file(self): #vers 3
+    def _save_file(self): #vers 4
         """Save current DFF model. Falls back to Save As if no path set."""
         from PyQt6.QtWidgets import QFileDialog
         dff_model = getattr(self, '_current_dff_model', None)
@@ -13845,6 +13860,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             raw = DFFWriter.write(dff_model)
             report = list(DFFWriter.last_report)
             safe_write_bytes(dff_path, raw, "model_workshop")     # backup + atomic write
+            src = next((st for st in getattr(self, '_open_models', {}).values()
+                        if st['path'] == dff_path), None)
+            if src is not None and src.get('img') is not None:   # opened from an IMG: write back
+                if not src['img'].add_entry(src['entry'].name, raw):
+                    raise IOError(f"{src['entry'].name}: archive refused the data")
+                src['orig'] = raw
             self._current_dff_path = dff_path
             fname = os.path.basename(dff_path)
             self._set_status(f"Saved: {fname}")
@@ -14315,13 +14336,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if item:
                 item.setHidden(bool(text) and text not in item.text().lower())
 
-    def _on_col_selected(self, item): #vers 2
+    def _on_col_selected(self, item): #vers 3
         """Handle entry selection from left panel — routes by extension."""
         try:
             entry = item.data(Qt.ItemDataRole.UserRole)
             if not entry:
                 return
             name = entry.name.lower()
+            opened = self.__dict__.setdefault('_open_models', {})
+            if name.endswith('.dff') and name in opened:          # already open: swap back, no reparse
+                st = opened[name]
+                self._show_dff(st['path'], st['model'])
+                return
             data = self._extract_col_from_img(entry)
             if not data:
                 return
@@ -14331,6 +14357,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 tmp_path = _os.path.join(tmp_dir, entry.name)
                 with open(tmp_path, 'wb') as _f: _f.write(data)
                 self.open_dff_file(tmp_path)
+                if getattr(self, '_current_dff_path', None) == tmp_path:
+                    opened[name] = {'path': tmp_path, 'model': self._current_dff_model,
+                                    'orig': data, 'entry': entry, 'img': self.current_img}
+                    self._mark_model_item(name, True)
             elif name.endswith('.col'):
                 self.current_col_data = data
                 self.current_col_name = entry.name
@@ -14342,6 +14372,72 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error selecting entry: {e}")
 
+
+    def _mark_model_item(self, key, opened): #vers 1
+        """Open icon + tooltip on list items whose model is open."""
+        lw = getattr(self, 'col_list_widget', None)
+        if lw is None:
+            return
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        for i in range(lw.count()):
+            it = lw.item(i)
+            e = it.data(Qt.ItemDataRole.UserRole) if it else None
+            if e is not None and getattr(e, 'name', '').lower() == key:
+                it.setIcon(SVGIconFactory.open_icon(16) if opened else QIcon())
+                it.setToolTip("Open - click to switch back, right-click to close" if opened else "")
+
+    def _model_is_dirty(self, st): #vers 1
+        """True if the model differs from the bytes it was opened with."""
+        from apps.methods.dff_parser import DFFWriter
+        try:
+            return DFFWriter.write(st['model']) != st['orig']
+        except Exception:
+            return True
+
+    def _on_model_list_menu(self, pos): #vers 1
+        """Right-click on the model list: close an open model / close all."""
+        lw = self.col_list_widget
+        it = lw.itemAt(pos)
+        e = it.data(Qt.ItemDataRole.UserRole) if it else None
+        opened = getattr(self, '_open_models', {})
+        key = getattr(e, 'name', '').lower() if e is not None else ''
+        m = QMenu(self)
+        a = m.addAction("Close model", lambda: self._close_open_model(key))
+        a.setEnabled(key in opened)
+        b = m.addAction(f"Close all open models ({len(opened)})",
+                        lambda: [self._close_open_model(k) for k in list(opened)])
+        b.setEnabled(bool(opened))
+        m.exec(lw.viewport().mapToGlobal(pos))
+
+    def _close_open_model(self, key): #vers 1
+        """Close one open model; Save / Cancel / Close when it has unsaved edits."""
+        opened = getattr(self, '_open_models', {})
+        st = opened.get(key)
+        if st is None:
+            return True
+        if self._model_is_dirty(st):
+            r = QMessageBox.question(
+                self, "Close model", f"{key} has unsaved changes.",
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel
+                | QMessageBox.StandardButton.Close)
+            if r == QMessageBox.StandardButton.Cancel:
+                return False
+            if r == QMessageBox.StandardButton.Save:
+                self._show_dff(st['path'], st['model'])
+                self._save_file()
+                if self._model_is_dirty(st):
+                    return False
+        opened.pop(key, None)
+        self._mark_model_item(key, False)
+        if getattr(self, '_current_dff_model', None) is st['model']:
+            nxt = next(iter(opened.values()), None)
+            if nxt is not None:
+                self._show_dff(nxt['path'], nxt['model'])
+            else:
+                self._current_dff_model = None
+                self._current_dff_path = None
+                self._set_status(f"Closed {key}")
+        return True
 
     def _extract_col_from_img(self, entry): #vers 2
         """Extract TXD data from IMG entry"""

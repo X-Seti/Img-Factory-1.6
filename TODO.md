@@ -856,19 +856,19 @@ tile grid. Addition needed:
 ## Model Workshop TODOs
 
 ### Model Workshop - Opened models should keep a tab/reopen affordance instead of closing automatically
-**Status**: PENDING
+**Status**: DONE (Sep 24 2026) - open icon in list, click swaps back, right-click close / close all, Save/Cancel/Close prompt
 **Priority**: Medium
 
 Currently switching to a different model in the files list appears to just
 replace the current one - no way back except reopening from scratch.
 
-- [ ] Give each opened model its own tab, OR (my preferred simpler
+- [x] Give each opened model its own tab, OR (my preferred simpler
   alternative) show an "opened" SVG icon next to already-opened models in
   the files list, so clicking it swaps back to that model instead of the
   app silently discarding it
-- [ ] Per-model close affordance - a small [x] next to the opened
+- [x] Per-model close affordance - a small [x] next to the opened
   indicator/tab
-- [ ] On close, if the model has unsaved changes, prompt with
+- [x] On close, if the model has unsaved changes, prompt with
   [Save] / [Cancel] / [Close] rather than silently discarding
 
 ### Model Workshop - Progressive lag/freeze when switching between many loaded models

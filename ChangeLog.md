@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 145
+#this belongs in root /ChangeLog.md - Version: 146
+
+## Sep 24 2026 - Model Workshop: keep opened models, Build 431.92
+
+Opened IMG models get an open icon; clicking swaps back without reparsing. Right-click: Close model / Close all, Save / Cancel / Close prompt when changed.
+
+Save of an IMG-opened DFF now also writes back into its IMG entry (was temp file only). open_dff_file split into parse + _show_dff.
 
 ## Sep 24 2026 - SCM Workshop: rule cleanup, Build 431.92
 
