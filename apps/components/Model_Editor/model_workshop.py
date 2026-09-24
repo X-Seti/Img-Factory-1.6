@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 196
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 197
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -4270,7 +4270,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             active.selectRow(new_row)
 
 
-    def _dff_to_col_surfaces(self, single=True): #vers 1
+    def _dff_to_col_surfaces(self, single=True): #vers 2
         """Generate COL from DFF model — maps texture names to COL surface types.
         single=True: one COL model from currently loaded DFF.
         single=False: batch — pick a directory of DFF files.
@@ -4430,12 +4430,15 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # - Build COL models
         from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
-        from apps.components.Model_Editor.depends.col_workshop_classes import (COLModel, COLVersion, COLBounds,
-                                                        COLFace, COLVertex, COLMaterial)
+        from apps.components.Model_Editor.depends.col_workshop_classes import (
+            COLModel, COLHeader, COLVersion, COLBounds, COLFace, COLVertex)
+        from apps.components.Model_Editor.depends.col_core_classes import Vector3
         import os
 
         col_ver_map = [COLVersion.COL_1, COLVersion.COL_2, COLVersion.COL_3]
         col_ver = col_ver_map[col_version.currentIndex()]
+        fourcc = {COLVersion.COL_1: b'COLL', COLVersion.COL_2: b'COL2',
+                  COLVersion.COL_3: b'COL3'}[col_ver]
 
         if not getattr(self, "current_col_file", None):
             self.current_col_file = COLFile()
@@ -4443,56 +4446,23 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         added = 0
         for model_name, tex_name, sp_widget, geom in row_data:
-            surface_id = sp_widget.currentData()
-            m = COLModel()
-            m.name    = os.path.splitext(model_name)[0]
-            m.version = col_ver
-            m.spheres = []; m.boxes = []
-
-            # Bounds from DFF geometry
-            try:
-                bs = geom.bounding_sphere
-                mn = type('V',(),{'x':bs.center.x-bs.radius,'y':bs.center.y-bs.radius,'z':bs.center.z-bs.radius})()
-                mx = type('V',(),{'x':bs.center.x+bs.radius,'y':bs.center.y+bs.radius,'z':bs.center.z+bs.radius})()
-                ctr= type('V',(),{'x':bs.center.x,'y':bs.center.y,'z':bs.center.z})()
-            except Exception:
-                mn =type('V',(),{'x':-1.0,'y':-1.0,'z':-1.0})()
-                mx =type('V',(),{'x': 1.0,'y': 1.0,'z': 1.0})()
-                ctr=type('V',(),{'x': 0.0,'y': 0.0,'z': 0.0})()
-
-            bounds = COLBounds()
-            bounds.min = mn; bounds.max = mx
-            bounds.center = ctr
-            try:
-                bounds.radius = geom.bounding_sphere.radius
-            except Exception:
-                bounds.radius = 1.73
-            m.bounds = bounds; m.model_id = 0
-
-            # Mesh faces
-            if use_mesh.isChecked() and hasattr(geom, 'vertices') and geom.vertices:
-                mat_obj = COLMaterial()
-                mat_obj.material_id = surface_id
-                mat_obj.flag = 0; mat_obj.brightness = 0; mat_obj.light = 0
-
-                verts = []
-                for v in geom.vertices:
-                    cv = COLVertex(); cv.x = v.x; cv.y = v.y; cv.z = v.z
-                    verts.append(cv)
-                m.vertices = verts
-
-                faces = []
-                for tri in geom.triangles:
-                    cf = COLFace()
-                    cf.v1 = tri.v1; cf.v2 = tri.v2; cf.v3 = tri.v3
-                    cf.material = mat_obj
-                    faces.append(cf)
-                m.faces = faces
-                m.shadow_verts = []; m.shadow_faces = []
-            else:
-                m.vertices = []; m.faces = []
-                m.shadow_verts = []; m.shadow_faces = []
-
+            surface_id = sp_widget.currentData() or 0
+            bs = getattr(geom, 'bounding_sphere', None)
+            r = float(getattr(bs, 'radius', 0.0) or 1.73)
+            c = getattr(bs, 'center', None)
+            cx, cy, cz = (c.x, c.y, c.z) if c is not None else (0.0, 0.0, 0.0)
+            hdr = COLHeader(fourcc=fourcc, size=0, name=os.path.splitext(model_name)[0][:21],
+                            model_id=0, version=col_ver)
+            bnd = COLBounds(radius=r, center=Vector3(cx, cy, cz),
+                            min=Vector3(cx - r, cy - r, cz - r), max=Vector3(cx + r, cy + r, cz + r))
+            verts, faces = [], []
+            if use_mesh.isChecked() and getattr(geom, 'vertices', None):
+                verts = [COLVertex(v.x, v.y, v.z) for v in geom.vertices]
+                faces = [COLFace(t.v1, t.v2, t.v3, surface_id, 0, 0, 0)
+                         for t in getattr(geom, 'triangles', [])]
+            m = COLModel(header=hdr, bounds=bnd, spheres=[], boxes=[],
+                         vertices=verts, faces=faces)
+            m.shadow_verts = []; m.shadow_faces = []
             self.current_col_file.models.append(m)
             added += 1
 
@@ -9611,7 +9581,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"Import of {ext.upper()} format is not yet implemented.\n"
                 f"Supported: OBJ")
 
-    def _import_obj(self, path: str): #vers 2
+    def _import_obj(self, path: str): #vers 3
         """Import Wavefront OBJ as a new DFF geometry."""
         from PyQt6.QtWidgets import QMessageBox
         verts, uvs, normals, faces = [], [], [], []
@@ -9636,10 +9606,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QMessageBox.warning(self, "OBJ Import", "No geometry found in OBJ file.")
             return
         # Build a minimal DFF geometry and add to current model or create new
-        try:
-            from apps.components.Model_Editor.depends.col_3d_viewport import SimpleVert, SimpleFace
-        except ImportError:
-            SimpleVert = SimpleFace = None
         fname = os.path.basename(path)
         self._set_status(f"OBJ imported: {fname} ({len(verts)} verts, {len(faces)} faces)")
         if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -10727,7 +10693,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if getattr(self, '_tex_view_mode', 'list') == 'thumb':
             self._populate_tex_thumbnails()
 
-    def _browse_texlist_folder(self): #vers 1
+    def _browse_texlist_folder(self): #vers 2
         """Browse a Texlist folder — shows all TXDs, lets user add individual textures."""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem
         folder = QFileDialog.getExistingDirectory(
@@ -10800,10 +10766,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 if not txd_path:
                     return
                 try:
-                    from apps.methods.txd_platform_pc import parse_pc_txd
                     with open(txd_path, 'rb') as f:
                         data = f.read()
-                    texs = parse_pc_txd(data)
+                    texs = self._parse_txd_lightweight(data)
                     for tex in (texs or []):
                         child = QTreeWidgetItem([
                             tex.get('name', '?'),
@@ -10853,10 +10818,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return
             for txd_path, names in by_file.items():
                 try:
-                    from apps.methods.txd_platform_pc import parse_pc_txd
                     with open(txd_path, 'rb') as f:
                         data = f.read()
-                    texs = parse_pc_txd(data) or []
+                    texs = self._parse_txd_lightweight(data) or []
                     existing = {t['name'].lower() for t in self._mod_textures}
                     for tex in texs:
                         if tex['name'].lower() in names and tex['name'].lower() not in existing:
@@ -10984,7 +10948,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             QMessageBox.warning(self, "TXD", "Could not build TXD from current textures.")
 
-    def _build_txd_from_textures(self): #vers 1
+    def _build_txd_from_textures(self): #vers 2
         """Build a minimal TXD binary from self._mod_textures.
         Uses the serializer if available, else copies from source TXD."""
         # Simplest approach: if all textures came from the same TXD file, just return that
@@ -10997,8 +10961,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         # Fall back to serializer
         try:
-            from apps.methods.txd_serializer import build_txd
-            return build_txd(self._mod_textures)
+            from apps.methods.txd_serializer import serialize_txd_file
+            return serialize_txd_file(self._mod_textures)
         except Exception as e:
             print(f"TXD build error: {e}")
             return None

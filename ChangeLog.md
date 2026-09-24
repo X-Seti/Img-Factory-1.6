@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 153
+#this belongs in root /ChangeLog.md - Version: 154
+
+## Sep 24 2026 - Map/Model Workshop imports, Build 431.92
+- Texlist TXD browse/add and Save TXD used missing functions; now txd_parser / serialize_txd_file.
+- Build COL from DFF rewritten with real COL classes (was crashing).
 
 ## Sep 24 2026 - COL Workshop cleanup, Build 431.92
 - Removed ~2,100 dead lines (old COLEditorDialog, unused methods); settings dialog crash fixed (coll_form, Apply widget names); emojis removed.
