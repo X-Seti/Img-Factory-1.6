@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 147
+#this belongs in root /ChangeLog.md - Version: 148
+
+## Sep 24 2026 - Model_Editor: removed 33 unused files, Build 431.92
+
+31 unused depends/ copies, plus unused model_mesh_editor.py and saved.py fragment. All Model_Editor imports resolve.
 
 ## Sep 24 2026 - Model Workshop: dead code removed, settings dialog crashes fixed, Build 431.92
 
