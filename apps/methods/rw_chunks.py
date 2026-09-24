@@ -1,4 +1,4 @@
-#this belongs in apps/methods/rw_chunks.py - Version: 2
+#this belongs in apps/methods/rw_chunks.py - Version: 3
 # X-Seti - September 2026 - IMG Factory 1.6 - RenderWare stream section tree
 
 """rw_chunks.py - Parse a RenderWare binary stream (.dff .txd .rws .anm .bsp ...)
@@ -28,6 +28,11 @@ All functions work on / return plain bytes, so a hex editor can apply them as on
 # set_stream_version
 # texture_names
 # dump_tree_text
+# move_section
+# make_section
+# replace_payload
+# string_payload
+# node_at
 
 import struct
 from typing import Dict, List, Optional, Tuple
@@ -76,7 +81,7 @@ CHUNK_NAMES: Dict[int, str] = {
     0x0206: "Altpipe TK", 0x0207: "Animation TK", 0x0208: "Skin Split Compress", 0x0209: "Compressed Key TK",
     0x020A: "GEO Conditioning PLG", 0x020B: "Wing PLG", 0x020C: "Generic Pipeline TK", 0x020D: "Lightmap Conversion TK",
     0x020E: "Filesystem PLG", 0x020F: "Dictionary TK", 0x0210: "UV Animation Linear", 0x0211: "UV Animation Parameter",
-    0x0212: "Bin Mesh PLG", 0x0213: "Native Data PLG", 0x0510: "Bin Mesh PLG",
+    0x0212: "Bin Mesh PLG", 0x0213: "Native Data PLG", 0x0510: "Native Data PLG",
     0x0253F2F3: "Pipeline Set", 0x0253F2F6: "Specular Material", 0x0253F2F8: "2D Effect",
     0x0253F2F9: "Extra Vert Colour", 0x0253F2FA: "Collision Model", 0x0253F2FC: "Reflection Material",
     0x0253F2FD: "Breakable", 0x0253F2FE: "Frame", 0x0253F2F4: "Night Vertex Colours",
@@ -343,3 +348,51 @@ def dump_tree_text(nodes: List[RWNode], with_version=True) -> str:
                          + (f"  RW {version_text(n.stamp)}" if with_version else "")
                          + f"  [{n.kind}]" + (f"  ERROR: {n.error}" if n.error else ""))
     return "\n".join(lines)
+
+
+def move_section(data: bytes, node: RWNode, direction: int) -> bytes: #vers 1
+    """Swap a section with its previous (-1) or next (+1) sibling; sizes unchanged."""
+    sibs = node.parent.children if node.parent is not None else parse_rw(data)
+    idx = next((i for i, s in enumerate(sibs) if s.offset == node.offset), None)
+    j = None if idx is None else idx + direction
+    if j is None or not (0 <= j < len(sibs)):
+        return bytes(data)
+    a, b = (sibs[idx], sibs[j]) if direction > 0 else (sibs[j], sibs[idx])
+    buf = bytearray(data)
+    first, second = bytes(buf[a.offset:a.end]), bytes(buf[b.offset:b.end])
+    buf[a.offset:b.end] = second + bytes(buf[a.end:b.offset]) + first
+    return bytes(buf)
+
+
+def make_section(type_: int, stamp: int, payload: bytes = b"") -> bytes: #vers 1
+    """Whole-section bytes: 12-byte header + payload."""
+    return struct.pack("<III", type_, len(payload), stamp) + payload
+
+
+def replace_payload(data: bytes, node: RWNode, payload: bytes) -> bytes: #vers 1
+    """New payload for a leaf section; its own and every ancestor's size follow."""
+    buf = bytearray(data)
+    delta = len(payload) - node.size
+    buf[node.data_start:node.end] = payload
+    struct.pack_into("<I", buf, node.offset + 4, len(payload))
+    if delta:
+        _bump_sizes(buf, node, delta)
+    return bytes(buf)
+
+
+def string_payload(text: str) -> bytes: #vers 1
+    """RW String payload: text + NUL, padded to a multiple of 4."""
+    raw = text.encode('latin-1') + b"\0"
+    return raw + b"\0" * (-len(raw) % 4)
+
+
+def node_at(roots: List[RWNode], offset: int) -> Optional[RWNode]: #vers 1
+    """Deepest section whose bytes contain offset."""
+    best = None
+    stack = list(roots)
+    while stack:
+        n = stack.pop()
+        if n.offset <= offset < n.end:
+            best = n
+            stack = list(n.children)
+    return best

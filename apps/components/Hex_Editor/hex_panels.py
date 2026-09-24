@@ -1,4 +1,4 @@
-#this belongs in apps/components/Hex_Editor/hex_panels.py - Version: 3
+#this belongs in apps/components/Hex_Editor/hex_panels.py - Version: 4
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop side panels
 
 """hex_panels.py - Inspector (values at the cursor), Structure (RenderWare section tree with
@@ -177,6 +177,15 @@ class StructurePanel(QWidget):
         self.btn_validate.clicked.connect(self.show_validation)
         top.addWidget(self.btn_validate)
         lay.addLayout(top)
+        find = QHBoxLayout()
+        self.find_type = QComboBox()
+        self.find_type.setToolTip("Section type to find")
+        find.addWidget(self.find_type, 1)
+        b = QPushButton("Find next")
+        b.setMinimumHeight(28)
+        b.clicked.connect(self.find_next_type)
+        find.addWidget(b)
+        lay.addLayout(find)
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Section", "Offset", "Size", "RW version"])
         self.tree.setUniformRowHeights(True)
@@ -184,6 +193,14 @@ class StructurePanel(QWidget):
         self.tree.customContextMenuRequested.connect(self._menu)
         self.tree.itemClicked.connect(self._clicked)
         lay.addWidget(self.tree, 1)
+        self.fields = QTableWidget(0, 3)
+        self.fields.setHorizontalHeaderLabels(["Field", "Value", "Offset"])
+        self.fields.horizontalHeader().setStretchLastSection(True)
+        self.fields.verticalHeader().setVisible(False)
+        self.fields.itemChanged.connect(self._field_edited)
+        self.fields.setVisible(False)
+        lay.addWidget(self.fields, 1)
+        self._fields_loading = False
         self.legend = QLabel("blue = has sections   green = data   orange = empty   red = faulty")
         self.legend.setStyleSheet("padding:2px;")
         self.legend.setWordWrap(True)
@@ -229,9 +246,13 @@ class StructurePanel(QWidget):
                 it.setBackground(k, QBrush(c))
         return it
 
-    def _build_rw(self):
+    def _build_rw(self): #vers 2
         self.mode = "rw"
         self.roots = rw.parse_rw(self.data)
+        types = sorted({n.type for r in self.roots for n in r.walk()})
+        self.find_type.clear()
+        for t in types:
+            self.find_type.addItem(rw.chunk_name(t), t)
         self.kind_lbl.setText(f"RenderWare stream - {rw.version_text(self.roots[0].stamp) if self.roots else '?'}")
 
         def add(n: rw.RWNode, parent):
@@ -302,10 +323,84 @@ class StructurePanel(QWidget):
                            _KIND_COLOURS["faulty"] if bad else None)
 
     # -- interaction
-    def _clicked(self, item, _col):
+    def _clicked(self, item, _col): #vers 2
         v = item.data(0, Qt.ItemDataRole.UserRole)
         if v:
             self.goto.emit(*v)
+        self._show_fields(self.node_of(item))
+
+    def _show_fields(self, n): #vers 1
+        """Named, editable fields for known Struct sections (Clump, Frame List, Geometry...)."""
+        from apps.methods.rw_structs import decode_struct
+        rows = []
+        if n is not None and n.type == 0x01 and n.parent is not None:
+            rows = decode_struct(self.data, n, n.parent.type, rw.version_of(n.stamp))
+        self._fields_loading = True
+        self.fields.setRowCount(len(rows))
+        for r, (name, off, fmt, val) in enumerate(rows):
+            a = QTableWidgetItem(name)
+            a.setFlags(a.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            b = QTableWidgetItem(f"{val:.6g}" if isinstance(val, float) else str(val))
+            b.setData(Qt.ItemDataRole.UserRole, (off, fmt))
+            c = QTableWidgetItem(f"0x{off:08X}")
+            c.setFlags(c.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.fields.setItem(r, 0, a); self.fields.setItem(r, 1, b); self.fields.setItem(r, 2, c)
+        self.fields.resizeColumnToContents(0)
+        self.fields.setVisible(bool(rows))
+        self._fields_loading = False
+
+    def _field_edited(self, item): #vers 1
+        """Write an edited field back as one undoable edit."""
+        if self._fields_loading or item.column() != 1:
+            return
+        from apps.methods.rw_structs import encode_field
+        off, fmt = item.data(Qt.ItemDataRole.UserRole)
+        try:
+            raw = encode_field(fmt, item.text().strip())
+        except (ValueError, struct.error) as e:
+            QMessageBox.warning(self, "Field", str(e))
+            return
+        buf = bytearray(self.data)
+        buf[off:off + len(raw)] = raw
+        name = self.fields.item(item.row(), 0).text()
+        self._emit(bytes(buf), f"Set {name}")
+
+    def select_offset(self, off: int): #vers 1
+        """Select the deepest section containing a byte offset (hex cursor -> tree)."""
+        if self.mode != "rw" or not self.roots:
+            return
+        n = rw.node_at(self.roots, off)
+        if n is None:
+            return
+        cur = self.node_of(self.tree.currentItem())
+        if cur is not None and cur.offset == n.offset and cur.type == n.type:
+            return
+        from PyQt6.QtWidgets import QTreeWidgetItemIterator
+        it = QTreeWidgetItemIterator(self.tree)
+        while it.value():
+            node = self.node_of(it.value())
+            if node is not None and node.offset == n.offset and node.type == n.type:
+                self.tree.blockSignals(True)
+                self.tree.setCurrentItem(it.value())
+                self.tree.scrollToItem(it.value())
+                self.tree.blockSignals(False)
+                self._show_fields(node)
+                return
+            it += 1
+
+    def find_next_type(self): #vers 1
+        """Select the next section of the chosen type after the current one."""
+        t = self.find_type.currentData()
+        if t is None:
+            return
+        nodes = [n for r in self.roots for n in r.walk() if n.type == t]
+        if not nodes:
+            return
+        cur = self.node_of(self.tree.currentItem())
+        after = [n for n in nodes if cur is None or n.offset > cur.offset]
+        n = (after or nodes)[0]
+        self.select_offset(n.offset)
+        self.goto.emit(n.offset, n.end - n.offset)
 
     def show_validation(self):
         if self.mode != "rw":
@@ -318,7 +413,7 @@ class StructurePanel(QWidget):
     def node_of(self, item) -> Optional[rw.RWNode]:
         return item.data(1, Qt.ItemDataRole.UserRole) if item else None
 
-    def _menu(self, pos): #vers 2
+    def _menu(self, pos): #vers 3
         it = self.tree.itemAt(pos)
         m = QMenu(self)
         if it is not None:
@@ -337,6 +432,13 @@ class StructurePanel(QWidget):
                     m.addAction("Import section as first child...", lambda: self._import_child(n))
                     if self._clip:
                         m.addAction("Paste copied section as first child", lambda: self._paste_child(n))
+                m.addAction("Move up", lambda: self._emit(rw.move_section(self.data, n, -1), f"Move {n.name} up"))
+                m.addAction("Move down", lambda: self._emit(rw.move_section(self.data, n, 1), f"Move {n.name} down"))
+                m.addAction("Add empty section after...", lambda: self._add_empty(n, first_child=False))
+                if n.type in rw.CONTAINERS:
+                    m.addAction("Add empty section as first child...", lambda: self._add_empty(n, first_child=True))
+                if n.type in (0x02, 0x06, 0x15):
+                    m.addAction("Rename...", lambda: self._rename(n))
                 m.addSeparator()
                 m.addAction("Clear payload (keep header)", lambda: self._emit(rw.clear_section(self.data, n), f"Clear {n.name}"))
                 m.addAction("Delete section", lambda: self._delete(n))
@@ -387,6 +489,48 @@ class StructurePanel(QWidget):
         if p:
             with open(p, "rb") as f:
                 self._emit(rw.insert_section(self.data, None, f.read(), parent=n), "Import section")
+
+    def _add_empty(self, n, first_child): #vers 1
+        """Insert an empty section of a chosen type (stamp copied from n)."""
+        names = sorted((v, k) for k, v in rw.CHUNK_NAMES.items())
+        pick, ok = QInputDialog.getItem(self, "Add empty section", "Section type:", [f"{v}  (0x{k:X})" for v, k in names], 0, False)
+        if not ok:
+            return
+        t = names[[f"{v}  (0x{k:X})" for v, k in names].index(pick)][1]
+        chunk = rw.make_section(t, n.stamp)
+        if first_child:
+            self._emit(rw.insert_section(self.data, None, chunk, parent=n), f"Add {rw.chunk_name(t)}")
+        else:
+            self._emit(rw.insert_section(self.data, n, chunk), f"Add {rw.chunk_name(t)}")
+
+    def _rename(self, n): #vers 1
+        """Rename a String, a Texture (its name String) or a Texture Native (fixed 32-byte name)."""
+        if n.type == 0x15:
+            st = next((c for c in n.children if c.type == 0x01), None)
+            if st is None or st.size < 40:
+                return
+            o = st.data_start + 8
+            cur = bytes(self.data[o:o + 32]).split(b"\0", 1)[0].decode('latin-1')
+            txt, ok = QInputDialog.getText(self, "Rename texture", "Name (max 31):", text=cur)
+            if ok and txt.strip():
+                from apps.methods.rw_structs import encode_field
+                try:
+                    raw = encode_field('s32', txt.strip())
+                except ValueError as e:
+                    QMessageBox.warning(self, "Rename", str(e))
+                    return
+                buf = bytearray(self.data)
+                buf[o:o + 32] = raw
+                self._emit(bytes(buf), f"Rename texture {cur} -> {txt.strip()}")
+            return
+        target = n if n.type == 0x02 else next((c for c in n.children if c.type == 0x02), None)
+        if target is None:
+            return
+        cur = bytes(self.data[target.data_start:target.end]).split(b"\0", 1)[0].decode('latin-1')
+        txt, ok = QInputDialog.getText(self, "Rename", "Name:", text=cur)
+        if ok and txt.strip() and txt.strip() != cur:
+            self._emit(rw.replace_payload(self.data, target, rw.string_payload(txt.strip())),
+                       f"Rename {cur} -> {txt.strip()}")
 
     def recompute(self): #vers 1
         """Recompute every RW section size."""

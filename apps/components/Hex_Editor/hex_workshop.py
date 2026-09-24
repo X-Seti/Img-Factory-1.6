@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 7
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 8
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -89,7 +89,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                 b.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 3
+    def setup_ui(self): #vers 4
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
@@ -150,6 +150,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
 
         # wiring
         self.canvas.cursor_changed.connect(self._on_cursor)
+        self.canvas.cursor_changed.connect(self.structure.select_offset)   # hex -> tree sync
         self.canvas.selection_changed.connect(lambda a, n: self._on_cursor(self.canvas.cur))
         self.canvas.status.connect(self._set_status)
         self.doc.changed.connect(self._on_doc_changed)

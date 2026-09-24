@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 143
+#this belongs in root /ChangeLog.md - Version: 144
+
+## Sep 24 2026 - Hex Workshop: RW Analyze parity, Build 431.92
+
+Struct field editor (Clump, Frame List, Geometry, Material, Texture, Atomic, Material List, TXD, Texture Native) via new methods/rw_structs.py. Move section up/down, add empty section, rename String / Texture / Texture Native.
+
+Find section by type. Hex cursor selects matching tree node. rw_chunks: move_section, make_section, replace_payload, string_payload, node_at; 0x510 named Native Data PLG.
 
 ## Sep 24 2026 - Map_Editor: removed 46 unused files, Build 431.92
 
