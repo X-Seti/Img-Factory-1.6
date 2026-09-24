@@ -1,4 +1,4 @@
-#this belongs in gui/col_dialogs.py - Version: 1
+#this belongs in apps/gui/col_dialogs.py - Version: 2
 # X-Seti - August13 2025 - IMG Factory 1.5 - COL GUI Dialogs
 
 """
@@ -11,7 +11,7 @@ from typing import Dict, Any, List
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton,
     QLabel, QGroupBox, QFormLayout, QScrollArea, QTabWidget,
-    QTableWidget, QTableWidgetItem, QMessageBox, QProgressDialog
+    QTableWidget, QTableWidgetItem, QMessageBox, QProgressDialog, QWidget
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap, QIcon
@@ -63,22 +63,22 @@ class COLAnalysisDialog(QDialog): #vers 1
         # Overview tab
         self.overview_tab = QWidget()
         self.setup_overview_tab()
-        self.tab_widget.addTab(self.overview_tab, "📊 Overview")
+        self.tab_widget.addTab(self.overview_tab, "Overview")
         
         # Models tab
         self.models_tab = QWidget()
         self.setup_models_tab()
-        self.tab_widget.addTab(self.models_tab, "🎯 Models")
+        self.tab_widget.addTab(self.models_tab, "Models")
         
         # Validation tab
         self.validation_tab = QWidget()
         self.setup_validation_tab()
-        self.tab_widget.addTab(self.validation_tab, "✅ Validation")
+        self.tab_widget.addTab(self.validation_tab, "Validation")
         
         # Buttons
         button_layout = QHBoxLayout()
         
-        self.copy_button = QPushButton("📋 Copy Report")
+        self.copy_button = QPushButton("Copy Report")
         self.copy_button.clicked.connect(self.copy_report)
         button_layout.addWidget(self.copy_button)
         
@@ -153,7 +153,7 @@ class COLAnalysisDialog(QDialog): #vers 1
         
         layout.addWidget(self.models_table)
     
-    def setup_validation_tab(self):
+    def setup_validation_tab(self): #vers 2
         """Setup validation tab"""
         layout = QVBoxLayout(self.validation_tab)
         
@@ -163,7 +163,7 @@ class COLAnalysisDialog(QDialog): #vers 1
         self.validation_text.setFont(QFont("Consolas", 9))
         layout.addWidget(self.validation_text)
     
-    def populate_data(self):
+    def populate_data(self): #vers 2
         """Populate dialog with analysis data"""
         try:
             # Overview tab
@@ -208,24 +208,24 @@ class COLAnalysisDialog(QDialog): #vers 1
             validation_text += "=" * 30 + "\n\n"
             
             if 'valid' in self.analysis_data:
-                validation_text += f"Valid: {'✅ Yes' if self.analysis_data['valid'] else '❌ No'}\n\n"
+                validation_text += f"Valid: {'Yes' if self.analysis_data['valid'] else 'No'}\n\n"
             
             if 'errors' in self.analysis_data and self.analysis_data['errors']:
                 validation_text += "Errors:\n"
                 for error in self.analysis_data['errors']:
-                    validation_text += f"  ❌ {error}\n"
+                    validation_text += f"  ERROR: {error}\n"
                 validation_text += "\n"
             
             if 'warnings' in self.analysis_data and self.analysis_data['warnings']:
                 validation_text += "Warnings:\n"
                 for warning in self.analysis_data['warnings']:
-                    validation_text += f"  ⚠️ {warning}\n"
+                    validation_text += f"  WARN: {warning}\n"
                 validation_text += "\n"
             
             if 'info' in self.analysis_data and self.analysis_data['info']:
                 validation_text += "Information:\n"
                 for info in self.analysis_data['info']:
-                    validation_text += f"  ℹ️ {info}\n"
+                    validation_text += f"  INFO: {info}\n"
                 validation_text += "\n"
             
             self.validation_text.setPlainText(validation_text)

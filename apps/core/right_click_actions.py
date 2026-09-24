@@ -1,4 +1,4 @@
-#this belongs in core/right_click_actions.py - Version: 5
+#this belongs in apps/core/right_click_actions.py - Version: 6
 # X-Seti - August07 2025 - IMG Factory 1.5 - Complete Right-Click Actions
 # Combined: Basic copying + Advanced file operations + Extraction functionality
 
@@ -913,7 +913,7 @@ def get_selected_entry_info(main_window, row): #vers 1
         return None
 
 
-def edit_col_from_img_entry(main_window, row): #vers 2
+def edit_col_from_img_entry(main_window, row): #vers 3
     """Edit COL file from IMG entry - WORKING VERSION"""
     try:
         entry_info = get_selected_entry_info(main_window, row)
@@ -942,23 +942,13 @@ def edit_col_from_img_entry(main_window, row): #vers 2
             return False
         
         try:
-            # Import and open COL editor
-            from apps.components.Col_Editor.col_editor import COLEditorDialog
-            
-            editor = COLEditorDialog(main_window)
-            
-            # Load the temporary COL file
-            if editor.load_col_file(temp_path):
-                editor.setWindowTitle(f"COL Editor - {entry.name}")
-                editor.show()  # Use show() instead of exec() for non-modal
-                main_window.log_message(f"COL editor opened for: {entry.name}")
-                return True
-            else:
-                main_window.log_message("Failed to load COL file in editor")
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            if open_col_workshop(main_window, temp_path) is None:
+                main_window.log_message("Failed to open COL Workshop")
                 return False
-                
+            main_window.log_message(f"COL Workshop opened for: {entry.name}")
+            return True
         finally:
-            # Clean up temporary file
             cleanup_temporary_file(temp_path)
         
     except ImportError:

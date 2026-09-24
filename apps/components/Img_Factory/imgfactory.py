@@ -1566,7 +1566,7 @@ class IMGFactory(QMainWindow):
             if not game_root:
                 # Try to get from settings/project
                 try:
-                    from apps.methods.app_settings_system import AppSettings
+                    from apps.utils.app_settings_system import AppSettings
                     settings = getattr(self, 'app_settings', None)
                     if settings:
                         game_root = settings.get('last_game_root', '')

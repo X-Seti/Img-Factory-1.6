@@ -415,7 +415,7 @@ def setup_threaded_col_loading(main_window): #vers 1
     try:
         col_debug_log(main_window, "Setting up threaded COL loading", 'COL_THREADING')
         
-        from apps.components.col_loader import COLBackgroundLoader
+        from apps.methods.col_loader import COLBackgroundLoader
         
         # Create background loader
         col_loader = COLBackgroundLoader()

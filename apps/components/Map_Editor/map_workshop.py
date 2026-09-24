@@ -16640,7 +16640,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return
 
             # Import analysis functions
-            from apps.components.Model_Editor.depends.col_operations import get_col_detailed_analysis
+            from apps.methods.col_operations import get_col_detailed_analysis
             from gui.col_dialogs import show_col_analysis_dialog
 
             # Get detailed analysis

@@ -192,7 +192,7 @@ def load_col_file_safely(main_window, file_path): #vers 6
 def _update_col_info_bar_enhanced(main_window, col_file, file_path): #vers 1
     """Update info bar using enhanced display manager"""
     try:
-        from apps.components.col_display import COLDisplayManager
+        from apps.gui.col_display import COLDisplayManager
 
         display_manager = COLDisplayManager(main_window)
         display_manager.update_col_info_bar(col_file, file_path)

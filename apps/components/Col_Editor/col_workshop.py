@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 90
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 91
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -2460,7 +2460,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         from PyQt6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "New Model", "Model name:")
         if not ok or not name.strip(): return
-        from apps.apps.components.Col_Editor.depends.col_workshop_classes import COLModel, COLHeader, COLVersion, COLBounds
+        from apps.components.Col_Editor.depends.col_workshop_classes import COLModel, COLHeader, COLVersion, COLBounds
         m = COLModel()
         m.name = name.strip(); m.version = COLVersion.COL_1
         if not self.current_col_file: return
@@ -10651,7 +10651,7 @@ def open_workshop(main_window, img_path=None): #vers 3
 COLEditorDialog = COLWorkshop  #vers 1
 
 
-def open_col_workshop(main_window, img_path=None): #vers 2
+def open_col_workshop(main_window, img_path=None): #vers 3
     """Open COL Workshop - embedded in tab if main_window has tab widget, standalone otherwise"""
     try:
         from PyQt6.QtWidgets import QVBoxLayout, QWidget
@@ -10683,7 +10683,6 @@ def open_col_workshop(main_window, img_path=None): #vers 2
             return workshop
 
         # Embedded mode - add as tab
-        import os
         tab_container = QWidget()
         tab_layout = QVBoxLayout(tab_container)
         tab_layout.setContentsMargins(0, 0, 0, 0)

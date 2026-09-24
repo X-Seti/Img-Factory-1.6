@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 149
+#this belongs in root /ChangeLog.md - Version: 150
+
+## Sep 24 2026 - Import fixes, Build 431.92
+- Fixed 9 broken import paths; col_operations moved to methods/ with 5 missing functions added.
+- COL editor calls repointed to COL Workshop; col_dialogs emojis removed, QWidget import added.
 
 ## Sep 24 2026 - Components: removed 53 unused duplicate files, Build 431.92
 

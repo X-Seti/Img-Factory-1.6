@@ -42,7 +42,7 @@ def load_img_file_in_new_tab(main_window, file_path: str) -> bool: #vers 1
             return False
         
         # Import thread loader
-        from apps.components.Img_Factory.img_factory_thread import IMGLoadThread
+        from apps.methods.img_factory_thread import IMGLoadThread
         
         # Create and start load thread
         main_window.load_thread = IMGLoadThread(file_path)

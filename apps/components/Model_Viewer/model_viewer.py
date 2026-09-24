@@ -53,7 +53,7 @@ except Exception:
 try:
     from apps.methods.dff_viewport import DFFViewport
 except ImportError:
-    from apps.components.Model_Viewer.methods.dff_viewport import DFFViewport
+    from apps.methods.dff_viewport import DFFViewport
 
 from apps.methods.ribbon_system import RibbonMixin
 

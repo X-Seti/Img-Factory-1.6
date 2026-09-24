@@ -1,4 +1,4 @@
-#this belongs in gui/gui_context.py - Version: 9
+#this belongs in apps/gui/gui_context.py - Version: 10
 # X-Seti - August13 2025 - IMG Factory 1.5 - Context Menu Functions - WORKING COL IMPLEMENTATION
 
 """
@@ -685,7 +685,7 @@ def open_col_batch_proc_dialog(main_window): #vers 3
         return False
 
 
-def open_col_file_dialog(main_window): #vers 3
+def open_col_file_dialog(main_window): #vers 4
     """Open COL file dialog - WORKING VERSION"""
     try:
         file_path, _ = QFileDialog.getOpenFileName(
@@ -703,19 +703,8 @@ def open_col_file_dialog(main_window): #vers 3
                 return main_window.load_col_file_safely(file_path)
             else:
                 # Try to load using COL parsing functions
-                try:
-                    from apps.methods.populate_col_table import load_col_file_safely
-                    return load_col_file_safely(main_window, file_path)
-                except ImportError:
-                    # Fallback: open in COL editor
-                    try:
-                        from apps.components.Col_Editor.col_editor import open_col_editor
-                        editor = open_col_editor(main_window, file_path)
-                        return editor is not None
-                    except ImportError:
-                        QMessageBox.warning(main_window, "COL Support", 
-                            "COL file loading not available.\n\nPlease ensure COL integration is properly installed.")
-                        return False
+                from apps.methods.populate_col_table import load_col_file_safely
+                return load_col_file_safely(main_window, file_path)
         
         return False
 

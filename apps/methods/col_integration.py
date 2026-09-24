@@ -1,4 +1,4 @@
-#this belongs in components/col_integration_main.py - Version: 8
+#this belongs in apps/methods/col_integration.py - Version: 9
 # X-Seti - July20 2025 - IMG Factory 1.5 - COL Integration Main
 # Complete COL integration for IMG Factory using IMG debug system
 
@@ -147,12 +147,12 @@ def add_col_tab(img_factory_instance): #vers 1
         col_splitter = QSplitter(Qt.Orientation.Horizontal)
         
         # Left panel - COL file list
-        from apps.components.col_functions import COLListWidget
+        from apps.methods.col_functions import COLListWidget
         col_list_widget = COLListWidget()
         col_splitter.addWidget(col_list_widget)
         
         # Right panel - COL model details
-        from apps.components.col_functions import COLModelDetailsWidget
+        from apps.methods.col_functions import COLModelDetailsWidget
         col_details_widget = COLModelDetailsWidget()
         col_splitter.addWidget(col_details_widget)
         
@@ -232,21 +232,14 @@ def add_col_file_detection(img_factory_instance): #vers 1
         img_debugger.error(f"Error adding COL file detection: {e}")
         return False
 
-def open_col_editor(img_factory_instance, file_path=None): #vers 1
-    """Open COL editor"""
+def open_col_editor(img_factory_instance, file_path=None): #vers 2
+    """Open COL Workshop, optionally with a file."""
     try:
-        # Try to open COL editor if available
-        try:
-            from apps.components.Col_Editor.col_editor import COLEditorDialog
-            editor = COLEditorDialog(img_factory_instance)
-            if file_path:
-                editor.load_col_file(file_path)
-            editor.exec()
-        except ImportError:
-            QMessageBox.information(img_factory_instance, "COL Editor",
-                "COL editor will be available in a future version.")
+        from apps.components.Col_Editor.col_workshop import open_col_workshop
+        return open_col_workshop(img_factory_instance, file_path)
     except Exception as e:
         img_debugger.error(f"Failed to open COL editor: {str(e)}")
+        return None
 
 def replace_col_in_img(img_factory_instance, entry): #vers 1
     """Replace COL file in IMG with new one"""
@@ -373,11 +366,9 @@ def load_col_from_img_entry(img_factory_instance, entry): #vers 1
         return False
 
 
-def integrate_col_editor(main_window) -> bool: #vers 1
+def integrate_col_editor(main_window) -> bool: #vers 2
     """Integrate COL editor functionality"""
     try:
-        from apps.components.Col_Editor.col_editor import open_col_editor
-
         # Add COL editor methods to main window
         main_window.open_col_editor = lambda file_path=None: open_col_editor(main_window, file_path)
 
@@ -493,10 +484,9 @@ def detect_col_version_from_data(data: bytes) -> Optional[dict]: #vers 1
 
 # COL operation functions
 
-def create_col_editor_action(img_factory_instance): #vers 1
+def create_col_editor_action(img_factory_instance): #vers 2
     """Create COL editor action using IMG debug system"""
     try:
-        from apps.components.Col_Editor.col_editor import open_col_editor
         return open_col_editor(img_factory_instance)
         
     except Exception as e:
@@ -514,20 +504,16 @@ def open_col_batch_processor(img_factory_instance): #vers 1
         img_debugger.error(f"Error opening COL batch processor: {e}")
         return False
 
-def open_col_editor_with_file(img_factory_instance, col_file: COLFile): #vers 1
+def open_col_editor_with_file(img_factory_instance, col_file: COLFile): #vers 2
     """Open COL editor with specific file using IMG debug system"""
     try:
-        from apps.components.Col_Editor.col_editor import COLEditorDialog
-        editor = COLEditorDialog(img_factory_instance)
-        if col_file.file_path:
-            editor.load_col_file(col_file.file_path)
-        return editor.exec()
+        return open_col_editor(img_factory_instance, col_file.file_path)
         
     except Exception as e:
         img_debugger.error(f"Error opening COL editor with file: {e}")
         return False
 
-def edit_col_from_img(img_factory_instance, row: int): #vers 1
+def edit_col_from_img(img_factory_instance, row: int): #vers 2
     """Edit COL file from IMG entry using IMG debug system"""
     try:
         if not hasattr(img_factory_instance, 'current_img') or not img_factory_instance.current_img:
@@ -546,8 +532,7 @@ def edit_col_from_img(img_factory_instance, row: int): #vers 1
                 temp_path = temp_file.name
             
             # Open editor with temporary file
-            from apps.components.Col_Editor.col_editor import open_col_editor
-            result = open_col_editor(img_factory_instance, temp_path)
+            result = open_col_editor(img_factory_instance, temp_path) is not None
             
             # Clean up temporary file
             try:
@@ -973,7 +958,7 @@ def setup_threaded_col_loading(main_window): #vers 1
     try:
         col_debug_log(main_window, "Setting up threaded COL loading", 'COL_THREADING')
         
-        from apps.components.col_loader import COLBackgroundLoader
+        from apps.methods.col_loader import COLBackgroundLoader
         
         # Create background loader
         col_loader = COLBackgroundLoader()
@@ -1015,7 +1000,7 @@ def setup_col_file_loading(main_window) -> bool: #vers 1
         return False
 
 
-def verify_col_components() -> bool: #vers 1
+def verify_col_components() -> bool: #vers 2
     """Verify all COL components are available"""
     missing_components = []
 
@@ -1026,10 +1011,10 @@ def verify_col_components() -> bool: #vers 1
         missing_components.append("methods.col_core_classes")
 
     try:
-        from apps.components.Col_Editor.col_editor import COLEditorDialog
-        img_debugger.debug("✅ COL editor available")
+        from apps.components.Col_Editor.col_workshop import open_col_workshop
+        img_debugger.debug("COL workshop available")
     except ImportError:
-        missing_components.append("components.Col_Editor.col_editor")
+        missing_components.append("components.Col_Editor.col_workshop")
 
     try:
         from apps.methods.col_utilities import COLBatchProcessor
