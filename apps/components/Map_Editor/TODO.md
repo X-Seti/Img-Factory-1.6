@@ -53,7 +53,7 @@ Extracted from inline `#TODO` comments in map_workshop.py, .per
 
 - [REMOVED Sep 23 2026] `apply_changes`, `_apply_prelighting` stubs were dead code; removed.
 - [DONE Sep 23 2026] IPL write-back: "Save IPL" overwrites original (text, loose binary, or SA stream in IMG), backup first.
-- Still missing: prelight bake to DFF.
+- [DONE Sep 24 2026] Prelight bake to DFF (ambient + sun into existing prelit colours, patched in IMG, undoable).
 - [DONE Sep 23 2026] Unsaved change highlight, Save All (Ctrl+S), close/quit reminder, save points.
 - [DONE Sep 23 2026] Gizmo drag of single objects; editable IPL/IDE lines in Object Editor; IDE objs/tobj write-back.
 - [DONE Sep 24 2026] IDE write-back for every section (raw line edit, parsed and ID-checked); IDE edits included in save points.

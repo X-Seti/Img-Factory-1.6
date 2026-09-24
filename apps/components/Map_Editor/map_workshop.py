@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 205
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 206
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -162,6 +162,7 @@ except ImportError:
 # _apply_instance_fields
 # _apply_savepoint_settings
 # _auto_savepoint
+# _bake_prelight_selected
 # _camera_bookmarks_menu
 # _check_ide_raw
 # confirm_close
@@ -470,6 +471,7 @@ except ImportError:
 # show_help
 # show_settings_dialog
 # toggle_dock_mode
+# _write_img_entry
 # _write_ipl_as_game
 # _write_ipl_in_place
 #
@@ -3241,6 +3243,9 @@ class MapSettings(QObject):
         # Game controller (Sep 24 2026)
         'gamepad_enabled':  False,
         'gamepad_deadzone': 0.15,
+        # Prelight bake (Sep 24 2026)
+        'prelight_ambient': (90, 90, 100), 'prelight_diffuse': (200, 190, 170),
+        'prelight_azimuth': 135.0, 'prelight_elevation': 45.0, 'prelight_strength': 1.0,
         # The real "other grid options" this same comment block above
         # already flagged as coming later (Aug 20 2026)
         'grid_type': 'lines',
@@ -20768,7 +20773,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._on_ipl_selection_changed(names)
 
 
-    def _on_hover_context_menu(self, inst): #vers 2
+    def _on_hover_context_menu(self, inst): #vers 3
         """Fired by DFFViewport.set_hover_context_callback on a right-
         click while an instance is currently hover-highlighted (Aug
         19 2026). Object actions work on the selection (or this object)."""
@@ -20785,6 +20790,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         for ax in 'xyz':
             align.addAction(ax.upper(), lambda a=ax: self._align_selected(a)).setEnabled(n > 1)
         menu.addAction("Distribute evenly", self._distribute_selected).setEnabled(n > 2)
+        menu.addAction("Bake Prelight to DFF...", self._bake_prelight_selected)
         menu.addSeparator()
         menu.addAction(f"Delete ({n})\tDel", self._delete_selected_instances)
         chosen = menu.exec(QCursor.pos())
@@ -22239,6 +22245,84 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             act.setChecked(on)
             act.blockSignals(False)
         self._set_status(f"Edge snap {'on' if on else 'off'}")
+
+    def _write_img_entry(self, img_path, name, data): #vers 1
+        """Replace one IMG entry (archive backed up by the IMG writer); raises on failure."""
+        cache = getattr(self, '_model_cache', None)
+        img = cache._opened_img_files.get(img_path) if cache is not None else None
+        if img is None:
+            from apps.methods.img_core_classes import IMGFile
+            img = IMGFile(img_path)
+            if not img.open():
+                raise IOError(f"couldn't open {img_path}")
+        if not img.add_entry(name, data):
+            raise IOError(getattr(img, 'last_error', '') or f"{os.path.basename(img_path)} refused {name}")
+        if cache is not None:
+            cache._geometry_cache.pop(os.path.splitext(name)[0].lower(), None)
+
+    def _bake_prelight_selected(self): #vers 1
+        """Bake ambient + sun into the prelit colours of the selected objects' DFFs (undoable)."""
+        insts = self._selected_instances()
+        cache = getattr(self, '_model_cache', None)
+        if not insts or cache is None:
+            self._set_status("Bake prelight: select objects in a loaded world first")
+            return
+        from apps.components.Map_Editor.depends.map_prelight import PrelightDialog, bake_prelight, light_vector
+        from apps.methods.dff_parser import DFFParser, detect_dff
+        from apps.methods.dff_patch import patch_dff
+        dlg = PrelightDialog(self, self.map_settings)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        amb, dif, az, el, strength = dlg.values()
+        sun = light_vector(az, el)
+        vp = self.preview_widget
+        firsts = {}
+        for i in insts:
+            firsts.setdefault(i.model_name.lower(), i)
+        writes, notes = [], []
+        for key, inst in firsts.items():
+            hit = None
+            for img_path, entry in cache._dff_index.get(key, []):
+                data = cache._read_entry(img_path, entry)
+                if data and detect_dff(data):
+                    hit = (img_path, entry, data)
+                    break
+            if hit is None:
+                notes.append(f"{key}: DFF not found in loaded IMGs")
+                continue
+            img_path, entry, data = hit
+            model = DFFParser(data, key).parse()
+            eff = self._effective_rotation(inst)
+            lm = vp._quat_rotate((-eff[0], -eff[1], -eff[2], eff[3]), sun)     # world sun -> model space
+            if not bake_prelight(model, lm, amb, dif, strength):
+                notes.append(f"{key}: no prelit colours to bake into")
+                continue
+            try:
+                new, _rep = patch_dff(data, model)
+            except Exception as e:
+                notes.append(f"{key}: {e}")
+                continue
+            if new == data:
+                notes.append(f"{key}: unchanged")
+                continue
+            writes.append((img_path, entry.name, data, new))
+
+        def _apply(k):
+            for img_path, name, old, new in writes:
+                self._write_img_entry(img_path, name, (old, new)[k])
+            self._apply_ipl_visibility_filter(auto_fit=False)
+
+        if writes:
+            try:
+                _apply(1)
+            except Exception as e:
+                QMessageBox.warning(self, "Bake Prelight", f"Write failed: {e}")
+                return
+            self._push_map_undo(lambda: _apply(0), lambda: _apply(1), f"Bake prelight ({len(writes)} DFF)")
+        msg = f"Baked prelight into {len(writes)} DFF(s)"
+        if notes:
+            QMessageBox.information(self, "Bake Prelight", msg + "\n\n" + "\n".join(notes[:30]))
+        self._set_status(msg)
 
     def _show_map_checks(self): #vers 1
         """LOD links, IDE ID conflicts, missing assets and limits in one dialog."""

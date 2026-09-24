@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 141
+#this belongs in root /ChangeLog.md - Version: 142
+
+## Sep 24 2026 - Map Workshop: prelight bake to DFF, Build 431.92
+
+Viewport right-click > Bake Prelight: ambient + sun colour, azimuth / elevation, strength (new depends/map_prelight.py). Sun turned into each model's space by its placement.
+
+Only DFFs that already carry prelit colours are baked; written via dff_patch into the IMG entry (archive backed up), undoable.
 
 ## Sep 24 2026 - Map Workshop: IDE raw-line editing for all sections, IDE edits in save points, Build 431.92
 
