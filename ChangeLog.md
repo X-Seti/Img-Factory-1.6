@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 152
+#this belongs in root /ChangeLog.md - Version: 153
+
+## Sep 24 2026 - COL Workshop cleanup, Build 431.92
+- Removed ~2,100 dead lines (old COLEditorDialog, unused methods); settings dialog crash fixed (coll_form, Apply widget names); emojis removed.
 
 ## Sep 24 2026 - Context menu imports, Build 431.92
 - gui_context: removed 3 duplicate COL functions, now imports shared ones; fixed 16 "from gui" imports.
