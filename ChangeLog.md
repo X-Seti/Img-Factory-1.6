@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 154
+#this belongs in root /ChangeLog.md - Version: 155
+
+## Sep 24 2026 - IMG Factory imports, Build 431.92
+- Export Via, Quick Export, Dump, Import Via, Remove Via pointed at real core modules; removed shadowed open_file_dialog and 2 unused setup methods.
 
 ## Sep 24 2026 - Map/Model Workshop imports, Build 431.92
 - Texlist TXD browse/add and Save TXD used missing functions; now txd_parser / serialize_txd_file.

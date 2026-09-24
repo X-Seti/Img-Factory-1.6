@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 92
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 93
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -167,30 +167,6 @@ def get_current_git_branch(): #vers 1
         return ""
     except:
         return ""
-
-def setup_rebuild_system(self): #vers 1
-    """Setup hybrid rebuild system with mode selection"""
-    try:
-        from apps.core.hybrid_rebuild import setup_hybrid_rebuild_methods
-        success = setup_hybrid_rebuild_methods(self)
-
-        if success:
-            self.log_message("Hybrid rebuild system enabled")
-            # Now you have these methods available:
-
-            # self.rebuild_all_img() - Shows batch mode dialog
-            # self.quick_rebuild() - Fast mode only
-            # self.fast_rebuild() - Direct fast mode
-            # self.safe_rebuild() - Direct safe mode
-        else:
-            self.log_message("Hybrid rebuild setup failed")
-
-        return success
-
-    except ImportError:
-        self.log_message("Hybrid rebuild not available")
-        return False
-
 
 def create_rebuild_menu(self): #vers 1
     """Create rebuild menu with mode options"""
@@ -3896,32 +3872,6 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error updating info bar: {str(e)}")
 
 
-    def setup_robust_tab_system(self): #vers 1
-        """Setup robust tab system during initialization"""
-        try:
-            # Import and install robust tab system
-            from apps.core.robust_tab_system import install_robust_tab_system
-
-            if install_robust_tab_system(self):
-                self.log_message("Robust tab system ready")
-
-                # Run initial integrity check
-                if hasattr(self, 'validate_tab_data_integrity'):
-                    self.validate_tab_data_integrity()
-
-                return True
-            else:
-                self.log_message("Failed to setup robust tab system")
-                return False
-
-        except ImportError:
-            self.log_message("âš Robust tab system not available - using basic system")
-            return False
-        except Exception as e:
-            self.log_message(f"Error setting up robust tab system: {str(e)}")
-            return False
-
-
     def _reindex_open_files_robust(self, removed_index): #vers 1
         """ROBUST: Reindex with data preservation"""
         try:
@@ -4118,12 +4068,6 @@ class IMGFactory(QMainWindow):
             open_file_dialog(self)  # Call function with self parameter
         except Exception as e:
             self.log_message(f"Error opening file dialog: {str(e)}")
-
-
-    def open_file_dialog(self): #vers 1
-        """Unified file dialog - imported from apps.core."""
-        from apps.core.open_img import open_file_dialog
-        return open_file_dialog(self)
 
 
     def scan_img_folder(self): #vers 1
@@ -5897,39 +5841,39 @@ class IMGFactory(QMainWindow):
     def reload_file(self):
         return self.reload_current_file()
 
-    def export_selected_via(self): #vers 1
+    def export_selected_via(self): #vers 2
         """Export selected entries via IDE file"""
-        from apps.core.exporter import export_via_function
+        from apps.core.export_via import export_via_function
         export_via_function(self)
 
-    def quick_export_selected(self): #vers 1
+    def quick_export_selected(self): #vers 2
         """Quick export selected entries"""
-        from apps.core.exporter import quick_export_function
+        from apps.core.quick_export import quick_export_function
         quick_export_function(self)
 
-    def dump_entries(self): #vers 1
+    def dump_entries(self): #vers 2
         """Dump all entries"""
         try:
-            from apps.core.exporter import dump_all_function
+            from apps.core.dump import dump_all_function
             dump_all_function(self)
         except Exception as e:
             self.log_message(f"Dump error: {str(e)}")
 
 
-    def import_files_via(self): #vers 1
+    def import_files_via(self): #vers 2
         """Import files via IDE file"""
         try:
-            from apps.core.importer import import_via_function
+            from apps.core.import_via import import_via_function
             import_via_function(self)
         except Exception as e:
             self.log_message(f"Import via error: {str(e)}")
 
 
-    def remove_via_entries(self):
+    def remove_via_entries(self): #vers 2
         """Remove entries via IDE file"""
         try:
-            from apps.core.remove import remove_via_entries_function
-            remove_via_entries_function(self)
+            from apps.core.remove_via import remove_via_function
+            remove_via_function(self)
         except Exception as e:
             self.log_message(f"Remove via error: {str(e)}")
 
