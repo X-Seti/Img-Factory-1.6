@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 142
+#this belongs in root /ChangeLog.md - Version: 143
+
+## Sep 24 2026 - Map_Editor: removed 46 unused files, Build 431.92
+
+44 unused depends/ copies of methods/ files, plus unused dockable_toolbar.py and model_mesh_editor.py. Import check passes; recoverable from git history.
 
 ## Sep 24 2026 - Map Workshop: prelight bake to DFF, Build 431.92
 
