@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 146
+#this belongs in root /ChangeLog.md - Version: 147
+
+## Sep 24 2026 - Model Workshop: dead code removed, settings dialog crashes fixed, Build 431.92
+
+~2,950 unreachable lines removed (old COL editor leftovers, unwired stubs, shadowed duplicate methods, unused imports).
+
+Settings dialog (Preferences key) crashed: coll_form typo, Apply read seven widgets that do not exist; fixed to the real shadow checkboxes. Status bar and light-preset icon size undefined names fixed.
 
 ## Sep 24 2026 - Model Workshop: keep opened models, Build 431.92
 
