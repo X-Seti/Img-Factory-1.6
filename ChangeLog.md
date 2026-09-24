@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 138
+#this belongs in root /ChangeLog.md - Version: 139
+
+## Sep 24 2026 - Map Workshop gizmo: chips, move/rotate modes, arrowheads, footprint, height line, Build 431.92
+
+Floating chip bar: Move / Rot, X / Y / XY / Z, height label. W / E modes, Tab / Shift+Tab constraint. Drag selected object body under constraint.
+
+Rotate mode shows one ring. Solid cone arrowheads. Dashed footprint outline (convex hull, cached). Height line to ground.
 
 ## Sep 23 2026 - Map Workshop: diff view, mod package export, camera bookmarks, Build 431.92
 

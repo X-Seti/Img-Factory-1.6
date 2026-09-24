@@ -1010,7 +1010,7 @@ Not started - needs its own design pass before implementation:
 - [DONE Sep 23 2026] Camera bookmarks: jump between work areas.
 
 ## Gizmo and controller (Sep 24 2026)
-- Gizmo constraint chips beside object: X | Y | XY | Z; Tab / Shift+Tab cycle; drag object under chosen constraint.
-- Move / Rotate modes (W / E); rotate shows single ring for chosen axis.
-- Solid arrowheads, thicker highlighted shafts; footprint outline on ground; height line to ground with distance.
+- [DONE Sep 24 2026] Gizmo constraint chips beside object: X | Y | XY | Z; Tab / Shift+Tab cycle; drag object under chosen constraint.
+- [DONE Sep 24 2026] Move / Rotate modes (W / E); rotate shows single ring for chosen axis.
+- [DONE Sep 24 2026] Solid arrowheads, thicker highlighted shafts; footprint outline on ground; height line to ground with distance.
 - Game controller camera: fly viewport like in game (sticks move / look, triggers up / down); LB / RB cycle gizmo chips.

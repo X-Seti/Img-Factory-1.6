@@ -1,13 +1,18 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 18
+# this belongs in apps/methods/dff_viewport.py - Version: 19
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
 Standalone tools import from their own methods/dff_viewport.py.
 
 ##Methods list -
+# DFFViewport._build_gizmo_chips
+# DFFViewport._constraint_axis
+# DFFViewport._cycle_constraint
 # DFFViewport.dragEnterEvent
 # DFFViewport.dragMoveEvent
+# DFFViewport._draw_cone
+# DFFViewport._draw_footprint
 # DFFViewport._draw_gizmo
 # DFFViewport._draw_rubber_band
 # DFFViewport._draw_script_markers
@@ -15,6 +20,8 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.dropEvent
 # DFFViewport._entry_for
 # DFFViewport._entry_radius
+# DFFViewport.focusNextPrevChild
+# DFFViewport._footprint
 # DFFViewport._gizmo_axis_param
 # DFFViewport._gizmo_begin
 # DFFViewport._gizmo_cancel
@@ -52,6 +59,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._pick_face
 # DFFViewport._pick_ray
 # DFFViewport._pick_vertex
+# DFFViewport._place_gizmo_chips
 # DFFViewport._point_seg_dist2
 # DFFViewport._quat_axis
 # DFFViewport._quat_mul
@@ -61,11 +69,14 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._refresh
 # DFFViewport._ring_angle
 # DFFViewport._ring_points
+# DFFViewport._rot_axis
 # DFFViewport._rubber_select
 # DFFViewport._rw_wrap_to_gl
 # DFFViewport._seg2d_dist2
 # DFFViewport.selected_instances
 # DFFViewport._selected_set_for_mode
+# DFFViewport.set_gizmo_constraint
+# DFFViewport.set_gizmo_mode
 # DFFViewport.set_gizmo_move_callback
 # DFFViewport.set_gizmo_rotate_callback
 # DFFViewport.set_gizmo_target
@@ -75,6 +86,8 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.set_selection_callback
 # DFFViewport._setup_lighting
 # DFFViewport._strip_tex_suffix
+# DFFViewport._sync_gizmo_chips
+# DFFViewport._update_gizmo_ground
 # DFFViewport._upload_textures
 # DFFViewport.clear_textures
 # DFFViewport.fit_to_window
@@ -131,7 +144,7 @@ import numpy as np
 from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt, QPoint, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QLabel
+from PyQt6.QtWidgets import QWidget, QLabel, QFrame, QHBoxLayout, QToolButton, QButtonGroup
 from PyQt6.QtGui import QColor, QFont
 
 # Default viewport camera keybindings (Aug 16 2026)
@@ -363,6 +376,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._sel_insts = []                    # multi-selection
         self._rubber = None                     # (x0, y0, x1, y1) while box selecting
         self._script_markers = []               # [(x, y, z, (r, g, b))] from main.scm
+        self._gizmo_mode = 'move'               # 'move' | 'rotate'
+        self._gizmo_constraint = 'xy'           # 'x' | 'y' | 'xy' | 'z'
+        self._gizmo_ground = None               # ground z under the gizmo target
+        self._gizmo_chips = None                # floating chip bar (built on first use)
+        self._footprint_cache = {}
         # Axis lock (Aug 18 2026)
         self._ipl_drag_axis_lock = None
         # 3-state Drag/Move/Rotate cycle (Aug 19 2026)
@@ -4193,7 +4211,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Select one instance and show the gizmo on it (None clears)."""
         self.set_selection([inst] if inst is not None else [], inst, notify=False)
 
-    def set_selection(self, insts, primary=None, notify=True): #vers 1
+    def set_selection(self, insts, primary=None, notify=True): #vers 2
         """Replace the object selection; primary carries the gizmo."""
         if self._gizmo_move_callback is None:
             insts, primary = [], None
@@ -4202,6 +4220,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             primary = self._sel_insts[-1]
         self._gizmo_inst = primary
         self._gizmo_drag = None
+        self._update_gizmo_ground()
+        self._sync_gizmo_chips()
         if notify and self._selection_callback is not None:
             self._selection_callback(list(self._sel_insts), primary)
         self.update()
@@ -4265,24 +4285,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 pts.append((c[0] + ca, c[1], c[2] + sa))
         return pts
 
-    def _gizmo_pick_axis(self, mx, my): #vers 2
-        """'x'/'y'/'z' arrow, 'free' centre, 'rx'/'ry'/'rz' ring under the mouse, else None."""
+    def _gizmo_pick_axis(self, mx, my): #vers 3
+        """Handle under the mouse: 'x'/'y'/'z' arrow or 'free' centre (move), 'r?' ring (rotate)."""
         e = self._gizmo_entry()
         if e is None:
             return None
         px, py, pz = e['pos']
         L = self._gizmo_size(e['pos'])
+        rot_mode = self._gizmo_mode == 'rotate'
+        rax = self._rot_axis()
         world = [(px, py, pz), (px + L, py, pz), (px, py + L, pz), (px, py, pz + L)]
-        rings = {ax: self._ring_points((px, py, pz), ax, L * 0.8) for ax in 'xyz'}
-        for ax in 'xyz':
-            world += rings[ax]
+        if rot_mode:
+            world += self._ring_points((px, py, pz), rax, L * 0.8)
         pts = self._gizmo_project(world)
         if not pts:
             return None
         c = pts[0]
         if (mx - c[0]) ** 2 + (my - c[1]) ** 2 <= 64:
-            return 'free'
+            return 'r' + rax if rot_mode else 'free'
         best, best_d = None, 49.0                       # within 7 px
+        if rot_mode:
+            rp = pts[4:]
+            for k in range(len(rp)):
+                d = self._seg2d_dist2(mx, my, rp[k], rp[(k + 1) % len(rp)])
+                if d < best_d:
+                    best, best_d = 'r' + rax, d
+            return best
         for axis, tip in zip('xyz', pts[1:4]):
             ax, ay = tip[0] - c[0], tip[1] - c[1]
             l2 = ax * ax + ay * ay
@@ -4292,16 +4320,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             d = (mx - c[0] - ax * t) ** 2 + (my - c[1] - ay * t) ** 2
             if t > 0.15 and d < best_d:
                 best, best_d = axis, d
-        if best is not None:
-            return best
-        n = self._RING_SEGS
-        for i, ax in enumerate('xyz'):
-            rp = pts[4 + i * n: 4 + (i + 1) * n]
-            for k in range(n):
-                a, b = rp[k], rp[(k + 1) % n]
-                d = self._seg2d_dist2(mx, my, a, b)
-                if d < best_d:
-                    best, best_d = 'r' + ax, d
         return best
 
     @staticmethod
@@ -4354,26 +4372,36 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         ang = math.degrees(math.atan2(-(my - c[1]), mx - c[0]))
         return ang * self._gizmo_drag['sign']
 
-    def _gizmo_begin(self, mx, my, modifiers): #vers 2
-        """Start a gizmo drag from an arrow / ring / centre, or Ctrl+click an object."""
+    def _rot_axis(self): #vers 1
+        """Rotate axis from the constraint chip (XY means Z)."""
+        return self._gizmo_constraint if self._gizmo_constraint in 'xyz' and len(self._gizmo_constraint) == 1 else 'z'
+
+    def _constraint_axis(self): #vers 1
+        """Drag kind for a body / centre drag under the current mode and chip."""
+        if self._gizmo_mode == 'rotate':
+            return 'r' + self._rot_axis()
+        return 'free' if self._gizmo_constraint == 'xy' else self._gizmo_constraint
+
+    def _gizmo_begin(self, mx, my, modifiers): #vers 3
+        """Start a drag from a handle, from the selected object's body, or Ctrl+click another object."""
         axis = self._gizmo_pick_axis(mx, my) if self._gizmo_inst is not None else None
+        if axis == 'free':
+            axis = self._constraint_axis()
         if axis is None:
-            if not (modifiers & Qt.KeyboardModifier.ControlModifier):
-                return False
             idx = self._pick_world_instance(mx, my)
-            if idx is None:
-                return False
-            inst = self._world_instances[idx].get('instance')
+            inst = self._world_instances[idx].get('instance') if idx is not None else None
             if inst is None:
                 return False
-            if inst not in self._sel_insts:
+            if inst in self._sel_insts:
+                self._gizmo_inst = inst
+            elif modifiers & Qt.KeyboardModifier.ControlModifier:
                 if modifiers & Qt.KeyboardModifier.ShiftModifier:
                     self.set_selection(self._sel_insts + [inst], inst)
                 else:
                     self.set_selection([inst], inst)
             else:
-                self._gizmo_inst = inst
-            axis = 'free'
+                return False
+            axis = self._constraint_axis()
         e = self._gizmo_entry()
         if e is None:
             return False
@@ -4388,27 +4416,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 states.append((inst, tuple(se['pos']), tuple(se['rot']), se['scale']))
         drag = {'axis': axis, 'pivot': pivot, 'states': states,
                 'delta': (0.0, 0.0, 0.0), 'angle': 0.0}
+        self._gizmo_drag = drag
         if axis == 'free':
             drag['ref'] = self._screen_to_ground_position(mx, my, ground_z=pivot[2])
-        elif axis in 'xyz':
+        elif axis in ('x', 'y', 'z'):
             drag['ref'] = self._gizmo_axis_param(ray, pivot, axis)
         else:
             sc = self._gizmo_project([pivot])
             if not sc:
+                self._gizmo_drag = None
                 return False
             drag['screen_c'] = sc[0]
             a = {'rx': (1, 0, 0), 'ry': (0, 1, 0), 'rz': (0, 0, 1)}[axis]
             d = ray[1]
             drag['sign'] = 1.0 if (a[0] * d[0] + a[1] * d[1] + a[2] * d[2]) < 0 else -1.0
-            self._gizmo_drag = drag
             drag['ref'] = self._ring_angle(mx, my, axis)
         if drag['ref'] is None:
+            self._gizmo_drag = None
             return False
-        self._gizmo_drag = drag
         self.update()
         return True
 
-    def _gizmo_update(self, mx, my, modifiers=None): #vers 2
+    def _gizmo_update(self, mx, my, modifiers=None): #vers 3
         """Move or rotate the selection live while dragging."""
         d = self._gizmo_drag
         axis = d['axis']
@@ -4454,6 +4483,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         d['delta'] = (dx, dy, dz)
         for inst, pos, rot, scale in d['states']:
             self.update_instance_transform(inst, (pos[0] + dx, pos[1] + dy, pos[2] + dz), rot, scale)
+        import time as _t
+        if _t.monotonic() - d.get('ground_t', 0.0) > 0.08:      # throttled height refresh
+            d['ground_t'] = _t.monotonic()
+            self._update_gizmo_ground()
+            self._sync_gizmo_chips()
 
     def _gizmo_cancel(self): #vers 1
         """Put the dragged selection back where it started."""
@@ -4461,7 +4495,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         for inst, pos, rot, scale in d['states']:
             self.update_instance_transform(inst, pos, rot, scale)
 
-    def _gizmo_end(self): #vers 2
+    def _gizmo_end(self): #vers 3
         """Finish a drag: restore, then hand the move / rotate to the workshop (undo, tracking)."""
         d = self._gizmo_drag
         self._gizmo_cancel()
@@ -4473,6 +4507,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             dx, dy, dz = d['delta']
             if (dx or dy or dz) and self._gizmo_move_callback is not None:
                 self._gizmo_move_callback(insts, dx, dy, dz)
+        self._update_gizmo_ground()
+        self._sync_gizmo_chips()
         self.update()
 
     def _rubber_select(self, rect, add): #vers 1
@@ -4540,45 +4576,222 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
         glPopAttrib()
 
-    def _draw_gizmo(self): #vers 2
-        """Move arrows (red X, green Y, blue Z), rotate rings, centre dot; active part yellow."""
+    def _draw_gizmo(self): #vers 3
+        """Move: solid arrows + centre. Rotate: one ring. Plus footprint, height line, chip bar."""
         e = self._gizmo_entry()
         if e is None:
+            self._place_gizmo_chips(None)
             return
         px, py, pz = e['pos']
         L = self._gizmo_size(e['pos'])
         active = self._gizmo_drag['axis'] if self._gizmo_drag else self._gizmo_hover_axis
         cols = {'x': (1.0, 0.2, 0.2), 'y': (0.2, 1.0, 0.2), 'z': (0.3, 0.5, 1.0)}
+        hi = (1.0, 0.9, 0.1)
         glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT | GL_POINT_BIT)
-        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
-        for axis, v in (('x', (1, 0, 0)), ('y', (0, 1, 0)), ('z', (0, 0, 1))):
-            glColor3f(*((1.0, 0.9, 0.1) if active == axis else cols[axis]))
-            glLineWidth(4.0 if active == axis else 2.5)
-            tip = (px + v[0] * L, py + v[1] * L, pz + v[2] * L)
-            h = L * 0.15
-            side = (0, 0, 1) if axis != 'z' else (1, 0, 0)
-            glBegin(GL_LINES)
-            glVertex3f(px, py, pz); glVertex3f(*tip)
-            for sgn in (1, -1):
-                glVertex3f(*tip)
-                glVertex3f(tip[0] - v[0] * h + side[0] * h * 0.5 * sgn,
-                           tip[1] - v[1] * h + side[1] * h * 0.5 * sgn,
-                           tip[2] - v[2] * h + side[2] * h * 0.5 * sgn)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_CULL_FACE)
+        for inst in (self._sel_insts or [self._gizmo_inst]):
+            self._draw_footprint(self._entry_for(inst))
+        glDisable(GL_DEPTH_TEST)
+        g = self._gizmo_ground
+        if g is not None and g < pz - 0.01:                     # height line to ground
+            glColor3f(1.0, 0.95, 0.3); glLineWidth(2.0)
+            glBegin(GL_LINES); glVertex3f(px, py, pz); glVertex3f(px, py, g); glEnd()
+        if self._gizmo_mode == 'move':
+            con = self._gizmo_constraint
+            for axis, v in (('x', (1, 0, 0)), ('y', (0, 1, 0)), ('z', (0, 0, 1))):
+                on = active == axis or (active == 'free' and axis in con) or (not active and axis in con and con != 'xy')
+                glColor3f(*(hi if on else cols[axis]))
+                glLineWidth(5.0 if on else 3.0)
+                tip = (px + v[0] * L, py + v[1] * L, pz + v[2] * L)
+                glBegin(GL_LINES); glVertex3f(px, py, pz); glVertex3f(*tip); glEnd()
+                self._draw_cone(tip, v, L * 0.22, L * 0.08)
+        else:
+            ax = self._rot_axis()
+            on = active == 'r' + ax
+            glColor3f(*(hi if on else (0.1, 0.85, 0.35)))
+            glLineWidth(5.0 if on else 3.5)
+            glBegin(GL_LINE_LOOP)
+            for p in self._ring_points((px, py, pz), ax, L * 0.8):
+                glVertex3f(*p)
             glEnd()
-        if self._gizmo_rotate_callback is not None:
-            for axis in 'xyz':
-                on = active == 'r' + axis
-                c = cols[axis]
-                glColor3f(*((1.0, 0.9, 0.1) if on else (c[0] * 0.7, c[1] * 0.7, c[2] * 0.7)))
-                glLineWidth(3.0 if on else 1.5)
-                glBegin(GL_LINE_LOOP)
-                for p in self._ring_points((px, py, pz), axis, L * 0.8):
-                    glVertex3f(*p)
-                glEnd()
-        glColor3f(*((1.0, 0.9, 0.1) if active == 'free' else (1.0, 1.0, 1.0)))
+        glColor3f(*(hi if active == 'free' else (1.0, 1.0, 1.0)))
         glPointSize(9.0)
         glBegin(GL_POINTS); glVertex3f(px, py, pz); glEnd()
         glPopAttrib()
+        try:                                                # chip bar follows the gizmo on screen
+            mm = glGetDoublev(GL_MODELVIEW_MATRIX)
+            pm = glGetDoublev(GL_PROJECTION_MATRIX)
+            vpt = glGetIntegerv(GL_VIEWPORT)
+            sx, sy, sz = gluProject(px, py, pz, mm, pm, vpt)
+            dpr = self.devicePixelRatioF() or 1.0
+            self._place_gizmo_chips((sx / dpr, (vpt[3] - sy) / dpr) if 0.0 <= sz <= 1.0 else None)
+        except Exception:
+            self._place_gizmo_chips(None)
+
+    def _draw_cone(self, tip, v, length, radius): #vers 1
+        """Solid arrowhead pointing along unit axis v, apex at tip."""
+        base = (tip[0] - v[0] * length, tip[1] - v[1] * length, tip[2] - v[2] * length)
+        u = (0, 1, 0) if v[0] else (1, 0, 0)
+        w = (v[1] * u[2] - v[2] * u[1], v[2] * u[0] - v[0] * u[2], v[0] * u[1] - v[1] * u[0])
+        glBegin(GL_TRIANGLE_FAN)
+        glVertex3f(*tip)
+        for k in range(13):
+            a = 2 * math.pi * k / 12
+            ca, sa = math.cos(a) * radius, math.sin(a) * radius
+            glVertex3f(base[0] + u[0] * ca + w[0] * sa, base[1] + u[1] * ca + w[1] * sa,
+                       base[2] + u[2] * ca + w[2] * sa)
+        glEnd()
+
+    def _footprint(self, e): #vers 1
+        """(hull points relative to pos, min z offset) of an entry's model, cached."""
+        verts = e.get('col_vertices') or e.get('vertices') or []
+        if not verts:
+            return None
+        key = (e.get('model_key'), tuple(round(c, 4) for c in e['rot']), tuple(e['scale']))
+        hit = self._footprint_cache.get(key)
+        if hit is not None:
+            return hit
+        q, sc = e['rot'], e['scale']
+        pts, minz = [], None
+        step = max(1, len(verts) // 4000)
+        for v in verts[::step]:
+            r = self._quat_rotate(q, (v[0] * sc[0], v[1] * sc[1], v[2] * sc[2]))
+            pts.append((r[0], r[1]))
+            minz = r[2] if minz is None or r[2] < minz else minz
+        pts = sorted(set((round(x, 3), round(y, 3)) for x, y in pts))
+        if len(pts) < 3:
+            return None
+
+        def cross(o, a, b):
+            return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+        lower, upper = [], []
+        for p_ in pts:
+            while len(lower) >= 2 and cross(lower[-2], lower[-1], p_) <= 0:
+                lower.pop()
+            lower.append(p_)
+        for p_ in reversed(pts):
+            while len(upper) >= 2 and cross(upper[-2], upper[-1], p_) <= 0:
+                upper.pop()
+            upper.append(p_)
+        hit = (lower[:-1] + upper[:-1], minz)
+        if len(self._footprint_cache) > 500:
+            self._footprint_cache.clear()
+        self._footprint_cache[key] = hit
+        return hit
+
+    def _draw_footprint(self, e): #vers 1
+        """Dashed white outline of the model's ground footprint."""
+        if e is None:
+            return
+        fp = self._footprint(e)
+        if fp is None:
+            return
+        hull, minz = fp
+        px, py, pz = e['pos']
+        glEnable(GL_LINE_STIPPLE)
+        glLineStipple(2, 0x3333)
+        glColor3f(1.0, 1.0, 1.0); glLineWidth(2.0)
+        glBegin(GL_LINE_LOOP)
+        for x, y in hull:
+            glVertex3f(px + x, py + y, pz + minz + 0.05)
+        glEnd()
+        glDisable(GL_LINE_STIPPLE)
+
+    def _update_gizmo_ground(self): #vers 1
+        """Refresh the ground z under the gizmo target (height line / label)."""
+        e = self._gizmo_entry()
+        if e is None:
+            self._gizmo_ground = None
+            return
+        x, y, z = e['pos']
+        moving = self._sel_insts or [self._gizmo_inst]
+        self._gizmo_ground = self.ground_z_below(x, y, z + 0.05, exclude=moving)
+
+    def _build_gizmo_chips(self): #vers 1
+        """Floating chip bar: Move / Rotate, then X / Y / XY / Z."""
+        bar = QFrame(self)
+        bar.setStyleSheet(
+            "QFrame{background:rgba(20,30,40,200);border:1px solid rgba(90,200,220,160);border-radius:4px;}"
+            "QToolButton{color:#e8f4f8;background:transparent;border:1px solid transparent;"
+            "border-radius:3px;padding:1px 6px;font-weight:bold;}"
+            "QToolButton:checked{background:rgba(60,170,190,200);border-color:#9fe8f5;}"
+            "QToolButton:hover{border-color:#9fe8f5;}")
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(3, 2, 3, 2)
+        lay.setSpacing(2)
+        self._chip_mode_grp = QButtonGroup(bar)
+        self._chip_con_grp = QButtonGroup(bar)
+        self._chip_btns = {}
+        for key, text, tip in (('move', "Move", "Move mode (W)"), ('rotate', "Rot", "Rotate mode (E)")):
+            b = QToolButton(bar); b.setText(text); b.setToolTip(tip); b.setCheckable(True)
+            b.clicked.connect(lambda _c=False, k=key: self.set_gizmo_mode(k))
+            self._chip_mode_grp.addButton(b); lay.addWidget(b); self._chip_btns[key] = b
+        sep = QLabel("|", bar); sep.setStyleSheet("color:rgba(160,200,210,160);border:none;")
+        lay.addWidget(sep)
+        for key in ('x', 'y', 'xy', 'z'):
+            b = QToolButton(bar); b.setText(key.upper()); b.setCheckable(True)
+            b.setToolTip("Constraint (Tab / Shift+Tab to cycle)")
+            b.clicked.connect(lambda _c=False, k=key: self.set_gizmo_constraint(k))
+            self._chip_con_grp.addButton(b); lay.addWidget(b); self._chip_btns[key] = b
+        self._chip_height = QLabel("", bar)
+        self._chip_height.setStyleSheet("color:#ffe97a;border:none;padding-left:4px;")
+        lay.addWidget(self._chip_height)
+        bar.hide()
+        self._gizmo_chips = bar
+        self._sync_gizmo_chips()
+
+    def _sync_gizmo_chips(self): #vers 1
+        if self._gizmo_chips is None:
+            return
+        self._chip_btns[self._gizmo_mode].setChecked(True)
+        self._chip_btns['xy'].setVisible(self._gizmo_mode == 'move')
+        self._chip_btns[self._gizmo_constraint if (self._gizmo_mode == 'move' or self._gizmo_constraint != 'xy')
+                        else 'z'].setChecked(True)
+        e = self._gizmo_entry()
+        g = self._gizmo_ground
+        self._chip_height.setText(f"H {e['pos'][2] - g:.2f}" if e is not None and g is not None else "")
+        self._gizmo_chips.adjustSize()
+
+    def _place_gizmo_chips(self, pos): #vers 1
+        """Keep the chip bar beside the gizmo; hide when off screen or no target."""
+        if pos is None:
+            if self._gizmo_chips is not None and self._gizmo_chips.isVisible():
+                self._gizmo_chips.hide()
+            return
+        if self._gizmo_chips is None:
+            self._build_gizmo_chips()
+        bar = self._gizmo_chips
+        x = int(min(max(4, pos[0] - bar.width() // 2), self.width() - bar.width() - 4))
+        y = int(min(max(4, pos[1] + 18), self.height() - bar.height() - 4))
+        if abs(bar.x() - x) > 1 or abs(bar.y() - y) > 1:
+            bar.move(x, y)
+        if not bar.isVisible():
+            bar.show()
+
+    def set_gizmo_mode(self, mode): #vers 1
+        """'move' or 'rotate'."""
+        self._gizmo_mode = mode
+        if mode == 'rotate' and self._gizmo_constraint == 'xy':
+            self._gizmo_constraint = 'z'
+        self._sync_gizmo_chips()
+        self.update()
+
+    def set_gizmo_constraint(self, con): #vers 1
+        """'x' / 'y' / 'xy' / 'z' (rotate mode uses x / y / z)."""
+        self._gizmo_constraint = con
+        self._sync_gizmo_chips()
+        self.update()
+
+    def _cycle_constraint(self, step): #vers 1
+        order = ['x', 'y', 'xy', 'z'] if self._gizmo_mode == 'move' else ['x', 'y', 'z']
+        cur = self._gizmo_constraint if self._gizmo_constraint in order else order[0]
+        self.set_gizmo_constraint(order[(order.index(cur) + step) % len(order)])
+
+    def focusNextPrevChild(self, next_): #vers 1
+        """Tab / Shift+Tab cycle gizmo constraints while an object is selected."""
+        if self._gizmo_inst is not None:
+            return False
+        return super().focusNextPrevChild(next_)
 
     # -- drop to ground / model drops (Sep 23 2026)
     def _entry_radius(self, e): #vers 1
@@ -4821,10 +5034,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Toggle zoom-toward-mouse-cursor (Aug 18 2026)"""
         self._zoom_to_cursor = enabled
 
-    def keyPressEvent(self, event): #vers 4
+    def keyPressEvent(self, event): #vers 5
         """Configurable camera controls, held keys giving continuous motion.
         Esc cancels a gizmo drag, or drops the gizmo."""
         key = event.key()
+        if self._gizmo_inst is not None and not event.modifiers() & (Qt.KeyboardModifier.ControlModifier
+                                                                    | Qt.KeyboardModifier.AltModifier):
+            if key == Qt.Key.Key_W:
+                self.set_gizmo_mode('move'); return
+            if key == Qt.Key.Key_E:
+                self.set_gizmo_mode('rotate'); return
+            if key in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
+                self._cycle_constraint(-1 if key == Qt.Key.Key_Backtab else 1); return
         if key == Qt.Key.Key_Escape and (self._gizmo_inst is not None or self._sel_insts):
             if self._gizmo_drag is not None:
                 self._gizmo_cancel()

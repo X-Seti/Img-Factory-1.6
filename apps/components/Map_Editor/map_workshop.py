@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 202
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 203
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -17894,6 +17894,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             <b>✓ TXD:</b> Auto-load matching TXD for textured preview<br><br>
             <b>Shortcuts:</b><br>
             Ctrl+O: Open  |  Ctrl+S: Save  |  Ctrl+D: Duplicate object  |  End: Drop to ground  |  Ctrl+1..9 / Ctrl+Shift+1..9: Camera bookmarks<br>
+            W / E: Move / Rotate gizmo  |  Tab / Shift+Tab: X, Y, XY, Z constraint  |  drag selected object to move<br>
             Ctrl+T: Open TXD  |  Ctrl+Z: Undo  |  Delete: Remove
         """)
         lay.addWidget(info, 1)
