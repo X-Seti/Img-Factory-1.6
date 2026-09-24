@@ -1,4 +1,4 @@
-#this belongs in root /TODO.md - Version: 11
+#this belongs in root /TODO.md - Version: 12
 
 ## July 2026 - Map Editor (Map Workshop) - status and plan
 
@@ -1523,3 +1523,7 @@ When working on tasks:
 
 **F: Resident Evil Workshop (change of pace)**
 - Repo: https://github.com/X-Seti/OG-Res-Bio-Evil-Workshop
+
+## Later - Controller and touch across all tools (Sep 24 2026)
+- Controller support for every docked tool via shared methods/gamepad_input.py: focus, menus, lists, viewports.
+- Touch screen: mostly OS-handled; check tap targets, pinch zoom, two-finger pan in viewports.
