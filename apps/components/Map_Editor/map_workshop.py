@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 204
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 205
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -158,11 +158,12 @@ except ImportError:
 # _align_selected
 # _apply_dirty_highlight
 # _apply_gamepad_setting
-# _apply_ide_fields
+# _apply_ide_raw
 # _apply_instance_fields
 # _apply_savepoint_settings
 # _auto_savepoint
 # _camera_bookmarks_menu
+# _check_ide_raw
 # confirm_close
 # _confirm_discard_ipls
 # _create_savepoint
@@ -176,6 +177,7 @@ except ImportError:
 # _forget_ipl_baseline
 # _goto_camera_bookmark
 # _ide_abs_path
+# _ide_raw_line
 # __init__
 # _add_textures_from_txd
 # _align_dialog
@@ -323,6 +325,7 @@ except ImportError:
 # _open_txd_combined    smart DFF+TXD load (DB→IMG→browse)
 # _open_txd_smart
 # _paint_cycle_mat
+# _parse_ide_raw
 # _parse_txd_lightweight
 # _pass_textures_to_txd_workshop
 # _paste_model_from_clipboard
@@ -3819,7 +3822,7 @@ class _InstanceEditPanel(QWidget):
             if nested is not None:
                 self._clear_layout_recursive(nested)
 
-    def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 4
+    def _populate_identity_section(self, ipl_line, ide_line, txd_name, interior, lod_index): #vers 5
         """Identity section: raw IPL line, raw IDE line, and a 3rd row
         with the TXD's real status - one of three messages depending
         on what actually happened when looking it up (Aug 1 2026)"""
@@ -3855,10 +3858,12 @@ class _InstanceEditPanel(QWidget):
                     self._current_ide_obj.source_ide, self._current_ide_obj.line_no))
         ide_row.addWidget(ide_show_btn)
         obj = self._current_ide_obj
-        self._ide_line_edit = QLineEdit(ide_line)
-        self._ide_line_edit.setEnabled(obj is not None and obj.section in ('objs', 'tobj'))
+        raw = self._workshop._ide_raw_line(obj) if obj is not None else None
+        self._ide_line_edit = QLineEdit(raw.rstrip('\r\n') if raw is not None else ide_line)
+        self._ide_line_edit.setEnabled(raw is not None)
         self._ide_line_edit.setToolTip(
-            "id, model, txd, then the IDE fields (draw distance, flags, times)\nEdit and press Apply")
+            "The IDE line exactly as in the file (any section) - edit and press Apply.\n"
+            "The model ID must stay the same.")
         self._ide_line_edit.returnPressed.connect(self._on_apply_clicked)
         ide_row.addWidget(self._ide_line_edit, 1)
         if obj is not None:
@@ -4574,7 +4579,7 @@ class _InstanceEditPanel(QWidget):
         else:
             self.hide()
 
-    def _on_apply_clicked(self): #vers 2
+    def _on_apply_clicked(self): #vers 3
         """Parse the edited IPL / IDE lines and apply them (undoable)."""
         inst = self._inst
         if inst is None:
@@ -4592,29 +4597,19 @@ class _InstanceEditPanel(QWidget):
         except ValueError as e:
             QMessageBox.warning(self, "Apply", f"IPL line: {e}")
             return
-        ide_vals = None
         obj = self._current_ide_obj
+        new_raw = None
         if obj is not None and self._ide_line_edit.isEnabled():
-            try:
-                q = [x.strip() for x in self._ide_line_edit.text().split(',')]
-                keys = list(obj.extra.keys())
-                if len(q) != 3 + len(keys):
-                    raise ValueError(f"IDE line needs {3 + len(keys)} fields, got {len(q)}")
-                if int(q[0]) != obj.model_id:
-                    raise ValueError("the IDE model ID can't be changed here")
-                extra = {}
-                for k, raw in zip(keys, q[3:]):
-                    old = obj.extra[k]
-                    extra[k] = int(raw) if isinstance(old, int) else float(raw)
-                if extra.get('mesh_count', None) != obj.extra.get('mesh_count', None):
-                    raise ValueError("mesh count can't be changed here")
-                ide_vals = (q[1], q[2], extra)
-            except ValueError as e:
-                QMessageBox.warning(self, "Apply", f"IDE line: {e}")
-                return
+            cur = (ws._ide_raw_line(obj) or '').rstrip('\r\n')
+            if self._ide_line_edit.text() != cur:
+                new_raw = self._ide_line_edit.text()
+                err = ws._check_ide_raw(obj, new_raw)
+                if err:
+                    QMessageBox.warning(self, "Apply", f"IDE line: {err}")
+                    return
         ws._apply_instance_fields(inst, new_inst)
-        if ide_vals is not None:
-            ws._apply_ide_fields(obj, *ide_vals)
+        if new_raw is not None:
+            ws._apply_ide_raw(obj, new_raw)
         self._refresh_position_spins()
         self._refresh_rotation_spins()
         self._refresh_scale_spins()
@@ -4626,7 +4621,7 @@ class _InstanceEditPanel(QWidget):
         else:
             self._workshop._map_undo()
 
-    def _on_save_clicked(self): #vers 2
+    def _on_save_clicked(self): #vers 3
         """Save this object's IPL (if changed) and its IDE line (if edited)."""
         inst = self._inst
         if inst is None:
@@ -4640,7 +4635,7 @@ class _InstanceEditPanel(QWidget):
             saved.append(inst.source_ipl)
         obj = self._current_ide_obj
         if obj is not None and obj.model_id in ws._ide_pending:
-            if not ws._save_pending_ide([obj]):
+            if not ws._save_pending_ide([ws._ide_pending[obj.model_id]]):
                 return
             saved.append(obj.source_ide)
         ws._set_status("Saved " + ", ".join(saved) if saved else "Nothing to save for this object")
@@ -21726,7 +21721,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._inst_baseline = {}         # id(inst) -> state tuple at load / last save
         self._baseline_loader_id = None
         self._dirty_ipls = set()
-        self._ide_pending = {}           # model_id -> edited IDEObject not yet written
+        self._ide_pending = {}           # model_id -> (IDEObject, file path, edited raw line)
         self._last_savepoint_sig = None
         self._dirty_timer = QTimer(self)
         self._dirty_timer.timeout.connect(self._refresh_dirty_ipls)
@@ -21921,23 +21916,56 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._push_map_undo(lambda: _set(old), lambda: _set(values),
                             f"Edit {inst.model_name} IPL line")
 
-    def _apply_ide_fields(self, obj, model_name, txd_name, extra): #vers 1
-        """Set IDE object fields from the object editor (undoable, saved with Ctrl+S)."""
-        old = (obj.model_name, obj.txd_name, dict(obj.extra))
-        new = (model_name, txd_name, dict(extra))
-        if old == new:
-            return
+    def _ide_raw_line(self, obj): #vers 1
+        """Current IDE line text for obj: pending edit, else the file line; None if not found."""
+        pend = self._ide_pending.get(obj.model_id)
+        if pend is not None:
+            return pend[2]
+        p = self._ide_abs_path(obj)
+        if p is None:
+            return None
+        with open(p, 'rb') as f:
+            lines = f.read().decode('latin-1').splitlines()
+        return lines[obj.line_no - 1] if 0 < obj.line_no <= len(lines) else None
 
-        def _set(v):
-            obj.model_name, obj.txd_name = v[0], v[1]
+    def _parse_ide_raw(self, obj, text): #vers 1
+        """Parse one edited IDE line in obj's section; returns the new IDEObject or None."""
+        from apps.methods.gta_dat_parser import IDEParser
+        parser = IDEParser(getattr(self._world_loader, 'game', 'sa'))
+        body = text.split('#')[0].strip()
+        return parser._parse_line(obj.section, body, obj.source_ide, obj.line_no) if body else None
+
+    def _check_ide_raw(self, obj, text): #vers 1
+        """Error text if the edited line doesn't parse or changes the model ID, else ''."""
+        new = self._parse_ide_raw(obj, text)
+        if new is None:
+            return f"doesn't parse as a '{obj.section}' line"
+        if new.model_id != obj.model_id:
+            return "the model ID can't be changed here"
+        return ''
+
+    def _apply_ide_raw(self, obj, text): #vers 1
+        """Replace obj's IDE line (any section) - fields updated, written on Ctrl+S; undoable."""
+        new = self._parse_ide_raw(obj, text)
+        path = self._ide_abs_path(obj) if obj.model_id not in self._ide_pending else self._ide_pending[obj.model_id][1]
+        old_fields = (obj.model_name, obj.txd_name, dict(obj.extra))
+        old_pend = self._ide_pending.get(obj.model_id)
+        new_fields = (new.model_name, new.txd_name, dict(new.extra))
+
+        def _set(fields, pend):
+            obj.model_name, obj.txd_name = fields[0], fields[1]
             obj.extra.clear()
-            obj.extra.update(v[2])
-            self._ide_pending[obj.model_id] = obj
+            obj.extra.update(fields[2])
+            if pend is None:
+                self._ide_pending.pop(obj.model_id, None)
+            else:
+                self._ide_pending[obj.model_id] = pend
             self._refresh_dirty_ipls()
             self._apply_dirty_highlight()
 
-        _set(new)
-        self._push_map_undo(lambda: _set(old), lambda: _set(new), f"Edit IDE {obj.model_name}")
+        _set(new_fields, (obj, path, text))
+        self._push_map_undo(lambda: _set(old_fields, old_pend),
+                            lambda: _set(new_fields, (obj, path, text)), f"Edit IDE {obj.model_name}")
 
     def _ide_abs_path(self, obj): #vers 1
         """Full path of an IDE object's source file (matched by name and line ID)."""
@@ -21955,28 +21983,26 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue
         return None
 
-    def _save_pending_ide(self, objs): #vers 2
-        """Write edited IDE objects to their .ide files; True if all written."""
-        from apps.components.Map_Editor.depends.map_changes import write_ide_objects
+    def _save_pending_ide(self, entries): #vers 3
+        """Write pending (obj, path, raw line) IDE edits; True if all written."""
+        from apps.components.Map_Editor.depends.map_changes import write_ide_raw_lines
         by_file, missing = {}, []
-        for o in objs:
-            p = self._ide_abs_path(o)
-            if p is None:
-                missing.append(f"{o.model_name} ({o.source_ide})")
+        for obj, path, raw in entries:
+            if path is None:
+                missing.append(f"{obj.model_name} ({obj.source_ide})")
             else:
-                by_file.setdefault(p, []).append(o)
+                by_file.setdefault(path, []).append((obj.line_no, obj.model_id, raw))
         errors = []
-        for p, group in by_file.items():
+        for p, rows in by_file.items():
             try:
-                write_ide_objects(p, group)
+                write_ide_raw_lines(p, rows)
                 self.__dict__.setdefault('_session_saved_ides', set()).add(p)
-                for o in group:
-                    self._ide_pending.pop(o.model_id, None)
+                for _ln, mid, _raw in rows:
+                    self._ide_pending.pop(mid, None)
             except Exception as e:
                 errors.append(f"{os.path.basename(p)}: {e}")
         if missing or errors:
-            QMessageBox.warning(self, "Save IDE",
-                                "Not saved:\n\n" + "\n".join(missing + errors))
+            QMessageBox.warning(self, "Save IDE", "Not saved:\n\n" + "\n".join(missing + errors))
         self._refresh_dirty_ipls()
         self._apply_dirty_highlight()
         return not missing and not errors
@@ -22050,14 +22076,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.show()
         self._diff_dlg = dlg
 
-    def _export_mod_package(self): #vers 1
+    def _export_mod_package(self): #vers 2
         """Changed and saved-this-session IPL / IDE files, as game-relative copies + readme + zip."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
             return
         import time
         from apps.methods.gta_dat_parser import write_binary_ipl_inst_only, detect_ipl_format
-        from apps.components.Map_Editor.depends.map_changes import ide_line_update
+        from apps.components.Map_Editor.depends.map_changes import apply_ide_raw_lines
         from apps.components.Map_Editor.depends.map_workflow import export_mod_package, package_name
         self._refresh_dirty_ipls()
         ipls = sorted(set(self._dirty_ipls) | getattr(self, '_session_saved_ipls', set()))
@@ -22091,19 +22117,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 files[rel(entry.abs_path)] = ('\r\n'.join(built[0]) + '\r\n').encode('latin-1', 'replace')
         ide_files = set(getattr(self, '_session_saved_ides', set()))
         pend_by = {}
-        for o in self._ide_pending.values():
-            p = self._ide_abs_path(o)
+        for o, p, raw in self._ide_pending.values():
             if p:
                 ide_files.add(p)
-                pend_by.setdefault(p, []).append(o)
+                pend_by.setdefault(p, []).append((o.line_no, o.model_id, raw))
         for p in sorted(ide_files):
-            with open(p, 'rb') as f:
-                lines = f.read().decode('latin-1').splitlines(keepends=True)
-            for o in pend_by.get(p, []):
-                vals = {'model_name': o.model_name, 'txd_name': o.txd_name}
-                vals.update({k: v for k, v in o.extra.items() if k != 'mesh_count'})
-                lines[o.line_no - 1] = ide_line_update(lines[o.line_no - 1], o.section, o.model_id, vals)
-            files[rel(p)] = ''.join(lines).encode('latin-1')
+            files[rel(p)] = apply_ide_raw_lines(p, pend_by.get(p, []))
         if not files:
             QMessageBox.information(self, "Export Mod Package", "No changed or saved map files this session.")
             return
@@ -22241,18 +22260,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         sub = hashlib.md5(os.path.abspath(key).encode('utf-8')).hexdigest()[:12]
         return str(_model_workshop_config_dir() / 'savepoints' / sub)
 
-    def _create_savepoint(self, label="Manual"): #vers 1
+    def _create_savepoint(self, label="Manual"): #vers 2
         """Snapshot every changed IPL's data to a save point file."""
         loader = getattr(self, '_world_loader', None)
         self._refresh_dirty_ipls()
         names = sorted(getattr(self, '_dirty_ipls', set()))
-        if loader is None or not names:
+        if loader is None or not (names or self._ide_pending):
             self._set_status("Save point: no unsaved changes to record")
             return None
         from apps.components.Map_Editor.depends.map_changes import collect_ipl_state, write_savepoint
         meta = {'game_root': getattr(self, '_game_root', ''),
                 'dat_path': getattr(self, '_loaded_dat_path', ''),
-                'game': getattr(loader, 'game', '')}
+                'game': getattr(loader, 'game', ''),
+                'ide': [{'model_id': o.model_id, 'raw': raw} for o, _p, raw in self._ide_pending.values()]}
         try:
             path = write_savepoint(self._savepoint_dir(), label, meta, collect_ipl_state(loader, names))
         except Exception as e:
@@ -22278,7 +22298,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._last_savepoint_sig = sig
             prune_savepoints(self._savepoint_dir(), int(self.map_settings.get('savepoints_keep') or 20))
 
-    def _restore_savepoint_dialog(self): #vers 1
+    def _restore_savepoint_dialog(self): #vers 2
         """Pick a save point and load its IPL data back in (undoable)."""
         loader = getattr(self, '_world_loader', None)
         if loader is None:
@@ -22299,13 +22319,22 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
         chosen = points[labels.index(pick)]
         try:
-            snap = state_from_json(read_savepoint(chosen['path']).get('ipls', {}))
+            body = read_savepoint(chosen['path'])
+            snap = state_from_json(body.get('ipls', {}))
+            ide_edits = body.get('meta', {}).get('ide', [])
         except Exception as e:
             QMessageBox.warning(self, "Restore Save Point", f"Couldn't read save point: {e}")
             return
         loaded = {i.source_ipl for i in loader.instances} | set(getattr(self, '_ipl_baseline', {}))
         missing = sorted(n for n in snap if n not in loaded)
         snap = {n: v for n, v in snap.items() if n in loaded}
+        for rec in ide_edits:
+            obj = loader.get_object(rec.get('model_id'))
+            if obj is not None and not self._check_ide_raw(obj, rec.get('raw', '')):
+                self._apply_ide_raw(obj, rec['raw'])
+        if not snap and ide_edits:
+            self._set_status(f"Restored {len(ide_edits)} IDE edit(s) from save point")
+            return
         if not snap:
             QMessageBox.warning(self, "Restore Save Point",
                                 "None of this save point's IPLs are loaded:\n\n" + "\n".join(missing))

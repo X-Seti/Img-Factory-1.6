@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 140
+#this belongs in root /ChangeLog.md - Version: 141
+
+## Sep 24 2026 - Map Workshop: IDE raw-line editing for all sections, IDE edits in save points, Build 431.92
+
+Object Editor IDE line shows the real file line; any section (objs, tobj, cars, peds, hier, 2dfx...) editable. Parsed with IDEParser, model ID locked, undoable, written with ID check and original line ending.
+
+Save points and mod package export include pending IDE edits. Removed field-position IDE writer (replaced).
 
 ## Sep 24 2026 - Map Workshop: game controller, edge snapping, Build 431.92
 
