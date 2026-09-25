@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 170
+#this belongs in root /ChangeLog.md - Version: 171
+
+## Sep 25 2026 - File tab limit, Build 431.92
+- Tab bar shows the 5 most recent IMG/COL tabs at full width; the rest in Files dropdown. Workshop tabs always shown. Tab switch now syncs taskbar.
 
 ## Sep 25 2026 - Parallel model loading, Build 431.92
 - IPL loads parse DFF/TXD in worker processes; new Map setting "Parallel load workers" (Auto = cores - 2, 1 = one at a time).

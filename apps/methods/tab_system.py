@@ -409,11 +409,13 @@ def update_references(main_window, tab_index: int): #vers 2
         main_window.log_message(f"Error updating references: {str(e)}")
 
 
-def switch_tab(main_window, tab_index: int): #vers 4
+def switch_tab(main_window, tab_index: int): #vers 5
     """Handle tab switch event - Updated to refresh table display"""
     try:
         if tab_index < 0:
             return
+        if hasattr(main_window, '_sync_img_taskbar_buttons'):   # taskbar + Files dropdown
+            main_window._sync_img_taskbar_buttons(tab_index)
 
         tab_widget = main_window.main_tab_widget.widget(tab_index)
         if not tab_widget:
@@ -923,22 +925,31 @@ __all__ = [
 ]
 
 
-TAB_OVERFLOW_AT = 5     # this many file tabs: compact tabs + [Files] dropdown
+FILE_TABS_SHOWN = 5     # IMG/COL tabs kept on the bar; the rest go in the Files dropdown
 
 
-def update_tab_overflow(main_window): #vers 1
-    """At 5+ tabs: compact tabs and a dropdown to jump to any file."""
+def update_tab_overflow(main_window): #vers 2
+    """Show the 5 most recent IMG/COL tabs; others via Files dropdown. Workshop tabs untouched."""
     from PyQt6.QtWidgets import QToolButton, QMenu
     from PyQt6.QtCore import Qt
     tw = getattr(main_window, 'main_tab_widget', None)
     if tw is None:
         return
-    bar = tw.tabBar()
-    many = tw.count() >= TAB_OVERFLOW_AT
-    bar.setElideMode(Qt.TextElideMode.ElideMiddle if many else Qt.TextElideMode.ElideNone)
-    bar.setUsesScrollButtons(True)
-    bar.setStyleSheet("QTabBar::tab { min-width: 40px; max-width: 130px; padding: 3px 6px; }"
-                      if many else "")
+    files = [i for i in range(tw.count())
+             if getattr(tw.widget(i), 'file_type', 'NONE') in ('IMG', 'COL')]
+    mru = [w for w in getattr(main_window, '_file_tab_mru', []) if tw.indexOf(w) in files]
+    cur = tw.widget(tw.currentIndex())
+    if tw.currentIndex() in files:
+        if cur in mru:
+            mru.remove(cur)
+        mru.insert(0, cur)
+    for i in files:                                  # new tabs go after recent ones
+        if tw.widget(i) not in mru:
+            mru.append(tw.widget(i))
+    main_window._file_tab_mru = mru
+    shown = set(mru[:FILE_TABS_SHOWN])
+    for i in files:
+        tw.setTabVisible(i, tw.widget(i) in shown)
     btn = getattr(main_window, '_tab_overflow_btn', None)
     if btn is None:
         btn = QToolButton(tw)
@@ -947,17 +958,20 @@ def update_tab_overflow(main_window): #vers 1
         btn.setAutoRaise(True)
         tw.setCornerWidget(btn, Qt.Corner.TopLeftCorner)
         main_window._tab_overflow_btn = btn
-    btn.setVisible(many)
-    if not many:
+    btn.setVisible(len(files) > FILE_TABS_SHOWN)
+    if len(files) <= FILE_TABS_SHOWN:
         return
-    btn.setText(f"Files ({tw.count()})")
-    btn.setToolTip("Jump to an open file")
+    btn.setText(f"Files ({len(files)})")
+    btn.setToolTip(f"{len(files) - FILE_TABS_SHOWN} more open files")
     menu = btn.menu()
     menu.clear()
-    cur = tw.currentIndex()
-    for i in range(tw.count()):
+    for i in files:
         act = menu.addAction(tw.tabIcon(i), tw.tabText(i))
         act.setCheckable(True)
-        act.setChecked(i == cur)
-        act.triggered.connect(lambda _=False, idx=i: tw.setCurrentIndex(idx))
+        act.setChecked(i == tw.currentIndex())
 
+        def _pick(_=False, w=tw.widget(i)):
+            idx = tw.indexOf(w)
+            tw.setTabVisible(idx, True)
+            tw.setCurrentIndex(idx)
+        act.triggered.connect(_pick)
