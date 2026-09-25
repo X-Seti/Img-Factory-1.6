@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 172
+#this belongs in root /ChangeLog.md - Version: 173
+
+## Sep 25 2026 - SOL SA objects invisible, Build 431.92
+- Converted IPLs store scale 0,0,0 ("no scale"); viewport drew them at zero size. Now drawn at 1,1,1; file data unchanged.
 
 ## Sep 25 2026 - Parallel load hang, Build 431.92
 - Parallel IPL load could hang waiting on workers; now polls with UI kept alive, and if workers go silent for 20s they are stopped and the rest parse in-process.

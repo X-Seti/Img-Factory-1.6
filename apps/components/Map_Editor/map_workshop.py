@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 213
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 214
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -18930,13 +18930,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if inst is not None:
             self._add_instances([inst], f"Placed {inst.model_name} in {inst.source_ipl}")
 
-    def _on_instance_edited(self, inst): #vers 3
+    @staticmethod
+    def _render_scale(inst): #vers 1
+        """Scale to draw with; (0,0,0) means no scale (converted VC/SOL IPLs)."""
+        s = (inst.scale_x, inst.scale_y, inst.scale_z)
+        return (1.0, 1.0, 1.0) if s == (0.0, 0.0, 0.0) else s
+
+    def _on_instance_edited(self, inst): #vers 4
         """Called by _InstanceEditPanel."""
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'update_instance_transform'):
             pos = (inst.pos_x, inst.pos_y, inst.pos_z)
             rot = self._effective_rotation(inst)
-            scale = (inst.scale_x, inst.scale_y, inst.scale_z)
+            scale = self._render_scale(inst)
             if vp.update_instance_transform(inst, pos, rot, scale):
 
                 loader = getattr(self, '_world_loader', None)
@@ -28863,7 +28869,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         finally:
             self._refresh_world_view_in_progress = False
 
-    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 4
+    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 5
         """The actual body of _refresh_world_view, split out only so
         the reentrancy guard above can wrap it in a try/finally
         without a second level of indentation across this whole
@@ -29023,7 +29029,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             entry = dict(base)
             entry['pos']   = (inst.pos_x, inst.pos_y, inst.pos_z)
             entry['rot']   = self._effective_rotation(inst)
-            entry['scale'] = (inst.scale_x, inst.scale_y, inst.scale_z)
+            entry['scale'] = self._render_scale(inst)
             entry['model_key'] = model_name
             entry['instance'] = inst
             entries.append(entry)
