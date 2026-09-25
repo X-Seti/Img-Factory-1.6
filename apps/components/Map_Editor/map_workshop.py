@@ -3497,7 +3497,6 @@ class _PathGroupEditDialog(QDialog): #vers 1
         self._table = QTableWidget(12, len(headers))
         self._table.setHorizontalHeaderLabels(headers)
         self._table.verticalHeader().setVisible(False)
-        self._table.verticalHeader().setDefaultSectionSize(20)
 
         nodes = list(group.nodes)[:12]
         from apps.methods.gta_dat_parser import PathNode
