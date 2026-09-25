@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 95
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 96
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -114,7 +114,6 @@ from apps.methods.col_functions import setup_complete_col_integration
 from apps.methods.col_parsing_functions import load_col_file_safely
 from apps.methods.col_structure_manager import COLStructureManager
 from apps.methods.img_analyze import analyze_img_corruption, show_analysis_dialog
-from apps.methods.img_integration import integrate_img_functions, img_core_functions
 from apps.methods.img_validation import IMGValidator
 from apps.methods.tab_system import (setup_tab_system, migrate_tabs, create_tab, update_references, integrate_tab_system)
 
@@ -459,7 +458,6 @@ class IMGFactory(QMainWindow):
         integrate_ide_parser(self)
         integrate_ide_dialog(self)
         integrate_dump_functions(self)
-        integrate_img_functions(self)
         integrate_export_functions(self)
         integrate_import_functions(self)
 

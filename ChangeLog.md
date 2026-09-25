@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 157
+#this belongs in root /ChangeLog.md - Version: 158
+
+## Sep 25 2026 - TXD Workshop fixes, Build 431.92
+- TXD Workshop: ~1,700 dead lines removed; Texture Properties dialog crash, titlebar menu crash, settings log crash, mipmap typo fixed.
+- Removed no-op img_integration.py and dead highlight code.
 
 ## Sep 25 2026 - Dedupe context/menu functions, Build 431.92
 - imgfactory: 1,600 dead lines removed; menu/rename/file-op functions now only in gui_context; comprehensive.py (duplicate) deleted.
