@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 21
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 22
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -514,7 +514,6 @@ class RadarGridWidget(QWidget):
         (Aug 20 2026 - see that function's own docstring for why this
         logic moved there)."""
         return _get_ui_color_for(self, key)
-        return pal.color(pal.ColorRole.WindowText)
     """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
     tile_clicked        = pyqtSignal(int)
     grid_right_clicked  = pyqtSignal(int, QPoint)   # idx, global pos

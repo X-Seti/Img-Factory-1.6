@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 163
+#this belongs in root /ChangeLog.md - Version: 164
+
+## Sep 25 2026 - More undefined names, Build 431.92
+- col_loader typing import broke COL threaded loading; settings hero label; dead code in settings drag area, radar, handling editor.
 
 ## Sep 25 2026 - Right-click menu, Build 431.92
 - DFF Model Info shows real frames/geometry/textures; IDE View Definitions and COL Analyze now work (were "not available").

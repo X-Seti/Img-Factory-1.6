@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 74
+#This goes in root/apps/utils/app_settings_system.py - version 75
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3724,7 +3724,7 @@ class PanelPreviewWidget(QWidget): #vers 1
         f = QFont("Arial", 14, QFont.Weight.Bold)
         p.setFont(f)
         from PyQt6.QtCore import Qt
-        AppBuildLabel = (f"{app_name} - Build {App_build}")
+        AppBuildLabel = (f"{App_name} - Build {App_build}")
         p.drawText(r.adjusted(16,0,0,0), Qt.AlignmentFlag.AlignVCenter, AppBuildLabel)
         p.setPen(QColor("#aaaacc"))
         f2 = QFont("Arial", 8)
@@ -4110,7 +4110,7 @@ class SettingsDialog(QDialog): #vers 15
             self.showMaximized()
 
 
-    def _is_on_draggable_area(self, pos): #vers 4
+    def _is_on_draggable_area(self, pos): #vers 5
         """Check if position is on the draggable titlebar area.
         Works for both CustomWindow (self.toolbar) and SettingsDialog
         (self.dialog_titlebar). Returns True if pos is inside the titlebar
@@ -4140,13 +4140,6 @@ class SettingsDialog(QDialog): #vers 15
                 return False
 
         return True
-        for btn in buttons_to_check:
-            btn_global_rect = btn.geometry()
-            btn_rect = btn_global_rect.translated(toolbar_rect.topLeft())
-            if btn_rect.contains(pos):
-                return False  # On a button, not draggable
-
-        return True  # On empty stretch area, draggable
 
 
     def _create_ui(self): #vers 8

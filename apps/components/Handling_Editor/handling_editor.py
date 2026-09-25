@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 4
+#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 5
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Handling Editor
 
 """
@@ -366,10 +366,10 @@ class HandlingEditor(RibbonMixin, GUIWorkshop): #vers 2
         B(tb, "convert_icon", "Scale one column on every vehicle...", self._scale_column, text="Scale")
         B(tb, "folder_icon",  "Choose the vehicles.ide file(s) kept in step with renames...", self._choose_ides, text="IDEs")
 
-    def closeEvent(self, ev): #vers 1
+    def closeEvent(self, ev): #vers 2
         if self._parser.dirty:
             r = QMessageBox.question(
-                self, App_name if 'App_name' in globals() else "Handling Editor", "Save changes before closing?",
+                self, "Handling Editor", "Save changes before closing?",
                 QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
                 | QMessageBox.StandardButton.Cancel)
             if r == QMessageBox.StandardButton.Cancel:

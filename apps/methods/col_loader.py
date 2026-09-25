@@ -1,13 +1,13 @@
-#this belongs in components/col_loader.py - Version: 22
+#this belongs in components/col_loader.py - Version: 23
 # X-Seti - July23 2025 - IMG Factory 1.5 - COL Threaded Loader
 """
 COL Threaded Loader
 """
 
 import os
-from typing import Optional, asynchronously
+from typing import Optional, Any
 from PyQt6.QtWidgets import QTableWidgetItem
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal, Qt
 
 # Import IMG debug system and COL classes
 from apps.debug.debug_functions import img_debugger
