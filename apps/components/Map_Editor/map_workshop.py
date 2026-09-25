@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 210
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 211
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -3497,6 +3497,7 @@ class _PathGroupEditDialog(QDialog): #vers 1
         self._table = QTableWidget(12, len(headers))
         self._table.setHorizontalHeaderLabels(headers)
         self._table.verticalHeader().setVisible(False)
+        self._table.verticalHeader().setDefaultSectionSize(20)
 
         nodes = list(group.nodes)[:12]
         from apps.methods.gta_dat_parser import PathNode
@@ -4862,55 +4863,132 @@ class _SizeAdaptiveStackedWidget(QStackedWidget):
         return cw.minimumSizeHint() if cw is not None else super().minimumSizeHint()
 
 
-class _VerboseLoadingDialog(QDialog):
-    """Debug loading dialog listing every model as it loads, one line
-    per instance, across a text IPL and each of its associated binary
-    streams in turn."""
+class _IplLoadDialog(QDialog):
+    """One IPL load dialog for single or multiple files: file bar, per-model rows, timed close."""
 
-    def __init__(self, title, parent=None): #vers 3
+    CLOSE_AFTER = 5     # seconds before auto close once finished
+
+    def __init__(self, parent=None, total_files=1): #vers 1
         super().__init__(parent)
-        self.setWindowTitle(title)
-        self.resize(500, 400)
-        layout = QVBoxLayout(self)
-        self._header_label = QLabel("")
-        header_font = self._header_label.font()
-        header_font.setBold(True)
-        self._header_label.setFont(header_font)
-        layout.addWidget(self._header_label)
-        #  load-percentage indicator (Aug 20 2026)
-        self._progress_bar = QProgressBar()
-        self._progress_bar.setRange(0, 100)
-        self._progress_bar.setValue(0)
-        layout.addWidget(self._progress_bar)
-        self._list = QListWidget()
-        layout.addWidget(self._list)
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.close)
-        layout.addWidget(close_btn)
         import time as _time
-        self._time_module = _time
+        self._time = _time
+        self.setWindowTitle("Loading IPL")
+        self.resize(600, 440)
+        self.cancelled = False
+        self._finished = False
+        self._total_files = max(1, total_files)
+        self._countdown = self.CLOSE_AFTER
         self._last_pump = 0.0
+        lay = QVBoxLayout(self)
+        top = QHBoxLayout()
+        self._file_lbl = QLabel("")
+        f = self._file_lbl.font(); f.setBold(True); self._file_lbl.setFont(f)
+        self._bar = QProgressBar(); self._bar.setRange(0, 100)
+        self._files_lbl = QLabel("")
+        top.addWidget(self._file_lbl); top.addWidget(self._bar, 1); top.addWidget(self._files_lbl)
+        lay.addLayout(top)
+        self._table = QTableWidget(0, 3)
+        self._table.setHorizontalHeaderLabels(["Model", "Progress", "Textures"])
+        self._table.verticalHeader().setVisible(False)
+        self._table.verticalHeader().setDefaultSectionSize(20)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        hh = self._table.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        lay.addWidget(self._table, 1)
+        self._msgs = QListWidget(); self._msgs.setMaximumHeight(90); self._msgs.setVisible(False)
+        lay.addWidget(self._msgs)
+        bottom = QHBoxLayout()
+        self._keep = QCheckBox("Keep open"); self._keep.setVisible(False)
+        self._btn = QPushButton("Cancel")
+        self._btn.clicked.connect(self._on_btn)
+        bottom.addWidget(self._keep); bottom.addStretch(); bottom.addWidget(self._btn)
+        lay.addLayout(bottom)
+        self._timer = QTimer(self); self._timer.timeout.connect(self._tick)
+        self.show(); self.raise_()
+        for _ in range(3):              # let the window map and paint first
+            QApplication.processEvents()
 
-    def add_header(self, text): #vers 2
-        self._header_label.setText(text)
-        QApplication.processEvents()   # header changes are rare - always pump immediately
-
-    def set_progress(self, current, total): #vers 2
-        """Load-percentage indicator; pumps events at most every 50 ms."""
-        pct = int((current / total) * 100) if total > 0 else 0
-        self._progress_bar.setValue(max(0, min(100, pct)))
-        now = self._time_module.monotonic()
-        if pct >= 100 or now - self._last_pump >= 0.05:
+    def _pump(self, force=False): #vers 1
+        now = self._time.monotonic()
+        if force or now - self._last_pump >= 0.05:
             QApplication.processEvents()
             self._last_pump = now
 
-    def add_line(self, text): #vers 2
-        self._list.addItem(QListWidgetItem(f"  {text}"))
-        now = self._time_module.monotonic()
-        if now - self._last_pump >= 0.1:
-            self._list.scrollToBottom()
-            QApplication.processEvents()
-            self._last_pump = now
+    def start_file(self, name, idx=0): #vers 1
+        """New IPL: header, Files i/N, empty model list."""
+        self.setWindowTitle(f"Loading {name}")
+        self._file_lbl.setText(f"Loading {name}")
+        self._files_lbl.setText(f"Files {idx + 1}/{self._total_files}")
+        self._bar.setValue(0)
+        self._table.setRowCount(0)
+        self._pump(True)
+
+    def set_file_progress(self, done, total): #vers 1
+        self._bar.setValue(int(done * 100 / total) if total else 100)
+        self._pump()
+
+    def model_row(self, model_name): #vers 1
+        """Add a 'Parsing x.dff' row, return its index."""
+        r = self._table.rowCount()
+        self._table.insertRow(r)
+        self._table.setItem(r, 0, QTableWidgetItem(f"Parsing {model_name}.dff"))
+        self._table.setItem(r, 1, QTableWidgetItem("0%"))
+        self._table.setItem(r, 2, QTableWidgetItem(""))
+        self._table.scrollToBottom()
+        self._pump()
+        return r
+
+    def set_model(self, row, pct, textures=None): #vers 1
+        self._table.item(row, 1).setText(f"{pct}%")
+        if textures is not None:
+            self._table.item(row, 2).setText(textures)
+        self._pump()
+
+    def message(self, text): #vers 1
+        """Warnings, missing files, linked streams."""
+        self._msgs.setVisible(True)
+        self._msgs.addItem(text)
+        self._msgs.scrollToBottom()
+        self._pump()
+
+    def finish(self, summary): #vers 1
+        """Done: full bar, summary, timed close unless Keep open."""
+        self._finished = True
+        self._file_lbl.setText(summary)
+        self._bar.setValue(100)
+        self._keep.setVisible(True)
+        self._btn.setText(f"Close ({self._countdown})")
+        self._timer.start(1000)
+        self._pump(True)
+
+    def _tick(self): #vers 1
+        if self._keep.isChecked():
+            self._timer.stop()
+            self._btn.setText("Close")
+            return
+        self._countdown -= 1
+        if self._countdown <= 0:
+            self._timer.stop()
+            self.close()
+            return
+        self._btn.setText(f"Close ({self._countdown})")
+
+    def _on_btn(self): #vers 1
+        if self._finished:
+            self.close()
+            return
+        self.cancelled = True
+        self._btn.setEnabled(False)
+        self._btn.setText("Cancelling...")
+
+    def closeEvent(self, event): #vers 1
+        if not self._finished:
+            self.cancelled = True
+        self._timer.stop()
+        super().closeEvent(event)
 
 
 #  diagnostic marker (Aug 20 2026) - see __init__'s own docstring
@@ -19509,98 +19587,53 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         self._load_selected_ipls_with_log(
                             loader, model_cache, stems, load_models, load_textures)
 
-    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 3
+    def _load_selected_ipls_with_log(self, loader, model_cache, stems, load_models, load_textures): #vers 4
         """Load a batch of specific IPLs (from the Load Options dialog)"""
         total_stems = len(stems)
-        progress = QProgressDialog("Loading IPL files…", "Cancel", 0, total_stems, self)
-        progress.setWindowTitle("Loading IPL Files")
-        progress.setMinimumDuration(0)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-
+        dlg = _IplLoadDialog(self, total_stems)
         verbose = self.map_settings.get('show_verbose_loading_dialog')
-        dlg = _VerboseLoadingDialog("Loading IPL Files", self) if verbose else None
-        if dlg is not None:
-            dlg.show()
-
-        def _cancelled(): #vers 1
-            return progress.wasCanceled()
-
-        def _append(line): #vers 1
-            if dlg is not None:
-                dlg.add_line(line)
-            else:
-                QApplication.processEvents()
-
         any_loaded = False
         for idx, stem in enumerate(stems):
-            if _cancelled():
-                _append("Cancelled - remaining IPLs not loaded")
+            if dlg.cancelled:
+                dlg.message("Cancelled - remaining IPLs not loaded")
                 break
             entry = loader.available_ipls.get(stem)
             display_name = os.path.basename(entry.abs_path) if entry else stem
-            progress.setLabelText(f"Loading {display_name} ({idx + 1} of {total_stems})")
-            progress.setValue(idx)
-            if dlg is not None:
-                dlg.add_header(f"Loading {display_name} ({idx + 1} of {total_stems})")
-                dlg.set_progress(idx, total_stems)
-            _append(f"loading {display_name}")
+            dlg.start_file(display_name, idx)
 
             before_count = len(loader.instances)
             result = loader.load_ipl_by_name(stem)
             if not result.success:
-                _append(f"{display_name} - failed to load"
-                       + (f": {result.errors[0]}" if result.errors else ""))
+                dlg.message(f"{display_name} - failed to load"
+                            + (f": {result.errors[0]}" if result.errors else ""))
                 continue
             any_loaded = True
             for w in result.warnings:
-                _append(f"  WARNING: {w}")
+                dlg.message(f"WARNING: {w}")
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"[{display_name}] {w}")
 
             new_instances = loader.instances[before_count:]
-            for i, inst in enumerate(new_instances):
-                _append(f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
-                        f"{inst.pos_x}, {inst.pos_y}, {inst.pos_z}, "
-                        f"{inst.scale_x}, {inst.scale_y}, {inst.scale_z}, "
-                        f"{inst.rot_x}, {inst.rot_y}, {inst.rot_z}, {inst.rot_w}")
-                if _cancelled():
-                    break
+            if verbose:
+                for inst in new_instances:
+                    dlg.message(f"{inst.model_id}, {inst.model_name}, {inst.interior}, "
+                                f"{inst.pos_x}, {inst.pos_y}, {inst.pos_z}, "
+                                f"{inst.scale_x}, {inst.scale_y}, {inst.scale_z}, "
+                                f"{inst.rot_x}, {inst.rot_y}, {inst.rot_z}, {inst.rot_w}")
 
-            # Missing-model/texture detection - genuinely absent from
-            # any indexed archive, not a parse error in the IPL itself
-            missing = []
-            seen_models = set()
-            for inst in new_instances:
-                if inst.model_name in seen_models:
-                    continue
-                seen_models.add(inst.model_name)
-                obj = loader.get_object(inst.model_id)
-                txd_name = obj.txd_name if obj else ""
-                if load_models and not model_cache.is_dff_indexed(inst.model_name):
-                    missing.append(f"{inst.model_name}.dff")
-                if load_textures and txd_name and not model_cache.is_txd_indexed(txd_name):
-                    missing.append(f"{txd_name}.txd")
-                if load_models:
-                    model_cache.get_geometry(inst.model_name)
-                if load_textures and txd_name:
-                    model_cache.get_textures(txd_name)
+            missing = self._load_models_into_dialog(
+                dlg, loader, model_cache, new_instances, load_models, load_textures)
 
             problem_count = result.error_count + result.warning_count
             if missing:
-                _append(f"{display_name} loaded - "
-                        + "/ ".join(missing) + " missing from img file")
+                dlg.message(f"{display_name} loaded - "
+                            + "/ ".join(missing) + " missing from img file")
                 self._write_ipl_error_log(result)
             elif problem_count:
                 log_path = self._write_ipl_error_log(result)
-                _append(f"{display_name} loaded - {problem_count} issue(s) found"
-                        + (f", check {os.path.basename(log_path)} added to the maps folder"
-                           if log_path else ""))
-            else:
-                _append(f"{display_name} loaded - no errors")
-
-        progress.setValue(total_stems)
-        if dlg is not None:
-            dlg.set_progress(total_stems, total_stems)
+                dlg.message(f"{display_name} loaded - {problem_count} issue(s) found"
+                            + (f", check {os.path.basename(log_path)} added to the maps folder"
+                               if log_path else ""))
 
         if any_loaded:
             self._all_instances = list(loader.instances)
@@ -19609,9 +19642,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             for pane in getattr(self, '_world_panes', []):
                 pane.set_instances(visible)
 
-        if dlg is not None:
-            dlg.add_header(f"Done - {'cancelled, ' if progress.wasCanceled() else ''}"
-                            f"{total_stems} IPL(s) processed")
+        dlg.finish(f"Done - {'cancelled, ' if dlg.cancelled else ''}{total_stems} IPL(s) processed")
 
     def _show_load_options_dialog(self, loader): #vers 1
         """Shown right after a world's IPL list is discovered (but
@@ -23480,7 +23511,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 result.append(None)
         return result
 
-    def _load_selected_ipl_sections(self, rows): #vers 3
+    def _load_selected_ipl_sections(self, rows): #vers 4
         """Show/load every currently-hidden row among the given table
         rows - the "Load Selected" context menu action.
 
@@ -23510,15 +23541,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not ipl_names:
             return
 
-        progress = QProgressDialog("Loading IPLs…", "Cancel", 0, len(ipl_names), self)
-        progress.setWindowTitle("Loading Selected IPLs")
-        progress.setMinimumDuration(0)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        self._shared_load_progress = progress
-
+        dlg = _IplLoadDialog(self, len(ipl_names))
+        self._ipl_load_dlg = dlg
+        done = 0
         try:
             for idx, ipl_name in enumerate(ipl_names):
-                if progress.wasCanceled():
+                if dlg.cancelled:
                     break
                 if ipl_name not in getattr(self, '_hidden_ipls', set()):
                     continue   # already made visible by an earlier iteration's own load
@@ -23530,13 +23558,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                         break
                 if current_row is None:
                     continue   # row no longer exists (e.g. removed by an earlier rebuild)
-                progress.setWindowTitle(f"Loading Selected IPLs ({idx + 1} of {len(ipl_names)})")
-                progress.setLabelText(f"Loading {ipl_name}…")
-                progress.setValue(idx)
+                dlg.start_file(ipl_name, idx)
                 self._on_ipl_section_cell_clicked(current_row, 0)
-            progress.setValue(len(ipl_names))
+                done += 1
         finally:
-            self._shared_load_progress = None
+            self._ipl_load_dlg = None
+            dlg.finish(f"{'Cancelled - ' if dlg.cancelled else ''}{done} of {len(ipl_names)} IPL(s) loaded")
 
     def _on_ipl_sections_column_resized(self, logical_index, old_size, new_size): #vers 1
         """Persist the user's column widths for the IPL Sections table
@@ -27355,7 +27382,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if ipl_name in getattr(self, '_hidden_ipls', set()):
             self._on_ipl_section_cell_clicked(row, 0)
 
-    def _ensure_ipl_loaded(self, display_name): #vers 4
+    def _ensure_ipl_loaded(self, display_name): #vers 5
         """Actually load one IPL's content on demand, the first time
         it's toggled visible - parses its instances (GTAWorldLoader.
         load_ipl_by_name), refreshes self._all_instances/Object Browser
@@ -27410,46 +27437,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         model_cache = getattr(self, '_model_cache', None)
 
-        # Auto-load associated binary streams (Aug 1 2026)
+        # One shared dialog: batch loads pass theirs in via self._ipl_load_dlg
         stream_entries = getattr(self, '_ipl_names_with_binary_stream', {}).get(display_name, [])
-        verbose = self.map_settings.get('show_verbose_loading_dialog')
-        bulk_loading = getattr(self, '_shared_load_progress', None) is not None
-        dlg = None
-        if verbose and not bulk_loading and (new_instances or stream_entries):
-            # Suppressed during a bulk multi-IPL load (Aug 20 2026,
-            #  "this opens multiple dialogues. It should be
-            # one window") - _load_selected_ipl_sections' own real,
-            # shared progress dialog already reports which IPL is
-            # loading; a separate detailed log window per IPL on top
-            # of that would still be exactly the "multiple dialogues"
-            # gap this fix is for, just moved to a different dialog.
-            dlg = _VerboseLoadingDialog(f"Loading {display_name}", self)
-            dlg.show()
-            dlg.raise_()
-            for _ in range(3):              # let the window map and paint first
-                QApplication.processEvents()
-            n_streams = len(stream_entries) if self.map_settings.get('load_text_plus_binary_ipl_set') else 0
-            dlg.add_header(f"Loading {display_name} and {n_streams} binary ipls.")
+        dlg = getattr(self, '_ipl_load_dlg', None)
+        own_dlg = dlg is None
+        if own_dlg:
+            dlg = _IplLoadDialog(self, 1)
+            dlg.start_file(display_name, 0)
+        if self.map_settings.get('show_verbose_loading_dialog'):
             for inst in new_instances:
-                dlg.add_line(f"{inst.model_id}, {inst.model_name}")
-
+                dlg.message(f"{inst.model_id}, {inst.model_name}")
         if model_cache is not None and new_instances:
-            self._preload_world_assets(
-                loader, model_cache, instances=new_instances,
-                title=f"Loading {display_name}…", log_dlg=dlg)
+            for m in self._load_models_into_dialog(dlg, loader, model_cache, new_instances):
+                dlg.message(f"missing: {m}")
 
         if self.map_settings.get('load_text_plus_binary_ipl_set'):
             for archive_path, stream_name in sorted(stream_entries, key=lambda t: t[1]):
                 if stream_name in getattr(self, '_loaded_binary_ipls', set()):
                     continue
-                if dlg is not None:
-                    dlg.add_header(f"Loading linked ipl file {stream_name}")
-                before_stream_count = len(getattr(self, '_all_instances', []))
+                dlg.message(f"Loading linked ipl file {stream_name}")
                 self._load_binary_ipl_stream(archive_path, stream_name)
-                if dlg is not None:
-                    new_stream_instances = self._all_instances[before_stream_count:]
-                    for inst in new_stream_instances:
-                        dlg.add_line(f"{inst.model_id}, {inst.model_name}")
+        if own_dlg:
+            dlg.finish(f"{display_name} loaded ({len(new_instances)} instances)")
 
     def _write_ipl_error_log(self, result): #vers 1
         """Write a plain-text log of one IPL's parse errors/warnings
@@ -27690,82 +27699,38 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue
         self._set_status("Ready")
 
-    def _preload_world_assets(self, loader, model_cache, instances=None, title=None, log_dlg=None): #vers 4
-        """Eagerly load+parse (and cache) geometry and textures for
-        every distinct model referenced by the given instances (or
-        every loaded instance, if none given), with a progress dialog
-        showing what's currently being processed.
-
-         fix (Aug 20 2026,  "when selecting multiply
-        ipls, all select, load all, this opens multiple dialogues. It
-        should be one window with the title and process change") -
-        this used to always create its own new QProgressDialog every
-        call; _ensure_ipl_loaded calls this once per IPL, so loading
-        several IPLs at once (via _load_selected_ipl_sections' own
-        loop) meant a separate dialog popping open and closing for
-        each one in turn. Now checks self._shared_load_progress first
-        - when the caller has already set one up (see _load_selected_
-        ipl_sections' own real usage), this reuses that same one
-        window instead of creating a second, redundant one; a single-
-        IPL caller (e.g. clicking one eye icon) leaves that attribute
-        unset, so it still gets its own dialog exactly as before."""
-        instances = instances if instances is not None else loader.instances
-        # Deduplicate by model_name - many instances share one model,
-        # no need to load it more than once.
-        seen_models = {}
+    def _load_models_into_dialog(self, dlg, loader, model_cache, instances,
+                                 load_models=True, load_textures=True): #vers 1
+        """Load each unique model's DFF/TXD with a dialog row each; returns missing files."""
+        seen = {}
         for inst in instances:
-            if inst.model_name not in seen_models:
+            if inst.model_name not in seen:
                 obj = loader.get_object(inst.model_id)
-                txd_name = obj.txd_name if obj else ""
-                seen_models[inst.model_name] = (txd_name, inst.source_ipl)
-        if not seen_models:
-            return
-
-        items = list(seen_models.items())
-        if log_dlg is not None:             # verbose dialog shows per-model progress
-            log_dlg.add_header(f"{title or 'Loading'} - {len(items)} models into memory")
-            loaded_txds = set()
-            for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
-                log_dlg.set_progress(i, len(items))
-                log_dlg.add_line(f"[{i + 1}/{len(items)}] {model_name}  txd: {txd_name or '-'}")
-                model_cache.get_geometry(model_name)
-                if txd_name and txd_name not in loaded_txds:
-                    model_cache.get_textures(txd_name)
-                    loaded_txds.add(txd_name)
-            log_dlg.set_progress(len(items), len(items))
-            log_dlg.add_header(f"{title or 'Loading'} - done, {len(items)} models loaded")
-            return
-        shared = getattr(self, '_shared_load_progress', None)
-        if shared is not None:
-            progress = shared
-        else:
-            progress = QProgressDialog(
-                title or "Loading assets…", "Cancel", 0, len(items), self)
-            progress.setWindowTitle("Loading Meshes and Textures")
-            progress.setMinimumDuration(0)     # show at once so the window paints
-            progress.setWindowModality(Qt.WindowModality.WindowModal)
-            progress.show()
-            QApplication.processEvents()
-
-        loaded_txds = set()
-        for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
-            if progress.wasCanceled():
-                self._set_status(
-                    f"Asset loading cancelled after {i} of {len(items)} models "
-                    f"- remaining models will still load on demand while browsing")
+                seen[inst.model_name] = obj.txd_name if obj else ""
+        items = list(seen.items())
+        missing, tex_counts = [], {}
+        for i, (model_name, txd_name) in enumerate(items):
+            if dlg.cancelled:
+                self._set_status(f"Model loading cancelled after {i} of {len(items)} - "
+                                 f"the rest load on demand while browsing")
                 break
-            progress.setLabelText(
-                f"{(title + chr(10)) if (shared is not None and title) else ''}"
-                f"Model: {model_name}\nTexture: {txd_name or '(none)'}\nIPL: {source_ipl}")
-            if shared is None:
-                progress.setValue(i)
-            model_cache.get_geometry(model_name)
-            if txd_name and txd_name not in loaded_txds:
-                model_cache.get_textures(txd_name)
-                loaded_txds.add(txd_name)
-        if shared is None:
-            progress.setValue(len(items))
-
+            row = dlg.model_row(model_name)
+            if load_models:
+                if not model_cache.is_dff_indexed(model_name):
+                    missing.append(f"{model_name}.dff")
+                model_cache.get_geometry(model_name)
+            tex_text = ""
+            if load_textures and txd_name:
+                dlg.set_model(row, 60)
+                if not model_cache.is_txd_indexed(txd_name):
+                    missing.append(f"{txd_name}.txd")
+                if txd_name not in tex_counts:
+                    tex = model_cache.get_textures(txd_name)
+                    tex_counts[txd_name] = len(tex) if tex else 0
+                tex_text = f"{tex_counts[txd_name]} ({txd_name})"
+            dlg.set_model(row, 100, tex_text)
+            dlg.set_file_progress(i + 1, len(items))
+        return missing
 
     def _apply_ipl_visibility_filter(self, auto_fit=True, clear_display_lists=True): #vers 6
         """Recompute which instances are currently visible: every

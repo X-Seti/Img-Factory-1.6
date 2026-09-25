@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 168
+#this belongs in root /ChangeLog.md - Version: 169
+
+## Sep 25 2026 - One IPL load dialog, Build 431.92
+- Single, multi-select and Load Options IPL loads share one dialog: file bar, Files i/N, per-model progress and texture count, messages, 5s timed close with Keep open.
 
 ## Sep 25 2026 - IPL progress, file tabs, intro icons, Build 431.92
 - Map: IPL load shows per-model progress; loading windows paint first.
