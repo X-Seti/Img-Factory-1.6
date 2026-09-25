@@ -15,17 +15,12 @@ from typing import List, Dict
 
 # list methods -
 # add_extraction_to_menu
-# analyze_col_from_table
-# edit_col_from_table
 # get_selected_entries_for_extraction
 # integrate_extraction
 # open_ide_in_text_editor
 # patch_img_loading_for_extraction
 # setup_complete_extraction
 # setup_extraction_methods
-# show_dff_info
-# view_ide_definitions
-# view_txd_textures
 
 
 def add_extraction_to_menu(main_window): #vers 3
@@ -85,36 +80,6 @@ def add_extraction_to_menu(main_window): #vers 3
         return False
 
 
-def analyze_col_from_table(main_window, row: int): #vers 16
-    """Analyze COL file from table row"""
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                if entry.name.lower().endswith('.col'):
-                    # Use existing COL integration
-                    from apps.core.right_click_actions import analyze_col_from_img_entry
-                    analyze_col_from_img_entry(main_window, row)
-                else:
-                    QMessageBox.warning(main_window, "Not a COL File", "Selected file is not a COL file.")
-    except Exception as e:
-        QMessageBox.critical(main_window, "Error", f"Failed to analyze COL file: {str(e)}")
-
-
-def edit_col_from_table(main_window, row: int): #vers 23
-    """Edit COL file from table row"""
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                if entry.name.lower().endswith('.col'):
-                    # Use existing COL integration
-                    from apps.core.right_click_actions import edit_col_from_img_entry
-                    edit_col_from_img_entry(main_window, row)
-                else:
-                    QMessageBox.warning(main_window, "Not a COL File", "Selected file is not a COL file.")
-    except Exception as e:
-        QMessageBox.critical(main_window, "Error", f"Failed to edit COL file: {str(e)}")
 
 
 def get_selected_entries_for_extraction(main_window) -> List: #vers 2
@@ -337,129 +302,7 @@ def setup_extraction_methods(main_window): #vers 7
         return False
 
 
-def show_dff_info(main_window, row: int): #vers 4
-    """Show DFF model information"""
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                if entry.name.lower().endswith('.dff'):
-                    # Basic DFF info for now
-                    info_text = f"""DFF Model Information:
 
-Name: {entry.name}
-Size: {len(entry.data):,} bytes
-Type: RenderWare DFF Model
-
-This feature will be expanded to show:
-- Model geometry details
-- Texture references
-- Animation data
-- LOD information"""
-
-                    QMessageBox.information(main_window, f"DFF Info - {entry.name}", info_text)
-                else:
-                    QMessageBox.warning(main_window, "Not a DFF File", "Selected file is not a DFF model.")
-    except Exception as e:
-        QMessageBox.critical(main_window, "Error", f"Failed to show DFF info: {str(e)}")
-
-
-def view_ide_definitions(main_window, row: int): #vers 3
-    """View IDE file definitions"""
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                if entry.name.lower().endswith('.ide'):
-                    # Parse basic IDE info
-                    try:
-                        ide_content = entry.data.decode('ascii', errors='ignore')
-                        lines = ide_content.split('\n')
-
-                        # Count different section types
-                        sections = {}
-                        current_section = None
-
-                        for line in lines:
-                            line = line.strip()
-                            if line and not line.startswith('#'):
-                                if line in ['objs', 'tobj', 'weap', 'hier', 'anim', 'cars', 'peds', 'end']:
-                                    if line == 'end':
-                                        current_section = None
-                                    else:
-                                        current_section = line
-                                        sections[line] = 0
-                                elif current_section:
-                                    sections[current_section] = sections.get(current_section, 0) + 1
-
-                        # Format summary
-                        summary_parts = []
-                        for section, count in sections.items():
-                            section_names = {
-                                'objs': 'Objects',
-                                'tobj': 'Timed Objects',
-                                'weap': 'Weapons',
-                                'hier': 'Hierarchies',
-                                'anim': 'Animations',
-                                'cars': 'Vehicles',
-                                'peds': 'Pedestrians'
-                            }
-                            name = section_names.get(section, section.upper())
-                            summary_parts.append(f"{name}: {count}")
-
-                        summary = "\n".join(summary_parts) if summary_parts else "No recognized sections found"
-
-                    except Exception:
-                        summary = "Could not parse IDE content"
-
-                    info_text = f"""IDE Item Definition File:
-
-Name: {entry.name}
-Size: {len(entry.data):,} bytes
-Type: GTA Item Definition File
-
-Content Summary:
-{summary}
-
-IDE files define:
-- Object properties (ID, model, texture, flags)
-- Vehicle specifications
-- Weapon definitions
-- Animation hierarchies
-- Pedestrian data"""
-
-                    QMessageBox.information(main_window, f"IDE Info - {entry.name}", info_text)
-                else:
-                    QMessageBox.warning(main_window, "Not an IDE File", "Selected file is not an IDE definition file.")
-    except Exception as e:
-        QMessageBox.critical(main_window, "Error", f"Failed to view IDE definitions: {str(e)}")
-
-
-def view_txd_textures(main_window, row: int): #vers 4
-    """View TXD textures"""
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                if entry.name.lower().endswith('.txd'):
-                    # Basic TXD info for now
-                    info_text = f"""TXD Texture Dictionary:
-
-Name: {entry.name}
-Size: {len(entry.data):,} bytes
-Type: RenderWare TXD Texture Dictionary
-
-This feature will be expanded to show:
-- Texture thumbnails
-- Texture dimensions
-- Compression formats
-- Mipmap information"""
-
-                    QMessageBox.information(main_window, f"TXD Info - {entry.name}", info_text)
-                else:
-                    QMessageBox.warning(main_window, "Not a TXD File", "Selected file is not a TXD texture dictionary.")
-    except Exception as e:
-        QMessageBox.critical(main_window, "Error", f"Failed to view TXD textures: {str(e)}")
 
 
 # Export functions

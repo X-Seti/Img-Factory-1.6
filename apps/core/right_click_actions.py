@@ -1,4 +1,4 @@
-#this belongs in apps/core/right_click_actions.py - Version: 7
+#this belongs in apps/core/right_click_actions.py - Version: 8
 # X-Seti - August07 2025 - IMG Factory 1.5 - Complete Right-Click Actions
 # Combined: Basic copying + Advanced file operations + Extraction functionality
 
@@ -546,33 +546,55 @@ def edit_ide_file(main_window, row: int): #vers 2
     except Exception as e:
         main_window.log_message(f"IDE edit error: {str(e)}")
 
-def view_ide_definitions(main_window, row: int): #vers 1
-    """View IDE definitions from table row"""
+def view_ide_definitions(main_window, row: int): #vers 2
+    """Show section counts for an IDE entry."""
     try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                
-                # Check if IDE viewer is available
-                if hasattr(main_window, 'view_ide_definitions'):
-                    main_window.view_ide_definitions(entry)
-                else:
-                    main_window.log_message("IDE viewer not available")
+        info = get_selected_entry_info(main_window, row)
+        if not info:
+            return
+        from apps.methods.img_shared_operations import get_entry_data_safely
+        entry = info['entry']
+        data = get_entry_data_safely(entry, main_window.current_img, main_window) or b''
+        sections, current = {}, None
+        for line in data.decode('latin-1').splitlines():
+            line = line.split('#')[0].strip().lower()
+            if not line:
+                continue
+            if ',' not in line:
+                current = None if line == 'end' else line
+                if current:
+                    sections.setdefault(current, 0)
+            elif current:
+                sections[current] += 1
+        summary = "\n".join(f"{k}: {v}" for k, v in sections.items()) or "No sections found"
+        QMessageBox.information(main_window, f"IDE Info - {info['name']}",
+            f"{info['name']}\nSize: {len(data):,} bytes\n\n{summary}")
     except Exception as e:
         main_window.log_message(f"IDE view error: {str(e)}")
 
-def show_dff_info(main_window, row: int): #vers 1
-    """Show DFF model information"""
+def show_dff_info(main_window, row: int): #vers 2
+    """Show frames, geometries, atomics and textures of a DFF entry."""
     try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                
-                # Check if DFF info viewer is available
-                if hasattr(main_window, 'show_dff_info'):
-                    main_window.show_dff_info(entry)
-                else:
-                    main_window.log_message("DFF info viewer not available")
+        info = get_selected_entry_info(main_window, row)
+        if not info:
+            return
+        from apps.methods.img_shared_operations import get_entry_data_safely
+        from apps.methods.dff_parser import DFFParser, detect_dff
+        from apps.methods.rw_versions import get_rw_version_name
+        data = get_entry_data_safely(info['entry'], main_window.current_img, main_window) or b''
+        if not detect_dff(data):
+            QMessageBox.warning(main_window, "DFF Info", f"{info['name']} is not a valid DFF")
+            return
+        model = DFFParser(data, info['name']).parse()
+        texs = sorted({m.texture_name for g in model.geometries for m in g.materials if m.texture_name})
+        verts = sum(len(g.vertices) for g in model.geometries)
+        tris = sum(len(g.triangles) for g in model.geometries)
+        text = (f"{info['name']}\nSize: {len(data):,} bytes\n"
+                f"RW: {get_rw_version_name(model.rw_version)}\n\n"
+                f"Frames: {len(model.frames)}\nGeometries: {len(model.geometries)}\n"
+                f"Atomics: {len(model.atomics)}\nVertices: {verts}\nTriangles: {tris}\n\n"
+                f"Textures ({len(texs)}):\n" + ("\n".join(texs) or "none"))
+        QMessageBox.information(main_window, f"DFF Info - {info['name']}", text)
     except Exception as e:
         main_window.log_message(f"DFF info error: {str(e)}")
 
