@@ -1,4 +1,4 @@
-#this belongs in gui/ gui_layout.py - Version: 35
+#this belongs in apps/gui/gui_layout.py - Version: 36
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -69,7 +69,6 @@ from apps.core.reload import reload_current_file
 from apps.core.create import create_new_img
 from apps.core.open import _detect_and_open_file, open_file_dialog, _detect_file_type
 from apps.core.close import close_img_file, close_all_img, install_close_functions, setup_close_manager
-from apps.methods.colour_ui_for_loaded_img import integrate_color_ui_system
 from apps.gui.gui_context import open_col_editor_dialog
 
 from apps.methods.imgfactory_svg_icons import (

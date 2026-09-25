@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/col_operations.py - Version: 3
+#this belongs in apps/methods/col_operations.py - Version: 4
 # X-Seti - September24 2026 - IMG Factory 1.6 - COL analysis operations (shared)
 """
 col_operations.py - COL analysis operations for standalone Col-Workshop
@@ -8,6 +8,7 @@ col_operations.py - COL analysis operations for standalone Col-Workshop
 ##Methods list -
 # _scan_col_models
 # cleanup_temporary_file
+# col_to_dff_geometry
 # create_temporary_col_file
 # extract_col_from_img_entry
 # get_col_basic_info
@@ -39,6 +40,31 @@ def cleanup_temporary_file(temp_path): #vers 1
     """Delete temp COL file."""
     if temp_path and os.path.isfile(temp_path):
         os.remove(temp_path)
+
+
+def col_to_dff_geometry(model): #vers 1
+    """COL mesh as (Geometry, materials) for the GL viewport."""
+    from apps.methods.dff_classes import Geometry, Material, RGBA, Triangle, Vector3
+    from apps.methods.col_materials import get_material_colour
+    verts = getattr(model, 'vertices', None) or []
+    faces = getattr(model, 'faces', None) or []
+    if not verts or not faces:
+        return None, []
+    def xyz(v):
+        return (v.x, v.y, v.z) if hasattr(v, 'x') else (float(v[0]), float(v[1]), float(v[2]))
+    geom = Geometry()
+    geom.vertices = [Vector3(*xyz(v)) for v in verts]
+    mats, slot = [], {}
+    for f in faces:
+        mid = int(getattr(f, 'material', 0) or 0)
+        if mid not in slot:
+            h = get_material_colour(mid)
+            m = Material()
+            m.colour = RGBA(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
+            m.color = m.colour
+            slot[mid] = len(mats); mats.append(m)
+        geom.triangles.append(Triangle(f.a, f.b, f.c, slot[mid]))
+    return geom, mats
 
 
 def create_temporary_col_file(col_data, entry_name): #vers 1

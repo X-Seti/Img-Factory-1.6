@@ -1,4 +1,4 @@
-#this belongs in core/quick_export.py - Version: 3
+#this belongs in apps/core/quick_export.py - Version: 5
 # X-Seti - Aug15 2025 - IMG Factory 1.5 - Quick Export Functions with COL Support
 
 """
@@ -13,27 +13,25 @@ import subprocess
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 from PyQt6.QtCore import Qt, QSettings
 from apps.methods.export_shared import ExportThread, get_selected_entries, get_export_folder, validate_export_entries
+from apps.methods.tab_system import get_current_file_type_from_tab
 
 ##Methods list -
 # quick_export_function
 # integrate_quick_export_functions
 
-def quick_export_function(main_window): #vers 4
+def quick_export_function(main_window): #vers 5
     """Fast export directly to Assists folder with automatic organization - FROM ORIGINAL with COL support"""
     try:
-        file_type = get_current_file_type(main_window)
-        
-        imgcol_exists(main_window)
+        file_type = get_current_file_type_from_tab(main_window)
         # File selection dialog - export should work with both img and col files.
 
-        # Get selected entries - FROM ORIGINAL
-        selected_entries = get_selected_entries(main_window)
-        if not validate_export_entries(selected_entries, main_window):
-            return
-            
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"⚡ Quick export: {len(selected_entries)} entries to Assists folder")
-            
+        if file_type == 'IMG':
+            selected_entries = get_selected_entries(main_window)
+            if not validate_export_entries(selected_entries, main_window):
+                return
+            if hasattr(main_window, 'log_message'):
+                main_window.log_message(f"Quick export: {len(selected_entries)} entries to Assists folder")
+
         elif file_type == 'COL':
             # COL quick export logic
             if not hasattr(main_window, 'current_col') or not main_window.current_col:
@@ -41,15 +39,15 @@ def quick_export_function(main_window): #vers 4
                 return
             
             # Get selected COL models
-            from apps.core.export import get_selected_col_models
-            selected_entries = get_selected_col_models(main_window)
+            from apps.methods.col_export_functions import _get_selected_col_models
+            selected_entries = _get_selected_col_models(main_window, main_window.current_col)
             if not selected_entries:
                 QMessageBox.warning(main_window, "Nothing Selected", 
                     "Please select COL models for quick export")
                 return
             
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"⚡ Quick export: {len(selected_entries)} COL models to Assists folder")
+                main_window.log_message(f"Quick export: {len(selected_entries)} COL models to Assists folder")
                 
         else:
             QMessageBox.warning(main_window, "No File", "Please open an IMG or COL file first")
@@ -72,7 +70,7 @@ def quick_export_function(main_window): #vers 4
                 return
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"📁 Quick export destination: {assists_folder}")
+            main_window.log_message(f"Quick export destination: {assists_folder}")
         
         # Quick export options - auto-organize to Assists structure - FROM ORIGINAL
         export_options = {
@@ -91,7 +89,7 @@ def quick_export_function(main_window): #vers 4
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Quick export error: {str(e)}")
+            main_window.log_message(f"Quick export error: {str(e)}")
         QMessageBox.critical(main_window, "Quick Export Error", f"Quick export failed: {str(e)}")
 
 def _start_quick_export_with_progress(main_window, entries, assists_folder, export_options, file_type): #vers 3
@@ -114,7 +112,7 @@ def _start_quick_export_with_progress(main_window, entries, assists_folder, expo
                 # FROM ORIGINAL - Brief success message
                 QMessageBox.information(main_window, "Quick Export Complete", message)
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"⚡ {message}")
+                    main_window.log_message(f"{message}")
                 
                 # Open assists folder if requested - FROM ORIGINAL
                 if export_options.get('open_folder_after', True):
@@ -131,14 +129,14 @@ def _start_quick_export_with_progress(main_window, entries, assists_folder, expo
                 # FROM ORIGINAL - Still show errors
                 QMessageBox.critical(main_window, "Quick Export Failed", message)
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"❌ Quick export failed: {message}")
+                    main_window.log_message(f"Quick export failed: {message}")
         
         def handle_cancel():
             if export_thread.isRunning():
                 export_thread.terminate()
                 export_thread.wait()
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message("🚫 Quick export cancelled by user")
+                    main_window.log_message("Quick export cancelled by user")
         
         # Connect signals - FROM ORIGINAL
         export_thread.progress_updated.connect(update_progress)
@@ -151,10 +149,10 @@ def _start_quick_export_with_progress(main_window, entries, assists_folder, expo
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Quick export thread error: {str(e)}")
+            main_window.log_message(f"Quick export thread error: {str(e)}")
         QMessageBox.critical(main_window, "Quick Export Error", f"Failed to start quick export: {str(e)}")
 
-def _start_quick_col_export(main_window, col_entries, assists_folder, export_options): #vers 1
+def _start_quick_col_export(main_window, col_entries, assists_folder, export_options): #vers 2
     """Start quick COL export with minimal progress display"""
     try:
         if hasattr(main_window, 'log_message'):
@@ -176,12 +174,15 @@ def _start_quick_col_export(main_window, col_entries, assists_folder, export_opt
             os.makedirs(col_folder, exist_ok=True)
             export_folder = col_folder
         
+        from apps.methods.col_export_functions import _create_single_col_file
         for i, col_entry in enumerate(col_entries):
             if progress_dialog.wasCanceled():
                 break
                 
             try:
-                model_name = col_entry['name']
+                model_name = getattr(col_entry, 'name', f'model_{i}')
+                if not model_name.lower().endswith('.col'):
+                    model_name += '.col'
                 output_path = os.path.join(export_folder, model_name)
                 
                 # Update progress - simplified for quick export
@@ -189,8 +190,7 @@ def _start_quick_col_export(main_window, col_entries, assists_folder, export_opt
                 progress_dialog.setLabelText(f"Exporting {model_name}...")
                 
                 # Create individual COL file for this model
-                from apps.core.export import _create_single_model_col_file
-                if _create_single_model_col_file(col_entry, output_path):
+                if _create_single_col_file(main_window.current_col, col_entry, output_path):
                     exported_count += 1
                 else:
                     failed_count += 1
@@ -198,7 +198,7 @@ def _start_quick_col_export(main_window, col_entries, assists_folder, export_opt
             except Exception as e:
                 failed_count += 1
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"❌ Error in quick COL export {col_entry['name']}: {str(e)}")
+                    main_window.log_message(f"Error in quick COL export {model_name}: {str(e)}")
         
         progress_dialog.close()
         
@@ -212,7 +212,7 @@ def _start_quick_col_export(main_window, col_entries, assists_folder, export_opt
             QMessageBox.information(main_window, "Quick COL Export Complete", brief_msg)
             
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"✅ Quick COL export: {exported_count} success, {failed_count} failed")
+                main_window.log_message(f"Quick COL export: {exported_count} success, {failed_count} failed")
             
             # Open export folder if requested - FROM ORIGINAL
             if export_options.get('open_folder_after', True):
@@ -230,7 +230,7 @@ def _start_quick_col_export(main_window, col_entries, assists_folder, export_opt
             
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Quick COL export error: {str(e)}")
+            main_window.log_message(f"Quick COL export error: {str(e)}")
         QMessageBox.critical(main_window, "Quick COL Export Error", f"Quick COL export failed: {str(e)}")
 
 def integrate_quick_export_functions(main_window): #vers 2
@@ -250,13 +250,13 @@ def integrate_quick_export_functions(main_window): #vers 2
         main_window.fast_export = main_window.quick_export_function
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ Quick export functions integrated with COL support")
+            main_window.log_message("Quick export functions integrated with COL support")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Failed to integrate quick export functions: {str(e)}")
+            main_window.log_message(f"Failed to integrate quick export functions: {str(e)}")
         return False
 
 __all__ = [

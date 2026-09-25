@@ -1,4 +1,4 @@
-#this belongs in core/reload.py - Version: 10
+#this belongs in core/reload.py - Version: 11
 # X-Seti - November16 2025 - IMG Factory 1.5 - Reload Functions - TAB AWARE
 """
 Reload Functions - TAB-AWARE VERSION
@@ -134,7 +134,7 @@ def reload_current_file(main_window) -> bool: #vers 11
         return False
 
 
-def _reload_img_in_tab(main_window, file_path: str) -> bool: #vers 2
+def _reload_img_in_tab(main_window, file_path: str) -> bool: #vers 3
     """Reload IMG file in current tab - FIXED to properly close and reopen"""
     try:
         filename = os.path.basename(file_path)
@@ -170,8 +170,8 @@ def _reload_img_in_tab(main_window, file_path: str) -> bool: #vers 2
             # Fallback: manually refresh table data
             if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
                 table = main_window.gui_layout.table
-                from apps.methods.populate_img_table import populate_img_entries_table
-                populate_img_entries_table(main_window, new_img)
+                from apps.methods.populate_img_table import populate_img_table
+                populate_img_table(table, new_img)
         
         entry_count = len(new_img.entries) if new_img.entries else 0
         if hasattr(main_window, 'log_message'):

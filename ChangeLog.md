@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 156
+#this belongs in root /ChangeLog.md - Version: 157
+
+## Sep 25 2026 - Dedupe context/menu functions, Build 431.92
+- imgfactory: 1,600 dead lines removed; menu/rename/file-op functions now only in gui_context; comprehensive.py (duplicate) deleted.
+- get_selected_entry_info tab-aware; open dialog uses core/open.py.
+- Removed 12 unused modules; quick export, reload, file extraction imports fixed.
 
 ## Sep 24 2026 - Unused modules, IMG core leftovers, Build 431.92
 - Removed 19 unused/duplicate modules incl. gui/main_window.py, File_Browser/; gui/__init__ emptied.

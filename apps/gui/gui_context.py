@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_context.py - Version: 11
+#this belongs in apps/gui/gui_context.py - Version: 12
 # X-Seti - August13 2025 - IMG Factory 1.5 - Context Menu Functions - WORKING COL IMPLEMENTATION
 
 """
@@ -6,16 +6,9 @@ Context Menu Functions - Handles right-click context menus
 UPDATED: Replace stubs with working COL functionality using existing components
 """
 
-import sys
 import os
-import tempfile
-import mimetypes
-import shutil
-from typing import Optional, List, Dict, Any
-from pathlib import Path
-from PyQt6.QtWidgets import QFileDialog, QMenu, QFileDialog, QMessageBox, QInputDialog
-from PyQt6.QtCore import pyqtSignal, QMimeData, Qt, QThread, QTimer, QSettings
-from PyQt6.QtGui import QContextMenuEvent, QDragEnterEvent, QDropEvent, QFont, QIcon, QPixmap, QShortcut
+from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
+from PyQt6.QtCore import Qt
 try:
     from PyQt6.QtGui import QAction
 except ImportError:
@@ -25,91 +18,95 @@ from apps.core.right_click_actions import (
     get_selected_entry_info, edit_col_from_img_entry, view_col_collision,
     analyze_col_from_img_entry, move_selected_file, analyze_selected_file,
     show_hex_editor_selected, show_dff_texture_list, analyze_file)
-from apps.methods.comprehensive import (
-    setup_double_click_rename, add_requested_file_operations, add_common_operations)
 
 ##Methods list -
+# add_file_operations_to_main_window
 # analyze_col_file_dialog
-# edit_col_collision
+# context_menu_event
 # edit_dff_model
 # edit_txd_textures
+# fix_menu_system_and_functionality
+# fix_rename_functionality
+# implement_tab_context_menu
 # open_col_batch_proc_dialog
 # open_col_editor_dialog
 # open_col_file_dialog
+# parse_dff_textures_from_data
 # replace_selected_entry
+# set_game_path
+# show_dff_model_viewer_from_selection
+# show_dff_texture_list_from_img_dff
+# show_dff_texture_list_from_selection
 # show_entry_properties
 # view_dff_model
 # view_txd_textures
 
 
-def menu_system_and_functionality(main_window):
+def fix_menu_system_and_functionality(main_window): #vers 2
     """
     Comprehensive fix for menu system and functionality
     """
     try:
         # Fix the rename functionality to work from both right-click and double-click
         fix_rename_functionality(main_window)
-
+        
         # Implement context menu for active tab
         implement_tab_context_menu(main_window)
-
+        
         # Add requested file operations to main window
         add_file_operations_to_main_window(main_window)
-
+        
         # Set up proper double-click rename functionality
-        setup_double_click_rename(main_window)
-
+        #setup_double_click_rename(main_window)
+        
         main_window.log_message("Comprehensive menu system and functionality fix applied")
         return True
-
+        
     except Exception as e:
         main_window.log_message(f"Error applying comprehensive fix: {str(e)}")
         return False
 
 
-def add_file_operations_to_main_window(main_window):
+def add_file_operations_to_main_window(main_window): #vers 2
     """
     Add the requested file operations as methods to the main window
     """
     try:
         # Add move_selected_file method
         main_window.move_selected_file = lambda: move_selected_file(main_window)
-
+        
         # Add analyze_selected_file method
         main_window.analyze_selected_file = lambda: analyze_selected_file(main_window)
-
+        
         # Add show_hex_editor_selected method
         main_window.show_hex_editor_selected = lambda: show_hex_editor_selected(main_window)
-
+        
         # Add show_dff_texture_list method (as a general method that handles current selection)
         main_window.show_dff_texture_list = lambda: show_dff_texture_list_from_selection(main_window)
-
+        
         # Add show_dff_model_viewer method (as a general method that handles current selection)
         main_window.show_dff_model_viewer = lambda: show_dff_model_viewer_from_selection(main_window)
-
+        
         # Add set_game_path method
         main_window.set_game_path = lambda: set_game_path(main_window)
-
+        
         main_window.log_message("File operations added to main window")
-
+        
     except Exception as e:
         main_window.log_message(f"Error adding file operations: {str(e)}")
 
 
-def set_game_path(main_window):
+def set_game_path(main_window): #vers 2
     """
     Set game path with support for custom paths including Linux paths
     """
     try:
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox
-        import os
-
         # Get current path if it exists
         current_path = getattr(main_window, 'game_root', None)
         if not current_path or current_path == "C:/":
             # Default to home directory instead of C:/
             current_path = os.path.expanduser("~")
-
+        
         # Open directory dialog without restricting to Windows paths
         folder = QFileDialog.getExistingDirectory(
             main_window,
@@ -117,7 +114,7 @@ def set_game_path(main_window):
             current_path,
             QFileDialog.Option.ShowDirsOnly
         )
-
+        
         if folder:
             # Validate that it's a game directory by checking for common game files
             game_files = [
@@ -125,7 +122,7 @@ def set_game_path(main_window):
                 "gta3.dat", "gta_vc.dat", "gta_sa.dat", "gta_sol.dat", "SOL/gta_sol.dat",
                 "default.ide", "Data/default.dat", "models/", "textures/", "data/"
             ]
-
+            
             # Check if the folder contains game-related files/directories
             is_game_dir = False
             for item in os.listdir(folder):
@@ -134,7 +131,7 @@ def set_game_path(main_window):
                    any(game_file in item_lower for game_file in game_files if '/' not in game_file):
                     is_game_dir = True
                     break
-
+            
             # Also check subdirectories
             if not is_game_dir:
                 for root, dirs, files in os.walk(folder):
@@ -144,10 +141,10 @@ def set_game_path(main_window):
                             break
                     if is_game_dir:
                         break
-
+            
             main_window.game_root = folder
             main_window.log_message(f"Game path set: {folder}")
-
+            
             # Update directory tree if it exists
             if hasattr(main_window, 'directory_tree'):
                 main_window.directory_tree.game_root = folder
@@ -158,7 +155,7 @@ def set_game_path(main_window):
                 if hasattr(main_window.directory_tree, 'populate_tree'):
                     main_window.directory_tree.populate_tree(folder)
                     main_window.log_message("Directory tree auto-populated")
-
+            
             # Save settings
             if hasattr(main_window, 'save_settings'):
                 main_window.save_settings()
@@ -170,23 +167,22 @@ def set_game_path(main_window):
                     settings.setValue("game_root", folder)
                 except:
                     pass
-
+            
             # Show success message
             QMessageBox.information(
                 main_window,
                 "Game Path Set",
-                f"Game path configured:\n{folder}\n\nDirectory tree will now show game files.\nSwitch to the 'Merge View' tab to browse."
+                f"Game path configured:\\n{folder}\\n\\nDirectory tree will now show game files.\\nSwitch to the 'Merge View' tab to browse."
             )
         else:
             main_window.log_message("Game path selection cancelled")
-
+            
     except Exception as e:
         main_window.log_message(f"Error setting game path: {str(e)}")
-        from PyQt6.QtWidgets import QMessageBox
         QMessageBox.critical(
             main_window,
             "Error Setting Game Path",
-            f"An error occurred while setting the game path:\n\n{str(e)}"
+            f"An error occurred while setting the game path:\\n\\n{str(e)}"
         )
 
 
@@ -220,8 +216,7 @@ def show_dff_texture_list_from_img_dff(main_window, row, entry_info):
     Extract and show DFF texture list from DFF files in IMG
     """
     try:
-        from PyQt6.QtWidgets import QMessageBox, QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
-        from PyQt6.QtCore import QThread, pyqtSignal
+        from PyQt6.QtWidgets import QMessageBox, QDialog, QVBoxLayout, QTextEdit, QPushButton
         import tempfile
         import os
 
@@ -355,78 +350,36 @@ def show_dff_model_viewer_from_selection(main_window): #vers 2
         main_window.log_message(f"Error showing DFF model viewer from selection: {str(e)}")
 
 
-def fix_rename_functionality(main_window):
+def fix_rename_functionality(main_window): #vers 2
     """
-    Fix rename functionality to work from both right-click and double-click
+    Fix rename functionality to work from right-click menu only (double-click disabled as requested)
     """
     try:
         # Ensure rename_selected function is properly connected
         if not hasattr(main_window, 'rename_selected'):
             from apps.core.imgcol_rename import integrate_imgcol_rename_functions
             integrate_imgcol_rename_functions(main_window)
-
-        # Connect double-click event to table for rename
+        
+        # DO NOT connect double-click event to table for rename (as requested)
+        # Only allow renaming via right-click menu
         if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
             table = main_window.gui_layout.table
-            # Connect double-click to rename function
-            table.cellDoubleClicked.connect(lambda row, col: handle_double_click_rename(main_window, row, col))
-
-        main_window.log_message("Rename functionality fixed")
-
+            # Remove any existing double-click connection to prevent double-click renaming
+            try:
+                table.cellDoubleClicked.disconnect()
+            except TypeError:
+                # If no connections exist, this will raise an exception, which is fine
+                pass
+        
+        main_window.log_message("Rename functionality fixed (double-click disabled as requested)")
+        
     except Exception as e:
         main_window.log_message(f"Error fixing rename functionality: {str(e)}")
 
 
-def show_main_context_menu(main_window, position):
-    """
-    Show context menu for the main window/active tab
-    """
-    try:
-        menu = QMenu(main_window)
-
-        # Add file operations that were requested
-        add_requested_file_operations(main_window, menu)
-
-        # Add common operations
-        add_common_operations(main_window, menu)
-
-        # Show the menu
-        menu.exec(main_window.mapToGlobal(position))
-
-    except Exception as e:
-        main_window.log_message(f"Error showing main context menu: {str(e)}")
 
 
-def show_table_context_menu(main_window, position):
-    """
-    Show context menu for the table
-    """
-    try:
-        table = main_window.gui_layout.table
-        item = table.itemAt(position)
-
-        if not item:
-            # Show generic menu if no item clicked
-            show_main_context_menu(main_window, position)
-            return
-
-        row = item.row()
-        menu = QMenu(table)
-
-        # Add file operations that were requested
-        add_requested_file_operations(main_window, menu, row)
-
-        # Add common operations
-        add_common_operations(main_window, menu, row)
-
-        # Show the menu
-        menu.exec(table.mapToGlobal(position))
-
-    except Exception as e:
-        main_window.log_message(f"Error showing table context menu: {str(e)}")
-
-
-def implement_tab_context_menu(main_window):
+def implement_tab_context_menu(main_window): #vers 2
     """
     Implement context menu for active tab with file operations
     This integrates with the existing context menu system to avoid conflicts
@@ -434,7 +387,6 @@ def implement_tab_context_menu(main_window):
     try:
         # Add context menu to the main window
         main_window.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        main_window.customContextMenuRequested.connect(lambda pos: show_main_context_menu(main_window, pos))
 
         # For the table, we need to integrate with the existing context menu system
         # rather than replacing it to avoid conflicts with the existing setup
@@ -455,10 +407,6 @@ def implement_tab_context_menu(main_window):
     except Exception as e:
         main_window.log_message(f"Error implementing tab context menu: {str(e)}")
 
-
-def edit_col_collision(main_window, row): #vers 2
-    """Edit COL collision - WORKING VERSION (alias for edit_col_from_img_entry)"""
-    return edit_col_from_img_entry(main_window, row)
 
 
 def open_col_editor_dialog(main_window): #vers 3
@@ -637,7 +585,7 @@ def edit_dff_model(main_window, row): #vers 2
 def edit_txd_textures(main_window, row): #vers 2
     """Extract TXD from IMG and open in TXD Workshop."""
     try:
-        import os, tempfile
+        import os
         from apps.methods.export_shared import get_active_table
         table = get_active_table(main_window)
         if not table:
@@ -689,96 +637,7 @@ def show_entry_properties(main_window, row): #vers 1
         main_window.log_message(f"Unable to get properties for row {row}")
 
 
-def validate_new_name(main_window, new_name):
-    """
-    Validate new name for file entry
-    """
-    try:
-        # Check for empty name
-        if not new_name or not new_name.strip():
-            return False
 
-        # Check for invalid characters
-        invalid_chars = '<>:"/\\|?*'
-        if any(char in new_name for char in invalid_chars):
-            return False
-
-        # Check length (typically IMG entries have 24 char limit)
-        if len(new_name) > 24:
-            return False
-
-        return True
-    except Exception:
-        return False
-
-
-def check_duplicate_name(main_window, new_name, current_entry):
-    """
-    Check if new name would create duplicate
-    """
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            for entry in main_window.current_img.entries:
-                if entry != current_entry and getattr(entry, 'name', '') == new_name:
-                    return True
-        return False
-    except Exception:
-        return True  # Return True on error to be safe
-
-
-def handle_double_click_rename(main_window, row, col):
-    """
-    Handle double-click rename functionality
-    """
-    try:
-        # Only allow renaming when clicking on the name column (usually column 0)
-        if col == 0:  # Assuming name column is first column
-            if hasattr(main_window, 'current_img') and main_window.current_img:
-                if 0 <= row < len(main_window.current_img.entries):
-                    # Get the current entry
-                    entry = main_window.current_img.entries[row]
-                    current_name = entry.name
-
-                    # Show input dialog for new name
-                    new_name, ok = QInputDialog.getText(
-                        main_window,
-                        "Rename File",
-                        f"Enter new name for '{current_name}':",
-                        text=current_name
-                    )
-
-                    if ok and new_name and new_name != current_name:
-                        # Validate the new name
-                        if validate_new_name(main_window, new_name):
-                            # Check for duplicates
-                            if not check_duplicate_name(main_window, new_name, entry):
-                                # Perform the rename
-                                entry.name = new_name
-
-                                # Update the table display
-                                if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
-                                    table = main_window.gui_layout.table
-                                    table.item(row, 0).setText(new_name)
-
-                                # Mark as modified
-                                if hasattr(main_window.current_img, 'modified'):
-                                    main_window.current_img.modified = True
-
-                                main_window.log_message(f"Renamed '{current_name}' to '{new_name}'")
-                                QMessageBox.information(main_window, "Rename Successful",
-                                                      f"Successfully renamed to '{new_name}'")
-                            else:
-                                QMessageBox.warning(main_window, "Duplicate Name",
-                                                  f"An entry named '{new_name}' already exists")
-                        else:
-                            QMessageBox.warning(main_window, "Invalid Name",
-                                              "The name provided is invalid")
-        else:
-            # For other columns, we might want to handle different actions
-            main_window.log_message(f"Double-clicked on row {row}, column {col}")
-
-    except Exception as e:
-        main_window.log_message(f"Error handling double-click rename: {str(e)}")
 
 
 # Context menu setup functions (enhanced versions)

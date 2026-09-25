@@ -1,4 +1,4 @@
-#this belongs in core/ shortcuts.py - Version: 14
+#this belongs in apps/core/shortcuts.py - Version: 15
 # X-Seti - July16 2025 - IMG Factory 1.5 - Keyboard Shortcuts
 
 """
@@ -169,14 +169,14 @@ def setup_col_shortcuts(main_window): #vers 11
         return False
 
 
-def setup_debug_shortcuts(main_window): #vers 4
+def setup_debug_shortcuts(main_window): #vers 5
     """Setup debug and performance shortcuts"""
     try:
         # F12 - Toggle performance mode
         def toggle_performance():
             """Toggle between performance and debug mode"""
             try:
-                from apps.components.col_debug_control import is_col_debug_enabled
+                from apps.debug.debug_functions import is_col_debug_enabled
 
                 if is_col_debug_enabled():
                     if hasattr(main_window, 'performance_mode'):

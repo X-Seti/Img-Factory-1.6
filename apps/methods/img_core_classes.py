@@ -1,4 +1,4 @@
-#this belongs in methods.img_core_classes.py - Version: 11
+#this belongs in methods.img_core_classes.py - Version: 12
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -1398,7 +1398,7 @@ class IMGFile:
             return False
 
 
-    def add_entry(self, filename: str, data: bytes, auto_save: bool = True) -> bool: #vers 3
+    def add_entry(self, filename: str, data: bytes, auto_save: bool = True) -> bool: #vers 4
         """Add new entry to IMG file - FIXED VERSION with enhanced debugging"""
         try:
             # CRITICAL: Sanitize filename to prevent corruption
@@ -1467,11 +1467,7 @@ class IMGFile:
             # Only save if requested (for batch operations, set auto_save=False)
             if auto_save:
 
-                if hasattr(self, 'save_img_file'):
-                    success = self.save_img_file()
-                else:
-                    from apps.core.save_img_entry import save_img_file_with_backup
-                    success = save_img_file_with_backup(self)
+                success = self.save_img_file()
 
                 if success:
                     pass

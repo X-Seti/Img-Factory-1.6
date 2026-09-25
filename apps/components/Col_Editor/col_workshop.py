@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 92
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 93
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -7560,7 +7560,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             print("_on_collision_selected error: " + str(e))
 
-    def _select_model_by_row(self, row): #vers 2
+    def _select_model_by_row(self, row): #vers 3
         """Load model by row index into preview — works for both list views."""
         try:
             if not self.current_col_file:
@@ -7592,7 +7592,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             # Also update GL viewport if in GL mode (COL meshes as DFF-like geometry)
             if getattr(self, '_gl_mode', False):
                 try:
-                    from apps.methods.col_parser import col_to_dff_geometry
+                    from apps.methods.col_operations import col_to_dff_geometry
                     g, mats = col_to_dff_geometry(model)
                     if g: self.load_dff_in_gl(g, mats)
                 except Exception: pass

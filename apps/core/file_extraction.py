@@ -87,7 +87,7 @@ def add_extraction_to_menu(main_window): #vers 3
         return False
 
 
-def analyze_col_from_table(main_window, row: int): #vers 15
+def analyze_col_from_table(main_window, row: int): #vers 16
     """Analyze COL file from table row"""
     try:
         if hasattr(main_window, 'current_img') and main_window.current_img:
@@ -95,7 +95,7 @@ def analyze_col_from_table(main_window, row: int): #vers 15
                 entry = main_window.current_img.entries[row]
                 if entry.name.lower().endswith('.col'):
                     # Use existing COL integration
-                    from apps.components.col_integration import analyze_col_from_img_entry
+                    from apps.core.right_click_actions import analyze_col_from_img_entry
                     analyze_col_from_img_entry(main_window, row)
                 else:
                     QMessageBox.warning(main_window, "Not a COL File", "Selected file is not a COL file.")
@@ -103,7 +103,7 @@ def analyze_col_from_table(main_window, row: int): #vers 15
         QMessageBox.critical(main_window, "Error", f"Failed to analyze COL file: {str(e)}")
 
 
-def edit_col_from_table(main_window, row: int): #vers 22
+def edit_col_from_table(main_window, row: int): #vers 23
     """Edit COL file from table row"""
     try:
         if hasattr(main_window, 'current_img') and main_window.current_img:
@@ -111,7 +111,7 @@ def edit_col_from_table(main_window, row: int): #vers 22
                 entry = main_window.current_img.entries[row]
                 if entry.name.lower().endswith('.col'):
                     # Use existing COL integration
-                    from apps.components.col_integration import edit_col_from_img_entry
+                    from apps.core.right_click_actions import edit_col_from_img_entry
                     edit_col_from_img_entry(main_window, row)
                 else:
                     QMessageBox.warning(main_window, "Not a COL File", "Selected file is not a COL file.")

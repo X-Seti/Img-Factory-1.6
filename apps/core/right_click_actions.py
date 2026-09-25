@@ -874,22 +874,23 @@ def _open_dff_in_vehicle_workshop(main_window, row): #vers 2
             main_window.log_message(f"Vehicle Workshop error: {e}")
 
 
-def get_selected_entry_info(main_window, row): #vers 1
-    """Get information about selected entry"""
+def get_selected_entry_info(main_window, row): #vers 2
+    """Entry info for a table row; uses the active tab's IMG."""
     try:
-        if not hasattr(main_window, 'current_img') or not main_window.current_img:
+        img = getattr(main_window, 'current_img', None)
+        if hasattr(main_window, 'get_current_file_from_active_tab'):
+            file_object, file_type = main_window.get_current_file_from_active_tab()
+            img = file_object if file_type == 'IMG' else None
+        if not img or not hasattr(img, 'entries') or not (0 <= row < len(img.entries)):
             return None
-        
-        if row < 0 or row >= len(main_window.current_img.entries):
-            return None
-        
-        entry = main_window.current_img.entries[row]
+        entry = img.entries[row]
+        low = entry.name.lower()
         return {
             'entry': entry,
             'name': entry.name,
-            'is_col': entry.name.lower().endswith('.col'),
-            'is_dff': entry.name.lower().endswith('.dff'),
-            'is_txd': entry.name.lower().endswith('.txd'),
+            'is_col': low.endswith('.col'),
+            'is_dff': low.endswith('.dff'),
+            'is_txd': low.endswith('.txd'),
             'size': entry.size,
             'offset': entry.offset
         }

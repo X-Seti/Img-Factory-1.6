@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/smart_file_router.py - Version: 3
+#this belongs in apps/methods/smart_file_router.py - Version: 4
 # X-Seti - May08 2026 - Img Factory 1.6 - Smart File Router
 
 """
@@ -75,7 +75,7 @@ def get_editor_label(file_path: str) -> str: #vers 1
     return entry[0] if entry else ""
 
 
-def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 1
+def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 2
     """
     Open file_path in the most appropriate editor.
     Returns True if a specialist editor was opened, False if fell back to text editor.
@@ -121,7 +121,7 @@ def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 1
                 return True
 
             elif launcher == "_launch_timecyc_editor":
-                from apps.components.Timecyc_Editor.timecyc_editor import open_timecyc_editor
+                from apps.components.Timecyc_Editor.timecyc_workshop import open_timecyc_editor
                 open_timecyc_editor(main_window, path=file_path)
                 _log(main_window, f"Time Cycle Editor: {os.path.basename(file_path)}")
                 return True

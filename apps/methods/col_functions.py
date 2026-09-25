@@ -1,4 +1,4 @@
-#this belongs in components/col_functions.py - Version: 8
+#this belongs in apps/methods/col_functions.py - Version: 9
 # X-Seti - July20 2025 - IMG Factory 1.5 - COL Functions
 """
 COL Functions - Integration and UI components
@@ -6,6 +6,7 @@ Provides COL integration functions, widgets, and menu actions
 """
 
 import os
+import struct
 from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
@@ -17,14 +18,12 @@ from PyQt6.QtCore import Qt, QTimer
 from apps.debug.debug_functions import img_debugger
 from apps.methods.col_core_classes import COLFile, COLModel
 from apps.debug.debug_functions import col_debug_log
+from apps.core.right_click_actions import edit_col_from_img_entry, analyze_col_from_img_entry
 
 ##Methods list -
-# add_col_context_menu_to_entries_table
 # add_col_tools_menu
-# analyze_col_from_img_entry
 # cancel_col_loading
 # create_new_col_file
-# edit_col_from_img_entry
 # export_all_col_from_img
 # import_col_to_current_img
 # integrate_complete_col_system
@@ -144,7 +143,7 @@ class COLModelDetailsWidget(QWidget):
         
         self.details_text.setPlainText("\n".join(details))
 
-def add_col_tools_menu(main_window): #vers 1
+def add_col_tools_menu(main_window): #vers 2
     """Add COL tools menu to main window using IMG debug system"""
     try:
         if not hasattr(main_window, 'menuBar') or not main_window.menuBar():
@@ -156,7 +155,7 @@ def add_col_tools_menu(main_window): #vers 1
         menubar = main_window.menuBar()
         
         # Create COL menu
-        col_menu = menubar.addMenu("🔧 COL")
+        col_menu = menubar.addMenu("COL")
         
         # File operations
         open_col_action = QAction("Open COL File", main_window)
@@ -171,7 +170,7 @@ def add_col_tools_menu(main_window): #vers 1
         col_menu.addSeparator()
         
         # COL Editor
-        editor_action = QAction("✏️ COL Editor", main_window)
+        editor_action = QAction("COL Editor", main_window)
         editor_action.setShortcut("Ctrl+E")
         editor_action.triggered.connect(lambda: open_col_editor(main_window))
         col_menu.addAction(editor_action)
@@ -179,24 +178,24 @@ def add_col_tools_menu(main_window): #vers 1
         col_menu.addSeparator()
         
         # Batch operations
-        from apps.methods.col_utilities import open_col_batch_processor, analyze_col_file_dialog
+        from apps.gui.gui_context import open_col_batch_proc_dialog, analyze_col_file_dialog
         
-        batch_process_action = QAction("⚙️ Batch Processor", main_window)
-        batch_process_action.triggered.connect(lambda: open_col_batch_processor(main_window))
+        batch_process_action = QAction("Batch Processor", main_window)
+        batch_process_action.triggered.connect(lambda: open_col_batch_proc_dialog(main_window))
         col_menu.addAction(batch_process_action)
         
-        analyze_action = QAction("📊 Analyze COL", main_window)
+        analyze_action = QAction("Analyze COL", main_window)
         analyze_action.triggered.connect(lambda: analyze_col_file_dialog(main_window))
         col_menu.addAction(analyze_action)
         
         col_menu.addSeparator()
         
         # Import/Export
-        import_to_img_action = QAction("📥 Import to IMG", main_window)
+        import_to_img_action = QAction("Import to IMG", main_window)
         import_to_img_action.triggered.connect(lambda: import_col_to_current_img(main_window))
         col_menu.addAction(import_to_img_action)
         
-        export_from_img_action = QAction("📤 Export from IMG", main_window)
+        export_from_img_action = QAction("Export from IMG", main_window)
         export_from_img_action.triggered.connect(lambda: export_all_col_from_img(main_window))
         col_menu.addAction(export_from_img_action)
         
@@ -237,7 +236,7 @@ def open_col_file_dialog(main_window): #vers 4
         return False
 
 
-def create_new_col_file(main_window): #vers 1
+def create_new_col_file(main_window): #vers 2
     """Create new COL file using IMG debug system"""
     try:
         file_path, _ = QFileDialog.getSaveFileName(
@@ -248,13 +247,13 @@ def create_new_col_file(main_window): #vers 1
         )
 
         if file_path:
-            # Create basic COL1 file structure
-            col_header = struct.pack('<4sI22sH', b'COLL', 32, b'new_collision\x00' * 22, 0)
-
+            # Empty COL1 model: header, bounds, zero counts
+            name = os.path.splitext(os.path.basename(file_path))[0][:21].encode('ascii', 'replace')
+            body = struct.pack('<22sH', name, 0)
+            body += struct.pack('<10f', 1.0, 0, 0, 0, -1, -1, -1, 1, 1, 1)
+            body += struct.pack('<5I', 0, 0, 0, 0, 0)
             with open(file_path, 'wb') as f:
-                f.write(col_header)
-                # Add minimal COL1 data structure
-                f.write(b'\x00' * 32)  # Basic collision data
+                f.write(struct.pack('<4sI', b'COLL', len(body)) + body)
 
             QMessageBox.information(main_window, "Success", f"Created new COL file: {os.path.basename(file_path)}")
             img_debugger.success(f"Created new COL file: {os.path.basename(file_path)}")
@@ -266,19 +265,19 @@ def create_new_col_file(main_window): #vers 1
         return False
 
 
-def open_col_editor(main_window): #vers 1
+def open_col_editor(main_window): #vers 2
     """Open COL editor using IMG debug system"""
     try:
         col_debug_log(main_window, "Opening COL editor", 'COL_EDITOR')
         
-        from apps.methods.col_utilities import open_col_editor
-        open_col_editor(main_window)
+        from apps.components.Col_Editor.col_workshop import open_col_workshop
+        open_col_workshop(main_window)
         
     except Exception as e:
         col_debug_log(main_window, f"Error opening COL editor: {e}", 'COL_EDITOR', 'ERROR')
 
 
-def import_col_to_current_img(main_window): #vers 2
+def import_col_to_current_img(main_window): #vers 3
     """Import COL file to current IMG using IMG debug system"""
     try:
         if not hasattr(main_window, 'current_img') or not main_window.current_img:
@@ -294,9 +293,8 @@ def import_col_to_current_img(main_window): #vers 2
                 col_data = f.read()
 
             # Validate it's a COL file
-            from apps.components.col_integration_main import detect_col_version_from_data
-            analysis = detect_col_version_from_data(col_data)
-            if not analysis:
+            from apps.methods.col_operations import get_col_basic_info
+            if 'error' in get_col_basic_info(col_data):
                 QMessageBox.warning(main_window, "Invalid File", "Selected file is not a valid COL file")
                 return False
 
@@ -364,52 +362,6 @@ def export_all_col_from_img(main_window): #vers 3
         return False
 
 
-def edit_col_from_img_entry(main_window, row): #vers 3
-    """Edit COL file from IMG entry using IMG debug system"""
-    try:
-        # Get entry from row
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            entries = main_window.current_img.entries
-            if row < len(entries):
-                entry = entries[row]
-
-                # Use the function from col_integration_main
-                from apps.components.col_integration_main import edit_col_from_img_entry
-                edit_col_from_img_entry(main_window, row)
-                return True
-
-        img_debugger.warning("Invalid row or no IMG loaded for COL editing")
-        return False
-
-    except Exception as e:
-        img_debugger.error(f"Failed to edit COL from IMG entry: {str(e)}")
-        QMessageBox.critical(main_window, "Error", f"Failed to edit COL: {str(e)}")
-        return False
-
-
-def analyze_col_from_img_entry(main_window, row): #vers 1
-    """Analyze COL file from IMG entry using IMG debug system"""
-    try:
-        # Get entry from row
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            entries = main_window.current_img.entries
-            if row < len(entries):
-                entry = entries[row]
-
-                # Use the function from col_integration_main
-                from apps.components.col_integration_main import analyze_col_from_img_entry
-                analyze_col_from_img_entry(main_window, row)
-                return True
-
-        img_debugger.warning("Invalid row or no IMG loaded for COL analysis")
-        return False
-
-    except Exception as e:
-        img_debugger.error(f"Failed to analyze COL from IMG entry: {str(e)}")
-        QMessageBox.critical(main_window, "Error", f"Failed to analyze COL: {str(e)}")
-        return False
-
-
 def setup_threaded_col_loading(main_window): #vers 1
     """Setup threaded COL loading using IMG debug system"""
     try:
@@ -447,7 +399,7 @@ def cancel_col_loading(main_window): #vers 1
     except Exception as e:
         col_debug_log(main_window, f"Error cancelling COL loading: {e}", 'COL_THREADING', 'ERROR')
 
-def setup_col_integration_full(main_window): #vers 1
+def setup_col_integration_full(main_window): #vers 2
     """Main COL integration entry point with threaded loading using IMG debug system"""
     try:
         col_debug_log(main_window, "Starting full COL integration for IMG interface", 'COL_INTEGRATION')
@@ -459,11 +411,6 @@ def setup_col_integration_full(main_window): #vers 1
         if hasattr(main_window, 'menuBar') and main_window.menuBar():
             add_col_tools_menu(main_window)
             col_debug_log(main_window, "COL tools menu added", 'COL_INTEGRATION')
-
-        # Add COL context menu items to existing entries table
-        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
-            add_col_context_menu_to_entries_table(main_window)
-            col_debug_log(main_window, "COL context menu added to entries table", 'COL_INTEGRATION')
 
         # Mark integration as completed
         main_window._col_integration_active = True
@@ -524,7 +471,6 @@ __all__ = [
     'COLListWidget', 
     'COLModelDetailsWidget',
     'add_col_tools_menu',
-    'add_col_context_menu_to_entries_table',
     'open_col_file_dialog',
     'create_new_col_file',
     'open_col_editor',

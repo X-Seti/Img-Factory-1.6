@@ -290,9 +290,9 @@ def integrate_all_improvements(main_window): #vers 2
         return False
 
 
-def install_search_manager(main_window): #vers 2
+def install_search_manager(main_window): #vers 3
     try:
-        from apps.core.guisearch import install_search_system
+        from apps.core.gui_search import install_search_system
         return install_search_system(main_window)
     except Exception:
         return False
@@ -303,7 +303,7 @@ def fix_search_dialog(main_window): #vers 2
         if not hasattr(main_window, 'show_search_dialog'):
             def show_search_dialog():
                 try:
-                    from apps.core.dialogs import show_search_dialog as _sd
+                    from apps.core.gui_search import show_search_dialog as _sd
                     _sd(main_window)
                 except ImportError:
                     from PyQt6.QtWidgets import QMessageBox
