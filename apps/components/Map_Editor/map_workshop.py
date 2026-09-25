@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 209
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 210
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -4895,11 +4895,14 @@ class _VerboseLoadingDialog(QDialog):
         self._header_label.setText(text)
         QApplication.processEvents()   # header changes are rare - always pump immediately
 
-    def set_progress(self, current, total): #vers 1
-        """ load-percentage indicator (Aug 20 2026)"""
+    def set_progress(self, current, total): #vers 2
+        """Load-percentage indicator; pumps events at most every 50 ms."""
         pct = int((current / total) * 100) if total > 0 else 0
         self._progress_bar.setValue(max(0, min(100, pct)))
-        QApplication.processEvents()
+        now = self._time_module.monotonic()
+        if pct >= 100 or now - self._last_pump >= 0.05:
+            QApplication.processEvents()
+            self._last_pump = now
 
     def add_line(self, text): #vers 2
         self._list.addItem(QListWidgetItem(f"  {text}"))
@@ -27352,7 +27355,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if ipl_name in getattr(self, '_hidden_ipls', set()):
             self._on_ipl_section_cell_clicked(row, 0)
 
-    def _ensure_ipl_loaded(self, display_name): #vers 3
+    def _ensure_ipl_loaded(self, display_name): #vers 4
         """Actually load one IPL's content on demand, the first time
         it's toggled visible - parses its instances (GTAWorldLoader.
         load_ipl_by_name), refreshes self._all_instances/Object Browser
@@ -27422,6 +27425,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             # gap this fix is for, just moved to a different dialog.
             dlg = _VerboseLoadingDialog(f"Loading {display_name}", self)
             dlg.show()
+            dlg.raise_()
+            for _ in range(3):              # let the window map and paint first
+                QApplication.processEvents()
             n_streams = len(stream_entries) if self.map_settings.get('load_text_plus_binary_ipl_set') else 0
             dlg.add_header(f"Loading {display_name} and {n_streams} binary ipls.")
             for inst in new_instances:
@@ -27430,7 +27436,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if model_cache is not None and new_instances:
             self._preload_world_assets(
                 loader, model_cache, instances=new_instances,
-                title=f"Loading {display_name}…")
+                title=f"Loading {display_name}…", log_dlg=dlg)
 
         if self.map_settings.get('load_text_plus_binary_ipl_set'):
             for archive_path, stream_name in sorted(stream_entries, key=lambda t: t[1]):
@@ -27684,7 +27690,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue
         self._set_status("Ready")
 
-    def _preload_world_assets(self, loader, model_cache, instances=None, title=None): #vers 3
+    def _preload_world_assets(self, loader, model_cache, instances=None, title=None, log_dlg=None): #vers 4
         """Eagerly load+parse (and cache) geometry and textures for
         every distinct model referenced by the given instances (or
         every loaded instance, if none given), with a progress dialog
@@ -27716,6 +27722,19 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         items = list(seen_models.items())
+        if log_dlg is not None:             # verbose dialog shows per-model progress
+            log_dlg.add_header(f"{title or 'Loading'} - {len(items)} models into memory")
+            loaded_txds = set()
+            for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
+                log_dlg.set_progress(i, len(items))
+                log_dlg.add_line(f"[{i + 1}/{len(items)}] {model_name}  txd: {txd_name or '-'}")
+                model_cache.get_geometry(model_name)
+                if txd_name and txd_name not in loaded_txds:
+                    model_cache.get_textures(txd_name)
+                    loaded_txds.add(txd_name)
+            log_dlg.set_progress(len(items), len(items))
+            log_dlg.add_header(f"{title or 'Loading'} - done, {len(items)} models loaded")
+            return
         shared = getattr(self, '_shared_load_progress', None)
         if shared is not None:
             progress = shared
@@ -27723,8 +27742,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             progress = QProgressDialog(
                 title or "Loading assets…", "Cancel", 0, len(items), self)
             progress.setWindowTitle("Loading Meshes and Textures")
-            progress.setMinimumDuration(500)   # don't flash up for fast loads
+            progress.setMinimumDuration(0)     # show at once so the window paints
             progress.setWindowModality(Qt.WindowModality.WindowModal)
+            progress.show()
+            QApplication.processEvents()
 
         loaded_txds = set()
         for i, (model_name, (txd_name, source_ipl)) in enumerate(items):
