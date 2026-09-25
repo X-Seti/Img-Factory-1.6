@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop//asset_workshop.py - Version: 2
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 3
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -1557,7 +1557,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 # - Panel Creation
 
-    def _create_status_bar(self): #vers 5
+    def _create_status_bar(self): #vers 6
         """Create bottom status bar - single line compact"""
         from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel
 
@@ -1572,11 +1572,6 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Left: Ready
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
-
-        if hasattr(self, 'status_txd_info'):
-            size_kb = len(txd_data) / 1024
-            tex_count = len(self.texture_list)
-            self.status_txd_info.setText(f"Textures: {tex_count} | TXD: {size_kb:.1f} KB")
 
         # TXD info
         self.status_txd_info = QLabel("TXD: None")
@@ -4376,7 +4371,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 
     #Keep function
-    def _apply_settings(self, dialog): #vers 5
+    def _apply_settings(self, dialog): #vers 6
         """Apply settings from dialog"""
         from PyQt6.QtGui import QFont
 
@@ -4403,7 +4398,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         locale_text = self.settings_locale_combo.currentText()
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Settings applied: Font={font_family} {font_size}pt, Mode={new_mode}")
+            self.main_window.log_message(f"Settings applied: Font={self.panel_font.family()} {self.panel_font.pointSize()}pt, Mode={new_mode}")
 
         # Apply export game target
         game_map = {
@@ -5365,7 +5360,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 
     #Keep function
-    def _auto_generate_mipmaps_to_level(self, num_levels): #vers 1
+    def _auto_generate_mipmaps_to_level(self, num_levels): #vers 2
         """Generate mipmaps down to specified level count"""
         if not self.selected_texture:
             return
@@ -5463,7 +5458,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.main_window.log_message(f"Generated {level_num} mipmap levels")
 
             actual_levels = len(self.selected_texture['mipmap_levels'])
-            min_dim = min(current_width * 2, currentQFormLayout_height * 2)
+            min_dim = min(current_width * 2, current_height * 2)
             QMessageBox.information(self, "Success",
                 f"Generated {actual_levels} mipmap levels\n"
                 f"From {width}x{height} down to {min_dim}x{min_dim}")
@@ -5769,7 +5764,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.main_window.log_message(f"Error loading TXD list: {str(e)}")
 
     #Keep function
-    def _create_blank_texture(self, width, height, with_alpha=False): #vers 2
+    def _create_blank_texture(self, width, height, with_alpha=False): #vers 3
         """Create blank RGBA texture data with optional alpha"""
         if with_alpha:
             # Gray with transparent alpha (128)
@@ -5777,26 +5772,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             # Gray with full opaque alpha (255)
             return bytes([128, 128, 128, 255] * (width * height))
-        panel.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                border: 1px solid palette(mid);
-                border-radius: 1px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: palette(base);
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top right;
-                right: 20px;
-                padding: 0 5px;
-                color: palette(mid);
-            }
-        """)
 
-    #Keep function
     def _create_empty_txd_data(self): #vers 1
         """Create minimal empty TXD structure"""
         import struct
@@ -12800,12 +12776,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         return (matches / samples) > 0.9
 
 
-    def _load_settings(self): #vers 1
+    def _load_settings(self): #vers 2
         """Load settings from config file"""
         import json
 
         settings_file = os.path.join(
-            os.path.dirname(__file__),Appname,'_settings.json'
+            os.path.dirname(__file__), _App_name + '_settings.json'
         )
 
         try:
@@ -12818,12 +12794,12 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             print(f"Failed to load settings: {e}")
 
 
-    def _save_settings(self): #vers 1
+    def _save_settings(self): #vers 2
         """Save settings to config file"""
         import json
 
         settings_file = os.path.join(
-            os.path.dirname(__file__),Appname,'_settings.json'
+            os.path.dirname(__file__), _App_name + '_settings.json'
         )
 
         try:
@@ -14256,7 +14232,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         return panel
 
 
-    def _load_settings(self): #vers 1
+    def _load_settings(self): #vers 2
         """Load settings from config file"""
         import json
 
@@ -14274,7 +14250,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
             print(f"Failed to load settings: {e}")
 
 
-    def _save_settings(self): #vers 1
+    def _save_settings(self): #vers 2
         """Save settings to config file"""
         import json
 
@@ -15676,7 +15652,7 @@ class MipmapManagerWindow(QWidget): #vers 2
 class TexturePropertiesDialog(QDialog): #vers 1
     """Complete texture properties dialog with all settings"""
 
-    def __init__(self, parent, texture_data, main_window=None):  #vers 1
+    def __init__(self, parent, texture_data, main_window=None):  #vers 2
         super().__init__(parent)
         self.parent_workshop = parent
         self.texture_data = texture_data.copy()  # Work on copy
@@ -15688,11 +15664,9 @@ class TexturePropertiesDialog(QDialog): #vers 1
         self.setModal(True)
         self.resize(500, 600)
         self.setup_ui()
-        settings_tab = self._create_settings_tab()
-        tabs.addTab(settings_tab, "Settings")
 
 
-    def setup_ui(self): #vers 1
+    def setup_ui(self): #vers 2
         """Setup properties dialog UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -15720,6 +15694,9 @@ class TexturePropertiesDialog(QDialog): #vers 1
         # Tab 4: Advanced
         advanced_tab = self._create_advanced_tab()
         tabs.addTab(advanced_tab, "Advanced")
+
+        # Tab 5: Settings
+        tabs.addTab(self._create_settings_tab(), "Settings")
 
         layout.addWidget(tabs)
 
@@ -15865,78 +15842,6 @@ class TexturePropertiesDialog(QDialog): #vers 1
         layout.addWidget(color_group)
 
         layout.addStretch()
-        return tab
-
-
-    def _create_settings_tab(self): #vers 1
-        """Create settings/appearance tab"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        # Appearance group
-        appearance_group = QGroupBox(App_name + " Appearance")
-        appearance_layout = QFormLayout(appearance_group)
-
-        # Theme selector
-        theme_combo = QComboBox()
-        theme_combo.addItems(["Dark Theme", "Light Theme", "Green Theme", "Blue Theme", "Custom"])
-        appearance_layout.addRow("Theme:", theme_combo)
-
-        # Button style
-        button_style_combo = QComboBox()
-        button_style_combo.addItems(["Icons + Text", "Icons Only", "Text Only"])
-        appearance_layout.addRow("Button Style:", button_style_combo)
-
-        # Icon size
-        icon_size_combo = QComboBox()
-        icon_size_combo.addItems(["Small (16px)", "Medium (20px)", "Large (24px)"])
-        icon_size_combo.setCurrentIndex(1)
-        appearance_layout.addRow("Icon Size:", icon_size_combo)
-
-        # Layout
-        layout_combo = QComboBox()
-        layout_combo.addItems(["Compact", "Normal", "Spacious"])
-        layout_combo.setCurrentIndex(1)
-        appearance_layout.addRow("Layout:", layout_combo)
-
-        layout.addWidget(appearance_group)
-
-        # Preview options
-        preview_group = QGroupBox("Preview Settings")
-        preview_layout = QFormLayout(preview_group)
-
-        # Thumbnail size
-        thumb_size_combo = QComboBox()
-        thumb_size_combo.addItems(["Small (64px)", "Medium (80px)", "Large (120px)"])
-        thumb_size_combo.setCurrentIndex(1)
-        preview_layout.addRow("Thumbnail Size:", thumb_size_combo)
-
-        # Preview background
-        bg_combo = QComboBox()
-        bg_combo.addItems(["Checkerboard", "Black", "White", "Gray"])
-        preview_layout.addRow("Preview Background:", bg_combo)
-
-        layout.addWidget(preview_group)
-
-        # Font settings
-        font_group = QGroupBox("Font Settings")
-        font_layout = QFormLayout(font_group)
-
-        font_size_combo = QComboBox()
-        font_size_combo.addItems(["Small", "Medium", "Large"])
-        font_size_combo.setCurrentIndex(1)
-        font_layout.addRow("Font Size:", font_size_combo)
-
-        layout.addWidget(font_group)
-
-        layout.addStretch()
-
-        # Note
-        note = QLabel("Note: Some settings require restart to take full effect")
-        note.setStyleSheet("color: #888; font-size: 10px;")
-        layout.addWidget(note)
-
         return tab
 
 
