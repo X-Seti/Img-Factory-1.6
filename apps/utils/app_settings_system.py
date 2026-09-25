@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 75
+#This goes in root/apps/utils/app_settings_system.py - version 76
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -5496,7 +5496,7 @@ class SettingsDialog(QDialog): #vers 15
             self.color_editors[selected_data].set_color(color)
 
 
-    def _create_gadgets_tab(self): #vers 4
+    def _create_gadgets_tab(self): #vers 5
         """Create gadgets styling tab with LIVE PREVIEW and proper splitter"""
         tab = QWidget()
         main_layout = QVBoxLayout(tab)
@@ -5782,11 +5782,11 @@ class SettingsDialog(QDialog): #vers 15
         hs_layout.addWidget(QLabel("Handle Style:"))
         self.handle_style_combo = QComboBox()
         self.handle_style_combo.addItems(["line", "gradient", "dots", "invisible"])
-        cs_now = getattr(self, 'current_settings', {})
+        cs_now = self.app_settings.current_settings
         self.handle_style_combo.setCurrentText(cs_now.get('handle_style', 'line'))
         self.handle_style_combo.currentTextChanged.connect(self._update_gadget_preview)
         self.handle_style_combo.currentTextChanged.connect(
-            lambda v: self.current_settings.update({'handle_style': v}))
+            lambda v: self.app_settings.current_settings.update({'handle_style': v}))
         hs_layout.addWidget(self.handle_style_combo, 1)
         splitter_layout.addLayout(hs_layout)
 
@@ -5795,7 +5795,7 @@ class SettingsDialog(QDialog): #vers 15
         self.handle_hide_docked = QCheckBox("Hide handles when docked")
         self.handle_hide_docked.setChecked(cs_now.get('handle_hide_docked', False))
         self.handle_hide_docked.stateChanged.connect(
-            lambda v: self.current_settings.update({'handle_hide_docked': bool(v)}))
+            lambda v: self.app_settings.current_settings.update({'handle_hide_docked': bool(v)}))
         hd_layout.addWidget(self.handle_hide_docked)
         hd_layout.addStretch()
         splitter_layout.addLayout(hd_layout)
