@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 2
+#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 3
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG
@@ -464,11 +464,13 @@ class ModelCache:
         return key in self._col_img_index or key in self._col_index
 
 
-    def prefetch(self, model_names, txd_names, workers: int,
-                 on_done=None, is_cancelled=None) -> None: #vers 1
+    def prefetch(self, model_names, txd_names, workers: int, on_done=None,
+                 is_cancelled=None, on_idle=None, on_stall=None,
+                 stall_seconds: float = 20.0) -> None: #vers 2
         """Parse many DFFs/TXDs in parallel worker processes, filling the caches.
-        on_done(kind, name, result) runs in this thread per finished item."""
-        from concurrent.futures import ProcessPoolExecutor, as_completed
+        on_done(kind, name, result) runs in this thread per finished item.
+        Workers silent for stall_seconds are stopped; the rest parse here."""
+        from concurrent.futures import ProcessPoolExecutor
         jobs = []
         for name in dict.fromkeys(n.lower() for n in model_names):
             if name in self._geometry_cache:
@@ -482,24 +484,52 @@ class ModelCache:
             jobs.append(('txd', name, blobs))
         if not jobs:
             return
-        with ProcessPoolExecutor(max_workers=max(1, workers)) as pool:
-            futs = {}
-            for kind, name, blobs in jobs:
-                f = (pool.submit(_parse_dff_job, name, blobs) if kind == 'dff'
-                     else pool.submit(_parse_txd_job, blobs))
-                futs[f] = (kind, name)
-            for f in as_completed(futs):
-                kind, name = futs[f]
+        import time
+        from concurrent.futures import wait, FIRST_COMPLETED
+        pool = ProcessPoolExecutor(max_workers=max(1, workers))
+        futs = {}
+        for kind, name, blobs in jobs:
+            f = (pool.submit(_parse_dff_job, name, blobs) if kind == 'dff'
+                 else pool.submit(_parse_txd_job, blobs))
+            futs[f] = (kind, name, blobs)
+        pending, last = set(futs), time.monotonic()
+        stalled = False
+        while pending:
+            done, pending = wait(pending, timeout=0.2, return_when=FIRST_COMPLETED)
+            for f in done:
+                kind, name, _b = futs[f]
                 try:
                     result = f.result()
                 except Exception:
                     result = None
-                (self._geometry_cache if kind == 'dff' else self._texture_cache)[name] = result
-                if on_done:
-                    on_done(kind, name, result)
+                self._store_parsed(kind, name, result, on_done)
+                last = time.monotonic()
+            if on_idle:
+                on_idle()
+            if is_cancelled and is_cancelled():
+                break
+            if pending and time.monotonic() - last > stall_seconds:
+                stalled = True
+                break
+        for proc in list(getattr(pool, '_processes', {}).values()):
+            if stalled:
+                proc.terminate()                  # stuck workers never finish
+        pool.shutdown(wait=not stalled, cancel_futures=True)
+        if stalled:                               # parse what is left here, in order
+            if on_stall:
+                on_stall(len(pending))
+            for f in pending:
                 if is_cancelled and is_cancelled():
-                    pool.shutdown(wait=False, cancel_futures=True)
                     break
+                kind, name, blobs = futs[f]
+                result = _parse_dff_job(name, blobs) if kind == 'dff' else _parse_txd_job(blobs)
+                self._store_parsed(kind, name, result, on_done)
+
+    def _store_parsed(self, kind, name, result, on_done=None) -> None: #vers 1
+        """Cache one parsed DFF/TXD result and report it."""
+        (self._geometry_cache if kind == 'dff' else self._texture_cache)[name] = result
+        if on_done:
+            on_done(kind, name, result)
 
     def _read_entry(self, img_path: str, entry) -> Optional[bytes]:
         """Read one entry's raw bytes from its IMG archive - reuses a

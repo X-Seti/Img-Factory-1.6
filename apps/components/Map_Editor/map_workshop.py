@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 212
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 213
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -27718,7 +27718,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         return n if n > 0 else max(1, (os.cpu_count() or 1) - 2)
 
     def _load_models_parallel(self, dlg, model_cache, items, workers,
-                              load_models, load_textures): #vers 1
+                              load_models, load_textures): #vers 2
         """Parse all models/TXDs in worker processes; rows update as each finishes."""
         rows, by_txd, missing = {}, {}, []
         for model_name, txd_name in items:
@@ -27760,7 +27760,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.message(f"Parsing with {workers} worker processes")
         model_cache.prefetch([m for m, _ in items] if load_models else [],
                              [t for _, t in items if t] if load_textures else [],
-                             workers, on_done=_done, is_cancelled=lambda: dlg.cancelled)
+                             workers, on_done=_done, is_cancelled=lambda: dlg.cancelled,
+                             on_idle=lambda: dlg._pump(),
+                             on_stall=lambda n: dlg.message(
+                                 f"Workers stopped responding - parsing last {n} here, one at a time"))
         if dlg.cancelled:
             return list(dict.fromkeys(missing))
         dff_done.update(rows)                 # already-cached items got no callback

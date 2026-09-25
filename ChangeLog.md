@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 171
+#this belongs in root /ChangeLog.md - Version: 172
+
+## Sep 25 2026 - Parallel load hang, Build 431.92
+- Parallel IPL load could hang waiting on workers; now polls with UI kept alive, and if workers go silent for 20s they are stopped and the rest parse in-process.
 
 ## Sep 25 2026 - File tab limit, Build 431.92
 - Tab bar shows the 5 most recent IMG/COL tabs at full width; the rest in Files dropdown. Workshop tabs always shown. Tab switch now syncs taskbar.
