@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 166
+#this belongs in root /ChangeLog.md - Version: 167
+
+## Sep 25 2026 - Map gizmo crash, Build 431.92
+- Selecting an object crashed Map Workshop: footprint outline unpacked 2 of 3 cached values.
 
 ## Sep 25 2026 - Button audit complete, Build 431.92
 - All toolbar, right-click and workshop buttons exercised in test; remaining crashes fixed (DP5 menus/font picker, settings handle options, IMG Browser undo).

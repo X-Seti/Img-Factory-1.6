@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 20
+# this belongs in apps/methods/dff_viewport.py - Version: 21
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -4812,14 +4812,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._footprint_cache[key] = hit
         return hit
 
-    def _draw_footprint(self, e): #vers 1
+    def _draw_footprint(self, e): #vers 2
         """Dashed white outline of the model's ground footprint."""
         if e is None:
             return
         fp = self._footprint(e)
         if fp is None:
             return
-        hull, minz = fp
+        hull, minz, _box = fp
         px, py, pz = e['pos']
         glEnable(GL_LINE_STIPPLE)
         glLineStipple(2, 0x3333)
