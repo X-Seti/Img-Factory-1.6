@@ -1,4 +1,4 @@
-#this belongs in apps/core/right_click_actions.py - Version: 8
+#this belongs in apps/core/right_click_actions.py - Version: 9
 # X-Seti - August07 2025 - IMG Factory 1.5 - Complete Right-Click Actions
 # Combined: Basic copying + Advanced file operations + Extraction functionality
 
@@ -518,20 +518,9 @@ def edit_col_from_table(main_window, row: int): #vers 1
     except Exception as e:
         main_window.log_message(f"COL edit error: {str(e)}")
 
-def analyze_col_from_table(main_window, row: int): #vers 1
-    """Analyze COL file from table row"""
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                
-                # Check if COL analyzer is available
-                if hasattr(main_window, 'analyze_col_file'):
-                    main_window.analyze_col_file(entry)
-                else:
-                    main_window.log_message("COL analyzer not available")
-    except Exception as e:
-        main_window.log_message(f"COL analysis error: {str(e)}")
+def analyze_col_from_table(main_window, row: int): #vers 2
+    """Table row -> analyze_col_from_img_entry."""
+    return analyze_col_from_img_entry(main_window, row)
 
 def edit_ide_file(main_window, row: int): #vers 2
     """Edit IDE file from table row"""

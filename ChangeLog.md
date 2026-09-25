@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 162
+#this belongs in root /ChangeLog.md - Version: 163
+
+## Sep 25 2026 - Right-click menu, Build 431.92
+- DFF Model Info shows real frames/geometry/textures; IDE View Definitions and COL Analyze now work (were "not available").
 
 ## Sep 25 2026 - Button audit fixes, Build 431.92
 - Radar, Vehicle, Paths, Model Viewer failed to open (unused requests import); IDE editor crash (QWidget) and open_ide_editor override clash; IPL taskbar icon.
