@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 21
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 22
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -194,65 +194,6 @@ class SVGIconFactory: #vers 8
         """Clear the cached theme color so next icon call re-reads from theme."""
         if hasattr(SVGIconFactory, '_cached_color'):
             del SVGIconFactory._cached_color
-
-
-    @staticmethod
-    def _createicon(svg_data: str, size: int = 20, color: str = None) -> QIcon: #vers 7
-        """
-        Create QIcon from SVG data with theme color support
-
-        Args:
-            svg_data: SVG string with 'currentColor' placeholders
-            size: Icon size in pixels (22-256, default 20)
-            color: Hex color for icon (e.g. '#ffffff', '#000000')
-                   If None, uses currentColor (theme-aware)
-        """
-        from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
-        from PyQt6.QtSvg import QSvgRenderer
-        from PyQt6.QtCore import QByteArray
-        if color:
-            svg_data = svg_data.replace('currentColor', color)
-
-        try:
-            # Get current text color from palette
-            text_color = self.palette().color(self.foregroundRole())
-
-            # Replace currentColor with actual color
-            svg_str = svg_data.decode('utf-8')
-            svg_str = svg_str.replace('currentColor', text_color.name())
-            svg_data = svg_str.encode('utf-8')
-
-            renderer = QSvgRenderer(QByteArray(svg_data))
-            pixmap = QPixmap(size, size)
-            pixmap.fill(QColor(0, 0, 0, 0))  # Transparent background
-
-            painter = QPainter(pixmap)
-            renderer.render(painter)
-            painter.end()
-
-            return QIcon(pixmap)
-        except:
-            # Fallback to no icon if SVG fails
-            return QIcon()
-
-        try:
-            renderer = QSvgRenderer(svg_data.encode())
-            if not renderer.isValid():
-                print(f"Invalid SVG data in icon creation")
-                return QIcon()
-
-
-            pixmap = QPixmap(size, size)
-            pixmap.fill(Qt.GlobalColor.transparent)
-
-            painter = QPainter(pixmap)
-            renderer.render(painter)
-            painter.end()
-            return QIcon(pixmap)
-        except Exception as e:
-            print(f"Error creating icon: {e}")
-            return QIcon()
-
 
 
 # - PLAYBACK CONTROL ICONS
@@ -2227,7 +2168,7 @@ class SVGIconFactory: #vers 8
 
 
     @staticmethod
-    def _warning_icon_svg(size: int = 24, color: str = None) -> QIcon: #vers 2
+    def _warning_icon_svg(size: int = 24, color: str = None) -> QIcon: #vers 3
         """Create SVG warning icon for table display"""
         svg_data = """
         <svg width="16" height="16" viewBox="0 0 16 16">
@@ -2235,9 +2176,7 @@ class SVGIconFactory: #vers 8
             <text x="8" y="12" font-size="10" fill="black" text-anchor="middle">!</text>
         </svg>
         """
-        return QIcon(QPixmap.fromImage(
-            QImage.fromData(QByteArray(svg_data))
-        ))
+        return SVGIconFactory._create_icon(svg_data, size, color)
 
 
     @staticmethod

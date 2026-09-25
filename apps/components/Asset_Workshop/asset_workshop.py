@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 3
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 4
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -16246,6 +16246,11 @@ class TexturePropertiesDialog(QDialog): #vers 1
 
 class TexturePreviewWidget(QLabel): #vers 1
     """ Test preview widget  """
+
+    def _get_ui_color(self, key): #vers 1
+        """Theme colour via methods/ui_color."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def set_checkerboard_background(self): #vers 1
         """Set checkerboard pattern background"""

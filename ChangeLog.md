@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 159
+#this belongs in root /ChangeLog.md - Version: 160
+
+## Sep 25 2026 - Theme colour crashes, Build 431.92
+- New methods/ui_color.py get_ui_color; Model Workshop, TXD/Asset preview, grip handle, Missing TXD dialog, DP5, MUI widgets lacked _get_ui_color.
+- COL mesh editor failed to import; DAT taskbar icon; broken warning icon.
 
 ## Sep 25 2026 - Toolbar button fixes, Build 431.92
 - File List, Merge View, Search and Refresh buttons crashed (undefined names); now wired. Removed junk edit_veh_file and duplicate _create_toolbar fragment.

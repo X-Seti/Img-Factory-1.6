@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/col_mesh_editor.py - Version: 1
+#this belongs in apps/components/Col_Editor/col_mesh_editor.py - Version: 2
 # X-Seti - March 2026 - IMG Factory 1.6 - COL Mesh Editor Dialog
 
 """
@@ -41,7 +41,7 @@ def _build_material_color_cache(game: COLGame = COLGame.SA) -> dict: #vers 1
 # Default caches (SA) — rebuilt when game version changes
 _MAT_COLORS_SA = _build_material_color_cache(COLGame.SA)
 _MAT_COLORS_VC = _build_material_color_cache(COLGame.VC)
-_DEFAULT_MAT_COLOR = self._get_ui_color('viewport_text')
+_DEFAULT_MAT_COLOR = QColor(120, 120, 120)
 
 
 ##class COLMeshEditorViewport -

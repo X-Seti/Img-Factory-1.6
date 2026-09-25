@@ -1,4 +1,4 @@
-#this belongs in apps/gui/dff_texlist_dialog.py - Version: 3
+#this belongs in apps/gui/dff_texlist_dialog.py - Version: 4
 # X-Seti - March 2026 - IMG Factory 1.6 - DFF Texture List Dialog
 """
 DFF Texture List Dialog
@@ -224,6 +224,11 @@ class MissingTXDDialog(QDialog): #vers 1
     """Batch scanner — shows all DFFs in the IMG with missing IDE-declared TXDs.
     For large IMGs (200+ problem entries) prompts before loading all rows.
     """
+
+    def _get_ui_color(self, key): #vers 1
+        """Theme colour via methods/ui_color."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def __init__(self, parent, main_window):
         super().__init__(parent)

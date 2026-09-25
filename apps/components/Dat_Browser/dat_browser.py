@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 9
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 10
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -4782,7 +4782,7 @@ def set_game_root_from_dir_tree(main_window) -> bool: #vers 1
         return False
 
 
-def _register_dat_taskbar(widget, main_window): #vers 1
+def _register_dat_taskbar(widget, main_window): #vers 2
     """Register or activate the DAT button in the tool taskbar."""
     try:
         tb = getattr(main_window, 'tool_taskbar', None)
@@ -4790,7 +4790,7 @@ def _register_dat_taskbar(widget, main_window): #vers 1
             return
         if 'dat' not in tb._tools:
             from apps.methods.imgfactory_svg_icons import get_dat_browser_icon
-            icon_color = getattr(tb, '_txt', None) or self.palette().color(self.foregroundRole()).name()
+            icon_color = getattr(tb, '_txt', None) or widget.palette().color(widget.foregroundRole()).name()
             icon = get_dat_browser_icon(16, icon_color)
             tb.register('dat', 'DAT', icon, widget, 'DAT Browser')
         else:
@@ -4800,7 +4800,7 @@ def _register_dat_taskbar(widget, main_window): #vers 1
         pass
 
 
-def integrate_dat_browser(main_window) -> bool: #vers 6
+def integrate_dat_browser(main_window) -> bool: #vers 7
     """Create DAT Browser widget and place it in the left_stack panel.\nUse show_dat_browser() / _show_dat_browser() to open/focus it.
     """
     try:
@@ -4832,7 +4832,7 @@ def integrate_dat_browser(main_window) -> bool: #vers 6
             tb = getattr(main_window, 'tool_taskbar', None)
             if tb and 'dat' not in tb._tools:
                 from apps.methods.imgfactory_svg_icons import get_dat_browser_icon
-                icon = get_dat_browser_icon(16, getattr(tb, '_txt', None) or self.palette().color(self.foregroundRole()).name())
+                icon = get_dat_browser_icon(16, getattr(tb, '_txt', None) or widget.palette().color(widget.foregroundRole()).name())
                 tb.register('dat', 'DAT', icon, widget, 'DAT Browser')
         except Exception:
             pass

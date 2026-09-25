@@ -6031,6 +6031,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Init                                                                   
 
+    def _get_ui_color(self, key): #vers 1
+        """Theme colour via methods/ui_color."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
+
     def __init__(self, parent=None, main_window=None): #vers 1
         super().__init__(parent)
 

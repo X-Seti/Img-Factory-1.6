@@ -176,6 +176,11 @@ class MUIKnob(QWidget):
     """Custom MUI-style knob widget"""
     valueChanged = pyqtSignal(float)
     
+    def _get_ui_color(self, key): #vers 1
+        """Theme colour via methods/ui_color."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
+
     def __init__(self, minimum=0.0, maximum=100.0, value=50.0):
         super().__init__()
         self.minimum = minimum
@@ -262,6 +267,11 @@ class MUIKnob(QWidget):
 class MUILevelMeter(QWidget):
     """Custom MUI-style level meter widget"""
     
+    def _get_ui_color(self, key): #vers 1
+        """Theme colour via methods/ui_color."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
+
     def __init__(self, orientation=Qt.Orientation.Vertical, num_bars=10):
         super().__init__()
         self.orientation = orientation
@@ -357,6 +367,11 @@ class MUILevelMeter(QWidget):
 class MUIPaletteWidget(QWidget):
     """Custom MUI-style palette widget"""
     
+    def _get_ui_color(self, key): #vers 1
+        """Theme colour via methods/ui_color."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
+
     def __init__(self, colors=None):
         super().__init__()
         if colors is None:

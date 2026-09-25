@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 31
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 32
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -16953,6 +16953,11 @@ class TexturePropertiesDialog(QDialog): #vers 1
 
 class TexturePreviewWidget(QLabel): #vers 1
     """ Test preview widget  """
+
+    def _get_ui_color(self, key): #vers 1
+        """Theme colour via methods/ui_color."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def set_checkerboard_background(self): #vers 1
         """Set checkerboard pattern background"""

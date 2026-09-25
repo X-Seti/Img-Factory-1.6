@@ -169,6 +169,11 @@ class _GripHandle(QPushButton):
     drag_started  = pyqtSignal(QPoint)
     click_release = pyqtSignal()
 
+    def _get_ui_color(self, key): #vers 1
+        """Theme colour via methods/ui_color."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
+
     def __init__(self, size: int = 28, parent=None):
         super().__init__(parent)
         self._btn_size  = size
