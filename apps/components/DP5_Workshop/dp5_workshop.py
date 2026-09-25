@@ -6913,7 +6913,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         vm.addSeparator()
         for z in (0.1, 0.25, 0.5, 1, 2, 4, 8, 16):
             lbl = f"{int(z)}×" if z >= 1 else f"{z}×"
-            vm.addAction(lbl, lambda _, zz=z: self._set_zoom(zz))
+            vm.addAction(lbl, lambda _=False, zz=z: self._set_zoom(zz))
         ga = vm.addAction("Pixel grid")
         ga.setCheckable(True)
         ga.setChecked(self.dp5_settings.get('show_pixel_grid'))
@@ -6945,7 +6945,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ('texture',  'Texture — game textures'),
             ('icon',     'Icon — icons and sprites'),
         ]:
-            a = cm.addAction(mode_label, lambda _, m=mode_id: self._set_canvas_mode(m, confirm=True))
+            a = cm.addAction(mode_label, lambda _=False, m=mode_id: self._set_canvas_mode(m, confirm=True))
             a.setCheckable(True)
             a.setChecked(mode_id == self._canvas_mode)
 
@@ -6974,7 +6974,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             sub = plm.addMenu(label)
             for name, mode in items:
                 # Use 'checked' as a throwaway variable to catch the signal's boolean
-                sub.addAction(name, lambda checked, m=mode: self._set_platform(m))
+                sub.addAction(name, lambda checked=False, m=mode: self._set_platform(m))
 
         # Platform menu
         plm = mb.addMenu("Platform")
@@ -8053,7 +8053,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     def _pick_ts_font(self): #vers 1
         """Font button clicked - open a font picker, matching my
         'font type, when you click on the font shown' request."""
-        from PyQt6.QtGui import QFontDialog
+        from PyQt6.QtWidgets import QFontDialog
         current = QFont(self._default_text_font_family)
         font, ok = QFontDialog.getFont(current, self, "Choose Text Font")
         if ok:
@@ -16646,7 +16646,7 @@ class _CharGrid(QWidget):
             'viewport_bg':   pal.ColorRole.Base,
             'viewport_text': pal.ColorRole.PlaceholderText,
             'border':        pal.ColorRole.Mid,
-            'panel_bg':      pal.ColorRole.panelbg,
+            'panel_bg':      pal.ColorRole.Window,
             'bg_primary':    pal.ColorRole.Window,
             'bg_secondary':  pal.ColorRole.AlternateBase,
             'text_primary':  pal.ColorRole.WindowText,
