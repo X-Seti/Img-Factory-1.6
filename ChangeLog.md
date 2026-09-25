@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 174
+#this belongs in root /ChangeLog.md - Version: 175
+
+## Sep 25 2026 - Smart IPL conversion, Build 431.92
+- INST lines classified by content (III, VC, SA, interior-before-name, extra field); convert any to VC/SA/LC; Repair lines; parser reads swapped lines.
 
 ## Sep 25 2026 - IPL Format Checker, Build 431.92
 - New IPL Format Checker (IPL list menu / Convert menu): layout, scale 0/1 counts, interiors, bad lines; Scale 0->1, 1->0, Fix SA for VC, Fix VC for SA with backups.

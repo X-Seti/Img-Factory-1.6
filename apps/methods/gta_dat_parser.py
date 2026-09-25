@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 6
+#this belongs in apps/methods/gta_dat_parser.py - Version: 7
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -1621,9 +1621,12 @@ class IPLParser: #vers 2
             self.stats.warnings.append(f"enex line {lineno}: {e}")
             return None
 
-    def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 4
+    def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 5
         try:
             parts = [p.strip() for p in line.split(",")]
+            rec = parse_inst_record(parts)
+            if rec and rec['note'] == 'interior before name':     # "2085, 0, name, ..."
+                parts = format_inst_record(rec, GTAGame.VC, zero_scale_to_one=False)
             layout = getattr(self, '_current_inst_layout', self.game)
             if layout in (GTAGame.SA, GTAGame.SOL):
                 if len(parts) < 10:
@@ -3037,42 +3040,61 @@ def optimize_dat_load_order(dat_path, entries): #vers 1
                   f"{len(type_order)} type(s) in {os.path.basename(dat_path)}")
 
 
-def convert_inst_fields(parts, from_game, to_game): #vers 1
-    """Convert one already-split INST line's own real fields between
-    VC and SA/SOL layouts (Aug 21 2026)"""
-    sa_like = (GTAGame.SA, GTAGame.SOL)
-    if from_game in sa_like and to_game == GTAGame.VC:
-        if len(parts) < 10:
-            return None
-        id_, model, interior, px, py, pz = parts[0:6]
-        rx, ry, rz, rw = parts[6:10]
-        return [id_, model, interior, px, py, pz,
-                "1.0", "1.0", "1.0", rx, ry, rz, rw]
-    if from_game == GTAGame.VC and to_game in sa_like:
-        if len(parts) < 13:
-            return None
-        id_, model, interior, px, py, pz = parts[0:6]
-        rx, ry, rz, rw = parts[9:13]
-        return [id_, model, interior, px, py, pz, rx, ry, rz, rw, "-1"]
-    return None
-
-
-def repair_zero_scale_inst_fields(parts): #vers 1
-    """Fix a real, broken VC-layout INST line whose own real scale
-    fields (index 6,7,8) are (0,0,0) instead of the real, standard
-    (1,1,1) - a real zero scale collapses the object to nothing in-
-    game (Aug 21 2026)"""
-    if len(parts) < 13:
-        return parts
+def _is_num(v): #vers 1
     try:
-        sx, sy, sz = float(parts[6]), float(parts[7]), float(parts[8])
+        float(v)
+        return True
     except ValueError:
-        return parts
-    if sx == 0.0 and sy == 0.0 and sz == 0.0:
-        fixed = list(parts)
-        fixed[6], fixed[7], fixed[8] = "1.0", "1.0", "1.0"
-        return fixed
-    return parts
+        return False
+
+
+def parse_inst_record(parts): #vers 1
+    """Classify one split INST line (III / VC / SA / swapped) into a record dict, or None."""
+    n = len(parts)
+    names = [i for i, p in enumerate(parts) if not _is_num(p)]
+    if len(names) != 1:
+        return None
+    ni = names[0]
+    rec = {'id': parts[0], 'int': '0', 'scale': None, 'lod': None, 'note': ''}
+    if ni == 1 and n == 12:                                  # III: no interior
+        rec.update(layout='III', name=parts[1], pos=parts[2:5], scale=parts[5:8], rot=parts[8:12])
+    elif ni == 1 and n in (13, 14):                          # VC (14 = trailing extra field)
+        rec.update(layout='VC', name=parts[1], int=parts[2], pos=parts[3:6],
+                   scale=parts[6:9], rot=parts[9:13])
+        if n == 14:
+            rec['lod'] = parts[13]
+            rec['note'] = 'extra trailing field'
+    elif ni == 2 and n == 13 and parts[1].lstrip('-').isdigit():   # interior written before name
+        rec.update(layout='VC', name=parts[2], int=parts[1], pos=parts[3:6],
+                   scale=parts[6:9], rot=parts[9:13], note='interior before name')
+    elif ni == 1 and n in (10, 11):                          # SA: no scale, optional LOD
+        rec.update(layout='SA', name=parts[1], int=parts[2], pos=parts[3:6], rot=parts[6:10],
+                   lod=parts[10] if n == 11 else None)
+    else:
+        return None
+    return rec
+
+
+def format_inst_record(rec, to_game, zero_scale_to_one=True): #vers 1
+    """Fields for rec in III / VC / SA-SOL layout."""
+    scale = list(rec['scale'] or ['1', '1', '1'])
+    if zero_scale_to_one and all(_is_num(v) and float(v) == 0.0 for v in scale):
+        scale = ['1', '1', '1']
+    interior = rec['int']
+    if to_game == GTAGame.GTA3:
+        return [rec['id'], rec['name'], *rec['pos'], *scale, *rec['rot']]
+    if to_game == GTAGame.VC:
+        if rec['layout'] == 'SA' and interior.lstrip('-').isdigit():
+            interior = str(int(interior) & 0xFF)        # SA high bits are flags VC lacks
+        return [rec['id'], rec['name'], interior, *rec['pos'], *scale, *rec['rot']]
+    lod = rec['lod'] if rec['layout'] == 'SA' and rec['lod'] is not None else '-1'
+    return [rec['id'], rec['name'], interior, *rec['pos'], *rec['rot'], lod]
+
+
+def convert_inst_fields(parts, to_game, zero_scale_to_one=True): #vers 2
+    """Convert one split INST line to to_game's layout; None if unrecognised."""
+    rec = parse_inst_record(parts)
+    return format_inst_record(rec, to_game, zero_scale_to_one) if rec else None
 
 
 def build_xref(loader: "GTAWorldLoader", game_root: str = "") -> GTAWorldXRef: #vers 2

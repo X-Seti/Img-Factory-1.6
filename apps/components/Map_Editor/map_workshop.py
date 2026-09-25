@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 215
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 216
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -26497,84 +26497,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return False, f"Couldn't write {abs_path}: {e}"
         return True, f"Wrote {len(grge_entries)} garage(s) to {os.path.basename(abs_path)}"
 
-    def _detect_inst_field_game(self, parts): #vers 1
-        """Guess which game an already-split INST line's own fields
-        belong to, from field count alone (Aug 21 2026, .per:
-        "having VC -> SA or SA -> VC is something I need... selected
-        ipl files to convert, anywhere on the harddrive") - VC's own
-        real, confirmed layout always has 13 fields (scale+rotation);
-        SA/SOL's has 10 (no lod) or 11 (with lod). Returns GTAGame.VC,
-        GTAGame.SA, or None if the count matches neither real, known
-        layout."""
-        from apps.methods.gta_dat_parser import GTAGame
-        n = len(parts)
-        if n == 13:
-            return GTAGame.VC
-        if n in (10, 11):
-            return GTAGame.SA
-        return None
-
-    def _convert_ipl_inst_section(self, abs_path, to_game, from_game=None): #vers 1
-        """Convert every real INST line in one real IPL file to
-        to_game's own real field layout, in place (Aug 21 2026, per
-         : "having VC -> SA or SA -> VC is something I need,
-        under a conversion SVG icon, right clicked for options, and
-        selected ipl files to convert, anywhere on the harddrive or
-        loaded ipl browser list"). Only real INST lines are touched -
-        every other real line (other sections, comments) is left
-        completely untouched. from_game auto-detected per real INST
-        section found (_detect_inst_field_game, from real field count)
-        when not given directly - handles a real file with more than
-        one real INST section, each independently, in case they
-        somehow differ (shouldn't in practice, but not assumed).
-        Writes a real .bak backup first (only if one doesn't already
-        exist). Returns (success: bool, message: str)."""
-        from apps.methods.gta_dat_parser import convert_inst_fields
+    def _convert_ipl_inst_section(self, abs_path, to_game): #vers 2
+        """Convert an IPL's INST lines to to_game's layout in place (backup kept)."""
+        from apps.components.Map_Editor.depends.ipl_format_check import rewrite_ipl
+        action = {'vc': 'to_vc', 'gta3': 'to_iii'}.get(to_game, 'to_sa')
         try:
-            with open(abs_path, 'r', encoding='latin-1', newline='') as f:
-                lines = f.readlines()
+            n = rewrite_ipl(abs_path, action)
         except Exception as e:
-            return False, f"Couldn't read {abs_path}: {e}"
-
-        new_lines = []
-        in_inst = False
-        section_from_game = from_game
-        converted, skipped = 0, 0
-        for raw in lines:
-            stripped = raw.split('#')[0].strip()
-            if not in_inst and stripped.lower() == 'inst':
-                in_inst = True
-                section_from_game = from_game
-                new_lines.append(raw)
-                continue
-            if in_inst and stripped.lower() == 'end':
-                in_inst = False
-                new_lines.append(raw)
-                continue
-            if in_inst and stripped and not stripped.startswith('#'):
-                parts = [p.strip() for p in stripped.split(',')]
-                if section_from_game is None:
-                    section_from_game = self._detect_inst_field_game(parts)
-                if section_from_game is not None and section_from_game != to_game:
-                    result = convert_inst_fields(parts, section_from_game, to_game)
-                    if result is not None:
-                        new_lines.append(', '.join(result) + '\n')
-                        converted += 1
-                        continue
-                new_lines.append(raw)
-                skipped += 1
-                continue
-            new_lines.append(raw)
-
-        if converted == 0:
-            return False, f"No convertible INST lines found in {os.path.basename(abs_path)}"
-
-        try:
-            _write_ipl_lines(abs_path, new_lines)      # timestamped backup + atomic write, CRLF kept
-        except Exception as e:
-            return False, f"Couldn't write {abs_path}: {e}"
-        suffix = f", {skipped} left unconverted" if skipped else ""
-        return True, f"Converted {converted} INST line(s) in {os.path.basename(abs_path)}{suffix}"
+            return False, f"Couldn't convert {abs_path}: {e}"
+        if n == 0:
+            return False, f"No INST lines needed converting in {os.path.basename(abs_path)}"
+        return True, f"Converted {n} INST line(s) in {os.path.basename(abs_path)}"
 
     def _convert_ipl_files_dialog(self, to_game): #vers 1
         """Convert IPL File(s) From Disk... - lets   pick any real

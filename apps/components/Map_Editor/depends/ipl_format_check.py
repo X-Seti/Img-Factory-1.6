@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/depends/ipl_format_check.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/ipl_format_check.py - Version: 2
 # X-Seti - September25 2026 - IMG Factory 1.6 - IPL format checker
 
 """
 IPL format checker - reports each IPL's INST layout (VC / SA / III), scale
-values and malformed lines, and rewrites files: scale 0<->1, SA<->VC layout.
+values and malformed lines; repairs lines and converts III / VC / SA layouts.
 """
 
 ##Methods list -
@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget,
     QTableWidgetItem, QPushButton, QPlainTextEdit, QFileDialog, QMessageBox,
     QAbstractItemView, QHeaderView, QLabel)
 
-LAYOUT_BY_FIELDS = {13: 'VC', 12: 'III', 11: 'SA', 10: 'SA'}
+TARGETS = {'to_vc': 'vc', 'to_sa': 'sa', 'to_iii': 'gta3'}
 
 
 def _inst_lines(lines): #vers 1
@@ -48,85 +48,78 @@ def _inst_lines(lines): #vers 1
             yield i, [p.strip() for p in s.split(',')]
 
 
-def _line_problems(parts, layout): #vers 1
+def _line_problems(parts, rec, layout): #vers 2
     """Reasons a single inst line looks wrong, empty list if fine."""
-    n = len(parts)
-    if LAYOUT_BY_FIELDS.get(n) is None:
-        return [f"{n} fields"]
-    if layout and LAYOUT_BY_FIELDS[n] != layout:
-        return [f"{LAYOUT_BY_FIELDS[n]} line in {layout} file"]
-    try:
-        [float(p) for i, p in enumerate(parts) if i != 1]
-    except ValueError:
-        return ["non-numeric value"]
-    probs = []
-    if not parts[1] or parts[1][0].isdigit() or parts[1].startswith('-'):
-        probs.append("model name looks like a number (fields shifted?)")
-    pos = parts[3:6] if n != 12 else parts[2:5]
-    if any(abs(float(v)) > 20000 for v in pos):
+    if rec is None:
+        return [f"unrecognised line ({len(parts)} fields)"]
+    probs = [rec['note']] if rec['note'] else []
+    if layout and rec['layout'] != layout:
+        probs.append(f"{rec['layout']} line in {layout} file")
+    if any(abs(float(v)) > 20000 for v in rec['pos']):
         probs.append("position out of range")
-    q = [float(v) for v in parts[-4:]] if n in (12, 13) else [float(v) for v in parts[6:10]]
-    mag = sum(v * v for v in q)
+    mag = sum(float(v) ** 2 for v in rec['rot'])
     if not 0.9 < mag < 1.1:
         probs.append(f"rotation not unit length ({mag:.2f})")
-    if n == 13:
-        sc = [float(v) for v in parts[6:9]]
+    if rec['scale']:
+        sc = [float(v) for v in rec['scale']]
         if sc not in ([0.0] * 3, [1.0] * 3) and (min(sc) <= 0 or max(sc) > 50):
-            probs.append(f"odd scale {parts[6]}, {parts[7]}, {parts[8]}")
+            probs.append(f"odd scale {', '.join(rec['scale'])}")
     return probs
 
 
-def scan_ipl_format(path): #vers 1
+def scan_ipl_format(path): #vers 2
     """Layout, line count, scale counts and problem lines for one IPL."""
+    from apps.methods.gta_dat_parser import parse_inst_record
     with open(path, 'r', encoding='latin-1', newline='') as f:
         lines = f.readlines()
+    rows = [(i, parts, parse_inst_record(parts)) for i, parts in _inst_lines(lines)]
     counts = {}
-    rows = list(_inst_lines(lines))
-    for _i, parts in rows:
-        lay = LAYOUT_BY_FIELDS.get(len(parts))
-        if lay:
-            counts[lay] = counts.get(lay, 0) + 1
+    for _i, _p, rec in rows:
+        if rec:
+            counts[rec['layout']] = counts.get(rec['layout'], 0) + 1
     layout = max(counts, key=counts.get) if counts else ''
     res = {'path': path, 'layout': layout, 'lines': len(rows),
            'zero_scale': 0, 'unit_scale': 0, 'interiors': set(), 'problems': []}
-    for i, parts in rows:
-        if len(parts) == 13:
-            sc = parts[6:9]
-            try:
-                fs = [float(v) for v in sc]
-                res['zero_scale'] += fs == [0.0] * 3
-                res['unit_scale'] += fs == [1.0] * 3
-            except ValueError:
-                pass
-        if len(parts) >= 3 and len(parts) != 12:
-            res['interiors'].add(parts[2])
-        for p in _line_problems(parts, layout):
+    for i, parts, rec in rows:
+        if rec and rec['scale']:
+            fs = [float(v) for v in rec['scale']]
+            res['zero_scale'] += fs == [0.0] * 3
+            res['unit_scale'] += fs == [1.0] * 3
+        if rec and rec['layout'] != 'III':
+            res['interiors'].add(rec['int'])
+        for p in _line_problems(parts, rec, layout):
             res['problems'].append((i + 1, p, lines[i].rstrip('\r\n')))
     return res
 
 
-def rewrite_ipl(path, action): #vers 1
-    """Rewrite inst lines: 'scale_1', 'scale_0', 'to_vc', 'to_sa'. Returns lines changed."""
-    from apps.methods.gta_dat_parser import convert_inst_fields, GTAGame
+def rewrite_ipl(path, action, zero_scale_to_one=True): #vers 2
+    """Rewrite inst lines: to_vc / to_sa / to_iii / repair / scale_1 / scale_0. Returns lines changed."""
+    from apps.methods.gta_dat_parser import parse_inst_record, format_inst_record
     from apps.components.Map_Editor.map_workshop import _write_ipl_lines
     with open(path, 'r', encoding='latin-1', newline='') as f:
         lines = f.readlines()
+    layout = scan_ipl_format(path)['layout']
+    own = {'VC': 'vc', 'SA': 'sa', 'III': 'gta3'}.get(layout, 'vc')
     changed = 0
     for i, parts in list(_inst_lines(lines)):
+        rec = parse_inst_record(parts)
+        if rec is None:
+            continue
         eol = '\r\n' if lines[i].endswith('\r\n') else '\n'
-        new = None
-        if action in ('scale_1', 'scale_0') and len(parts) == 13:
-            src, dst = (("0", "1.0") if action == 'scale_1' else ("1", "0"))
-            try:
-                if [float(v) for v in parts[6:9]] == [float(src)] * 3:
-                    new = parts[:6] + [dst] * 3 + parts[9:]
-            except ValueError:
-                pass
-        elif action == 'to_vc' and len(parts) in (10, 11):
-            new = convert_inst_fields(parts, GTAGame.SA, GTAGame.VC)
-        elif action == 'to_sa' and len(parts) == 13:
-            new = convert_inst_fields(parts, GTAGame.VC, GTAGame.SA)
-        if new is not None:
+        if action in TARGETS:
+            new = format_inst_record(rec, TARGETS[action], zero_scale_to_one)
+        elif action == 'repair':
+            new = format_inst_record(rec, own, zero_scale_to_one=False)
+        elif action in ('scale_1', 'scale_0') and rec['scale']:
+            src, dst = (0.0, '1') if action == 'scale_1' else (1.0, '0')
+            if [float(v) for v in rec['scale']] != [src] * 3:
+                continue
+            rec = dict(rec, scale=[dst] * 3)
+            new = format_inst_record(rec, 'vc' if rec['layout'] != 'III' else 'gta3',
+                                     zero_scale_to_one=False)
+        else:
+            continue
+        if new != parts:
             lines[i] = ', '.join(new) + eol
             changed += 1
     if changed:
@@ -166,10 +159,12 @@ class IPLFormatDialog(QDialog):
         act = QHBoxLayout()
         act.addWidget(QLabel("Selected files:"))
         for text, action, tip in (
-                ("Scale 0 -> 1", 'scale_1', "Set 0,0,0 scale to 1,1,1 (VC-layout lines)"),
-                ("Scale 1 -> 0", 'scale_0', "Set 1,1,1 scale to 0,0,0 (VC-layout lines)"),
-                ("Fix SA for VC", 'to_vc', "SA layout -> VC layout, scale 1,1,1, LOD index dropped"),
-                ("Fix VC for SA", 'to_sa', "VC layout -> SA layout, scale dropped, LOD -1")):
+                ("Repair lines", 'repair', "Fix swapped interior/name and extra fields, keep layout"),
+                ("Scale 0 -> 1", 'scale_1', "Set 0,0,0 scale to 1,1,1"),
+                ("Scale 1 -> 0", 'scale_0', "Set 1,1,1 scale to 0,0,0"),
+                ("To VC", 'to_vc', "Any layout -> VC: interior added (SA flag bits dropped), scale 1,1,1, SA LOD removed"),
+                ("To SA", 'to_sa', "Any layout -> SA: scale removed, LOD index kept or -1"),
+                ("To LC/III", 'to_iii', "Any layout -> GTA III: interior removed, scale 1,1,1")):
             b = QPushButton(text); b.setToolTip(tip)
             b.clicked.connect(lambda _=False, a=action: self._apply(a))
             act.addWidget(b)
