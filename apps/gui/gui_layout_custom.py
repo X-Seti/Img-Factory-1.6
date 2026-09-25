@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 18
+#this belongs in apps/gui/gui_layout_custom.py - Version: 19
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -937,40 +937,6 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             traceback.print_exc()
 
 
-    def _create_toolbar(self):
-
-        apply_btn.clicked.connect(apply_settings)
-        button_layout.addWidget(apply_btn)
-
-        # OK button (apply and close)
-        ok_btn = QPushButton("OK")
-        ok_btn.setStyleSheet("""
-            QPushButton {
-                background: palette(highlight);
-                color: white;
-                padding: 8px 20px;
-                font-weight: bold;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background: palette(highlight);
-            }
-        """)
-        ok_btn.setDefault(True)
-
-        def ok_clicked():
-            apply_settings()
-            dialog.accept()
-
-        ok_btn.clicked.connect(ok_clicked)
-        button_layout.addWidget(ok_btn)
-
-        layout.addLayout(button_layout)
-
-        # Show dialog
-        dialog.exec()
-
-
     def _create_toolbar(self): #vers 7
         """Create toolbar - ALL BUTTONS CONNECTED"""
         # Read sizes from app_settings so they match Global App System Settings
@@ -1408,37 +1374,6 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 print(f"✗ Error switching to tab {index}: {str(e)}")
                 import traceback
                 traceback.print_exc()
-
-
-    def _switch_to_file_entries(self): #vers 2
-        """Switch to current IMG file tab (last active tab > 0)"""
-        try:
-            if not hasattr(self.main_window, 'main_tab_widget') or not self.main_window.main_tab_widget:
-                self.main_window.log_message("No tab widget available")
-                return
-
-            tab_widget = self.main_window.main_tab_widget
-            current_index = tab_widget.currentIndex()
-
-            # If already on an IMG tab (> 0), stay there
-            if current_index > 0:
-                tab_name = tab_widget.tabText(current_index)
-                self.main_window.log_message(f"Already on: {tab_name}")
-                return
-
-            # Find last active IMG tab or first IMG tab
-            if tab_widget.count() > 1:
-                # Switch to Tab 1 (first IMG tab)
-                tab_widget.setCurrentIndex(1)
-                tab_name = tab_widget.tabText(1)
-                self.main_window.log_message(f"→ Switched to: {tab_name}")
-            else:
-                self.main_window.log_message("No IMG files loaded")
-
-        except Exception as e:
-            self.main_window.log_message(f"Error switching to file entries: {str(e)}")
-            import traceback
-            traceback.print_exc()
 
 
     def _switch_to_directory_tree(self): #vers 12
@@ -2740,10 +2675,11 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 
         dialog.exec()
 
-    def show_search_dialog(self):  # vers 1
+    def show_search_dialog(self):  #vers 2
         """Show the search dialog"""
         try:
             # Create and show the search dialog
+            from apps.core.gui_search import ASearchDialog
             search_dialog = ASearchDialog(self.main_window)
             search_dialog.exec()
         except Exception as e:
@@ -3507,7 +3443,7 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 
 # Export functions
 __all__ = [
-    'IMGFactoryGUILayoutCustom', '_create_toolbar', '_show_workshop_settings'
+    'IMGFactoryGUILayoutCustom'
 ]
 
 

@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 36
+#this belongs in apps/gui/gui_layout.py - Version: 37
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -270,12 +270,6 @@ def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
     except Exception as e:
         main_window.log_message(f"Error opening COL Workshop: {e}")
 
-def edit_veh_file(main_window): #vers 1
-    from apps.methods.gta_dat_parser import GTAGame as _G
-    if game == _G.SOL:
-        return [img_stems[s] for s in ('vehicles','gta3') if s in img_stems] or all_imgs
-    return [img_stems[s] for s in ('gta3',) if s in img_stems] or all_imgs
-
 def edit_dff_file(main_window): #vers 1
     """Open Model Workshop.
 
@@ -383,13 +377,14 @@ class IMGFactoryGUILayout:
         self.method_mappings = self._create_method_mappings()
 
 
-    def _create_method_mappings(self): #vers 5
+    def _create_method_mappings(self): #vers 6
         """Create centralized method mappings for all buttons"""
         method_mappings = {
             # Nav Operations - Keep hidden unless custom theme requires these 3 buttons.
-            'filelistwindow': lambda: _switch_to_file_entries(self.main_window),
-            'switch_to_dirlist': lambda: _switch_to_directory_tree(self.main_window),
-            'switch_to_search': lambda: _switch_to_search(self.main_window),
+            'filelistwindow': lambda: self._switch_to_file_entries(),
+            'switch_to_img_file': lambda: self._switch_to_file_entries(),
+            'switch_to_dirlist': lambda: self._switch_to_directory_tree(),
+            'switch_to_search': lambda: self._show_search(),
 
             # IMG/COL Operations
             'create_new_img': lambda: create_new_img(self.main_window),
@@ -413,7 +408,7 @@ class IMGFactoryGUILayout:
             # Import methods
             'import_files': lambda: import_files_function(self.main_window),
             'import_files_via': lambda: import_via_function(self.main_window),
-            'refresh_table': lambda: refresh_table(self.main_window),
+            'refresh_table': lambda: self.main_window.refresh_img_table(),
 
             # Export methods
             'export_selected': lambda: self.main_window.export_selected(),
@@ -2341,6 +2336,38 @@ class IMGFactoryGUILayout:
         self._apply_status_window_theme_styling()
 
         return status_container
+
+
+    def _switch_to_file_entries(self): #vers 3
+        """Switch to current IMG file tab (last active tab > 0)"""
+        try:
+            if not hasattr(self.main_window, 'main_tab_widget') or not self.main_window.main_tab_widget:
+                self.main_window.log_message("No tab widget available")
+                return
+
+            tab_widget = self.main_window.main_tab_widget
+            current_index = tab_widget.currentIndex()
+
+            # If already on an IMG tab (> 0), stay there
+            if current_index > 0:
+                tab_name = tab_widget.tabText(current_index)
+                self.main_window.log_message(f"Already on: {tab_name}")
+                return
+
+            # Find last active IMG tab or first IMG tab
+            if tab_widget.count() > 1:
+                # Switch to Tab 1 (first IMG tab)
+                tab_widget.setCurrentIndex(1)
+                tab_name = tab_widget.tabText(1)
+                self.main_window.log_message(f"Switched to: {tab_name}")
+            else:
+                self.main_window.log_message("No IMG files loaded")
+
+        except Exception as e:
+            self.main_window.log_message(f"Error switching to file entries: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
 
 
     def _switch_to_directory_tree(self): #vers 14

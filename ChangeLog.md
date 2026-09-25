@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 158
+#this belongs in root /ChangeLog.md - Version: 159
+
+## Sep 25 2026 - Toolbar button fixes, Build 431.92
+- File List, Merge View, Search and Refresh buttons crashed (undefined names); now wired. Removed junk edit_veh_file and duplicate _create_toolbar fragment.
 
 ## Sep 25 2026 - TXD Workshop fixes, Build 431.92
 - TXD Workshop: ~1,700 dead lines removed; Texture Properties dialog crash, titlebar menu crash, settings log crash, mipmap typo fixed.
