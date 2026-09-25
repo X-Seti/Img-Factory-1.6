@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 173
+#this belongs in root /ChangeLog.md - Version: 174
+
+## Sep 25 2026 - IPL Format Checker, Build 431.92
+- New IPL Format Checker (IPL list menu / Convert menu): layout, scale 0/1 counts, interiors, bad lines; Scale 0->1, 1->0, Fix SA for VC, Fix VC for SA with backups.
 
 ## Sep 25 2026 - SOL SA objects invisible, Build 431.92
 - Converted IPLs store scale 0,0,0 ("no scale"); viewport drew them at zero size. Now drawn at 1,1,1; file data unchanged.

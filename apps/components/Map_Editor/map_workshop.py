@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 214
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 215
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -20117,7 +20117,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.map_settings.set('ipl_sections_order', order)
         self.map_settings.save()
 
-    def _on_ipl_sections_context_menu(self, pos): #vers 6
+    def _on_ipl_sections_context_menu(self, pos): #vers 7
         """Right-click a row for Move Up/Down/Load Selected - explicit
         menu actions rather than drag-and-drop, since QTableWidget's
         built-in InternalMove drag-drop is a known source of subtle
@@ -20233,6 +20233,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             lambda checked=False: self._restore_savepoint_dialog())
         menu.addAction("Map Checks...").triggered.connect(
             lambda checked=False: self._show_map_checks())
+        menu.addAction("IPL Format Checker...").triggered.connect(
+            lambda checked=False: self._show_ipl_format_checker())
         menu.addAction("Script Placements (main.scm)...").triggered.connect(
             lambda checked=False: self._show_script_placements())
         menu.addAction("Engine Load Log...").triggered.connect(
@@ -26662,7 +26664,18 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         else:
             self._set_status(f"Converted {converted} file(s) to {to_game.upper()}")
 
-    def _show_convert_ipl_menu(self, button): #vers 1
+    def _show_ipl_format_checker(self): #vers 1
+        """Scan world IPLs for layout / scale / bad lines; fix or convert them."""
+        from apps.components.Map_Editor.depends.ipl_format_check import IPLFormatDialog
+        loader = getattr(self, '_world_loader', None)
+        paths = []
+        if loader is not None:
+            paths = [e.abs_path for e in getattr(loader, 'available_ipls', {}).values()
+                     if getattr(e, 'exists', False)]
+            paths += [e[2] for e in getattr(loader, 'load_log', []) if len(e) >= 3 and e[1] == 'IPL']
+        IPLFormatDialog(self, sorted(set(paths))).exec()
+
+    def _show_convert_ipl_menu(self, button): #vers 2
         """Convert button, left or right-click (Aug 21 2026, per
          : "having VC -> SA or SA -> VC is something I need,
         under a convertion SVG icon, right clicked for options, and
@@ -26672,6 +26685,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         formats."""
         from apps.methods.gta_dat_parser import GTAGame
         menu = QMenu(self)
+        menu.addAction("IPL Format Checker...", self._show_ipl_format_checker)
+        menu.addSeparator()
         menu.addAction("Convert File(s) From Disk to SA/SOL...",
                         lambda: self._convert_ipl_files_dialog(GTAGame.SA))
         menu.addAction("Convert File(s) From Disk to VC...",
