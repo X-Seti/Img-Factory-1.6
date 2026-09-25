@@ -438,11 +438,12 @@ class IMGTab(QWidget):
 
 # --- Main Widget ---
 class MainWidget(QWidget):
-    def __init__(self, parent=None): #vers 1
+    def __init__(self, parent=None): #vers 2
         super().__init__(parent)
         self.debug_mode = False
         self.setup_ui()
         self.max_undo = 10
+        self.undo_stack = []
 
     def setup_ui(self): #vers 1
         layout = QVBoxLayout(self)
@@ -691,9 +692,11 @@ class MainWidget(QWidget):
             else:
                 QMessageBox.information(self, "Find Results", "No matches found.")
 
-    def undo(self): #vers 1
-        if self.undo_stack:
-            QMessageBox.information(self, "Undo", "Undo functionality would restore previous state.")
+    def undo(self): #vers 2
+        if not self.undo_stack:
+            QMessageBox.information(self, "Undo", "Nothing to undo.")
+            return
+        QMessageBox.information(self, "Undo", "Undo functionality would restore previous state.")
 
     def current_tab(self) -> Optional[IMGTab]: #vers 2
         current_index = self.tab_widget.currentIndex()

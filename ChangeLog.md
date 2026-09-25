@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 165
+#this belongs in root /ChangeLog.md - Version: 166
+
+## Sep 25 2026 - Button audit complete, Build 431.92
+- All toolbar, right-click and workshop buttons exercised in test; remaining crashes fixed (DP5 menus/font picker, settings handle options, IMG Browser undo).
 
 ## Sep 25 2026 - Workshop button audit, Build 431.92
 - Every workshop button clicked in test: fixed COL Save/Export/Create before load, Model Toggle Shading and paint exit, Vehicle LOD/Wheels/Cols, Master IDE Save/Add/Relocate.
