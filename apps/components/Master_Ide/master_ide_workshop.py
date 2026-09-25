@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 9
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 10
 # X-Seti - September 17 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -831,7 +831,9 @@ class MasterIDEWorkshop(QWidget): #vers 9
 
         self._reload_after_edit()
 
-    def _on_add_entry(self): #vers 1
+    def _on_add_entry(self): #vers 2
+        if not self._require_loaded("Add Entry"):
+            return
         dlg = _AddEntryDialog(self, self.result.source_files)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
@@ -926,11 +928,17 @@ class MasterIDEWorkshop(QWidget): #vers 9
                 pass
         self._reload_after_edit()
 
-    def _on_integrity_check(self): #vers 1
+    def _require_loaded(self, title): #vers 1
+        """False (with message) when no IDE files are loaded."""
+        if not self.result:
+            QMessageBox.information(self, title, "Nothing loaded.")
+            return False
+        return True
+
+    def _on_integrity_check(self): #vers 2
         from apps.methods.asset_integrity import check_integrity, format_report, show_integrity_dialog
         from apps.components.Master_Ide.id_tools_dialogs import _collect_ipl_paths
-        if not self.result:
-            QMessageBox.information(self, "Integrity Check", "Nothing loaded.")
+        if not self._require_loaded("Integrity Check"):
             return
         rep = check_integrity(self.result, _collect_ipl_paths(self.dat_path, self.game))
         show_integrity_dialog(self, format_report(rep))
@@ -979,7 +987,9 @@ class MasterIDEWorkshop(QWidget): #vers 9
         dlg.exec()
         self._reload_after_edit()
 
-    def _on_insert_relocate(self): #vers 2
+    def _on_insert_relocate(self): #vers 3
+        if not self._require_loaded("Insert & Relocate"):
+            return
         from apps.components.Master_Ide.id_tools_dialogs import InsertRelocateDialog
         dlg = InsertRelocateDialog(self, self.result, game=self.game, dat_path=self.dat_path)
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -996,7 +1006,9 @@ class MasterIDEWorkshop(QWidget): #vers 9
         dlg = IMGColReorderDialog(self, self.result)
         dlg.exec()
 
-    def _on_save(self): #vers 1
+    def _on_save(self): #vers 2
+        if not self._require_loaded("Save"):
+            return
         total_flags = (len(self.result.collisions) + len(self.result.name_collisions) +
                        len(self.result.redefinitions) + len(self.result.out_of_range) +
                        len(self.result.file_range_violations))

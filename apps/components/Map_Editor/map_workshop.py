@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 208
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 209
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -3262,27 +3262,14 @@ class MapSettings(QObject):
 
     _instance = None
 
-    def __new__(cls): #vers 1
-        """Singleton (Aug 19 2026)"""
+    @classmethod
+    def shared(cls): #vers 1
+        """Singleton access; overriding __new__ on QObject segfaults (PyQt 6.11)."""
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._map_settings_initialized = False
+            cls._instance = cls()
         return cls._instance
 
-    def __init__(self): #vers 3
-        if self._map_settings_initialized:
-            # Already the shared instance, already fully set up from
-            # an earlier ModelWorkshop's own construction - __init__
-            # still runs every time MapSettings() is called (that's
-            # normal Python behaviour, __new__ returning the same
-            # object doesn't skip __init__), but doing all of this
-            # again would re-run super().__init__() on an already-
-            # initialised QObject and reset the save timer/reload from
-            # disk for no reason - this guard is what actually makes
-            # __new__'s own singleton meaningful rather than just
-            # returning the same object with its real state clobbered
-            # right back to fresh-from-disk on every subsequent call.
-            return
+    def __init__(self): #vers 5
         super().__init__()
         # App-folder-relative, not ~/.config (Aug 20 2026)
         self._path = _model_workshop_config_dir() / 'map_workshop.json'
@@ -3292,7 +3279,6 @@ class MapSettings(QObject):
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self._save_now)
-        self._map_settings_initialized = True
 
     def _load(self): #vers 2
         """Load previously-saved settings from disk (Aug 20 2026)"""
@@ -5029,7 +5015,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Map Workshop settings (separate from global app_settings/theme) -
         # required by the grafted-in Object Browser/Instance List/Editing
         # Panel/World Viewport/Control Panel methods.
-        self.map_settings = MapSettings()
+        self.map_settings = MapSettings.shared()
         # Extra safety net for the debounced save (Aug 18 2026)
 
         app = QApplication.instance()
@@ -6464,7 +6450,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tool_names = {'paint': 'Paint', 'dropper': 'Dropper (pick material)', 'fill': 'Fill (same material)'}
         self._set_status(f"Tool: {tool_names.get(mode, mode)}")
 
-    def _exit_paint_mode(self): #vers 2
+    def _exit_paint_mode(self): #vers 3
         """Exit paint mode — hide toolbar, restore paint button."""
         # Close material popup if open
         old_popup = getattr(self, '_mat_popup', None)
@@ -6474,7 +6460,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._mat_popup = None
 
         vp = getattr(self, 'preview_widget', None)
-        if vp:
+        if vp and getattr(vp, '_paint_mode', False):
             vp.set_paint_mode(False)
             vp.on_face_selected = None
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 93
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 94
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -2095,7 +2095,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
     # dual text/icon bottom info panel).
     _RIBBON_LAYOUT_VERSION = 2
 
-    def __init__(self, parent=None, main_window=None): #vers 10
+    def __init__(self, parent=None, main_window=None): #vers 11
         """initialize_features"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
@@ -2112,6 +2112,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         self.icon_display_mode = 'icons_and_text'  # 'icons_and_text'|'icons_only'|'text_only'
         self._col_compact_btns = []   # list of (widget, full_label) for adaptive display
         self.last_save_directory = None
+        self.current_col_file = None
         # Thumbnail spin animation state
         self._spin_timer  = None
         self._spin_row    = None

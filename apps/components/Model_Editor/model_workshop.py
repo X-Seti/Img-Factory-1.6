@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 198
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 199
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -4175,7 +4175,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tool_names = {'paint': 'Paint', 'dropper': 'Dropper (pick material)', 'fill': 'Fill (same material)'}
         self._set_status(f"Tool: {tool_names.get(mode, mode)}")
 
-    def _exit_paint_mode(self): #vers 2
+    def _exit_paint_mode(self): #vers 3
         """Exit paint mode — hide toolbar, restore paint button."""
         # Close material popup if open
         old_popup = getattr(self, '_mat_popup', None)
@@ -4185,7 +4185,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._mat_popup = None
 
         vp = getattr(self, 'preview_widget', None)
-        if vp:
+        if vp and getattr(vp, '_paint_mode', False):
             vp.set_paint_mode(False)
             vp.on_face_selected = None
 
@@ -8031,7 +8031,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         tb_rend.addSeparator()
         _act(tb_rend, "Toggle Shading",
              _icon(self.icon_factory.shading_sphere_icon, 'shading_icon'),
-             lambda v: self._toggle_viewport_shading(),
+             lambda v: self._toggle_viewport_shading(v),
              checkable=True, checked=True, attr='_shading_act')
         _act(tb_rend, "Light Setup",
              _icon(self.icon_factory.light_icon, 'light_setup_icon'),

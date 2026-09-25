@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 164
+#this belongs in root /ChangeLog.md - Version: 165
+
+## Sep 25 2026 - Workshop button audit, Build 431.92
+- Every workshop button clicked in test: fixed COL Save/Export/Create before load, Model Toggle Shading and paint exit, Vehicle LOD/Wheels/Cols, Master IDE Save/Add/Relocate.
+- MapSettings singleton no longer overrides __new__ (segfaults on PyQt 6.11).
 
 ## Sep 25 2026 - More undefined names, Build 431.92
 - col_loader typing import broke COL threaded loading; settings hero label; dead code in settings drag area, radar, handling editor.

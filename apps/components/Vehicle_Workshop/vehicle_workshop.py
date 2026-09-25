@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 7
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 8
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -700,10 +700,10 @@ class _ToolbarMixin:
             self.viewport._wheel_steer = angle
             self.viewport.update()
 
-    def _cycle_carcol(self): #vers 2
+    def _cycle_carcol(self): #vers 3
         """Cycle through carcols.dat pairs for the current vehicle. Asks for file if not found."""
         stem = os.path.splitext(os.path.basename(
-            getattr(self, '_current_dff_path', '')))[0].lower()
+            (self._current_dff_path or '')))[0].lower()
         if not stem: return
         game_root = self._get_game_root()
         # Try cached carcols path first
@@ -755,7 +755,7 @@ class _ToolbarMixin:
         if show:
             try:
                 m = getattr(self, '_dff_model', None)
-                stem = os.path.splitext(os.path.basename(getattr(self,'_current_dff_path','')))[0].lower()
+                stem = os.path.splitext(os.path.basename((self._current_dff_path or '')))[0].lower()
                 if hasattr(self,'_tab_handling') and self._tab_handling._parser:
                     entry = next((e for e in self._tab_handling._parser.entries
                                   if e.name.lower()==stem), None)
@@ -4301,9 +4301,11 @@ class VehicleWorkshop(RibbonMixin, GLViewportMixin, GUIWorkshop): #vers 4
     # Bump when the set of ribbons changes (1 = File ribbon)
     _RIBBON_LAYOUT_VERSION = 1
 
-    def __init__(self, main_window=None, parent=None): #vers 4
+    def __init__(self, main_window=None, parent=None): #vers 5
         super().__init__(parent)
         self.main_window = main_window
+        self.__dict__.setdefault('_dff_model', None)        # set on DFF load
+        self.__dict__.setdefault('_current_dff_path', None)
         self._handling_path: Optional[str] = None
         self._carcols_path:  Optional[str] = None
         self._carmods_path:  Optional[str] = None
