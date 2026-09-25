@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 19
+#this belongs in apps/gui/gui_layout_custom.py - Version: 20
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -669,7 +669,7 @@ class ToolTaskbar(QWidget):  # vers 2
     #  Public API
 
     def register(self, key: str, label: str, icon,
-                 target, tooltip: str = "") -> None:
+                 target, tooltip: str = "") -> None: #vers 2
         """Add or update a tool button."""
         if key in self._tools:
             self.unregister(key)
@@ -702,8 +702,9 @@ class ToolTaskbar(QWidget):  # vers 2
             "active": False,
         }
         self.setVisible(True)
+        self._refresh_img_group()
 
-    def unregister(self, key: str) -> None:
+    def unregister(self, key: str) -> None: #vers 2
         """Remove a tool button."""
         if key not in self._tools:
             return
@@ -713,17 +714,20 @@ class ToolTaskbar(QWidget):  # vers 2
         del self._tools[key]
         if not self._tools:
             self.setVisible(False)
+        self._refresh_img_group()
 
     def update_target(self, key: str, target) -> None:
         if key in self._tools:
             self._tools[key]["target"] = target
 
-    def set_active(self, key: str, active: bool) -> None:
+    def set_active(self, key: str, active: bool) -> None: #vers 2
         """Draw / remove the active underline on a button."""
         if key not in self._tools:
             return
         self._tools[key]["active"] = active
         self._tools[key]["btn"].setStyleSheet(self._make_btn_style(active))
+        if key.startswith("img_"):
+            self._refresh_img_group()
 
     def _set_exclusive_active(self, key: str) -> None:
         """Mark key as active, clear underline on all others.
@@ -741,7 +745,44 @@ class ToolTaskbar(QWidget):  # vers 2
     def is_registered(self, key: str) -> bool:
         return key in self._tools
 
-    def apply_theme(self, colors: dict) -> None:
+    IMG_GROUP_AT = 5    # this many open files collapse into [IMG+]
+
+    def _refresh_img_group(self) -> None: #vers 1
+        """Collapse img_* file buttons into one [IMG+] dropdown at 5 or more."""
+        keys = [k for k in self._tools if k.startswith("img_")]
+        grouped = len(keys) >= self.IMG_GROUP_AT
+        for k in keys:
+            self._tools[k]["btn"].setVisible(not grouped)
+        grp = getattr(self, "_img_group_btn", None)
+        if not grouped:
+            if grp is not None:
+                grp.setVisible(False)
+            return
+        if grp is None:
+            from PyQt6.QtWidgets import QToolButton, QMenu
+            grp = QToolButton(self)
+            grp.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            grp.setFixedHeight(28)
+            grp.setObjectName("tbtn")
+            grp.setMenu(QMenu(grp))
+            self._img_group_btn = grp
+            first = min(self._layout.indexOf(self._tools[k]["btn"]) for k in keys)
+            self._layout.insertWidget(max(0, first), grp)
+        active = next((k for k in keys if self._tools[k]["active"]), None)
+        grp.setText(f"IMG+ ({len(keys)})")
+        grp.setToolTip("Open files - pick one")
+        grp.setStyleSheet(self._make_btn_style(active is not None).replace("QPushButton", "QToolButton"))
+        menu = grp.menu()
+        menu.clear()
+        for k in keys:
+            info = self._tools[k]
+            act = menu.addAction(info["icon"], info["btn"].toolTip().replace("Switch to ", ""))
+            act.setCheckable(True)
+            act.setChecked(k == active)
+            act.triggered.connect(lambda _=False, kk=k: self._raise_target(kk))
+        grp.setVisible(True)
+
+    def apply_theme(self, colors: dict) -> None: #vers 2
         """Store theme color attrs then re-style all buttons.
 
         Exact keys used:
@@ -768,6 +809,7 @@ class ToolTaskbar(QWidget):  # vers 2
         self.setPalette(pal)
         for key, info in self._tools.items():
             info["btn"].setStyleSheet(self._make_btn_style(info["active"]))
+        self._refresh_img_group()
 
     # seed defaults so apply_theme isn't required before first use
     _txt  = "#cccccc"

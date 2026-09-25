@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 98
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 99
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -2623,11 +2623,14 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()
 
 
-    def _sync_img_taskbar_buttons(self, active_index: int = -1): #vers 1
+    def _sync_img_taskbar_buttons(self, active_index: int = -1): #vers 2
         """Register one taskbar button per open IMG tab; highlight the active one.
         Keys: 'img_0', 'img_1', ... matching main_tab_widget indices.
         Home tab (index 0) is skipped — it has no file.
         """
+        if hasattr(self, 'main_tab_widget'):
+            from apps.methods.tab_system import update_tab_overflow
+            update_tab_overflow(self)
         if not hasattr(self, 'tool_taskbar') or not hasattr(self, 'main_tab_widget'):
             return
         try:

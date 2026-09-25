@@ -1,4 +1,4 @@
-#this belongs in methods/tab_system.py - Version: 8
+#this belongs in apps/methods/tab_system.py - Version: 9
 # X-Seti - November15 2025 - IMG Factory 1.5 - Complete Tab System
 
 """
@@ -35,6 +35,7 @@ from typing import Optional, Tuple, Any, Dict, List
 # switch_tab
 # update_references
 # update_tab_info
+# update_tab_overflow
 # validate_tab_before_operation
 
 
@@ -920,3 +921,43 @@ __all__ = [
     'update_tab_info',
     'validate_tab_before_operation'
 ]
+
+
+TAB_OVERFLOW_AT = 5     # this many file tabs: compact tabs + [Files] dropdown
+
+
+def update_tab_overflow(main_window): #vers 1
+    """At 5+ tabs: compact tabs and a dropdown to jump to any file."""
+    from PyQt6.QtWidgets import QToolButton, QMenu
+    from PyQt6.QtCore import Qt
+    tw = getattr(main_window, 'main_tab_widget', None)
+    if tw is None:
+        return
+    bar = tw.tabBar()
+    many = tw.count() >= TAB_OVERFLOW_AT
+    bar.setElideMode(Qt.TextElideMode.ElideMiddle if many else Qt.TextElideMode.ElideNone)
+    bar.setUsesScrollButtons(True)
+    bar.setStyleSheet("QTabBar::tab { min-width: 40px; max-width: 130px; padding: 3px 6px; }"
+                      if many else "")
+    btn = getattr(main_window, '_tab_overflow_btn', None)
+    if btn is None:
+        btn = QToolButton(tw)
+        btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        btn.setMenu(QMenu(btn))
+        btn.setAutoRaise(True)
+        tw.setCornerWidget(btn, Qt.Corner.TopLeftCorner)
+        main_window._tab_overflow_btn = btn
+    btn.setVisible(many)
+    if not many:
+        return
+    btn.setText(f"Files ({tw.count()})")
+    btn.setToolTip("Jump to an open file")
+    menu = btn.menu()
+    menu.clear()
+    cur = tw.currentIndex()
+    for i in range(tw.count()):
+        act = menu.addAction(tw.tabIcon(i), tw.tabText(i))
+        act.setCheckable(True)
+        act.setChecked(i == cur)
+        act.triggered.connect(lambda _=False, idx=i: tw.setCurrentIndex(idx))
+
