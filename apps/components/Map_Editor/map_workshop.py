@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 211
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 212
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -3113,6 +3113,8 @@ class MapSettings(QObject):
         'show_load_options_dialog': True,
         # Verbose per-model loading dialog (Aug 1 2026)
         'show_verbose_loading_dialog': False,
+        # Parallel model/texture parsing (Sep 25 2026); 0 = auto (cores - 2)
+        'load_workers': 0,
         # Texture downscale (Aug 1 2026)
         'texture_downscale_enabled': False,
         'texture_downscale_threshold': 512,
@@ -8475,6 +8477,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Show a scrolling debug dialog listing every model as it\n"
             "loads, one line per instance.")
         ld_form.addRow(verbose_loading_chk)
+        import os as _os
+        _cores = _os.cpu_count() or 1
+        workers_spin = QSpinBox()
+        workers_spin.setRange(0, _cores)
+        workers_spin.setSpecialValueText(f"Auto ({max(1, _cores - 2)})")
+        workers_spin.setValue(int(self.map_settings.get('load_workers') or 0))
+        workers_spin.setToolTip(
+            f"Worker processes that parse DFF/TXD files in parallel while an IPL loads.\n"
+            f"This system has {_cores} CPU cores. 1 = one at a time, Auto = cores - 2.")
+        ld_form.addRow(f"Parallel load workers ({_cores} cores):", workers_spin)
 
         ld_form.addRow(QLabel(""))
         ld_form.addRow(QLabel("—  Texture size limit  —"))
@@ -8782,6 +8794,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_offset_vc_only'):
                 vp_for_water2.set_water2_offset_vc_only(water2_vc_only_chk.isChecked())
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
+            self.map_settings.set('load_workers', workers_spin.value())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
             self.map_settings.set('texture_downscale_target',    downscale_target_spin.value())
@@ -27698,8 +27711,70 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 continue
         self._set_status("Ready")
 
+    def _load_workers(self) -> int: #vers 1
+        """Parallel parse workers from settings; 0 means cores - 2."""
+        import os
+        n = int(self.map_settings.get('load_workers') or 0)
+        return n if n > 0 else max(1, (os.cpu_count() or 1) - 2)
+
+    def _load_models_parallel(self, dlg, model_cache, items, workers,
+                              load_models, load_textures): #vers 1
+        """Parse all models/TXDs in worker processes; rows update as each finishes."""
+        rows, by_txd, missing = {}, {}, []
+        for model_name, txd_name in items:
+            rows[model_name.lower()] = (dlg.model_row(model_name), txd_name if load_textures else "")
+            if load_textures and txd_name:
+                by_txd.setdefault(txd_name.lower(), []).append(model_name.lower())
+                if not model_cache.is_txd_indexed(txd_name):
+                    missing.append(f"{txd_name}.txd")
+            if load_models and not model_cache.is_dff_indexed(model_name):
+                missing.append(f"{model_name}.dff")
+        dff_done, txd_done = set(), {}
+        total = len(items) * (2 if load_textures else 1)
+        state = {'n': 0}
+
+        def _row_state(key): #vers 1
+            row, txd = rows[key]
+            need_dff = load_models and key not in dff_done
+            need_txd = bool(txd) and txd.lower() not in txd_done
+            if need_dff:
+                return
+            if need_txd:
+                dlg.set_model(row, 60)
+            else:
+                count = txd_done.get(txd.lower()) if txd else None
+                dlg.set_model(row, 100, f"{count} ({txd})" if txd else "")
+
+        def _done(kind, name, result): #vers 1
+            state['n'] += 1
+            dlg.set_file_progress(state['n'], total)
+            if kind == 'dff':
+                dff_done.add(name)
+                if name in rows:
+                    _row_state(name)
+            else:
+                txd_done[name] = len(result) if result else 0
+                for key in by_txd.get(name, []):
+                    _row_state(key)
+
+        dlg.message(f"Parsing with {workers} worker processes")
+        model_cache.prefetch([m for m, _ in items] if load_models else [],
+                             [t for _, t in items if t] if load_textures else [],
+                             workers, on_done=_done, is_cancelled=lambda: dlg.cancelled)
+        if dlg.cancelled:
+            return list(dict.fromkeys(missing))
+        dff_done.update(rows)                 # already-cached items got no callback
+        for txd in by_txd:
+            if txd not in txd_done:
+                tex = model_cache.get_textures(txd)
+                txd_done[txd] = len(tex) if tex else 0
+        for key in rows:
+            _row_state(key)
+        dlg.set_file_progress(1, 1)
+        return list(dict.fromkeys(missing))
+
     def _load_models_into_dialog(self, dlg, loader, model_cache, instances,
-                                 load_models=True, load_textures=True): #vers 1
+                                 load_models=True, load_textures=True): #vers 2
         """Load each unique model's DFF/TXD with a dialog row each; returns missing files."""
         seen = {}
         for inst in instances:
@@ -27707,6 +27782,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 obj = loader.get_object(inst.model_id)
                 seen[inst.model_name] = obj.txd_name if obj else ""
         items = list(seen.items())
+        workers = self._load_workers()
+        if workers > 1 and len(items) > 4 and hasattr(model_cache, 'prefetch'):
+            return self._load_models_parallel(dlg, model_cache, items, workers,
+                                              load_models, load_textures)
         missing, tex_counts = [], {}
         for i, (model_name, txd_name) in enumerate(items):
             if dlg.cancelled:
@@ -27729,7 +27808,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 tex_text = f"{tex_counts[txd_name]} ({txd_name})"
             dlg.set_model(row, 100, tex_text)
             dlg.set_file_progress(i + 1, len(items))
-        return missing
+        return list(dict.fromkeys(missing))
 
     def _apply_ipl_visibility_filter(self, auto_fit=True, clear_display_lists=True): #vers 6
         """Recompute which instances are currently visible: every

@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 169
+#this belongs in root /ChangeLog.md - Version: 170
+
+## Sep 25 2026 - Parallel model loading, Build 431.92
+- IPL loads parse DFF/TXD in worker processes; new Map setting "Parallel load workers" (Auto = cores - 2, 1 = one at a time).
 
 ## Sep 25 2026 - One IPL load dialog, Build 431.92
 - Single, multi-select and Load Options IPL loads share one dialog: file bar, Files i/N, per-model progress and texture count, messages, 5s timed close with Keep open.

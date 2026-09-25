@@ -1,3 +1,4 @@
+#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 2
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG
@@ -45,6 +46,33 @@ def _scan_col_model_names(data: bytes) -> List[str]: #vers 1
             names.append(name)
         pos += 8 + size
     return names
+
+
+def _parse_dff_job(model_name: str, blobs: List[bytes]) -> Optional[DFFModel]: #vers 1
+    """Worker process: first blob that parses as a DFF."""
+    for data in blobs:
+        try:
+            if data and detect_dff(data):
+                result = DFFParser(data, model_name).parse()
+                if result is not None:
+                    return result
+        except Exception:
+            continue
+    return None
+
+
+def _parse_txd_job(blobs: List[bytes]) -> Optional[Dict[str, dict]]: #vers 1
+    """Worker process: merged textures from every blob, keyed by lowercase name."""
+    merged = {}
+    for data in blobs:
+        try:
+            for t in parse_txd(data) or []:
+                name = t.get('name')
+                if name and name.lower() not in merged:
+                    merged[name.lower()] = t
+        except Exception:
+            continue
+    return merged or None
 
 
 class ModelCache:
@@ -434,6 +462,44 @@ class ModelCache:
         is_dff_indexed for the same indexed-vs-parsed distinction."""
         key = model_name.lower()
         return key in self._col_img_index or key in self._col_index
+
+
+    def prefetch(self, model_names, txd_names, workers: int,
+                 on_done=None, is_cancelled=None) -> None: #vers 1
+        """Parse many DFFs/TXDs in parallel worker processes, filling the caches.
+        on_done(kind, name, result) runs in this thread per finished item."""
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        jobs = []
+        for name in dict.fromkeys(n.lower() for n in model_names):
+            if name in self._geometry_cache:
+                continue
+            blobs = [b for b in (self._read_entry(p, e) for p, e in self._dff_index.get(name, [])) if b]
+            jobs.append(('dff', name, blobs))
+        for name in dict.fromkeys(n.lower() for n in txd_names if n):
+            if name in self._texture_cache:
+                continue
+            blobs = [b for b in (self._read_entry(p, e) for p, e in self._txd_index.get(name, [])) if b]
+            jobs.append(('txd', name, blobs))
+        if not jobs:
+            return
+        with ProcessPoolExecutor(max_workers=max(1, workers)) as pool:
+            futs = {}
+            for kind, name, blobs in jobs:
+                f = (pool.submit(_parse_dff_job, name, blobs) if kind == 'dff'
+                     else pool.submit(_parse_txd_job, blobs))
+                futs[f] = (kind, name)
+            for f in as_completed(futs):
+                kind, name = futs[f]
+                try:
+                    result = f.result()
+                except Exception:
+                    result = None
+                (self._geometry_cache if kind == 'dff' else self._texture_cache)[name] = result
+                if on_done:
+                    on_done(kind, name, result)
+                if is_cancelled and is_cancelled():
+                    pool.shutdown(wait=False, cancel_futures=True)
+                    break
 
     def _read_entry(self, img_path: str, entry) -> Optional[bytes]:
         """Read one entry's raw bytes from its IMG archive - reuses a
