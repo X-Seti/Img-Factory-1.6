@@ -1,4 +1,4 @@
-#this belongs in gui/gui_infobar.py - Version: 4
+#this belongs in apps/gui/gui_infobar.py - Version: 5
 # X-Seti - July17 2025 - IMG Factory 1.5 - Info Bar Functions
 # Enhanced with all COL info bar functions using IMG debug system
 
@@ -14,6 +14,8 @@ from typing import Dict, Any, Optional
 # Import debug systems
 from apps.debug.debug_functions import col_debug_log, is_col_debug_enabled
 from apps.debug.debug_functions import img_debugger
+from apps.methods.img_core_classes import format_file_size
+from apps.app_info import App_name
 
 ##Methods list -
 # get_col_file_statistics
@@ -238,13 +240,13 @@ def update_img_info_bar(main_window, img_file, file_path: str) -> bool: #vers 1
         img_debugger.error(f"IMG info bar update failed: {str(e)}")
         return False
 
-def update_main_info_display(main_window, file_type: str, file_object, file_path: str) -> bool: #vers 1
+def update_main_info_display(main_window, file_type: str, file_object, file_path: str) -> bool: #vers 2
     """Universal info bar update function for any file type"""
     try:
         col_debug_log(main_window, f"Updating main info display for {file_type} file", 'COL_INFOBAR')
         
         if file_type.upper() == 'COL':
-            return update_col_info_bar_enhanced(main_window, file_object, file_path)
+            return update_col_info_bar(main_window, file_object, file_path)
         elif file_type.upper() == 'IMG':
             return update_img_info_bar(main_window, file_object, file_path)
         else:
@@ -259,7 +261,6 @@ def update_main_info_display(main_window, file_type: str, file_object, file_path
 __all__ = [
     'get_col_file_statistics',
     'update_col_info_bar',
-    'update_col_info_bar_enhanced',
     'update_img_info_bar',
     'update_main_info_display'
 ]

@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTabWidget, QTreeWidget, QTreeWidgetItem,
     QFileDialog, QMessageBox, QVBoxLayout, QWidget, QToolBar,
     QInputDialog, QLineEdit, QHeaderView, QPushButton, QLabel, QComboBox,
-    QDialog, QMenu, QToolBar
+    QDialog, QMenu, QHBoxLayout
 )
 from PyQt6.QtCore import (
     Qt, QMimeData, QUrl, pyqtSignal, QObject, QThread, QRect
@@ -562,7 +562,7 @@ class MainWidget(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Sort failed:\n{e}")
 
-    def batch_sort_by_ide(self): #vers 1
+    def batch_sort_by_ide(self): #vers 2
         """Sort all open IMGs using one IDE file"""
         ide_path, _ = QFileDialog.getOpenFileName(
             self, "Select IDE File", "", "IDE Files (*.ide);;All Files (*)"
@@ -570,17 +570,14 @@ class MainWidget(QWidget):
         if not ide_path:
             return
         try:
-            ide_manager = IDEManager(ide_path)
+            parser = IDEParser(ide_path)
+            count = 0
             for i in range(self.tab_widget.count()):
                 tab = self.tab_widget.widget(i)
                 if isinstance(tab, IMGTab):
-                    added, removed = ide_manager.apply_to_img(tab.img_parser)
-                    tab.modified = True
-                    tab.update_tree()
-                    QMessageBox.information(
-                        self, "Batch Sort Complete",
-                        f"Tab {i+1}: Added {len(added)}, Removed {len(removed)}"
-                    )
+                    tab.sort_entries_by_ide_order(parser.model_names)
+                    count += 1
+            QMessageBox.information(self, "Batch Sort Complete", f"Sorted {count} IMG tab(s)")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to batch sort:\n{e}")
 

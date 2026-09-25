@@ -1,4 +1,4 @@
-#this belongs in methods/ img_validation.py - Version: 1
+#this belongs in apps/methods/img_validation.py - Version: 2
 # X-Seti - September04 2025 - IMG Factory 1.5 - IMG Validation
 
 """
@@ -12,7 +12,7 @@ import struct
 from typing import Optional, Any, List, Dict, Tuple
 from pathlib import Path
 from enum import Enum
-from apps.methods.img_core_classes import IMGFile, IMGEntry, IMGVersion
+from apps.methods.img_core_classes import IMGFile, IMGEntry, IMGVersion, detect_img_version
 from apps.methods.rw_versions import is_valid_rw_version
 
 ##Methods list -
@@ -40,8 +40,9 @@ class ValidationLevel(Enum):
 
 class ValidationResult:
     """Validation result container"""
-    def __init__(self, level: ValidationLevel, message: str, details: str = ""): #vers 1
-        self.level = level
+    def __init__(self, is_valid: bool = True, warnings: list = None, errors: list = None,
+                 level: 'ValidationLevel' = None, message: str = "", details: str = ""): #vers 2
+        self.level = level or ValidationLevel.INFO
         self.message = message
         self.details = details
         self.timestamp = None
@@ -1277,7 +1278,7 @@ def integrate_validation_functions(main_window) -> bool: #vers 1
                 return IMGVersion.VERSION_2
 
 # Utility functions for integration
-def quick_validate_img(file_path: str) -> ValidationResult:
+def quick_validate_img(file_path: str) -> ValidationResult: #vers 2
     """Quick validation of IMG file without full loading"""
     result = ValidationResult()
 

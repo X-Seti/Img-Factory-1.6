@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 160
+#this belongs in root /ChangeLog.md - Version: 161
+
+## Sep 25 2026 - Crash fixes, core cleanup, Build 431.92
+- Fixed: Batch Rebuild thread, extraction menu setup, IMG Browser batch sort, pin entries, info bar, icon browser, ValidationResult, IMG load thread imports.
+- Removed unused GUI classes from img_core_classes and 3 unused modules.
 
 ## Sep 25 2026 - Theme colour crashes, Build 431.92
 - New methods/ui_color.py get_ui_color; Model Workshop, TXD/Asset preview, grip handle, Missing TXD dialog, DP5, MUI widgets lacked _get_ui_color.

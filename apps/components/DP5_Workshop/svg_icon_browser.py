@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/svg_icon_browser.py - Version: 5
+#this belongs in apps/components/DP5_Workshop/svg_icon_browser.py - Version: 6
 # X-Seti - April26 2026 - IMG Factory 1.6 - SVG Icon Browser Panel
 """
 SVG Icon Browser — floating panel integrated with DP5 canvas.
@@ -218,7 +218,7 @@ class SVGIconBrowser(QWidget):
         except Exception as e:
             self._status_lbl.setText(f"Reload error: {e}")
 
-    def _populate_list(self, names): #vers 2
+    def _populate_list(self, names): #vers 3
         self._list.clear()
         color = self._icon_color()
         icons_dir = self._get_icons_dir()
@@ -229,7 +229,7 @@ class SVGIconBrowser(QWidget):
                 if name.endswith('__file'):
                     real_name = name[:-6]  # strip __file
                     label = real_name.replace('_icon','').replace('_',' ') + ' [F]'
-                    icon  = SVGIconFactory._load_from_file(
+                    icon  = self._factory._load_from_file(
                         real_name.replace('_icon',''), 32, color) or QIcon()
                     item  = QListWidgetItem(icon, label)
                     item.setData(Qt.ItemDataRole.UserRole, real_name)
@@ -241,7 +241,7 @@ class SVGIconBrowser(QWidget):
                 # Factory icon — check if file override exists
                 has_override = name in overrides
                 base = name.replace('_icon', '')
-                file_icon = SVGIconFactory._load_from_file(base, 32, color) if has_override else None
+                file_icon = self._factory._load_from_file(base, 32, color) if has_override else None
                 icon = file_icon if file_icon else getattr(self._factory, name)(32, color)
                 label = base.replace('_', ' ')
                 if has_override:
@@ -411,7 +411,7 @@ class SVGIconBrowser(QWidget):
         Build replacement method.
         If canvas was edited:
           - Save canvas as PNG to apps/icons/{name}.png
-          - SVGIconFactory._load_from_file() will pick it up automatically
+          - self._factory._load_from_file() will pick it up automatically
           - Return original method source (no Python source change needed)
         If not edited: return original source unchanged.
         """

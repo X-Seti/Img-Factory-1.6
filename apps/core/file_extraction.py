@@ -23,7 +23,6 @@ from typing import List, Dict
 # open_ide_in_text_editor
 # patch_img_loading_for_extraction
 # setup_complete_extraction
-# setup_extraction_context_menu
 # setup_extraction_methods
 # show_dff_info
 # view_ide_definitions
@@ -166,7 +165,7 @@ def get_selected_entries_for_extraction(main_window) -> List: #vers 2
         return []
 
 
-def integrate_extraction_system(main_window): #vers 3
+def integrate_extraction_system(main_window): #vers 4
     """Integrate file extraction system into main window"""
     try:
         from apps.core.file_type_filter import (
@@ -180,9 +179,6 @@ def integrate_extraction_system(main_window): #vers 3
 
             # Add extraction methods to main window
             setup_extraction_methods(main_window)
-
-            # Add extraction context menu
-            setup_extraction_context_menu(main_window)
 
             # Add extraction to main menu
             add_extraction_to_menu(main_window)
@@ -493,6 +489,5 @@ __all__ = [
     'integrate_extraction_system',
     'open_ide_in_text_editor',
     'patch_img_loading_for_extraction',
-    'setup_complete_extraction_integration',
-    'setup_extraction_context_menu'
+    'setup_complete_extraction_integration'
 ]

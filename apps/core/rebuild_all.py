@@ -1,4 +1,4 @@
-#this belongs in core/ rebuild_all.py - Version: 6
+#this belongs in apps/core/rebuild_all.py - Version: 7
 # X-Seti - August26 2025 - IMG Factory 1.5 - Batch Rebuild All Functions
 
 import os
@@ -38,12 +38,11 @@ class BatchRebuildThread(QThread):
     file_completed = pyqtSignal(str, bool, str)   # file_path, success, message
     batch_completed = pyqtSignal(int, int, list)  # total_files, success_count, failed_files
 
-    def __init__(self, targets: List[Dict], mode: str = "fast"):
+    def __init__(self, targets: List[Dict], mode: str = "fast"): #vers 2
         super().__init__()
         self.targets = targets
         self.mode = mode
         self.should_stop = False
-        set_context(main_window)
 
     def run(self):
         """Execute batch rebuild"""

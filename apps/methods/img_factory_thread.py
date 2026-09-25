@@ -1,10 +1,12 @@
-#this belongs in components.Img_Factory.imgload_thread.py - Version: 1
+#this belongs in apps/methods/img_factory_thread.py - Version: 2
 # X-Seti - Oct27 2025 - IMG Factory 1.5 - Background thread for loading IMG files
 
 import os
 from typing import List, Optional, Dict, Any
 from PyQt6.QtWidgets import QMessageBox, QFileDialog, QProgressDialog
 from PyQt6.QtCore import pyqtSignal, Qt, QThread
+from apps.methods.img_core_classes import IMGFile
+from apps.methods.img_validation import IMGValidator
 
 
 class IMGLoadThread(QThread):

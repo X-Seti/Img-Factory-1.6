@@ -1,4 +1,4 @@
-#this belongs in core/pin_entries.py - Version: 2
+#this belongs in apps/core/pin_entries.py - Version: 3
 # X-Seti - February04 2026 - IMG Factory 1.6 - Pin Entries and File Manager
 """
 Pin Entries and File Manager - Handles pinning of IMG entries and .pin files for tracking pinned entries, dates, and metadata
@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QIcon
 from apps.methods.tab_system import get_current_file_from_active_tab, validate_tab_before_operation, get_current_active_tab_info
+from apps.methods.export_shared import get_active_table
 
 ##Methods list -
 # pin_selected_entries

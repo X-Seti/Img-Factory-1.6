@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 97
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 98
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -106,7 +106,7 @@ from apps.gui.gui_context import (open_col_file_dialog, open_col_batch_proc_dial
 from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
 
 # Shared Methods
-from apps.methods.img_core_classes import (IMGFile, IMGEntry, IMGVersion, Platform, IMGEntriesTable, FilterPanel, IMGFileInfoPanel, TabFilterWidget, integrate_filtering, create_entries_table_panel, format_file_size)
+from apps.methods.img_core_classes import IMGFile
 
 from apps.methods.col_core_classes import (COLFile, COLModel, COLVersion, COLMaterial, COLFaceGroup, COLSphere, COLBox, COLVertex, COLFace, Vector3, BoundingBox, diagnose_col_file)
 
@@ -3317,31 +3317,6 @@ class IMGFactory(QMainWindow):
         else:
             self.log_message(f"Progress: {progress}% - {status}")
 
-
-
-
-    def format_file_size(size_bytes): #vers 2 #Restore
-        """Format file size same as IMG entries"""
-        try:
-            # Use the same formatting as IMG entries
-            try:
-                from apps.methods.img_core_classes import format_file_size
-                return format_file_size(size_bytes)
-            except:
-                pass
-
-            # Fallback formatting (same logic as IMG)
-            if size_bytes < 1024:
-                return f"{size_bytes} B"
-            elif size_bytes < 1024 * 1024:
-                return f"{size_bytes // 1024} KB"
-            elif size_bytes < 1024 * 1024 * 1024:
-                return f"{size_bytes // (1024 * 1024)} MB"
-            else:
-                return f"{size_bytes // (1024 * 1024 * 1024)} GB"
-
-        except Exception:
-            return f"{size_bytes} bytes"
 
 
 

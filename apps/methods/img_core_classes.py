@@ -1,4 +1,4 @@
-#this belongs in methods.img_core_classes.py - Version: 12
+#this belongs in apps/methods/img_core_classes.py - Version: 13
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -7,20 +7,12 @@ IMG Core Classes
 
 import os
 import struct
-import json
-import shutil
 from enum import Enum
-from typing import List, Dict, Optional, Any, Union, BinaryIO
-from pathlib import Path
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QComboBox, QLineEdit, QGroupBox, QLabel)
-from PyQt6.QtCore import pyqtSignal, Qt
+from typing import List, Dict, Optional, Any, BinaryIO
 
 # Import existing RW version functions - KEPT ALL ORIGINAL IMPORTS
-from apps.methods.rw_versions import get_rw_version_name, parse_rw_version, get_model_format_version
+from apps.methods.rw_versions import get_rw_version_name
 from apps.debug.debug_functions import img_debugger
-from apps.methods.populate_img_table import DragSelectTableWidget
 
 def _find_companion(base_path: str, new_ext: str) -> str:
     # Find companion file case-insensitively.
@@ -203,54 +195,6 @@ class EncryptionType(Enum):
     NONE        = "none"
     FASTMAN92   = "fastman92"
 
-class RecentFilesManager:
-    """Manage recently opened files"""
-    def __init__(self, max_files: int = 10): #vers 1
-        self.max_files = max_files
-        self.recent_files: List[str] = []
-        self.settings_file = "recent_files.json"
-        self._load_recent_files()
-    
-    def _load_recent_files(self): #vers 1
-        """Load recent files from settings"""
-        try:
-            if os.path.exists(self.settings_file):
-                with open(self.settings_file, 'r') as f:
-                    data = json.load(f)
-                    self.recent_files = data.get('recent_files', [])
-        except Exception:
-            self.recent_files = []
-    
-    def _save_recent_files(self): #vers 1
-        """Save recent files to settings"""
-        try:
-            data = {'recent_files': self.recent_files}
-            with open(self.settings_file, 'w') as f:
-                json.dump(data, f, indent=2)
-        except Exception:
-            pass
-    
-    def add_file(self, file_path): #vers 2
-        """Add file to recent files list"""
-        if file_path in self.recent_files:
-            self.recent_files.remove(file_path)
-        
-        self.recent_files.insert(0, file_path)
-        
-        # Keep only max_files entries
-        if len(self.recent_files) > self.max_files:
-            self.recent_files = self.recent_files[:self.max_files]
-        
-        self._save_recent_files()
-    
-    def get_recent_files(self): #vers 1
-        """Get list of recent files"""
-        # Filter out files that no longer exist
-        existing_files = [f for f in self.recent_files if os.path.exists(f)]
-        if len(existing_files) != len(self.recent_files):
-            self.recent_files = existing_files
-            self._save_recent_files()
-        return self.recent_files
 
 class ValidationResult:
     """Results from entry validation"""
@@ -522,14 +466,6 @@ def _is_xbox_lzo(data: bytes) -> bool:
     return len(data) >= 4 and struct.unpack_from('<I', data, 0)[0] == _XBOX_LZO_MAGIC
 
 
-def _strip_xbox_lzo_header(data: bytes) -> bytes:
-    """If data starts with the Xbox LZO master header (magic 0x67A3A1CE),
-    return data with the 12-byte master header stripped so callers see
-    the first compressed block header.  Otherwise return data unchanged."""
-    if len(data) >= 4 and struct.unpack_from('<I', data, 0)[0] == _XBOX_LZO_MAGIC:
-        return data[12:]   # skip magic(4) + checksum(4) + total_size(4)
-    return data
-
 
 def _scan_rw_version(data: bytes):
     """Scan first 64 bytes of a file for a valid RW version.
@@ -731,13 +667,6 @@ class IMGEntry:
             img_debugger.error(f"Error reading header data for {self.name}: {e}")
             return None
 
-    def _get_file_type_from_extension(self) -> FileType: #vers 1
-        """Get file type from extension"""
-        ext_lower = self.extension.lower()
-        try:
-            return FileType(ext_lower)
-        except ValueError:
-            return FileType.UNKNOWN
 
     def get_version_text(self) -> str: #vers 3
         """Get human-readable version text"""
@@ -764,13 +693,7 @@ class IMGEntry:
         except:
             return "Unknown"
     
-    def get_offset_in_sectors(self) -> int: #vers 1
-        """Get offset in 2048-byte sectors"""
-        return self.offset // 2048
     
-    def get_size_in_sectors(self) -> int: #vers 1
-        """Get size in 2048-byte sectors (rounded up)"""
-        return (self.size + 2047) // 2048
     
     def get_file_type(self) -> FileType: #vers 1
         """Get file type based on extension"""
@@ -783,9 +706,6 @@ class IMGEntry:
         except ValueError:
             return FileType.UNKNOWN
     
-    def is_renderware_file(self) -> bool: #vers 1
-        """Check if file is a RenderWare format"""
-        return self.extension.upper() in ['DFF', 'TXD']
     
     def validate(self) -> ValidationResult: #vers 1
         """Validate entry data"""
@@ -939,24 +859,6 @@ def detect_img_platform(file_path: str): #vers 3
     except Exception:
         return IMGPlatform.UNKNOWN, {'confidence': 0, 'indicators': ['error']}
 
-def detect_img_platform_inline(file_path: str) -> IMGPlatform: #vers 2
-    """Content-based platform detection (inline, no tuple return)."""
-    try:
-        if _detect_xbox_by_content(file_path):
-            return IMGPlatform.XBOX
-        filename = os.path.basename(file_path).lower()
-        if any(keyword in filename for keyword in ['ps2', 'playstation']):
-            return IMGPlatform.PS2
-        elif any(keyword in filename for keyword in ['xbox']):
-            return IMGPlatform.XBOX
-        elif any(keyword in filename for keyword in ['android', 'mobile']):
-            return IMGPlatform.ANDROID
-        elif any(keyword in filename for keyword in ['psp', 'stories']):
-            return IMGPlatform.PSP
-        else:
-            return IMGPlatform.PC
-    except Exception:
-        return IMGPlatform.UNKNOWN
 
 def get_platform_specific_specs(platform: IMGPlatform) -> Dict[str, Any]: #vers 1
     """INLINE: Get platform-specific specifications"""
@@ -1484,29 +1386,6 @@ class IMGFile:
             return False
 
 
-    def calculate_next_offset(self) -> int: #vers 1
-        """Calculate the next available offset for a new entry - HELPER METHOD"""
-        try:
-            if not self.entries:
-                # First entry
-                if self.version == IMGVersion.VERSION_1:
-                    return 0  # Version 1 starts at beginning
-                else:
-                    return 0  # Version 2 will be recalculated during save
-
-            # Find the entry that ends the latest
-            max_end = 0
-            for entry in self.entries:
-                entry_end = entry.offset + entry.size
-                if entry_end > max_end:
-                    max_end = entry_end
-
-            # Align to sector boundary (2048 bytes)
-            aligned_offset = ((max_end + 2047) // 2048) * 2048
-            return aligned_offset
-
-        except Exception as e:
-            return 0
 
     def remove_entry(self, filename: str) -> bool: #vers 1
         """Remove entry by filename - HELPER METHOD"""
@@ -1521,12 +1400,6 @@ class IMGFile:
         except Exception as e:
             return False
 
-    def has_entry(self, filename: str) -> bool: #vers 1
-        """Check if entry exists by filename - HELPER METHOD"""
-        try:
-            return any(entry.name == filename for entry in self.entries)
-        except Exception:
-            return False
 
     def get_entry(self, filename: str) -> Optional['IMGEntry']: #vers 1
         """Get entry by filename - HELPER METHOD"""
@@ -1562,24 +1435,6 @@ class IMGFile:
 
         except Exception as e:
             return 0
-
-    def integrate_fixed_add_entry_methods(img_file_class): #vers 1
-        """Integrate all fixed methods into IMGFile class"""
-        try:
-            # Add the fixed methods to the class
-            img_file_class.add_entry = add_entry
-            img_file_class.calculate_next_offset = calculate_next_offset
-            img_file_class.remove_entry = remove_entry
-            img_file_class.has_entry = has_entry
-            img_file_class.get_entry = get_entry
-            img_file_class.add_multiple_entries = add_multiple_entries
-
-            print("Fixed add_entry methods integrated into IMGFile class")
-            return True
-
-        except Exception as e:
-            print(f"Failed to integrate fixed add_entry methods: {e}")
-            return False
 
 
     def detect_version(self) -> IMGVersion: #vers 4
@@ -1918,9 +1773,6 @@ class IMGFile:
         except Exception as e:
             pass
 
-    def set_main_window_reference(self, main_window): #vers 1
-        """ADDED: Set main window reference for unknown RW detection"""
-        self._main_window_ref = main_window
 
     def _open_version_2(self) -> bool: #vers 5
         """Open IMG version 2 (single file) - ENHANCED WITH PLATFORM SUPPORT"""
@@ -2383,181 +2235,18 @@ def format_file_size(size_bytes: int) -> str: #vers 1
         return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 # ALL ORIGINAL GUI CLASSES PRESERVED EXACTLY AS IN ORIGINAL
-class IMGEntriesTable(DragSelectTableWidget): #vers 2
-    """Enhanced table widget for IMG entries — supports click-drag row selection."""
-    entry_double_clicked = pyqtSignal(object)
 
-    def __init__(self, parent=None): #vers 1
-        super().__init__(parent)
-        self.setColumnCount(7)
-        self.setHorizontalHeaderLabels(['Name', 'Type', 'Size', 'Offset', 'Version', 'Compression', 'Status'])
-        self.setAlternatingRowColors(True)
 
-        # Auto-resize columns
-        header = self.horizontalHeader()
-        header.setStretchLastSection(True)
-        for i in range(6):
-            header.setSectionResizeMode(i, header.ResizeMode.ResizeToContents)
 
-class FilterPanel(QWidget):
-    """Filter panel for IMG entries"""
-    filter_changed = pyqtSignal(str)
-    
-    def __init__(self, parent=None): #vers 1
-        super().__init__(parent)
-        self._setup_ui()
-    
-    def _setup_ui(self): #vers 1
-        layout = QVBoxLayout(self)
-        
-        # File type filter
-        type_group = QGroupBox("File Type Filter")
-        type_layout = QHBoxLayout(type_group)
-        
-        self.type_combo = QComboBox()
-        self.type_combo.addItems(['All', 'DFF', 'TXD', 'COL', 'IFP', 'IPL', 'DAT', 'WAV'])
-        self.type_combo.currentTextChanged.connect(self.filter_changed.emit)
-        type_layout.addWidget(self.type_combo)
-        
-        # Search filter
-        search_group = QGroupBox("Search")
-        search_layout = QHBoxLayout(search_group)
-        
-        self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Search entries...")
-        self.search_edit.textChanged.connect(self.filter_changed.emit)
-        search_layout.addWidget(self.search_edit)
-        
-        layout.addWidget(type_group)
-        layout.addWidget(search_group)
 
-class IMGFileInfoPanel(QWidget):
-    """Information panel for IMG file details"""
-    
-    def __init__(self, parent=None): #vers 1
-        super().__init__(parent)
-        self._setup_ui()
-    
-    def _setup_ui(self): #vers 1
-        layout = QVBoxLayout(self)
-        
-        self.info_label = QLabel("No IMG file loaded")
-        layout.addWidget(self.info_label)
 
-class TabFilterWidget(QWidget):
-    """Tab-specific filter widget"""
-    
-    def __init__(self, parent=None): #vers 1
-        super().__init__(parent)
-        self._setup_ui()
-    
-    def _setup_ui(self): #vers 1
-        layout = QHBoxLayout(self)
-        
-        self.filter_combo = QComboBox()
-        self.filter_combo.addItems(['All Files', 'Models (DFF)', 'Textures (TXD)', 'Collision (COL)', 'Animations (IFP)'])
-        layout.addWidget(self.filter_combo)
 
-def integrate_filtering(main_window): #vers 2
-    """Integrate filtering functionality into main window"""
-    try:
-        # Create filter widget
-        filter_widget = FilterPanel(main_window)
-
-        # Connect filter widget to table
-        if hasattr(filter_widget, 'filter_changed'):
-            filter_widget.filter_changed.connect(table_widget.apply_filter)
-
-        return filter_widget
-    except Exception as e:
-        img_debugger.error(f"Error integrating filtering: {e}")
-        return None
-
-def create_entries_table_panel(main_window): #vers 4
-    """Create the complete entries table panel"""
-    panel = QWidget()
-    layout = QVBoxLayout(panel)
-    layout.setContentsMargins(0, 0, 0, 0)
-
-    # IMG file information
-    info_group = QGroupBox("IMG File Information")
-    info_layout = QVBoxLayout(info_group)
-
-    main_window.file_info_panel = IMGFileInfoPanel()
-    info_layout.addWidget(main_window.file_info_panel)
-
-    layout.addWidget(info_group)
-
-    # Filter panel
-    filter_group = QGroupBox("Filter & Search")
-    filter_layout = QVBoxLayout(filter_group)
-
-    main_window.filter_panel = FilterPanel()
-    filter_layout.addWidget(main_window.filter_panel)
-
-    layout.addWidget(filter_group)
-
-    # Entries table
-    entries_group = QGroupBox("Archive Entries")
-    entries_layout = QVBoxLayout(entries_group)
-
-    main_window.entries_table = IMGEntriesTable()
-    entries_layout.addWidget(main_window.entries_table)
-
-    layout.addWidget(entries_group)
-
-    # Connect filter to table
-    main_window.filter_panel.filter_changed.connect(main_window.entries_table.apply_filter)
-
-    # SIMPLIFIED CONNECTION - Let main app handle its own signals
-    # Don't auto-connect anything from here to prevent conflicts
-
-    if hasattr(main_window, 'on_entry_double_clicked'):
-        # Only connect double-click since that doesn't cause logging conflicts
-        try:
-            main_window.entries_table.entry_double_clicked.disconnect()
-        except:
-            pass
-        main_window.entries_table.entry_double_clicked.connect(main_window.on_entry_double_clicked)
-
-    return panel
-
-def create_img_file(output_path: str, version: IMGVersion, **options) -> bool: #vers 2
-    """Create IMG file using appropriate version creator"""
-    img = IMGFile()
-    return img.create_new(output_path, version, **options)
 
 def detect_img_version(file_path: str) -> IMGVersion: #vers 2
     """Detect IMG version without fully opening the file"""
     img = IMGFile(file_path)
     return img.detect_version()
 
-def populate_table_with_sample_data(table): #vers 3
-    """Populate table with sample data for testing"""
-    sample_entries = [
-        {"name": "player.dff", "extension": "DFF", "size": 250880, "offset": 0x2000, "version": "RW 3.6"},
-        {"name": "player.txd", "extension": "TXD", "size": 524288, "offset": 0x42000, "version": "RW 3.6"},
-        {"name": "vehicle.col", "extension": "COL", "size": 131072, "offset": 0x84000, "version": "COL 2"},
-        {"name": "dance.ifp", "extension": "IFP", "size": 1258291, "offset": 0xA4000, "version": "IFP 1"},
-    ]
-
-    # Convert to mock entry objects
-    class MockEntry:
-        def __init__(self, data): #vers 1
-            self.name = data["name"]
-            self.extension = data["extension"]
-            self.size = data["size"]
-            self.offset = data["offset"]
-            self._version = data["version"]
-            self.is_new_entry = False
-            self.is_replaced = False
-            self.compression_type = CompressionType.NONE
-
-        def get_version_text(self): #vers 1
-            return self._version
-
-    mock_entries = [MockEntry(data) for data in sample_entries]
-    table.populate_entries(mock_entries)
 
 # Export classes and functions - EXACTLY AS ORIGINAL
 __all__ = [
@@ -2568,17 +2257,7 @@ __all__ = [
     'IMGEntry',
     'IMGFile',
     'ValidationResult',
-    'RecentFilesManager',
-    'create_img_file',
     'format_file_size',
-    'IMGEntriesTable',
-    'FilterPanel', 
-    'IMGFileInfoPanel',
-    'TabFilterWidget',
-    'integrate_filtering',
-    'create_entries_table_panel',
     'detect_img_version',
-    'populate_table_with_sample_data',
-    'get_img_platform_info',  # ADDED: Platform info function
     'IMGPlatform'  # ADDED: Now exported since moved here
 ]
