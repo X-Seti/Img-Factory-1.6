@@ -17,7 +17,6 @@ from typing import List, Dict
 # add_extraction_to_menu
 # analyze_col_from_table
 # edit_col_from_table
-# edit_ide_file
 # get_selected_entries_for_extraction
 # integrate_extraction
 # open_ide_in_text_editor
@@ -116,25 +115,6 @@ def edit_col_from_table(main_window, row: int): #vers 23
                     QMessageBox.warning(main_window, "Not a COL File", "Selected file is not a COL file.")
     except Exception as e:
         QMessageBox.critical(main_window, "Error", f"Failed to edit COL file: {str(e)}")
-
-
-def edit_ide_file(main_window, row: int): #vers 13
-    """Edit IDE file in IDE editor"""
-    try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                if entry.name.lower().endswith('.ide'):
-                    # Use IDE editor if available
-                    if hasattr(main_window, 'open_ide_editor'):
-                        main_window.open_ide_editor(entry.data, entry.name)
-                    else:
-                        # Fallback to text editor
-                        open_ide_in_text_editor(main_window, entry)
-                else:
-                    QMessageBox.warning(main_window, "Not an IDE File", "Selected file is not an IDE definition file.")
-    except Exception as e:
-        QMessageBox.critical(main_window, "Error", f"Failed to edit IDE file: {str(e)}")
 
 
 def get_selected_entries_for_extraction(main_window) -> List: #vers 2

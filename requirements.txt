@@ -3,3 +3,4 @@ PyQt6
 Pillow
 numpy
 pygame
+requests

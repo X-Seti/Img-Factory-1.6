@@ -533,18 +533,16 @@ def analyze_col_from_table(main_window, row: int): #vers 1
     except Exception as e:
         main_window.log_message(f"COL analysis error: {str(e)}")
 
-def edit_ide_file(main_window, row: int): #vers 1
+def edit_ide_file(main_window, row: int): #vers 2
     """Edit IDE file from table row"""
     try:
         if hasattr(main_window, 'current_img') and main_window.current_img:
             if 0 <= row < len(main_window.current_img.entries):
                 entry = main_window.current_img.entries[row]
                 
-                # Check if IDE editor is available
-                if hasattr(main_window, 'open_ide_editor'):
-                    main_window.open_ide_editor(entry)
-                else:
-                    main_window.log_message("IDE editor not available")
+                from apps.methods.img_shared_operations import get_entry_data_safely
+                data = get_entry_data_safely(entry, main_window.current_img, main_window)
+                main_window.open_ide_editor_data(data, entry.name)
     except Exception as e:
         main_window.log_message(f"IDE edit error: {str(e)}")
 

@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 161
+#this belongs in root /ChangeLog.md - Version: 162
+
+## Sep 25 2026 - Button audit fixes, Build 431.92
+- Radar, Vehicle, Paths, Model Viewer failed to open (unused requests import); IDE editor crash (QWidget) and open_ide_editor override clash; IPL taskbar icon.
 
 ## Sep 25 2026 - Crash fixes, core cleanup, Build 431.92
 - Fixed: Batch Rebuild thread, extraction menu setup, IMG Browser batch sort, pin entries, info bar, icon browser, ValidationResult, IMG load thread imports.

@@ -8,7 +8,7 @@ Tabs: Handling (handling.cfg) | Car Colours (carcols.dat) | Car Mods (carmods.da
 
 Parsers are self-contained. Handling parser imported from Handling_Editor.
 """
-import os, json, sys, requests, threading, struct, re, math, shutil
+import os, json, sys, threading, struct, re, math, shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple

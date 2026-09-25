@@ -865,9 +865,8 @@ class IPLWorkshop(RibbonMixin, GUIWorkshop):
         if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
         if main_window: self.setWindowFlags(Qt.WindowType.Widget)
         try:
-            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _S
-            self.setWindowIcon(_S.ipl_editor_icon(64) if hasattr(_S,'ipl_editor_icon')
-                               else _S.locate_icon(64))
+            from apps.methods.imgfactory_svg_icons import get_ipl_editor_icon
+            self.setWindowIcon(get_ipl_editor_icon(64))
         except Exception:
             pass
 
@@ -2147,7 +2146,8 @@ def open_ipl_workshop(main_window, file_path=None):
             lo.addWidget(workshop)
 
             try:
-                icon = SVGIconFactory.ipl_editor_icon(20)
+                from apps.methods.imgfactory_svg_icons import get_ipl_editor_icon
+                icon = get_ipl_editor_icon(20)
                 idx = tw.addTab(tab, icon, "IPL")
             except Exception:
                 idx = tw.addTab(tab, "IPL")
@@ -2165,8 +2165,9 @@ def open_ipl_workshop(main_window, file_path=None):
             # Register in taskbar
             try:
                 from apps.gui.gui_layout import _register_tool_taskbar
+                from apps.methods.imgfactory_svg_icons import get_ipl_editor_icon
                 _register_tool_taskbar(main_window, "ipl", "IPL",
-                    SVGIconFactory.ipl_editor_icon,
+                    get_ipl_editor_icon,
                     "IPL Workshop — Item Placement Editor",
                     target=tab)
             except Exception as e:

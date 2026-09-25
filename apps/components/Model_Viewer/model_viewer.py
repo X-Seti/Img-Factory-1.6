@@ -8,7 +8,7 @@ Canvas: DFFViewport(QOpenGLWidget).
 View-only. Orbit/pan/zoom, wireframe/solid/textured, prelighting, light setup.
 """
 
-import os, json, sys, requests, threading, struct, re, math, shutil
+import os, json, sys, threading, struct, re, math, shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple

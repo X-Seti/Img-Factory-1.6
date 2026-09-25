@@ -5,7 +5,7 @@
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
 # Tool bar uses template pattern: titlebar + toolbar with all standard buttons
 
-import os, json, sys, requests, threading, struct, re, math, shutil
+import os, json, sys, threading, struct, re, math, shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple

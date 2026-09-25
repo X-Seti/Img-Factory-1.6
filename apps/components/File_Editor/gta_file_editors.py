@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QPushButton, QLabel, QLineEdit,
     QComboBox, QSpinBox, QGroupBox, QSplitter, QHeaderView,
     QAbstractItemView, QMessageBox, QFileDialog, QCheckBox,
-    QTreeWidget, QTreeWidgetItem, QMenu, QFrame
+    QTreeWidget, QTreeWidgetItem, QMenu, QFrame, QWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor
@@ -1255,11 +1255,11 @@ def open_ide_editor(main_window, file_data: bytes, filename: str):
         QMessageBox.critical(main_window, "IDE Editor Error", f"Failed to open IDE editor:\n{str(e)}")
         return None
 
-def integrate_gta_file_editors(main_window):
+def integrate_gta_file_editors(main_window): #vers 2
     """Integrate GTA file editors into main application"""
     try:
         # Add IDE editor method to main window
-        main_window.open_ide_editor = lambda data, name: open_ide_editor(main_window, data, name)
+        main_window.open_ide_editor_data = lambda data, name: open_ide_editor(main_window, data, name)
         
         main_window.log_message("✅ GTA file editors integrated")
         return True
