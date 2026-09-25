@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 99
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 100
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -2208,36 +2208,36 @@ class IMGFactory(QMainWindow):
         QMessageBox.about(self, f"About {App_name}", f"{App_name}\nAdvanced IMG Archive Management\nX-Seti 2026")
 
 
-    def enable_col_debug(self): #vers 2 #restore
+    def enable_col_debug(self): #vers 3
         """Enable COL debug output"""
         # Set debug flag on all loaded COL files
         if hasattr(self, 'current_col') and self.current_col:
             self.current_col._debug_enabled = True
 
         # Set global flag for future COL files
-        import methods.col_core_classes as col_module
+        import apps.methods.col_core_classes as col_module
         col_module._global_debug_enabled = True
 
         self.log_message("COL debug output enabled")
 
 
-    def disable_col_debug(self): #vers 2 #restore
+    def disable_col_debug(self): #vers 3
         """Disable COL debug output"""
         # Set debug flag on all loaded COL files
         if hasattr(self, 'current_col') and self.current_col:
             self.current_col._debug_enabled = False
 
         # Set global flag for future COL files
-        import methods.col_core_classes as col_module
+        import apps.methods.col_core_classes as col_module
         col_module._global_debug_enabled = False
 
         self.log_message("COL debug output disabled")
 
 
-    def toggle_col_debug(self): #vers 2 #restore
+    def toggle_col_debug(self): #vers 3
         """Toggle COL debug output"""
         try:
-            import methods.col_core_classes as col_module
+            import apps.methods.col_core_classes as col_module
             debug_enabled = getattr(col_module, '_global_debug_enabled', False)
 
             if debug_enabled:
@@ -4220,7 +4220,7 @@ class IMGFactory(QMainWindow):
 
 
 
-    def apply_search_and_performance_fixes(self): #vers 2
+    def apply_search_and_performance_fixes(self): #vers 3
         """Apply search and performance fixes"""
         try:
             self.log_message("  Applying search and performance fixes...")
@@ -4237,7 +4237,7 @@ class IMGFactory(QMainWindow):
                 def toggle_col_debug():
                     """Simple COL debug toggle"""
                     try:
-                        import methods.col_core_classes as col_module
+                        import apps.methods.col_core_classes as col_module
                         current = getattr(col_module, '_global_debug_enabled', False)
                         col_module._global_debug_enabled = not current
 
@@ -4253,7 +4253,7 @@ class IMGFactory(QMainWindow):
                 self.toggle_col_debug = toggle_col_debug
 
                 # Start with debug disabled for performance
-                import methods.col_core_classes as col_module
+                import apps.methods.col_core_classes as col_module
                 col_module._global_debug_enabled = False
 
                 self.log_message("COL performance mode enabled")
