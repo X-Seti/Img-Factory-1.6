@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 167
+#this belongs in root /ChangeLog.md - Version: 168
+
+## Sep 25 2026 - IPL progress, file tabs, intro icons, Build 431.92
+- Map: IPL load shows per-model progress; loading windows paint first.
+- 5+ open files: compact tabs, Files dropdown, taskbar IMG+ group.
+- Intro page uses each tool's own icon.
 
 ## Sep 25 2026 - Map gizmo crash, Build 431.92
 - Selecting an object crashed Map Workshop: footprint outline unpacked 2 of 3 cached values.
