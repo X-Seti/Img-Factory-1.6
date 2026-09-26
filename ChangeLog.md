@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 176
+#this belongs in root /ChangeLog.md - Version: 177
+
+## Sep 26 2026 - TXD/Asset Workshop broken calls, Build 431.92
+- Bumpmap Manager opened with crash (missing middle panel); reflection maps never generated; closing it removed TXD tool menu. Fixed.
+- Fixed Ctrl+O/Open TXD, bumpmap import, XTD open, Button Display menu; dead level-card copies removed.
 
 ## Sep 26 2026 - Tab switch handler, Build 431.92
 - setup_tab_system no longer disconnects _on_tab_changed; tool menu, status bar and taskbar sync on tab switch again.
