@@ -1,4 +1,4 @@
-#this belongs in apps/methods/tab_system.py - Version: 9
+#this belongs in apps/methods/tab_system.py - Version: 10
 # X-Seti - November15 2025 - IMG Factory 1.5 - Complete Tab System
 
 """
@@ -785,25 +785,26 @@ def get_active_tab_index(main_window) -> int: #vers 1
         return -1
 
 
-def setup_tab_system(main_window): #vers 3
+def setup_tab_system(main_window): #vers 4
     """Setup tab system - connect signals and register methods"""
     try:
         main_window.log_message("Setting up tab system...")
+        tw = main_window.main_tab_widget
 
-        # Disconnect any existing signals
-        try:
-            main_window.main_tab_widget.currentChanged.disconnect()
-            main_window.main_tab_widget.tabCloseRequested.disconnect()
-        except:
-            pass
+        # Drop only our own previous slots; keep _on_tab_changed etc.
+        for sig, attr in ((tw.currentChanged, '_tab_switch_slot'),
+                          (tw.tabCloseRequested, '_tab_close_slot')):
+            old = getattr(main_window, attr, None)
+            if old is not None:
+                try:
+                    sig.disconnect(old)
+                except (TypeError, RuntimeError):
+                    pass
 
-        # Connect tab signals
-        main_window.main_tab_widget.currentChanged.connect(
-            lambda index: switch_tab(main_window, index)
-        )
-        main_window.main_tab_widget.tabCloseRequested.connect(
-            lambda index: close_tab(main_window, index)
-        )
+        main_window._tab_switch_slot = lambda index: switch_tab(main_window, index)
+        main_window._tab_close_slot = lambda index: close_tab(main_window, index)
+        tw.currentChanged.connect(main_window._tab_switch_slot)
+        tw.tabCloseRequested.connect(main_window._tab_close_slot)
 
         # Register methods on main window
         main_window.create_tab = lambda fp=None, ft=None, fo=None: create_tab(main_window, fp, ft, fo)

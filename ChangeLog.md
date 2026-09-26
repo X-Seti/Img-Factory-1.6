@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 175
+#this belongs in root /ChangeLog.md - Version: 176
+
+## Sep 26 2026 - Tab switch handler, Build 431.92
+- setup_tab_system no longer disconnects _on_tab_changed; tool menu, status bar and taskbar sync on tab switch again.
+- Restored _import_col_data in COL, Model, Map workshops (removed as dead; Tool menu Import COL crashed).
 
 ## Sep 25 2026 - Smart IPL conversion, Build 431.92
 - INST lines classified by content (III, VC, SA, interior-before-name, extra field); convert any to VC/SA/LC; Repair lines; parser reads swapped lines.

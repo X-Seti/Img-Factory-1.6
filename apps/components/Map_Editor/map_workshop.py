@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 216
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 217
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -246,6 +246,7 @@ except ImportError:
 # _enable_name_edit
 # _exit_paint_mode
 # _export_col_data
+# _import_col_data
 # _export_col_model
 # _export_dff_obj    export DFF to Wavefront OBJ + MTL #vers 1
 # _export_model_menu
@@ -16234,6 +16235,48 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         except Exception as e:
             QMessageBox.critical(self, "Export via IDE Error", str(e))
+
+    def _import_col_data(self): #vers 3
+        """Import one or more COL models from .col file(s) into the current archive."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        if not getattr(self, "current_col_file", None):
+            # No file loaded yet — open the files directly
+            self._open_file()
+            return
+
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Import COL File(s)", "",
+            "COL Files (*.col);;All Files (*)")
+        if not paths:
+            return
+
+        from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
+        added = 0
+        for path in paths:
+            cf = COLFile()
+            if cf.load_from_file(path):
+                for model in cf.models:
+                    self.current_col_file.models.append(model)
+                    added += 1
+            else:
+                print(f"Import failed: {path}")
+
+        if added:
+            self._populate_collision_list()
+            self._populate_compact_col_list()
+            # Select last added
+            last = len(self.current_col_file.models) - 1
+            active = (self.mod_compact_list
+                      if getattr(self,'_col_view_mode','list')=='detail'
+                      else self.collision_list)
+            if active.rowCount() > last:
+                active.selectRow(last)
+            msg = f"Imported {added} model(s) from {len(paths)} file(s)."
+            self._set_status(msg)
+            if self.main_window and hasattr(self.main_window,'log_message'):
+                self.main_window.log_message(msg)
+        else:
+            QMessageBox.warning(self, "Import", "No models could be imported.")
 
     def _export_col_data(self): #vers 2
         """Extract/export selected COL models (or all) to individual .col files."""

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 94
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 95
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -6802,6 +6802,48 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
 
         except Exception as e:
             QMessageBox.critical(self, "Export via IDE Error", str(e))
+
+    def _import_col_data(self): #vers 2
+        """Import one or more COL models from .col file(s) into the current archive."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        if not self.current_col_file:
+            # No file loaded yet — open the files directly
+            self._open_file()
+            return
+
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Import COL File(s)", "",
+            "COL Files (*.col);;All Files (*)")
+        if not paths:
+            return
+
+        from apps.methods.col_workshop_loader import COLFile
+        added = 0
+        for path in paths:
+            cf = COLFile()
+            if cf.load_from_file(path):
+                for model in cf.models:
+                    self.current_col_file.models.append(model)
+                    added += 1
+            else:
+                print(f"Import failed: {path}")
+
+        if added:
+            self._populate_collision_list()
+            self._populate_compact_col_list()
+            # Select last added
+            last = len(self.current_col_file.models) - 1
+            active = (self.col_compact_list
+                      if getattr(self,'_col_view_mode','list')=='detail'
+                      else self.collision_list)
+            if active.rowCount() > last:
+                active.selectRow(last)
+            msg = f"Imported {added} model(s) from {len(paths)} file(s)."
+            self._set_status(msg)
+            if self.main_window and hasattr(self.main_window,'log_message'):
+                self.main_window.log_message(msg)
+        else:
+            QMessageBox.warning(self, "Import", "No models could be imported.")
 
     def _export_col_data(self): #vers 2
         """Extract/export selected COL models (or all) to individual .col files."""
