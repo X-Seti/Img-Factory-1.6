@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 177
+#this belongs in root /ChangeLog.md - Version: 178
+
+## Sep 26 2026 - Model/Map dead viewport removed, Build 431.92
+- Removed unused COL3DViewport copies in Model and Map workshops (~3,800 lines) and gui_layout_custom placeholder.
+- Model select no longer errors on COL models; removed duplicate depends/txd_parser.py copies.
 
 ## Sep 26 2026 - TXD/Asset Workshop broken calls, Build 431.92
 - Bumpmap Manager opened with crash (missing middle panel); reflection maps never generated; closing it removed TXD tool menu. Fixed.

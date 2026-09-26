@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 20
+#this belongs in apps/gui/gui_layout_custom.py - Version: 21
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -17,19 +17,6 @@ from apps.methods.imgfactory_svg_icons import (
 )
 
 
-# Temporary 3D viewport placeholder
-class COL3DViewport(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setMinimumSize(400, 400)
-        layout = QVBoxLayout(self)
-        label = QLabel("3D Viewport - Placeholder")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
-    def set_current_file(self, col_file): pass
-    def set_view_options(self, **options): pass
-
-VIEWPORT_AVAILABLE = False  # 3D viewport not yet implemented
 
 # Add root directory to path
 App_name = "Img Factory"
