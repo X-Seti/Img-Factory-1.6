@@ -1,4 +1,4 @@
-#this belongs in gui/gui_backend.py - Version: 22
+#this belongs in gui/gui_backend.py - Version: 23
 # X-Seti - August07 2025 - IMG Factory 1.5 - Clean GUI Backend - No Fallbacks
 
 """
@@ -13,7 +13,6 @@ from PyQt6.QtGui import QFont, QIcon
 from typing import Optional, Dict, Any, List, Callable
 
 ##Methods list -
-# create_adaptive_button
 # handle_action  
 # log_message
 # set_button_display_mode
@@ -39,29 +38,6 @@ class GUIBackend:
         self.entry_buttons = []
         self.options_buttons = []
 
-    def create_adaptive_button(self, label, action_type=None, icon=None, color=None, bold=False): #vers 1
-        """Create adaptive button that works with current display mode"""
-        btn = QPushButton(label)
-        
-        # Store button data for mode switching
-        btn.full_text = label
-        btn.short_text = self._get_short_text(label)
-        btn.action_type = action_type
-        btn.icon_name = icon
-        
-        # Apply styling
-        if color:
-            btn.setStyleSheet(f"background-color: {color};")
-        
-        if bold:
-            font = btn.font()
-            font.setBold(True)
-            btn.setFont(font)
-        
-        # Set initial display based on current mode
-        self._update_button_display(btn)
-        
-        return btn
     
     def set_button_display_mode(self, mode): #vers 1
         """Set button display mode and update all buttons"""

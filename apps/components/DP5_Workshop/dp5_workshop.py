@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 92 (Build 418)
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 93
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -147,6 +147,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._activate_stamp_mode
 # DP5Workshop._add_canvas_tab
 # DP5Workshop._adjust
+# DP5Workshop._amiga_palette
 # DP5Workshop._anim_add_frame
 # DP5Workshop._anim_del_frame
 # DP5Workshop._anim_dup_frame
@@ -220,6 +221,7 @@ from PyQt6.QtGui import (
 # DP5Workshop._dp5_emboss
 # DP5Workshop._dp5_sharpen
 # DP5Workshop._duplicate_last_stamp
+# DP5Workshop._encode_amiga_info
 # DP5Workshop._export_amiga_icon
 # DP5Workshop._export_art_studio
 # DP5Workshop._export_bitmap
@@ -557,20 +559,14 @@ from PyQt6.QtGui import (
 # _IconEditor._toggle_dock
 # _IconEditor.closeEvent
 # _SpriteEditor.__init__
-# _SpriteEditor._browse_font_folder
 # _SpriteEditor._browse_sprite_folder
 # _SpriteEditor._build_ui
 # _SpriteEditor._export_sheet
-# _SpriteEditor._filter_fonts
-# _SpriteEditor._load_font_file
 # _SpriteEditor._load_sprite_file
-# _SpriteEditor._load_system_font
 # _SpriteEditor._on_frame_select
 # _SpriteEditor._on_size_change
 # _SpriteEditor._on_zoom
-# _SpriteEditor._populate_font_list
 # _SpriteEditor._refresh_frames
-# _SpriteEditor._scan_font_folder
 # _SpriteEditor._scan_sprite_folder
 # _SpriteEditor._set_sprite_size
 # _SpriteView.__init__
@@ -3898,24 +3894,10 @@ class PaletteGrid(QWidget):
         self._do_recalc_height()
 
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        if key == 'border':
-            return pal.color(pal.ColorRole.Mid)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def _effective_cols(self) -> int:  #vers 1
         """Columns that fit in current width, falling back to hint."""
@@ -4050,20 +4032,10 @@ class _AutoCellPaletteGrid(PaletteGrid):
     """
 
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme QColor via palette fallback."""
-        from PyQt6.QtGui import QColor
-        pal = self.palette()
-        _map = {
-            'viewport_bg':   pal.ColorRole.Base,
-            'viewport_text': pal.ColorRole.PlaceholderText,
-            'border':        pal.ColorRole.Mid,
-            'bg_primary':    pal.ColorRole.Window,
-            'bg_secondary':  pal.ColorRole.AlternateBase,
-            'text_primary':  pal.ColorRole.WindowText,
-            'accent_primary':pal.ColorRole.Highlight,
-        }
-        return pal.color(_map.get(key, pal.ColorRole.WindowText))
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def __init__(self, cols: int = 16, parent=None):  #vers 1
         self._fixed_cols = cols   # must be set BEFORE super().__init__ calls _recalc_height
@@ -4202,20 +4174,10 @@ class FGBGSwatch(QWidget):
     bg_changed = pyqtSignal(QColor)
 
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme QColor via palette fallback."""
-        from PyQt6.QtGui import QColor
-        pal = self.palette()
-        _map = {
-            'viewport_bg':   pal.ColorRole.Base,
-            'viewport_text': pal.ColorRole.PlaceholderText,
-            'border':        pal.ColorRole.Mid,
-            'bg_primary':    pal.ColorRole.Window,
-            'bg_secondary':  pal.ColorRole.AlternateBase,
-            'text_primary':  pal.ColorRole.WindowText,
-            'accent_primary':pal.ColorRole.Highlight,
-        }
-        return pal.color(_map.get(key, pal.ColorRole.WindowText))
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
@@ -13869,7 +13831,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "PAL Export Error", str(e))
 
 
-    def _import_pal(self): #vers 1
+    def _import_pal(self): #vers 2
         """Import ZX Spectrum Next 9-bit PAL palette into user palette grid."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Import ZX Next PAL", "", "PAL (*.pal);;All Files (*)")
@@ -13883,7 +13845,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 hi = data[i*2]; lo = data[i*2+1]
                 palette.append(self._9bit_to_rgb(hi, lo))
             self._user_pal_grid.set_palette_raw(palette)
-            self._retro_btn.setText("ZX Next PAL")
+            if hasattr(self, "_retro_btn"): self._retro_btn.setText("ZX Next PAL")
             self._set_status(f"Loaded PAL: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "PAL Import Error", str(e))
@@ -14321,30 +14283,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Amiga Info Import Error", str(e))
 
 
-    def _decode_amiga_info(self, data: bytes, palette_mode: str = 'aga_wb'): #vers 4
-        """Decode Amiga .info to (rgba, w, h, format_name) or (None,0,0,reason).
-        palette_mode: 'wb39' | 'wb39xl' | 'aga' | 'magicwb' | 'ocs' | 'user'
-        Palettes extracted from real WB3.9 and WB3.9XL palette.prefs files."""
-        import struct
-        if len(data) < 78 or data[0:2] != bytes([0xE3, 0x10]):
-            return None, 0, 0, "Not a valid .info file"
-        w = struct.unpack_from('>H', data, 12)[0]
-        h = struct.unpack_from('>H', data, 14)[0]
-        if w == 0 or h == 0 or w > 1024 or h > 1024:
-            return None, 0, 0, f"Invalid dimensions {w}\xd7{h}"
-        drawer_ptr = struct.unpack_from('>I', data, 66)[0]
-
-        #    NewIcon                                                    
-        if b'IM1=' in data:
-            try:
-                rgba = self._decode_newicon_im1(data, w, h)
-                if rgba: return rgba, w, h, 'NewIcon-IM1'
-            except Exception:
-                pass
-        #    OS3.5 ICONFACE                                             
-        if b':ICONFACE' in data:
-            return None, 0, 0, "OS3.5-ICONFACE (proprietary format)"
-
+    def _amiga_palette(self, palette_mode: str = 'aga_wb'): #vers 1
+        """Return RGB palette list for an Amiga .info palette mode."""
         #     WB3.9 256-colour palette (from actual WB3_9.pal prefs)   
         WB39 = [
             (144,148,149),(43,0,0),(255,255,255),(0,98,255),(120,120,120),(175,175,175),(170,144,124),(255,169,151),  # 0
@@ -14439,6 +14379,33 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             palette = [(r,g,b) for r,g,b in user] if user else WB39
         else:  # 'wb39' or 'aga_wb' — default to real WB3.9 palette
             palette = WB39
+        return palette
+
+    def _decode_amiga_info(self, data: bytes, palette_mode: str = 'aga_wb'): #vers 5
+        """Decode Amiga .info to (rgba, w, h, format_name) or (None,0,0,reason).
+        palette_mode: 'wb39' | 'wb39xl' | 'aga' | 'magicwb' | 'ocs' | 'user'
+        Palettes extracted from real WB3.9 and WB3.9XL palette.prefs files."""
+        import struct
+        if len(data) < 78 or data[0:2] != bytes([0xE3, 0x10]):
+            return None, 0, 0, "Not a valid .info file"
+        w = struct.unpack_from('>H', data, 12)[0]
+        h = struct.unpack_from('>H', data, 14)[0]
+        if w == 0 or h == 0 or w > 1024 or h > 1024:
+            return None, 0, 0, f"Invalid dimensions {w}\xd7{h}"
+        drawer_ptr = struct.unpack_from('>I', data, 66)[0]
+
+        #    NewIcon                                                    
+        if b'IM1=' in data:
+            try:
+                rgba = self._decode_newicon_im1(data, w, h)
+                if rgba: return rgba, w, h, 'NewIcon-IM1'
+            except Exception:
+                pass
+        #    OS3.5 ICONFACE                                             
+        if b':ICONFACE' in data:
+            return None, 0, 0, "OS3.5-ICONFACE (proprietary format)"
+
+        palette = self._amiga_palette(palette_mode)
 
         #    Classic bitplane decode                                    
         base = 78 + (56 if drawer_ptr else 0)
@@ -14900,26 +14867,35 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "PCX Export Error", str(e))
 
 
-    def _write_amiga_info(self, path: str, rgba: bytes, w: int, h: int): #vers 1
+    def _write_amiga_info(self, path: str, rgba: bytes, w: int, h: int): #vers 2
         """Write Amiga .info DiskObject from RGBA pixel data."""
-        import struct
-        from PIL import Image
-        img = Image.frombytes('RGBA',(w,h),rgba).convert('RGB')
         WB_PAL = [(0,0,0),(255,255,255),(85,170,255),(255,136,0),
                   (170,170,170),(0,0,170),(255,85,0),(170,0,170),
                   (85,85,85),(0,170,170),(170,85,0),(0,170,0),
                   (170,0,0),(0,85,170),(255,255,85),(255,85,85)]
+        with open(path, 'wb') as f:
+            f.write(self._encode_amiga_info(rgba, w, h, palette=WB_PAL))
+
+    def _encode_amiga_info(self, rgba, w: int, h: int, palette_mode: str = 'aga_wb', palette=None): #vers 1
+        """Encode RGBA as Amiga .info DiskObject bytes."""
+        import struct
+        from PIL import Image
+        img = Image.frombytes('RGBA',(w,h),bytes(rgba)).convert('RGB')
+        if palette is None:
+            palette = self._amiga_palette(palette_mode)
+        n_planes = next(n for n in (1, 2, 3, 4, 8) if len(palette) <= (1 << n))
+        palette = list(palette)[:1 << n_planes]
         pal_img = Image.new('P',(1,1))
-        flat = sum([list(c) for c in WB_PAL],[]) + [0]*720
+        flat = sum([list(c) for c in palette],[])
+        flat += [0] * (768 - len(flat))
         pal_img.putpalette(flat)
         q = img.quantize(palette=pal_img, dither=0)
         pixels = list(q.getdata())
-        n_planes = 4
         row_bytes = ((w+15)//16)*2
         planes = [bytearray(row_bytes*h) for _ in range(n_planes)]
         for y in range(h):
             for x in range(w):
-                px = pixels[y*w+x] & 15
+                px = pixels[y*w+x] & ((1 << n_planes) - 1)
                 for p in range(n_planes):
                     if (px>>p)&1:
                         planes[p][y*row_bytes+x//8] |= 0x80>>(x%8)
@@ -14939,8 +14915,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         struct.pack_into('>H',img_hdr,6,h)
         struct.pack_into('>H',img_hdr,8,n_planes)
         img_hdr[12] = (1<<n_planes)-1
-        open(path,'wb').write(bytes(do)+bytes(img_hdr)+b''.join(bytes(p) for p in planes))
-
+        return bytes(do)+bytes(img_hdr)+b''.join(bytes(p) for p in planes)
 
     def _write_icns(self, path: str, img): #vers 2
         """Write Apple ICNS file from PIL image."""
@@ -16638,32 +16613,10 @@ class _CharGrid(QWidget):
     CELL = 24
 
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme QColor via palette fallback."""
-        from PyQt6.QtGui import QColor
-        pal = self.palette()
-        _map = {
-            'viewport_bg':   pal.ColorRole.Base,
-            'viewport_text': pal.ColorRole.PlaceholderText,
-            'border':        pal.ColorRole.Mid,
-            'panel_bg':      pal.ColorRole.Window,
-            'bg_primary':    pal.ColorRole.Window,
-            'bg_secondary':  pal.ColorRole.AlternateBase,
-            'text_primary':  pal.ColorRole.WindowText,
-            'text_secondary':  pal.ColorRole.WindowTesco,
-            'accent_primary':pal.ColorRole.Highlight,
-            'text_accent':pal.ColorRole.TexHighlight,
-        }
-           # themecol = app_settings.get_theme_colors(self)
-           # hexval_panel_bg = themecol.get('panel_bg')
-           # hexval_bg_primary = themecol.get('bg_primary')
-           # hexval_bg_secondary = themecol.get('bg_secondary')
-           # hexval_bg_tertiary = themecol.get('bg_tertiary')
-           # hexval_textprimary = themecol.get('text_primary')
-           # hexval_text_secondary = themecol.get('text_secondary')
-           # hexval_text_accent = themecol.get('text_accent')
-
-        return pal.color(_map.get(key, pal.ColorRole.WindowText))
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
@@ -16844,123 +16797,11 @@ class _SpriteEditor(_DockablePanelMixin, QWidget):
         lay.addLayout(right)
 
 
-    def _browse_font_folder(self): #vers 1
-        """Browse for bitmap font folder."""
-        from PyQt6.QtWidgets import QFileDialog
-        folder = QFileDialog.getExistingDirectory(
-            self, "Font Folder", self._font_folder or '')
-        if folder:
-            self._font_folder = folder
-            self._font_folder_edit.setText(folder)
-            ws = self._editor if hasattr(self, '_editor') else None
-            if ws and hasattr(ws, 'dp5_settings'):
-                ws.dp5_settings.set('char_editor_folder', folder)
-                ws.dp5_settings.save()
-            self._scan_font_folder(folder)
 
-    def _scan_font_folder(self, folder: str): #vers 1
-        """Scan folder for bitmap font files."""
-        import os
-        self._font_file_list.clear()
-        if not folder or not os.path.isdir(folder):
-            return
-        exts = {'.png','.bmp','.fnt','.bin','.chr','.raw'}
-        files = sorted(f for f in os.listdir(folder)
-                       if os.path.splitext(f)[1].lower() in exts)
-        for fname in files:
-            fpath = os.path.join(folder, fname)
-            item = QListWidgetItem(os.path.splitext(fname)[0])
-            item.setData(Qt.ItemDataRole.UserRole, fpath)
-            item.setToolTip(f"{fname}\nDouble-click to load")
-            self._font_file_list.addItem(item)
 
-    def _load_font_file(self, item): #vers 1
-        """Load a bitmap font PNG/BMP into the character grid."""
-        import os
-        fpath = item.data(Qt.ItemDataRole.UserRole)
-        if not fpath:
-            return
-        ext = os.path.splitext(fpath)[1].lower()
-        try:
-            if ext in ('.png', '.bmp'):
-                # Treat as a standard bitmap font sheet — slice into chars
-                from PyQt6.QtGui import QImage
-                img = QImage(fpath)
-                if img.isNull():
-                    return
-                iw, ih = img.width(), img.height()
-                cw, ch = self._char_w, self._char_h
-                cols = max(1, iw // cw)
-                for ci in range(min(self._n_chars, (iw//cw) * (ih//ch))):
-                    cx = (ci % cols) * cw
-                    cy = (ci // cols) * ch
-                    row_data = []
-                    for row in range(ch):
-                        byte = 0
-                        for col in range(cw):
-                            px = img.pixel(cx+col, cy+row) if cx+col < iw and cy+row < ih else 0
-                            if (px & 0xFFFFFF) > 0x101010:
-                                byte |= (0x80 >> col)
-                        row_data.append(byte)
-                    self._chars[ci] = row_data
-                self._refresh_char_list()
-                self._on_char_select(0)
-                self.setWindowTitle(f"Font Editor — {os.path.basename(fpath)}")
-            elif ext in ('.bin', '.chr', '.raw'):
-                # Raw binary font data
-                data = open(fpath, 'rb').read()
-                ch_bytes = self._char_h
-                for ci in range(min(self._n_chars, len(data) // ch_bytes)):
-                    self._chars[ci] = list(data[ci*ch_bytes:(ci+1)*ch_bytes])
-                self._refresh_char_list()
-                self._on_char_select(0)
-                self.setWindowTitle(f"Font Editor — {os.path.basename(fpath)}")
-        except Exception as e:
-            print(f"[_load_font_file] {e}")
 
-    def _populate_font_list(self): #vers 1
-        """Populate font list with system fonts."""
-        from PyQt6.QtGui import QFontDatabase
-        self._all_fonts = sorted(QFontDatabase.families())
-        self._font_list.clear()
-        for f in self._all_fonts:
-            self._font_list.addItem(f)
 
-    def _filter_fonts(self, text): #vers 1
-        text = text.lower()
-        self._font_list.clear()
-        for f in self._all_fonts:
-            if text in f.lower():
-                self._font_list.addItem(f)
 
-    def _load_system_font(self, item): #vers 1
-        """Render glyphs from selected system font into character grid."""
-        from PyQt6.QtGui import QFont as _QFont, QImage as _QImg, QPainter as _QPainter
-        font_name = item.text()
-        try:
-            font = _QFont(font_name, self._char_h - 1)
-            font.setStyleHint(_QFont.StyleHint.Monospace)
-            for ci in range(self._n_chars):
-                ch_str = chr(ci) if 32 <= ci < 127 else ' '
-                img = _QImg(self._char_w, self._char_h, _QImg.Format.Format_Mono)
-                img.fill(0)
-                p = _QPainter(img)
-                p.setFont(font)
-                p.drawText(0, self._char_h - 2, ch_str)
-                p.end()
-                row_data = []
-                for row in range(self._char_h):
-                    byte = 0
-                    for col in range(self._char_w):
-                        if img.pixel(col, row) & 0xFFFFFF:
-                            byte |= (0x80 >> col)
-                    row_data.append(byte)
-                self._chars[ci] = row_data
-            self._refresh_char_list()
-            self._on_char_select(self._current)
-            self.setWindowTitle(f"Font Editor — {font_name}")
-        except Exception as e:
-            print(f"[_load_system_font] {e}")
 
     def _on_size_change(self, txt): #vers 1
         w,h = map(int, txt.split("×"))

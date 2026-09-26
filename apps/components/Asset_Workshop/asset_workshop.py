@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 5
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 6
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -401,22 +401,10 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
     # rotate/switch/invert/generate-alpha actions.
     _RIBBON_LAYOUT_VERSION = 7
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme-aware QColor. No hardcoded colors."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':   return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text': return pal.color(pal.ColorRole.PlaceholderText)
-        if key == 'border':        return pal.color(pal.ColorRole.Mid)
-        if key == 'accent_primary':return pal.color(pal.ColorRole.Highlight)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
 
     def __init__(self, parent=None, main_window=None): #vers 10
@@ -16214,22 +16202,10 @@ class ZoomablePreview(QLabel): #vers 2
 
 
 
-    def _get_ui_color(self, key): #vers 1
-        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def _update_scaled_pixmap(self): #vers 1
 

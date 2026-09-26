@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 22
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 23
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -488,32 +488,12 @@ class ImgReader:
 
 
 # - Radar grid widget
-def _get_ui_color_for(widget, key): #vers 1
-    """Real, shared implementation behind every class's own _get_ui_
-    color(key) method (Aug 20 2026)"""
-    from PyQt6.QtGui import QColor
-    try:
-        app_settings = getattr(widget, 'app_settings', None) or \
-            getattr(getattr(widget, 'main_window', None), 'app_settings', None)
-        if app_settings and hasattr(app_settings, 'get_ui_color'):
-            return app_settings.get_ui_color(key)
-    except Exception:
-        pass
-    pal = widget.palette()
-    if key == 'viewport_bg':
-        return pal.color(pal.ColorRole.Base)
-    if key == 'viewport_text':
-        return pal.color(pal.ColorRole.PlaceholderText)
-    return pal.color(pal.ColorRole.WindowText)
-
-
 class RadarGridWidget(QWidget):
 
-    def _get_ui_color(self, key): #vers 2
-        """Thin delegate to the real, shared _get_ui_color_for
-        (Aug 20 2026 - see that function's own docstring for why this
-        logic moved there)."""
-        return _get_ui_color_for(self, key)
+    def _get_ui_color(self, key): #vers 3
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
     """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
     tile_clicked        = pyqtSignal(int)
     grid_right_clicked  = pyqtSignal(int, QPoint)   # idx, global pos
@@ -1096,9 +1076,10 @@ class _BoredomPuzzle(QDialog):
 
         self._draw()
 
-    def _get_ui_color(self, key): #vers 1
-        """ fix for the same real crash class."""
-        return _get_ui_color_for(self, key)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def _shuffle(self): #vers 1
         """Shuffle with 200 random valid moves from solved state."""
@@ -1193,9 +1174,10 @@ class _TileZoomView(QWidget):
         self.setCursor(Qt.CursorShape.CrossCursor)
         self._rebuild_pixmap()
 
-    def _get_ui_color(self, key): #vers 1
-
-        return _get_ui_color_for(self, key)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def _rebuild_pixmap(self): #vers 2
         ws = self._workshop
@@ -1433,9 +1415,10 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
-    def _get_ui_color(self, key): #vers 1
-        """ fix for the same real crash class."""
-        return _get_ui_color_for(self, key)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def _build_menus_into_qmenu(self, pm): #vers 2
         fm = pm.addMenu("File")
@@ -4268,14 +4251,6 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                 self._apply_theme()
         except Exception as e:
             QMessageBox.warning(self, "Theme Error", str(e))
-
-
-    def _show_settings_context_menu(self, pos): #vers 1
-        menu = QMenu(self)
-        menu.addAction("Move Window",      self._enable_move_mode)
-        menu.addAction("Maximize/Restore", self._toggle_maximize)
-        menu.addAction("Minimize",         self.showMinimized)
-        menu.exec(self.properties_btn.mapToGlobal(pos))
 
 
 

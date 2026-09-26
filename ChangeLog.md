@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 178
+#this belongs in root /ChangeLog.md - Version: 179
+
+## Sep 26 2026 - Broken calls and _get_ui_color copies, Build 431.92
+- 31 _get_ui_color copies now use methods/ui_color.py; fixes DP5 Character/Font Editor crash (WindowTesco typo).
+- DP5 batch Amiga .info export works (_encode_amiga_info with palette modes); dead font copies in _SpriteEditor removed.
+- Model/Map: Button Display menu, COL entry click in left list fixed. DAT Browser split icon sync fixed.
+- Removed dead code: gui_layout_custom (16 methods), radar menu, GUIBackend button, TXDSerializer parser, Map depends svg_icon_factory.
 
 ## Sep 26 2026 - Model/Map dead viewport removed, Build 431.92
 - Removed unused COL3DViewport copies in Model and Map workshops (~3,800 lines) and gui_layout_custom placeholder.

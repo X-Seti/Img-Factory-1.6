@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 21
+# this belongs in apps/methods/dff_viewport.py - Version: 22
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -2837,7 +2837,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._auzo_icon_tex_id is not None:
             return self._auzo_icon_tex_id
         try:
-            from apps.components.Map_Editor.depends.svg_icon_factory import SVGIconFactory
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
             from PyQt6.QtGui import QImage
             icon = SVGIconFactory.volume_up_icon(size=64, color='#ffcc33')
             pixmap = icon.pixmap(64, 64)

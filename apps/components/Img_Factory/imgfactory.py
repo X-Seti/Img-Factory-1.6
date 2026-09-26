@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 101
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 102
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -610,24 +610,10 @@ class IMGFactory(QMainWindow):
 
 
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        if key == 'border':
-            return pal.color(pal.ColorRole.Mid)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def log_message(self, message: str): #vers 3
         """Optimized logging that works before GUI is ready, optionally writes to file"""
@@ -1962,7 +1948,7 @@ class IMGFactory(QMainWindow):
     # INTEGRATION FIX for imgfactory.py:
 
 
-    def _update_ui_for_loaded_col(self): #vers 1 #restore
+    def _update_ui_for_loaded_col(self): #vers 2
         """Update UI when COL file is loaded - Uses proper methods/populate_col_table.py"""
         if not hasattr(self, 'current_col') or not self.current_col:
             self.log_message("_update_ui_for_loaded_col called but no current_col")
@@ -1976,23 +1962,16 @@ class IMGFactory(QMainWindow):
 
             # Use proper COL table population from apps.methods.
             if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
-                try:
-                    # Import the proper COL table functions
-                    from apps.methods.populate_col_table import setup_col_table_structure, populate_table_with_col_data_debug
+                from apps.methods.populate_col_table import setup_col_table_structure, populate_table_with_col_data_debug
 
-                    # Setup COL table structure (proper headers and widths)
-                    setup_col_table_structure(self)
+                # Setup COL table structure (proper headers and widths)
+                setup_col_table_structure(self)
 
-                    # Populate with actual COL data using the methods system
-                    populate_table_with_col_data_debug(self, self.current_col)
+                # Populate with actual COL data using the methods system
+                populate_table_with_col_data_debug(self, self.current_col)
 
-                    model_count = len(self.current_col.models) if hasattr(self.current_col, 'models') else 0
-                    self.log_message(f"COL table populated with {model_count} models")
-
-                except ImportError as e:
-                    self.log_message(f"COL methods not available: {str(e)}")
-                    # Fallback to basic display
-                    self._basic_col_table_fallback(file_name)
+                model_count = len(self.current_col.models) if hasattr(self.current_col, 'models') else 0
+                self.log_message(f"COL table populated with {model_count} models")
 
             # Update status
             if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'show_progress'):

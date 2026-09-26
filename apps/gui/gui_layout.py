@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 37
+#this belongs in apps/gui/gui_layout.py - Version: 38
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -3290,39 +3290,6 @@ class IMGFactoryGUILayout:
             )
 
     # SETTINGS & CONFIGURATION
-    def apply_settings_changes(self, settings): #vers 1
-        """Apply settings changes to the GUI layout"""
-        try:
-            # Apply tab settings if they exist
-            if any(key.startswith('tab_') or key in ['main_tab_height', 'individual_tab_height', 'tab_font_size', 'tab_padding', 'tab_container_height'] for key in settings.keys()):
-                main_height = settings.get("main_tab_height", 30)
-                tab_height = settings.get("individual_tab_height", 24)
-                font_size = settings.get("tab_font_size", 9)
-                padding = settings.get("tab_padding", 4)
-                container_height = settings.get("tab_container_height", 40)
-
-                self._apply_dynamic_tab_styling(
-                    main_height, tab_height, font_size, padding, container_height
-                )
-
-            # Apply button icon settings
-            if 'show_button_icons' in settings:
-                self._update_button_icons_state(settings['show_button_icons'])
-
-            # Apply other GUI settings as needed
-            if 'table_row_height' in settings:
-                self._update_table_row_height(settings['table_row_height'])
-
-            if 'widget_spacing' in settings:
-                self._update_widget_spacing(settings['widget_spacing'])
-
-            # Apply theme changes
-            if 'theme_changed' in settings:
-                self.apply_all_window_themes()
-
-        except Exception as e:
-            if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Error applying settings changes: {str(e)}")
 
     def _update_table_row_height(self, height): #vers 1
         """Update table row height"""

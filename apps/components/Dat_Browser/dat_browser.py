@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 10
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 11
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -725,24 +725,10 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
     #    UI construction                                                     
 
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        if key == 'border':
-            return pal.color(pal.ColorRole.Mid)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def _setup_ui(self): #vers 3
         # Ensure opaque background — prevents content bleeding from widgets beneath
@@ -1585,11 +1571,11 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._load_btn.setEnabled(True)
         self._start_load()
 
-    def _sync_split_icon(self): #vers 1
+    def _sync_split_icon(self): #vers 2
         """Copy icon and tooltip from gui_layout.split_toggle_btn."""
         try:
             from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
-            gl = getattr(self._main_window, 'gui_layout', None)
+            gl = getattr(self.main_window, 'gui_layout', None)
             src = getattr(gl, 'split_toggle_btn', None)
             if src:
                 self._split_btn.setIcon(src.icon())
@@ -1600,10 +1586,10 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         except Exception:
             pass
 
-    def _on_split_toggle(self): #vers 3
+    def _on_split_toggle(self): #vers 4
         """Cycle panel layout — calls gui_layout._toggle_merge_view_layout then syncs icon."""
         try:
-            gl = getattr(self._main_window, 'gui_layout', None)
+            gl = getattr(self.main_window, 'gui_layout', None)
             if gl and hasattr(gl, '_toggle_merge_view_layout'):
                 gl._toggle_merge_view_layout()
             self._sync_split_icon()

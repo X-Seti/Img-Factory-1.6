@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 218
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 219
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -323,6 +323,7 @@ except ImportError:
 # _select_model_by_row
 # _selected_instances
 # _set_col_buttons_enabled
+# _set_icon_display_mode
 # _set_paint_tool
 # _set_select_mode    switch vertex/edge/face/poly/object select mode #vers 2
 # _set_status
@@ -11500,7 +11501,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dialog.exec()
 
 
-    def _show_settings_context_menu(self, pos): #vers 1
+    def _show_settings_context_menu(self, pos): #vers 2
         """Show context menu for Settings button"""
         from PyQt6.QtWidgets import QMenu
 
@@ -11533,26 +11534,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addSeparator()
 
         # Icon display mode submenu (icon-only mode uses _update_tex_btn_compact)
-        display_menu = menu.addMenu("Platform Display")
+        display_menu = menu.addMenu("Button Display")
 
         icons_text_action = display_menu.addAction("Icons & Text")
         icons_text_action.setCheckable(True)
-        icons_text_action.setChecked(self.icon_display_mode == "icons_and_text")
-        icons_text_action.triggered.connect(lambda: self._set_icon_display_mode("icons_and_text"))
+        icons_text_action.setChecked(self.button_display_mode == 'both')
+        icons_text_action.triggered.connect(lambda: self._set_icon_display_mode('both'))
 
         icons_only_action = display_menu.addAction("Icons Only")
         icons_only_action.setCheckable(True)
-        icons_only_action.setChecked(self.icon_display_mode == "icons_only")
-        icons_only_action.triggered.connect(lambda: self._set_icon_display_mode("icons_only"))
+        icons_only_action.setChecked(self.button_display_mode == 'icons')
+        icons_only_action.triggered.connect(lambda: self._set_icon_display_mode('icons'))
 
         text_only_action = display_menu.addAction("Text Only")
         text_only_action.setCheckable(True)
-        text_only_action.setChecked(self.icon_display_mode == "text_only")
-        text_only_action.triggered.connect(lambda: self._set_icon_display_mode("text_only"))
+        text_only_action.setChecked(self.button_display_mode == 'text')
+        text_only_action.triggered.connect(lambda: self._set_icon_display_mode('text'))
 
         # Show menu at button position
-        menu.exec(self.settings_btn.mapToGlobal(pos))
+        menu.exec(self.properties_btn.mapToGlobal(pos))
 
+
+    def _set_icon_display_mode(self, mode: str): #vers 1
+        """Set button display mode: both, icons or text."""
+        if mode != self.button_display_mode:
+            self.button_display_mode = mode
+            self._update_all_buttons()
     def _enable_move_mode(self): #vers 2
         """Enable move window mode using system move"""
         handle = self.windowHandle()
@@ -11645,23 +11652,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             icon.addPixmap(pix)
         return icon
 
-    def _get_ui_color(self, key): #vers 1
-        """Get a theme-aware QColor from app_settings. No hardcoded colors.
-        Genuinely missing from ModelWorkshop until now (Aug 1 2026)"""
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        # Palette fallback - no hardcoded values
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
 
     def _get_icon_set(self) -> str: #vers 1
@@ -14847,7 +14841,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if item:
                 item.setHidden(bool(text) and text not in item.text().lower())
 
-    def _on_col_selected(self, item): #vers 2
+    def _on_col_selected(self, item): #vers 3
         """Handle entry selection from left panel — routes by extension."""
         try:
             entry = item.data(Qt.ItemDataRole.UserRole)
@@ -14864,9 +14858,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 with open(tmp_path, 'wb') as _f: _f.write(data)
                 self.open_dff_file(tmp_path)
             elif name.endswith('.col'):
+                import tempfile, os as _os
                 self.current_col_data = data
                 self.current_col_name = entry.name
-                self._load_col_files(data, entry.name)
+                tmp_path = _os.path.join(tempfile.mkdtemp(), entry.name)
+                with open(tmp_path, 'wb') as _f: _f.write(data)
+                self.open_col_file(tmp_path)
             elif name.endswith('.txd'):
                 self._load_txd_file_from_data(data, entry.name)
         except Exception as e:

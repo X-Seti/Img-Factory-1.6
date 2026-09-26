@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/col_mesh_editor.py - Version: 2
+#this belongs in apps/components/Col_Editor/col_mesh_editor.py - Version: 3
 # X-Seti - March 2026 - IMG Factory 1.6 - COL Mesh Editor Dialog
 
 """
@@ -47,22 +47,10 @@ _DEFAULT_MAT_COLOR = QColor(120, 120, 120)
 ##class COLMeshEditorViewport -
 class COLMeshEditorViewport(QWidget):
 
-    def _get_ui_color(self, key): #vers 1
-        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
     """Mini 2D viewport for the mesh editor — shows faces with selection highlight."""
 
     # Signal to editor that selection changed from viewport click

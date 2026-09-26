@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 95
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 96
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -457,23 +457,10 @@ class COL3DViewport(QWidget): #vers 2
     def set_background_color(self, rgb):  #vers 1
         self._bg_color = rgb; self._theme_bg_set = True; self.update()
 
-    def _get_ui_color(self, key): #vers 1
-        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        # Palette fallback - no hardcoded values
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def _set_theme_bg(self, palette): #vers 2
         """Set background from palette — light theme=white, dark=near-black."""
@@ -2045,21 +2032,10 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
 
     #    ToolMenuMixin implementation                                      
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme-aware QColor. No hardcoded colors."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':   return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text': return pal.color(pal.ColorRole.PlaceholderText)
-        if key == 'border':        return pal.color(pal.ColorRole.Mid)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def get_menu_title(self) -> str: #vers 1
         """Short label for imgfactory titlebar button."""

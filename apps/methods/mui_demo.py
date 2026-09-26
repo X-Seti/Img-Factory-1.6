@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#this belongs in apps/methods/mui_demo.py - Version: 2
 """
 Amiga MUI Demo Application
 Demonstrates advanced MUI features including:
@@ -45,24 +46,10 @@ class MUISlider(QWidget):
         self._update_knob_position()
     
 
-    def _get_ui_color(self, key): #vers 1
-        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        if key == 'border':
-            return pal.color(pal.ColorRole.Mid)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def _update_knob_position(self):
         range_val = self.maximum - self.minimum

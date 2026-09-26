@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 76
+#This goes in root/apps/utils/app_settings_system.py - version 77
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -6199,8 +6199,8 @@ class SettingsDialog(QDialog): #vers 15
         }
 
 
-    def _browse_background_image(self, target): #vers 1
-        """Browse for background image"""
+    def _browse_background_image(self, target): #vers 2
+        """Browse for background image (panel, primary, button)"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             f"Select {target.capitalize()} Background Image",
@@ -6209,20 +6209,12 @@ class SettingsDialog(QDialog): #vers 15
         )
 
         if file_path:
-            if target == "panel":
-                self.panel_bg_path.setText(file_path)
-            elif target == "button":
-                self.button_bg_path.setText(file_path)
-            self._on_gadget_changed()
+            getattr(self, f"{target}_bg_path").setText(file_path)
 
 
-    def _clear_background_image(self, target): #vers 1
+    def _clear_background_image(self, target): #vers 2
         """Clear background image"""
-        if target == "panel":
-            self.panel_bg_path.clear()
-        elif target == "button":
-            self.button_bg_path.clear()
-        self._on_gadget_changed()
+        getattr(self, f"{target}_bg_path").clear()
 
 
     def _preview_gadget_styles(self): #vers 1

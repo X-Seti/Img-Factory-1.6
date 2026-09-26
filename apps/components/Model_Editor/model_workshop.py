@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 201
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 202
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -285,6 +285,7 @@ except ImportError:
 # _select_all_models
 # _select_model_by_row
 # _set_col_buttons_enabled
+# _set_icon_display_mode
 # _set_paint_tool
 # _set_select_mode    switch vertex/edge/face/poly/object select mode #vers 2
 # _set_status
@@ -7443,7 +7444,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dialog.exec()
 
 
-    def _show_settings_context_menu(self, pos): #vers 1
+    def _show_settings_context_menu(self, pos): #vers 2
         """Show context menu for Settings button"""
         from PyQt6.QtWidgets import QMenu
 
@@ -7476,26 +7477,32 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         menu.addSeparator()
 
         # Icon display mode submenu (icon-only mode uses _update_tex_btn_compact)
-        display_menu = menu.addMenu("Platform Display")
+        display_menu = menu.addMenu("Button Display")
 
         icons_text_action = display_menu.addAction("Icons & Text")
         icons_text_action.setCheckable(True)
-        icons_text_action.setChecked(self.icon_display_mode == "icons_and_text")
-        icons_text_action.triggered.connect(lambda: self._set_icon_display_mode("icons_and_text"))
+        icons_text_action.setChecked(self.button_display_mode == 'both')
+        icons_text_action.triggered.connect(lambda: self._set_icon_display_mode('both'))
 
         icons_only_action = display_menu.addAction("Icons Only")
         icons_only_action.setCheckable(True)
-        icons_only_action.setChecked(self.icon_display_mode == "icons_only")
-        icons_only_action.triggered.connect(lambda: self._set_icon_display_mode("icons_only"))
+        icons_only_action.setChecked(self.button_display_mode == 'icons')
+        icons_only_action.triggered.connect(lambda: self._set_icon_display_mode('icons'))
 
         text_only_action = display_menu.addAction("Text Only")
         text_only_action.setCheckable(True)
-        text_only_action.setChecked(self.icon_display_mode == "text_only")
-        text_only_action.triggered.connect(lambda: self._set_icon_display_mode("text_only"))
+        text_only_action.setChecked(self.button_display_mode == 'text')
+        text_only_action.triggered.connect(lambda: self._set_icon_display_mode('text'))
 
         # Show menu at button position
-        menu.exec(self.settings_btn.mapToGlobal(pos))
+        menu.exec(self.properties_btn.mapToGlobal(pos))
 
+
+    def _set_icon_display_mode(self, mode: str): #vers 1
+        """Set button display mode: both, icons or text."""
+        if mode != self.button_display_mode:
+            self.button_display_mode = mode
+            self._update_all_buttons()
     def _enable_move_mode(self): #vers 2
         """Enable move window mode using system move"""
         handle = self.windowHandle()
@@ -10784,7 +10791,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if item:
                 item.setHidden(bool(text) and text not in item.text().lower())
 
-    def _on_col_selected(self, item): #vers 3
+    def _on_col_selected(self, item): #vers 4
         """Handle entry selection from left panel — routes by extension."""
         try:
             entry = item.data(Qt.ItemDataRole.UserRole)
@@ -10810,9 +10817,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                                     'orig': data, 'entry': entry, 'img': self.current_img}
                     self._mark_model_item(name, True)
             elif name.endswith('.col'):
+                import tempfile, os as _os
                 self.current_col_data = data
                 self.current_col_name = entry.name
-                self._load_col_files(data, entry.name)
+                tmp_path = _os.path.join(tempfile.mkdtemp(), entry.name)
+                with open(tmp_path, 'wb') as _f: _f.write(data)
+                self.open_col_file(tmp_path)
             elif name.endswith('.txd'):
                 self._load_txd_file_from_data(data, entry.name)
         except Exception as e:

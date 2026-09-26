@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Ipl_Editor/ipl_workshop.py - Version: 4
+#this belongs in apps/components/Ipl_Editor/ipl_workshop.py - Version: 5
 # X-Seti - Apr 2026 - IMG Factory 1.6 - IPL Workshop
 # Item Placement List editor for GTA III / VC / SA / SOL
 # Built on GUIWorkshop base (temp_workshop pattern)
@@ -61,22 +61,10 @@ from apps.components.Ide_Editor.ide_editor import IDEPanel
 
 class IPLMapView(QFrame):  # vers 1
 
-    def _get_ui_color(self, key): #vers 1
-        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
     """Interactive 2D top-down world map showing IPL instances as cubes.
     Supports pan (middle/left-drag), zoom (wheel), multi-select, and
     bulk translate/rotate operations."""
