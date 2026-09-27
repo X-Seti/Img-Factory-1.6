@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 3
+#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 4
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG
@@ -18,8 +18,8 @@ from typing import Dict, List, Optional, Tuple
 from apps.methods.dff_parser import DFFParser, detect_dff
 from apps.methods.txd_parser import parse_txd
 from apps.methods.dff_classes import DFFModel
-from apps.components.Model_Editor.depends.col_workshop_classes import COLModel
-from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
+from apps.methods.col_workshop_classes import COLModel
+from apps.methods.col_workshop_loader import COLFile
 
 
 def _scan_col_model_names(data: bytes) -> List[str]: #vers 1

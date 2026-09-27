@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 22
+# this belongs in apps/methods/dff_viewport.py - Version: 23
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -5607,10 +5607,7 @@ class VehicleViewport(DFFViewport):
 
     def load_wheels_dff(self, path: str, wheel_type: str = 'wheel_saloon_l0'): #vers 1
         try:
-            try:
-                from apps.methods.dff_parser import load_dff
-            except ImportError:
-                from apps.components.Vehicle_Workshop.depends.dff_parser import load_dff
+            from apps.methods.dff_parser import load_dff
             self._wheels_model = load_dff(path)
             self._wheel_type   = wheel_type
         except Exception as e:

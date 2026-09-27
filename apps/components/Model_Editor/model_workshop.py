@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 203
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 204
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -1976,7 +1976,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         # Cache the full material list for this model's version
         try:
-            from apps.components.Model_Editor.depends.col_materials import get_materials_for_version, COLGame
+            from apps.methods.col_materials import get_materials_for_version, COLGame
             ver     = getattr(getattr(model,'version',None),'value',3) if model else 3
             game    = COLGame.VC if ver == 1 else COLGame.SA
             self._paint_mat_list = get_materials_for_version(game, include_procedural=True)
@@ -2283,8 +2283,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No File", "Load a COL file first.")
             return
-        from apps.components.Model_Editor.depends.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
-        from apps.components.Model_Editor.depends.col_core_classes import Vector3
+        from apps.methods.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
+        from apps.methods.col_core_classes import Vector3
         hdr = COLHeader(fourcc=b'COLL', size=0, name='new_model',
                         model_id=0, version=COLVersion.COL_1)
         bnd = COLBounds(radius=1.0, center=Vector3(0,0,0),
@@ -2460,10 +2460,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return
 
         # - Build COL models
-        from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
-        from apps.components.Model_Editor.depends.col_workshop_classes import (
+        from apps.methods.col_workshop_loader import COLFile
+        from apps.methods.col_workshop_classes import (
             COLModel, COLHeader, COLVersion, COLBounds, COLFace, COLVertex)
-        from apps.components.Model_Editor.depends.col_core_classes import Vector3
+        from apps.methods.col_core_classes import Vector3
         import os
 
         col_ver_map = [COLVersion.COL_1, COLVersion.COL_2, COLVersion.COL_3]
@@ -2510,7 +2510,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     def _convert_surface(self): #vers 2
         """Convert selected model to a different COL version."""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QMessageBox
-        from apps.components.Model_Editor.depends.col_workshop_classes import COLVersion
+        from apps.methods.col_workshop_classes import COLVersion
         model = self._get_selected_model()
         if not model:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
@@ -5196,7 +5196,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         Builds a real Geometry/Triangle/Vector3 (not a duck-typed stand-in)
         so the result is identical to a loaded DFF and saves correctly."""
         import math
-        from apps.components.Model_Editor.depends.dff_classes import (
+        from apps.methods.dff_classes import (
             DFFModel, Geometry, Triangle, Vector3, TexCoord, Frame, Atomic,
             BoundingSphere)
 
@@ -10147,7 +10147,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Export only models referenced by an IDE file."""
         from PyQt6.QtWidgets import QMessageBox, QFileDialog
         import os
-        from apps.components.Model_Editor.depends.col_workshop_writer import save_col_file
+        from apps.methods.col_workshop_writer import save_col_file
 
         if not getattr(self, "current_col_file", None):
             QMessageBox.warning(self, "No COL File", "Load a COL file first.")
@@ -10213,7 +10213,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         if not paths:
             return
 
-        from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
+        from apps.methods.col_workshop_loader import COLFile
         added = 0
         for path in paths:
             cf = COLFile()
@@ -10245,7 +10245,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Extract/export selected COL models (or all) to individual .col files."""
         import os
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
-        from apps.components.Model_Editor.depends.col_workshop_writer import save_col_file
+        from apps.methods.col_workshop_writer import save_col_file
 
         if not getattr(self, "current_col_file", None):
             QMessageBox.warning(self, "Export", "No dff file loaded.")
@@ -10400,13 +10400,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Open standalone COL file - supports COL1, COL2, COL3"""
         self._dff_adapters = []   # clear DFF mode
         try:
-            from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
+            from apps.methods.col_workshop_loader import COLFile
 
             # Create and load COL file
             # col_file = COLFile()
             # col_file.load_from_file(file_path)
 
-            #from apps.components.Model_Editor.depends.col_workshop_loader import load_col_with_progress
+            #from apps.methods.col_workshop_loader import load_col_with_progress
             #col_file = load_col_with_progress(file_path, self)
 
             #if not col_file:  # Just check if None
@@ -11344,7 +11344,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 return
 
             # Build a minimal COL file containing just this model
-            from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
+            from apps.methods.col_workshop_loader import COLFile
             out = COLFile()
             # this model's original record (edits patched in) or a freshly written one
             from apps.methods.col_workshop_parser import COLWriter
@@ -11369,7 +11369,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             if not file_path:
                 return
 
-            from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
+            from apps.methods.col_workshop_loader import COLFile
             new_col = COLFile()
             if not new_col.load(file_path):
                 QMessageBox.warning(self, "Import Failed",

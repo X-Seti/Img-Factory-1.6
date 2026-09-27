@@ -1,4 +1,4 @@
-#this belongs in components/Col_Editor/depends/col_preview_generator.py - Version: 2
+#this belongs in apps/methods/col_preview_generator.py - Version: 3
 # X-Seti - October20 2025 - IMG Factory 1.5 - COL Preview Generator
 
 """

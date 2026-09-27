@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 97
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 98
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -47,15 +47,15 @@ from PyQt6.QtSvg import QSvgRenderer
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 from apps.components.Col_Editor.depends.col_workshop_structures import setup_col_table_structure, populate_col_table
-from apps.components.Col_Editor.depends.col_workshop_parser import COLParser
-from apps.components.Col_Editor.depends.col_workshop_loader import COLFile
+from apps.methods.col_workshop_parser import COLParser
+from apps.methods.col_workshop_loader import COLFile
 from apps.gui.tool_menu_mixin import ToolMenuMixin
 try:
     from apps.methods.gl_viewport_mixin import GLViewportMixin
 except ImportError:
     class GLViewportMixin: pass
 # COL Workshop parser system
-from apps.components.Col_Editor.depends.col_workshop_classes import (COLModel, COLVersion, COLHeader, COLBounds,COLSphere, COLBox, COLVertex, COLFace)
+from apps.methods.col_workshop_classes import (COLModel, COLVersion, COLHeader, COLBounds,COLSphere, COLBox, COLVertex, COLFace)
 
 VIEWPORT_AVAILABLE = True
 
@@ -2738,7 +2738,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No File", "Load a COL file first.")
             return
-        from apps.components.Col_Editor.depends.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
+        from apps.methods.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
         from apps.methods.col_core_classes import Vector3
         hdr = COLHeader(fourcc=b'COLL', size=0, name='new_model',
                         model_id=0, version=COLVersion.COL_1)
@@ -2768,7 +2768,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         """Create stub COL models for each texture name in a loaded TXD."""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         from apps.methods.col_workshop_loader import COLFile
-        from apps.components.Col_Editor.depends.col_workshop_classes import COLModel, COLVersion, COLBounds
+        from apps.methods.col_workshop_classes import COLModel, COLVersion, COLBounds
         txd_path, _ = QFileDialog.getOpenFileName(
             self, "Select TXD file", "", "TXD Files (*.txd);;All Files (*)")
         if not txd_path:
@@ -2830,7 +2830,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
     def _convert_surface(self): #vers 2
         """Convert selected model to a different COL version."""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QMessageBox
-        from apps.components.Col_Editor.depends.col_workshop_classes import COLVersion
+        from apps.methods.col_workshop_classes import COLVersion
         model = self._get_selected_model()
         if not model:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
@@ -2892,7 +2892,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             QMessageBox.warning(self, "No Mesh", f"'{model.name}' has no vertex/face data.")
             return
         # Upgrade to COL3 if needed
-        from apps.components.Col_Editor.depends.col_workshop_classes import COLVersion
+        from apps.methods.col_workshop_classes import COLVersion
         if getattr(model.version, 'value', 0) < 3:
             reply = QMessageBox.question(self, "Upgrade to COL3",
                 "Shadow mesh requires COL3. Upgrade this model?",

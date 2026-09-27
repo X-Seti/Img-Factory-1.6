@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 9
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 10
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -120,19 +120,8 @@ except Exception:
     VC_FIELDS, HANDLING_FLAGS = [("HandlingName", "str", "", "", "Handling name")], {}
 _HANDLING_AVAILABLE = True
 
-# Parser imports — fall back to local depends/ when running standalone
-try:
-    from apps.methods.dff_parser import load_dff, DFFParser
-    from apps.methods.txd_parser import parse_txd
-except ImportError:
-    try:
-        from apps.components.Vehicle_Workshop.depends.dff_parser import load_dff, DFFParser
-    except ImportError:
-        load_dff = DFFParser = None
-    try:
-        from apps.components.Vehicle_Workshop.depends.txd_parser import parse_txd
-    except ImportError:
-        parse_txd = None
+from apps.methods.dff_parser import load_dff, DFFParser
+from apps.methods.txd_parser import parse_txd
 
 # - Detect standalone vs docked
 def _is_standalone():  #vers 1

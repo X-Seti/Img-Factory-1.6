@@ -1,4 +1,4 @@
-#this belongs in methods/col_workshop_parser.py - Version: 9
+#this belongs in methods/col_workshop_parser.py - Version: 10
 # X-Seti - May08 2026 - Col Workshop - COL Binary Parser
 """
 COL Binary Parser - Handles parsing binary COL data
@@ -9,8 +9,8 @@ Based on GTA Wiki specification
 import struct
 from typing import Tuple, List, Optional
 from apps.debug.debug_functions import img_debugger
-from apps.components.Col_Editor.depends.col_workshop_classes import (COLHeader, COLBounds, COLSphere, COLBox, COLVertex, COLFace, COLModel, COLVersion)
-from apps.components.Col_Editor.depends.col_core_classes import Vector3, COLMaterial, BoundingBox
+from apps.methods.col_workshop_classes import (COLHeader, COLBounds, COLSphere, COLBox, COLVertex, COLFace, COLModel, COLVersion)
+from apps.methods.col_core_classes import Vector3, COLMaterial, BoundingBox
 
 ##Classes list -
 # COLParser
@@ -213,26 +213,27 @@ class COLParser: #vers 1
             raise ValueError(f"Bounds parse error: {str(e)}")
 
 
-    def parse_spheres(self, data: bytes, offset: int, count: int) -> Tuple[List[COLSphere], int]: #vers 4
-        """Parse collision spheres.
-        COL1 layout: radius(4) + center(12) + surface(1) + piece(1) + pad(2) = 20 bytes.
-        Verified against vehicles.col binary May 2026.
+    def parse_spheres(self, data: bytes, offset: int, count: int,
+                      version: COLVersion = COLVersion.COL_1) -> Tuple[List[COLSphere], int]: #vers 5
+        """Parse collision spheres, 20 bytes each.
+        COL1: radius(4) + center(12) + surface(4); COL2+: center(12) + radius(4) + surface(4).
         """
         spheres = []
         for _ in range(count):
             if len(data) < offset + 20:
                 raise ValueError("Data too short for sphere")
-            radius = struct.unpack('<f', data[offset:offset+4])[0]
+            if version == COLVersion.COL_1:
+                radius = struct.unpack_from('<f', data, offset)[0]
+                center = struct.unpack_from('<fff', data, offset + 4)
+            else:
+                center = struct.unpack_from('<fff', data, offset)
+                radius = struct.unpack_from('<f', data, offset + 12)[0]
+            offset += 16
+            material, flag, bright, light = data[offset:offset + 4]   # surface
             offset += 4
-            cx, cy, cz = struct.unpack('<fff', data[offset:offset+12])
-            center = (cx, cy, cz)
-            offset += 12
-            material = data[offset]      # surface type
-            flag     = data[offset + 1]  # piece
-            offset += 4  # surface(1) + piece(1) + pad(2)
             sphere = COLSphere(radius=radius, center=center,
                                material=material, flag=flag,
-                               brightness=0, light=0)
+                               brightness=bright, light=light)
             spheres.append(sphere)
         return spheres, offset
     
@@ -541,7 +542,7 @@ class COLParser: #vers 1
             raise ValueError(f"Faces parse error: {str(e)}")
 
 
-    def parse_model(self, data: bytes, offset: int = 0) -> Tuple[Optional[COLModel], int]: #vers 3
+    def parse_model(self, data: bytes, offset: int = 0) -> Tuple[Optional[COLModel], int]: #vers 4
         """Parse complete COL model (COL1/2/3/4).
 
         COL1 layout (VERIFIED from special.col RE, March 2026):
@@ -634,7 +635,7 @@ class COLParser: #vers 1
                 #    Spheres                                                
                 if num_spheres > 0 and spheres_off > 0:
                     spheres, _ = self.parse_spheres(
-                        data, data_at(spheres_off), num_spheres)
+                        data, data_at(spheres_off), num_spheres, version)
                 else:
                     spheres = []
 
@@ -859,17 +860,19 @@ class COLWriter: #vers 1
         return struct.pack('<fff', float(v.x), float(v.y), float(v.z))
 
     @classmethod
-    def _write_bounds(cls, bounds) -> bytes:
-        """Serialise COLBounds to 40 bytes: min+max+center+radius."""
+    def _write_bounds(cls, bounds, ver=None) -> bytes: #vers 2
+        """Serialise COLBounds to 40 bytes in the version's field order."""
         import struct
         mn = getattr(bounds, 'min',    None) or getattr(bounds, 'min_point', None)
         mx = getattr(bounds, 'max',    None) or getattr(bounds, 'max_point', None)
         ct = getattr(bounds, 'center', None)
-        rd = float(getattr(bounds, 'radius', 0.0))
-        return cls._v3(mn) + cls._v3(mx) + cls._v3(ct) + struct.pack('<f', rd)
+        rd = struct.pack('<f', float(getattr(bounds, 'radius', 0.0)))
+        if ver == COLVersion.COL_1:
+            return rd + cls._v3(ct) + cls._v3(mn) + cls._v3(mx)
+        return cls._v3(mn) + cls._v3(mx) + cls._v3(ct) + rd
 
     @classmethod
-    def write_model(cls, model) -> bytes:
+    def write_model(cls, model) -> bytes: #vers 2
         """Serialise one COLModel to bytes (header + payload)."""
         import struct
 
@@ -896,7 +899,7 @@ class COLWriter: #vers 1
         payload += struct.pack('<H', mid)
 
         # Bounds (40 bytes)
-        payload += cls._write_bounds(model.bounds)
+        payload += cls._write_bounds(model.bounds, ver)
 
         if ver == COLVersion.COL_1:
             payload += cls._write_col1_body(model)
@@ -909,136 +912,90 @@ class COLWriter: #vers 1
         return header + bytes(payload)
 
     @classmethod
-    def _write_col1_body(cls, model) -> bytes:
-        """COL1 body after bounds: spheres + boxes + verts + faces."""
+    def _surface(cls, item) -> bytes: #vers 1
+        """4-byte surface: material, flag, brightness, light."""
         import struct
-        buf = bytearray()
+        return struct.pack('<BBBB', cls._mat_id(item),
+                           int(getattr(item, 'flag', 0) or 0) & 0xFF,
+                           int(getattr(item, 'brightness', 0) or 0) & 0xFF,
+                           int(getattr(item, 'light', 0) or 0) & 0xFF)
 
-        spheres = model.spheres or []
-        boxes   = model.boxes   or []
+    @classmethod
+    def _write_col1_body(cls, model) -> bytes: #vers 3
+        """COL1 body after bounds; matches COLParser.parse_model COL1 order."""
+        import struct
+        spheres = model.spheres  or []
+        boxes   = model.boxes    or []
         verts   = model.vertices or []
-        faces   = model.faces   or []
-
-        # Sphere count (2) + box count (2) + unk (4)
-        buf += struct.pack('<HHI', len(spheres), len(boxes), 0)
-
-        # Spheres: center(12) + radius(4) + mat(1) + flag(1) + pad(2) = 20? 
-        # COL1 sphere = 20 bytes per DragonFF
+        faces   = model.faces    or []
+        buf = bytearray(struct.pack('<I', len(spheres)))
         for s in spheres:
-            c = s.center
-            mat_id = getattr(getattr(s, 'material', None), 'material_id', 0)
-            flag   = getattr(getattr(s, 'material', None), 'flag', 0)
-            buf += struct.pack('<ffffBBH', c.x, c.y, c.z,
-                               float(s.radius), mat_id, flag, 0)
-
-        # Boxes: min(12) + max(12) + mat(1) + flag(1) + pad(2) = 28 bytes
-        for box in boxes:
-            mn = box.min; mx = box.max
-            mat_id = getattr(getattr(box, 'material', None), 'material_id', 0)
-            flag   = getattr(getattr(box, 'material', None), 'flag', 0)
-            buf += struct.pack('<ffffffBBH',
-                mn[0], mn[1], mn[2], mx[0], mx[1], mx[2], mat_id, flag, 0)
-
-        # Vertex count (2) + face count (2)
-        buf += struct.pack('<HH', len(verts), len(faces))
-
-        # Vertices: 3×float = 12 bytes
+            buf += struct.pack('<f', float(s.radius)) + cls._v3(s.center) + cls._surface(s)
+        buf += struct.pack('<I', 0)                     # unknown / lines
+        buf += struct.pack('<I', len(boxes))
+        for b in boxes:
+            buf += cls._v3(b.min) + cls._v3(b.max) + cls._surface(b)
+        buf += struct.pack('<I', len(verts))
         for v in verts:
             buf += struct.pack('<fff', float(v.x), float(v.y), float(v.z))
-
-        # Faces COL1: a(4)+b(4)+c(4)+mat(1)+light(1)+pad(2) = 16 bytes
+        buf += struct.pack('<I', len(faces))
         for f in faces:
-            mat = cls._mat_id(f)
-            light = getattr(f, 'light', 0)
-            buf += struct.pack('<IIIBBxx', int(f.a), int(f.b), int(f.c), mat, light)
-
+            buf += struct.pack('<IIIBBxx', int(f.a), int(f.b), int(f.c),
+                               cls._mat_id(f), int(getattr(f, 'light', 0) or 0) & 0xFF)
         return bytes(buf)
 
     @classmethod
-    def _write_col23_body(cls, model, ver) -> bytes:
-        """COL2/3 body after bounds: offset table + data sections."""
+    def _write_col23_body(cls, model, ver) -> bytes: #vers 3
+        """COL2/3/4 body after bounds: offset header then data blocks.
+        Offsets are from the fourcc, pointing 4 bytes before each block."""
         import struct
-
         spheres = model.spheres  or []
         boxes   = model.boxes    or []
         verts   = model.vertices or []
         faces   = model.faces    or []
 
-        # Build data sections first to know offsets
-        sphere_bytes = bytearray()
+        def _i16(val):
+            return max(-32768, min(32767, int(round(float(val) * 128.0))))
+
+        hdr_len = 36 + (12 if ver.value >= 3 else 0) + (4 if ver.value >= 4 else 0)
+        pos = 8 + 24 + 40 + hdr_len                     # fourcc+size, name+id, bounds
+        blocks = bytearray()
+
+        def _add(data):
+            nonlocal pos, blocks
+            off = pos - 4
+            blocks += data
+            pos += len(data)
+            return off
+
+        sph = bytearray()
         for s in spheres:
-            c = s.center
-            mat_id = getattr(getattr(s, 'material', None), 'material_id', 0)
-            sphere_bytes += struct.pack('<ffff', c.x, c.y, c.z, float(s.radius))
-            sphere_bytes += struct.pack('<BB', mat_id, 0)
-            sphere_bytes += b'\x00\x00'   # pad to 20 bytes
-
-        box_bytes = bytearray()
-        for box in boxes:
-            mn = box.min; mx = box.max
-            mat_id = getattr(getattr(box, 'material', None), 'material_id', 0)
-            box_bytes += struct.pack('<ffffff', mn[0], mn[1], mn[2], mx[0], mx[1], mx[2])
-            box_bytes += struct.pack('<BB', mat_id, 0)
-            box_bytes += b'\x00\x00'
-
-        vert_bytes = bytearray()
+            sph += cls._v3(s.center) + struct.pack('<f', float(s.radius)) + cls._surface(s)
+        box = bytearray()
+        for b in boxes:
+            box += cls._v3(b.min) + cls._v3(b.max) + cls._surface(b)
+        vtx = bytearray()
         for v in verts:
-            vert_bytes += struct.pack('<fff', float(v.x), float(v.y), float(v.z))
-
-        face_bytes = bytearray()
+            vtx += struct.pack('<hhh', _i16(v.x), _i16(v.y), _i16(v.z))
+        while len(vtx) % 4:
+            vtx += b'\x00'
+        fac = bytearray()
         for f in faces:
-            mat = cls._mat_id(f)
-            light = getattr(f, 'light', 0)
-            # COL2/3: uint16×3 + mat(u8) + light(u8) = 8 bytes
-            face_bytes += struct.pack('<HHHBBxx', int(f.a), int(f.b), int(f.c), mat, light) \
-                          if ver == COLVersion.COL_2 else \
-                          struct.pack('<HHHBB', int(f.a), int(f.b), int(f.c), mat, light)
+            fac += struct.pack('<HHHBB', int(f.a), int(f.b), int(f.c),
+                               cls._mat_id(f), int(getattr(f, 'light', 0) or 0) & 0xFF)
 
-        # Offset table (28 bytes) — offsets are relative to start of payload
-        # Layout after bounds(40) + name/id(24) = 64 bytes header
-        # Offset table starts at byte 40 of payload (after name+id+bounds)
-        # Actually: offsets in COL2/3 are from start of file chunk
-        # Use 0 for unused sections
-        face_group_bytes = b''  # face groups — not editing, write empty
-
-        # Offset table: sphere_cnt(2) + box_cnt(2) + unk(2) + vert_cnt(2) + face_cnt(2)
-        #               + sphere_off(4) + box_off(4) + unk_off(4) + vert_off(4) + face_off(4) + fg_off(4) + fg_cnt(2) + pad
-        # Simplified: write the full 40-byte header then sections in order
-        # We'll store offsets relative to start of model chunk (fourcc included)
-        # header = 8 bytes, name+id = 24 bytes, bounds = 40 bytes, offset_table = 28 bytes
-        hdr_size = 8 + 24 + 40   # fourcc+size + name+id + bounds
-        tbl_size = 28
-        base = hdr_size + tbl_size
-
-        off_sphere = base                           if spheres else 0
-        off_box    = off_sphere + len(sphere_bytes) if boxes   else 0
-        off_vert   = off_box    + len(box_bytes)    if verts   else 0
-        off_face   = off_vert   + len(vert_bytes)   if faces   else 0
-        off_fg     = off_face   + len(face_bytes)
-
-        tbl = struct.pack('<HHHHHHxxxxxxxxxxxxxxxx',
-                          len(spheres), len(boxes), 0,
-                          len(verts),   len(faces), 0)
-        # offsets (6×4 bytes)
-        tbl += struct.pack('<IIIIII',
-                           off_sphere, off_box, 0, off_vert, off_face, off_fg)
-        # Pad to 28 bytes if needed — the above is already 12+24=36, trim
-        tbl = struct.pack('<HHHHHxxxxxx', len(spheres), len(boxes), 0, len(verts), len(faces))
-        # Simpler: just concatenate everything without complex offset table
-        # and use 0-offsets for the table (offsets aren't critical for face material edits)
-        # Modern loaders use count fields primarily.
-        tbl = (struct.pack('<HHHHHH', len(spheres), len(boxes), 0,
-                           len(verts), len(faces), 0) +
-               struct.pack('<IIIIII', 0, 0, 0, 0, 0, 0))
-
-        buf = bytearray()
-        buf += tbl
-        buf += sphere_bytes
-        buf += box_bytes
-        buf += vert_bytes
-        buf += face_bytes
-        buf += face_group_bytes
-        return bytes(buf)
+        off_sph = _add(bytes(sph))
+        off_box = _add(bytes(box))
+        off_vtx = _add(bytes(vtx))
+        off_fac = _add(bytes(fac))
+        flags = 2 if (spheres or boxes or faces) else 0
+        hdr = struct.pack('<HHHBxIIIIIII', len(spheres), len(boxes), len(faces), 0,
+                          flags, off_sph, off_box, 0, off_vtx, off_fac, 0)
+        if ver.value >= 3:
+            hdr += struct.pack('<III', 0, 0, 0)            # no shadow mesh
+        if ver.value >= 4:
+            hdr += struct.pack('<I', 0)
+        return hdr + bytes(blocks)
 
     @classmethod
     def write_file(cls, models: list) -> bytes:

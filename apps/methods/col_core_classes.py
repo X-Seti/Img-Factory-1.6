@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_core_classes.py OR apps/components/Col_Editor/depends/col_core_classes.py - Version: 4
+#this belongs in apps/methods/col_core_classes.py - Version: 5
 # X-Seti - December13 2025 - IMG Factory 1.5 - COL Core Classes
 
 """

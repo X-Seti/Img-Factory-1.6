@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 180
+#this belongs in root /ChangeLog.md - Version: 181
+
+## Sep 27 2026 - COL/DFF depends copies merged, Build 431.92
+- Removed 13 depends/ copies of COL/DFF modules; all workshops import apps/methods/ (old copies had COL\x02 fourcc bug, no splice save).
+- COL writer rewritten to match parser: COL1 order, COL2/3 offset table, spheres/boxes surfaces. COL2/3 spheres read center-first.
 
 ## Sep 27 2026 - Shared button mode, Build 431.92
 - New methods/button_mode.py; TXD, Asset, Map, COL use it. COL Workshop Button Display change no longer crashes. Dead TXD _apply_button_mode removed.
