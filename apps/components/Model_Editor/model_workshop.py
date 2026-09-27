@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 202
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 203
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -11296,7 +11296,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             uv_layers = getattr(geom, 'uv_layers', [])
             uv_info = menu.addAction(
                 f"UV layers: {len(uv_layers)}  "
-                f"({'has UVs' if uv_layers else 'no UVs — textured mode won\'t work'})")
+                f"({'has UVs' if uv_layers else 'no UVs, textured mode will not work'})")
             uv_info.setEnabled(False)
 
         # - Export

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 6
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 7
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -2262,48 +2262,10 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._update_dock_button_visibility()
 
 
-    def _apply_button_mode_to_button(self, button, text): #vers 7
-        """Apply display mode to a single button with proper spacing.
-        Skips QAction-based ribbon buttons - those are handled natively by
-        QToolBar.setToolButtonStyle via _update_transform_text_panel_visibility
-        instead. Uses an explicit isinstance check (not hasattr) since
-        hasattr(QAction_instance, 'setFixedSize') was observed returning
-        True on at least one PyQt6 build, letting QActions through and
-        crashing on the QPushButton-only calls below."""
-        from PyQt6.QtGui import QAction
-        if isinstance(button, QAction) or not hasattr(button, 'setFixedSize'):
-            return
-        # Store original icon if not already stored
-        if not hasattr(button, '_original_icon'):
-            button._original_icon = button.icon()
-
-        if self.button_display_mode == 'icons':
-            # Icons only - SQUARE buttons like transform panel
-            button.setText("")
-            if not button._original_icon.isNull():
-                button.setIcon(button._original_icon)
-                button.setIconSize(QSize(20, 20))
-            button.setFixedSize(40, 40)  # SQUARE - match transform panel
-
-        elif self.button_display_mode == 'text':
-            # Text only - auto-size for text
-            button.setText(text)
-            button.setIcon(QIcon())
-            button.setMinimumWidth(60)
-            button.setMaximumWidth(16777215)
-            button.setMinimumHeight(0)  # Remove fixed height
-            button.setMaximumHeight(16777215)
-
-        elif self.button_display_mode == 'both':
-            # Icons + Text - auto-size for both
-            button.setText(text)
-            if not button._original_icon.isNull():
-                button.setIcon(button._original_icon)
-                button.setIconSize(QSize(20, 20))
-            button.setMinimumWidth(0)
-            button.setMaximumWidth(16777215)
-            button.setMinimumHeight(0)  # Remove fixed height
-            button.setMaximumHeight(16777215)
+    def _apply_button_mode_to_button(self, button, text): #vers 8
+        """Apply display mode via shared helper."""
+        from apps.methods.button_mode import apply_button_mode_to_button
+        apply_button_mode_to_button(button, text, self.button_display_mode)
 
 
 

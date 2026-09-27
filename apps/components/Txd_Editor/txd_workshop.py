@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 34
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 35
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -98,7 +98,6 @@ DEBUG_STANDALONE = False
 # _add_warning_badge
 # _apply_always_on_top
 # _apply_button_font
-# _apply_button_mode
 # _apply_button_mode_to_button
 # _apply_fonts_to_widgets
 # _apply_gaussian_blur    # Gaussian blur for bumpmap smoothing
@@ -1849,25 +1848,6 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.show()
 
 
-    def _apply_button_mode(self, dialog): #vers 1
-        """Apply button display mode"""
-        mode_index = self.button_mode_combo.currentIndex()
-        mode_map = {0: 'both', 1: 'icons', 2: 'text'}
-
-        new_mode = mode_map[mode_index]
-
-        if new_mode != self.button_display_mode:
-            self.button_display_mode = new_mode
-            self._update_all_buttons()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                mode_names = {0: 'Icons + Text', 1: 'Icons Only', 2: 'Text Only'}
-                self.main_window.log_message(f"✨ Button style: {mode_names[mode_index]}")
-
-        dialog.close()
-
-
-
 # - Window functionality
 
     def _initialize_features(self): #vers 3
@@ -2023,48 +2003,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._update_dock_button_visibility()
 
 
-    def _apply_button_mode_to_button(self, button, text): #vers 7
-        """Apply display mode to a single button with proper spacing.
-        Skips QAction-based ribbon buttons - those are handled natively by
-        QToolBar.setToolButtonStyle via _update_transform_text_panel_visibility
-        instead. Uses an explicit isinstance check (not hasattr) since
-        hasattr(QAction_instance, 'setFixedSize') was observed returning
-        True on at least one PyQt6 build, letting QActions through and
-        crashing on the QPushButton-only calls below."""
-        from PyQt6.QtGui import QAction
-        if isinstance(button, QAction) or not hasattr(button, 'setFixedSize'):
-            return
-        # Store original icon if not already stored
-        if not hasattr(button, '_original_icon'):
-            button._original_icon = button.icon()
-
-        if self.button_display_mode == 'icons':
-            # Icons only - SQUARE buttons like transform panel
-            button.setText("")
-            if not button._original_icon.isNull():
-                button.setIcon(button._original_icon)
-                button.setIconSize(QSize(20, 20))
-            button.setFixedSize(40, 40)  # SQUARE - match transform panel
-
-        elif self.button_display_mode == 'text':
-            # Text only - auto-size for text
-            button.setText(text)
-            button.setIcon(QIcon())
-            button.setMinimumWidth(60)
-            button.setMaximumWidth(16777215)
-            button.setMinimumHeight(0)  # Remove fixed height
-            button.setMaximumHeight(16777215)
-
-        elif self.button_display_mode == 'both':
-            # Icons + Text - auto-size for both
-            button.setText(text)
-            if not button._original_icon.isNull():
-                button.setIcon(button._original_icon)
-                button.setIconSize(QSize(20, 20))
-            button.setMinimumWidth(0)
-            button.setMaximumWidth(16777215)
-            button.setMinimumHeight(0)  # Remove fixed height
-            button.setMaximumHeight(16777215)
+    def _apply_button_mode_to_button(self, button, text): #vers 8
+        """Apply display mode via shared helper."""
+        from apps.methods.button_mode import apply_button_mode_to_button
+        apply_button_mode_to_button(button, text, self.button_display_mode)
 
 
 

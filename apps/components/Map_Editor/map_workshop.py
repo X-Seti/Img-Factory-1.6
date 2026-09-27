@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 219
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 220
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -7471,38 +7471,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 self._apply_button_mode_to_button(button, btn_text)
         self._update_dock_button_visibility()
 
-    def _apply_button_mode_to_button(self, button, text): #vers 1
-        """Apply display mode to a single button with proper spacing (Aug 16 2026)"""
-        from PyQt6.QtGui import QAction
-        if isinstance(button, QAction) or not hasattr(button, 'setFixedSize'):
-            return
-        if not hasattr(button, '_original_icon'):
-            button._original_icon = button.icon()
-
-        if self.button_display_mode == 'icons':
-            button.setText("")
-            if not button._original_icon.isNull():
-                button.setIcon(button._original_icon)
-                button.setIconSize(QSize(20, 20))
-            button.setFixedSize(40, 40)
-
-        elif self.button_display_mode == 'text':
-            button.setText(text)
-            button.setIcon(QIcon())
-            button.setMinimumWidth(60)
-            button.setMaximumWidth(16777215)
-            button.setMinimumHeight(0)
-            button.setMaximumHeight(16777215)
-
-        elif self.button_display_mode == 'both':
-            button.setText(text)
-            if not button._original_icon.isNull():
-                button.setIcon(button._original_icon)
-                button.setIconSize(QSize(20, 20))
-            button.setMinimumWidth(0)
-            button.setMaximumWidth(16777215)
-            button.setMinimumHeight(0)
-            button.setMaximumHeight(16777215)
+    def _apply_button_mode_to_button(self, button, text): #vers 2
+        """Apply display mode via shared helper."""
+        from apps.methods.button_mode import apply_button_mode_to_button
+        apply_button_mode_to_button(button, text, self.button_display_mode)
 
     def paintEvent(self, event): #vers 3
         """Paint corner resize triangles — only in standalone/frameless mode."""
@@ -15271,7 +15243,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             uv_layers = getattr(geom, 'uv_layers', [])
             uv_info = menu.addAction(
                 f"UV layers: {len(uv_layers)}  "
-                f"({'has UVs' if uv_layers else 'no UVs — textured mode won\'t work'})")
+                f"({'has UVs' if uv_layers else 'no UVs, textured mode will not work'})")
             uv_info.setEnabled(False)
 
         # - Export

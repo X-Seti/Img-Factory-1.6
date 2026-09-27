@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 179
+#this belongs in root /ChangeLog.md - Version: 180
+
+## Sep 27 2026 - Shared button mode, Build 431.92
+- New methods/button_mode.py; TXD, Asset, Map, COL use it. COL Workshop Button Display change no longer crashes. Dead TXD _apply_button_mode removed.
+- Model/Map: f-string fixed so files parse on Python 3.11.
 
 ## Sep 26 2026 - Broken calls and _get_ui_color copies, Build 431.92
 - 31 _get_ui_color copies now use methods/ui_color.py; fixes DP5 Character/Font Editor crash (WindowTesco typo).

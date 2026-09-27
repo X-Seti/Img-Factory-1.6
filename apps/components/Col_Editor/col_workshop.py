@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 96
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 97
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -112,7 +112,7 @@ DEBUG_STANDALONE = False
 # COLWorkshop._analyze_collision
 # COLWorkshop._apply_always_on_top
 # COLWorkshop._apply_button_font
-# COLWorkshop._apply_button_mode
+# COLWorkshop._apply_button_mode_to_button
 # COLWorkshop._apply_col_btn_display
 # COLWorkshop._apply_fonts_to_widgets
 # COLWorkshop._apply_hotkey_settings
@@ -4007,6 +4007,11 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
                 button = getattr(self, btn_name)
                 self._apply_button_mode_to_button(button, btn_text)
         self._update_dock_button_visibility()
+
+    def _apply_button_mode_to_button(self, button, text): #vers 1
+        """Apply display mode via shared helper."""
+        from apps.methods.button_mode import apply_button_mode_to_button
+        apply_button_mode_to_button(button, text, self.button_display_mode)
 
     def paintEvent(self, event): #vers 3
         """Paint corner resize triangles"""
