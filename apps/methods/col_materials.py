@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_materials.py - Version: 2
+#this belongs in apps/methods/col_materials.py - Version: 3
 # X-Seti - March29 2026 - IMG Factory 1.6 - COL Material Definitions
 # Reference: DragonFF col_materials.py (Parik, GPL-2.0+)
 """
@@ -13,6 +13,7 @@ Usage:
 
 ##Functions list -
 # convert_material_id
+# convert_piece_flag
 # get_material_name
 # get_material_colour
 # get_material_group
@@ -506,6 +507,17 @@ def convert_material_id(material_id: int, from_game: COLGame, to_game: COLGame) 
     return cands[0][0] if cands else 0
 
 
+def convert_piece_flag(flag: int, from_game: COLGame, to_game: COLGame) -> int: #vers 1
+    """Vehicle piece flag between games (windscreen VC 17, SA 19)."""
+    if (from_game == COLGame.SA) == (to_game == COLGame.SA):
+        return flag
+    if from_game == COLGame.SA and flag == int(COLFlagSA.WIND_SH):
+        return int(COLFlagVC.WIND_SH)
+    if to_game == COLGame.SA and flag == int(COLFlagVC.WIND_SH):
+        return int(COLFlagSA.WIND_SH)
+    return flag
+
+
 _GROUP_WORDS = {
     COLGroup.ROAD: ('tarmac', 'street', 'road'), COLGroup.CONCRETE: ('concrete', 'pavement'),
     COLGroup.GRAVEL: ('gravel',), COLGroup.GRASS: ('grass',), COLGroup.DIRT: ('dirt', 'mud'),
@@ -517,6 +529,7 @@ _GROUP_WORDS = {
 
 __all__ = [
     'convert_material_id',
+    'convert_piece_flag',
     'COLGame', 'COLGroup', 'COLFlagSA', 'COLFlagVC',
     'COL_PRESET_GROUP', 'COL_PRESET_SA', 'COL_PRESET_VC',
     'get_material_name', 'get_material_colour', 'get_material_group',

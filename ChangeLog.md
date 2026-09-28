@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 187
+#this belongs in root /ChangeLog.md - Version: 188
+
+## Sep 28 2026 - COL convert surface table, Build 431.92
+- Convert dialog lists used surfaces with editable GTA3/VC <-> SA target. SA originals restored on converting back. Windscreen piece flag mapped (SA 19 / VC 17).
 
 ## Sep 28 2026 - COL version convert saves, Build 431.92
 - Convert (COL1/COL2/COL3) was lost on save (original record reused); now written fresh. Optional GTA3/VC <-> SA surface remap (col_materials.convert_material_id).

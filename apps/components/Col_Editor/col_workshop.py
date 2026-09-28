@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 102
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 103
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -2828,40 +2828,82 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         if hasattr(self, 'preview_widget') and self.preview_widget:
             self.preview_widget._refresh()
 
-    def _convert_surface(self): #vers 3
-        """Convert selected model to COL1/COL2/COL3; optional surface remap."""
+    def _convert_surface(self): #vers 4
+        """Convert selected model version; per-surface GTA3/VC <-> SA mapping table."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-                                     QPushButton, QMessageBox, QCheckBox)
+                                     QPushButton, QMessageBox, QCheckBox, QTableWidget,
+                                     QTableWidgetItem, QHeaderView)
         from apps.methods.col_workshop_classes import COLVersion
-        from apps.methods.col_materials import convert_material_id, COLGame
+        from apps.methods.col_materials import (convert_material_id, convert_piece_flag,
+                                                get_material_name, get_materials_for_version, COLGame)
         model = self._get_selected_model()
         if not model:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
             return
         current = model.version
+        items = list(model.spheres) + list(model.boxes) + list(model.faces)
+        used = {}
+        for it in items:
+            used[int(it.material_id)] = used.get(int(it.material_id), 0) + 1
+        game_of = lambda v: COLGame.VC if v == COLVersion.COL_1 else COLGame.SA
+
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Convert COL version - {model.name}")
+        dlg.resize(560, 420)
         lay = QVBoxLayout(dlg)
         lay.addWidget(QLabel(f"Current version: <b>{current.name}</b>"))
-        lay.addWidget(QLabel("Convert to:"))
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Convert to:"))
         combo = QComboBox()
         for v in (COLVersion.COL_1, COLVersion.COL_2, COLVersion.COL_3):
             if v != current:
                 combo.addItem(v.name, v)
-        lay.addWidget(combo)
-        remap = QCheckBox("Remap surface materials (GTA3/VC <-> SA)")
-        lay.addWidget(remap)
+        row.addWidget(combo, 1)
+        lay.addLayout(row)
+        restore = QCheckBox("Restore original SA surfaces where known")
+        restore.setChecked(True)
+        lay.addWidget(restore)
+        table = QTableWidget(0, 3)
+        table.setHorizontalHeaderLabels(["Used", "Surface now", "Becomes"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        lay.addWidget(table, 1)
         note = QLabel("")
         note.setWordWrap(True)
         lay.addWidget(note)
+        maps = {}
 
         def _refresh():  #vers 1
             target = combo.currentData()
-            cross = (current == COLVersion.COL_1) != (target == COLVersion.COL_1)
-            remap.setEnabled(cross)
-            remap.setChecked(cross)
-            note.setText("Face groups, shadow mesh and lines are not kept."
-                         if current.value >= 2 else "")
+            src, dst = game_of(current), game_of(target)
+            cross = src != dst
+            has_stash = any(hasattr(it, '_sa_material') for it in items)
+            restore.setVisible(cross and dst == COLGame.SA and has_stash)
+            table.setVisible(cross)
+            table.setRowCount(0)
+            maps.clear()
+            if cross:
+                choices = get_materials_for_version(dst, include_vehicle=True)
+                for mid in sorted(used):
+                    r = table.rowCount()
+                    table.insertRow(r)
+                    table.setItem(r, 0, QTableWidgetItem(str(used[mid])))
+                    table.setItem(r, 1, QTableWidgetItem(f"{mid}  {get_material_name(mid, src)}"))
+                    box = QComboBox()
+                    for cid, cname, _ in choices:
+                        box.addItem(f"{cid}  {cname}", cid)
+                    box.setCurrentIndex(max(0, box.findData(convert_material_id(mid, src, dst))))
+                    table.setCellWidget(r, 2, box)
+                    maps[mid] = box
+            msgs = []
+            if cross and dst == COLGame.VC:
+                msgs.append(f"GTA3/VC has {len(get_materials_for_version(COLGame.VC, True))} surfaces, "
+                            f"SA has {len(get_materials_for_version(COLGame.SA, True))}: "
+                            "several SA surfaces share one VC surface. Originals are remembered "
+                            "until the workshop closes.")
+            if current.value >= 2 and target == COLVersion.COL_1:
+                msgs.append("Face groups, shadow mesh and lines are not kept.")
+            note.setText("\n".join(msgs))
         combo.currentIndexChanged.connect(_refresh)
         _refresh()
 
@@ -2871,13 +2913,23 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         lay.addLayout(btns)
         cancel.clicked.connect(dlg.reject)
 
-        def _do():  #vers 2
+        def _do():  #vers 3
             target = combo.currentData()
-            if remap.isEnabled() and remap.isChecked():
-                src = COLGame.VC if current == COLVersion.COL_1 else COLGame.SA
-                dst = COLGame.VC if target == COLVersion.COL_1 else COLGame.SA
-                for item in list(model.spheres) + list(model.boxes) + list(model.faces):
-                    item.material = convert_material_id(int(item.material_id), src, dst)
+            src, dst = game_of(current), game_of(target)
+            if src != dst:
+                use_stash = not restore.isHidden() and restore.isChecked()
+                for it in items:
+                    old = int(it.material_id)
+                    if dst == COLGame.VC:
+                        it._sa_material = old
+                    if use_stash and hasattr(it, '_sa_material'):
+                        it.material = it._sa_material
+                    else:
+                        it.material = maps[old].currentData() if old in maps else old
+                    if dst == COLGame.SA and hasattr(it, '_sa_material'):
+                        del it._sa_material
+                    if hasattr(it, 'flag'):
+                        it.flag = convert_piece_flag(int(it.flag or 0), src, dst)
             model.version = target
             self._populate_collision_list()
             self._populate_compact_col_list()
