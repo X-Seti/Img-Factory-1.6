@@ -1,4 +1,4 @@
-#this belongs in core/reload.py - Version: 11
+#this belongs in core/reload.py - Version: 12
 # X-Seti - November16 2025 - IMG Factory 1.5 - Reload Functions - TAB AWARE
 """
 Reload Functions - TAB-AWARE VERSION
@@ -190,7 +190,7 @@ def _reload_col_in_tab(main_window, file_path: str) -> bool: #vers 1
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Reloading COL: {filename}")
         # Load new COL instance
-        from apps.methods.col_core_classes import COLFile
+        from apps.methods.col_workshop_loader import COLFile
         new_col = COLFile(file_path)
         if not new_col.load():
             if hasattr(main_window, 'log_message'):

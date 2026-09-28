@@ -1,4 +1,4 @@
-#this belongs in apps/methods/populate_col_table.py - Version: 6
+#this belongs in apps/methods/populate_col_table.py - Version: 7
 # X-Seti - September28 2026 - IMG Factory 1.6 - COL Table Population Methods
 """
 COL Table Population Methods - shows COL file models in IMG Factory tables.
@@ -9,7 +9,7 @@ import os
 from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from apps.debug.debug_functions import img_debugger
-from apps.methods.col_core_classes import COLFile
+from apps.methods.col_workshop_loader import COLFile
 
 ##Methods list -
 # _table_for

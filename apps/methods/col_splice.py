@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_splice.py - Version: 1
+#this belongs in apps/methods/col_splice.py - Version: 2
 # X-Seti - September 21 2026 - IMG Factory 1.6 - COL save by splicing original records
 
 """col_splice.py - Save a COL file without re-encoding what was not edited.
@@ -14,6 +14,7 @@ guessed - when a changed model cannot be written."""
 # fingerprint
 # tag_models
 # patch_record
+# model_record
 # write_new_record
 # build_col_bytes
 
@@ -125,7 +126,7 @@ def _layout(rec: bytes):
             at(v_o) if n_v else 0, at(f_o) if n_f and f_o else 0, n_s, n_b, n_v, n_f)
 
 
-def patch_record(rec: bytes, m) -> bytes:
+def patch_record(rec: bytes, m) -> bytes: #vers 3
     """The ORIGINAL record with the edited values of model m written back in place
     (bounds, sphere/box/vertex/face values). Everything the editor does not model -
     COL2/3 flags, suspension lines, face groups, planes, shadow mesh - stays exactly
@@ -147,6 +148,12 @@ def patch_record(rec: bytes, m) -> bytes:
     def xyz(p):
         return (p.x, p.y, p.z) if hasattr(p, "x") else tuple(p)
 
+    hdr = getattr(m, "header", None)
+    if hdr is not None:                            # name (22) + model id (2)
+        nm = (hdr.name or "").encode("ascii", "ignore")[:22]
+        if rec[8:30].split(b"\0", 1)[0] != nm:
+            out[8:30] = nm.ljust(22, b"\0")
+        put("<H", 30, int(hdr.model_id) & 0xFFFF)
     bd = m.bounds
     if v == 1:
         put("<f", b_off, float(bd.radius)); put("<3f", b_off + 4, *map(float, xyz(bd.center)))
@@ -156,7 +163,10 @@ def patch_record(rec: bytes, m) -> bytes:
         put("<3f", b_off + 24, *map(float, xyz(bd.center))); put("<f", b_off + 36, float(bd.radius))
     for i, sp in enumerate(spheres):
         o = s_off + 20 * i
-        put("<f", o, float(sp.radius)); put("<3f", o + 4, *map(float, xyz(sp.center)))
+        if v == 1:
+            put("<f", o, float(sp.radius)); put("<3f", o + 4, *map(float, xyz(sp.center)))
+        else:
+            put("<3f", o, *map(float, xyz(sp.center))); put("<f", o + 12, float(sp.radius))
         put("<BB", o + 16, int(sp.material) & 255, int(sp.flag) & 255)
     for i, bx in enumerate(boxes):
         o = x_off + 28 * i
@@ -180,56 +190,29 @@ def patch_record(rec: bytes, m) -> bytes:
     return bytes(out)
 
 
-def write_new_record(m) -> bytes:
-    """A valid record for a model that has no original (new / imported): COL1 in the
-    sequential layout, COL2/3/4 with the offset table (spheres, boxes, vertices,
-    faces only - no lines / face groups / shadow mesh)."""
-    import struct as st
-    ver = m.header.version.value if hasattr(m.header.version, "value") else int(m.header.version)
-    magic = {1: b"COLL", 2: b"COL2", 3: b"COL3", 4: b"COL4"}[ver]
-    xyz = lambda p: (p.x, p.y, p.z) if hasattr(p, "x") else tuple(p)
-    spheres, boxes = list(m.spheres or []), list(m.boxes or [])
-    verts, faces = list(m.vertices or []), list(m.faces or [])
-    name = (m.header.name or "").encode("ascii", "ignore")[:22].ljust(22, b"\0")
-    bd = m.bounds
-    head = name + st.pack("<H", m.header.model_id & 0xFFFF)
-    sph = b"".join(st.pack("<f3fBBxx", float(s.radius), *map(float, xyz(s.center)), int(s.material) & 255, int(s.flag) & 255)
-                   for s in spheres)
-    box = b"".join(st.pack("<6fBBBB", *map(float, xyz(b.min)), *map(float, xyz(b.max)), int(b.material) & 255,
-                           int(b.flag) & 255, int(b.brightness) & 255, int(b.light) & 255) for b in boxes)
-    if ver == 1:
-        head += st.pack("<f3f3f3f", float(bd.radius), *map(float, xyz(bd.center)), *map(float, xyz(bd.min)), *map(float, xyz(bd.max)))
-        body = (st.pack("<I", len(spheres)) + sph + st.pack("<I", 0) + st.pack("<I", len(boxes)) + box
-                + st.pack("<I", len(verts)) + b"".join(st.pack("<3f", float(v.x), float(v.y), float(v.z)) for v in verts)
-                + st.pack("<I", len(faces)) + b"".join(st.pack("<3IBBxx", int(f.a), int(f.b), int(f.c), int(f.material) & 255,
-                                                               int(f.light) & 255) for f in faces))
-    else:
-        head += st.pack("<3f3f3ff", *map(float, xyz(bd.min)), *map(float, xyz(bd.max)), *map(float, xyz(bd.center)), float(bd.radius))
-        vb = b"".join(st.pack("<3h", *[max(-32768, min(32767, int(round(c * 128.0)))) for c in (v.x, v.y, v.z)]) for v in verts)
-        fb = b"".join(st.pack("<3HBB", int(f.a), int(f.b), int(f.c), int(f.material) & 255, int(f.light) & 255) for f in faces)
-        tbl_len = 36 + (12 if ver >= 3 else 0) + (4 if ver >= 4 else 0)
-        cursor = 32 + 40 + tbl_len                   # first data block, measured from the record start
-        offs, blocks = {}, b""
-        for key, data, cnt in (("s", sph, len(spheres)), ("b", box, len(boxes)),
-                               ("v", vb, len(verts)), ("f", fb, len(faces))):
-            if cnt:
-                offs[key] = cursor                   # offset -> the u32 count; the data follows it
-                blk = st.pack("<I", cnt) + data
-                blocks += blk
-                cursor += len(blk)
-        flags = 0x02 if (spheres or boxes or faces) else 0     # bit 1 = "not empty"
-        tbl = st.pack("<HHHBxIIIIIII", len(spheres), len(boxes), len(faces), 0, flags,
-                      offs.get("s", 0), offs.get("b", 0), 0, offs.get("v", 0), offs.get("f", 0), 0)
-        if ver >= 3:
-            tbl += st.pack("<III", 0, 0, 0)
-        if ver >= 4:
-            tbl += st.pack("<I", 0)
-        body = tbl + blocks
-    payload = head + body
-    return magic + st.pack("<I", len(payload)) + payload
+def write_new_record(m) -> bytes: #vers 2
+    """Fresh record for a model with no original, via COLWriter."""
+    from apps.methods.col_workshop_parser import COLWriter
+    return COLWriter.write_model(m)
 
 
-def build_col_bytes(models: list, writer, info: Optional[dict] = None) -> bytes:
+def model_record(m, writer, name: str = "model") -> bytes: #vers 1
+    """One model's record: original, patched original, or freshly written."""
+    rec: Optional[bytes] = getattr(m, "_orig_record", None)
+    if rec is not None and getattr(m, "_orig_fp", None) == fingerprint(m):
+        return rec
+    if rec is not None:                            # edited: patch the original record in place
+        try:
+            return patch_record(rec, m)
+        except Exception as e:
+            raise ValueError(f"'{name}' was edited but cannot be saved safely: {e}")
+    try:                                           # new model: write a fresh record
+        return writer.write_model(m)
+    except Exception as e:
+        raise ValueError(f"new model '{name}' cannot be written: {e}")
+
+
+def build_col_bytes(models: list, writer, info: Optional[dict] = None) -> bytes: #vers 3
     """Concatenate: skipped records, then each model - untouched ones as their
     original record, changed / new ones through writer.write_model() - then the
     original tail. Raises ValueError (nothing written) when a changed model cannot
@@ -237,20 +220,7 @@ def build_col_bytes(models: list, writer, info: Optional[dict] = None) -> bytes:
     info = info or {"head": [], "tail": b""}
     parts = list(info["head"])
     for i, m in enumerate(models):
-        rec: Optional[bytes] = getattr(m, "_orig_record", None)
-        name = getattr(m, "name", f"model {i}")
-        if rec is not None and getattr(m, "_orig_fp", None) == fingerprint(m):
-            parts.append(rec)
-        elif rec is not None:                      # edited: patch the original record in place
-            try:
-                parts.append(patch_record(rec, m))
-            except Exception as e:
-                raise ValueError(f"'{name}' was edited but cannot be saved safely: {e}")
-        else:                                      # new model: write a fresh record
-            try:
-                parts.append(write_new_record(m))
-            except Exception as e:
-                raise ValueError(f"new model '{name}' cannot be written: {e}")
+        parts.append(model_record(m, writer, getattr(m, "name", f"model {i}")))
         parts.extend(getattr(m, "_orphans_after", []))
     parts.append(info["tail"])
     return b"".join(parts)

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_col_reorder.py - Version: 2
+#this belongs in apps/methods/img_col_reorder.py - Version: 3
 # X-Seti - September 12 2026 - IMG Factory 1.6 - IMG/COL Physical Reorder
 
 """img_col_reorder.py - the final Master IDE plan step: physically
@@ -139,7 +139,7 @@ def apply_col_reorder(col_path: str, result) -> tuple: #vers 1
     COLFile.save_to_file() has no built-in backup of its own at all,
     unlike IMGFile.save_img_file(), so this is the ONLY backup for a
     COL rewrite. Returns (success, unmatched_names)."""
-    from apps.methods.col_core_classes import COLFile
+    from apps.methods.col_workshop_loader import COLFile
     from apps.methods.file_backup import backup_file
 
     if not col_path or not os.path.isfile(col_path):

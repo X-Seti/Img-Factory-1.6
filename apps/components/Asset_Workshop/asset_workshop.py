@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 7
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 8
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -1263,7 +1263,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         if not path:
             return
         try:
-            from apps.methods.col_core_classes import COLFile
+            from apps.methods.col_workshop_loader import COLFile
             from apps.methods.file_backup import backup_file
 
             external = COLFile()

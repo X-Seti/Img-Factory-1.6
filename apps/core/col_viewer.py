@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/core/col_viewer.py - Version: 2
+#this belongs in apps/core/col_viewer.py - Version: 3
 # X-Seti - October22 2025 - IMG Factory 1.5 - COL Viewer
 
 """
@@ -28,9 +28,8 @@ try:
 except ImportError:
     OPENGL_AVAILABLE = False
 
-# Import COL parser and materials
-from apps.methods.COL_Parser import COLParser, COLModel
-from apps.methods.COL_Materials import get_material_name, get_material_info
+from apps.methods.col_workshop_loader import COLFile
+from apps.methods.col_materials import get_material_name, COLGame
 
 ##Methods list -
 # draw_bounding_box
@@ -406,12 +405,12 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget): #vers 1
         
         self.update()
     
-    def load_col_file(self, file_path: str) -> bool: #vers 1
-        """Load COL file for display"""
+    def load_col_file(self, file_path: str) -> bool: #vers 2
+        """Load COL file for display (first model)"""
         try:
-            parser = COLParser(debug=True)
-            self.col_model = parser.parse_col_file(file_path)
-            
+            col_file = COLFile()
+            self.col_model = col_file.models[0] if col_file.load_from_file(file_path) else None
+
             if self.col_model:
                 self.zoom_extents()
                 self.update()
@@ -532,7 +531,7 @@ class COLViewerWidget(QWidget): #vers 1
             return True
         return False
     
-    def update_info_label(self, file_path: str): #vers 2
+    def update_info_label(self, file_path: str): #vers 3
         """Update info label with COL details including material info"""
         if self.viewport.col_model:
             model = self.viewport.col_model
@@ -540,14 +539,14 @@ class COLViewerWidget(QWidget): #vers 1
             
             # Basic info
             info_text = f"{os.path.basename(file_path)} | "
-            info_text += f"COL{header.version} | "
+            info_text += f"COL{header.version.value} | "
             info_text += f"{len(model.spheres)} spheres | "
             info_text += f"{len(model.boxes)} boxes | "
             info_text += f"{len(model.vertices)} vertices | "
             info_text += f"{len(model.faces)} faces"
             
             # Detect game version for material names
-            game = "SA" if header.version >= 2 else "VC"
+            game = COLGame.SA if header.version.value >= 2 else COLGame.VC
             
             # Get unique materials used
             material_ids = set()

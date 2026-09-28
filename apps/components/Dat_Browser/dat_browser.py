@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 11
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 12
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -2371,7 +2371,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                 mw.log_message(f"COL file not found: {abs_path}")
             return
         try:
-            from apps.methods.col_core_classes import COLFile
+            from apps.methods.col_workshop_loader import COLFile
             from apps.methods.populate_col_table import populate_table_with_col_data_debug
             from apps.methods.tab_system import create_tab
             col_file = COLFile()

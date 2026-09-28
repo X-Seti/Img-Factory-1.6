@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/asset_checker.py - Version: 8
+#this belongs in apps/methods/asset_checker.py - Version: 9
 
 ##Methods list -
 # find_sibling_asset_files
@@ -184,7 +184,7 @@ def check_assets(img_path=None, col_path=None,
     if img_paths:
         try:
             from apps.methods.img_core_classes import IMGFile
-            from apps.methods.col_core_classes import COLFile
+            from apps.methods.col_workshop_loader import COLFile
             merged_dff, merged_txd, merged_embedded_col = set(), set(), set()
             opened = []
             for one_path in img_paths:
@@ -234,7 +234,7 @@ def check_assets(img_path=None, col_path=None,
     col_paths = [p for p in col_paths if p and os.path.isfile(p)]
     if col_paths:
         try:
-            from apps.methods.col_core_classes import COLFile
+            from apps.methods.col_workshop_loader import COLFile
             merged_names = set()
             for one_path in col_paths:
                 col_file = COLFile()

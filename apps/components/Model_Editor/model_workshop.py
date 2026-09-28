@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 205
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 206
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -2284,7 +2284,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             QMessageBox.warning(self, "No File", "Load a COL file first.")
             return
         from apps.methods.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
-        from apps.methods.col_core_classes import Vector3
+        from apps.methods.col_workshop_classes import Vector3
         hdr = COLHeader(fourcc=b'COLL', size=0, name='new_model',
                         model_id=0, version=COLVersion.COL_1)
         bnd = COLBounds(radius=1.0, center=Vector3(0,0,0),
@@ -2463,7 +2463,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         from apps.methods.col_workshop_loader import COLFile
         from apps.methods.col_workshop_classes import (
             COLModel, COLHeader, COLVersion, COLBounds, COLFace, COLVertex)
-        from apps.methods.col_core_classes import Vector3
+        from apps.methods.col_workshop_classes import Vector3
         import os
 
         col_ver_map = [COLVersion.COL_1, COLVersion.COL_2, COLVersion.COL_3]

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/img_col_reorder_dialog.py - Version: 1
+#this belongs in apps/components/Master_Ide/img_col_reorder_dialog.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - IMG/COL Reorder Dialog
 
 """img_col_reorder_dialog.py - real UI for img_col_reorder.py's own
@@ -110,7 +110,7 @@ class IMGColReorderDialog(QDialog): #vers 1
         from apps.methods.img_col_reorder import (
             build_id_by_name, plan_img_reorder, plan_col_reorder)
         from apps.methods.img_core_classes import IMGFile
-        from apps.methods.col_core_classes import COLFile
+        from apps.methods.col_workshop_loader import COLFile
 
         if not self.pending_files:
             return

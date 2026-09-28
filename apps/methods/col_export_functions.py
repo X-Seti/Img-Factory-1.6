@@ -1,4 +1,4 @@
-#this belongs in methods/ col_export_functions.py - Version: 1
+#this belongs in apps/methods/col_export_functions.py - Version: 2
 # X-Seti - November16 2025 - IMG Factory 1.5 - COL Export Functions
 
 """
@@ -8,8 +8,7 @@ Handles COL file parsing, model extraction, and individual file creation
 """
 
 import os
-import struct
-from typing import List, Optional, Tuple
+from typing import List
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog, QApplication
 from PyQt6.QtCore import Qt
 
@@ -22,8 +21,6 @@ from apps.methods.export_overwrite_check import handle_overwrite_check
 # _export_col_models
 # _get_selected_col_models
 # _create_single_col_file
-# _write_col_header
-# _write_col_model
 # integrate_col_export_functions
 
 def export_col_selected(main_window, col_file) -> bool: #vers 1
@@ -276,107 +273,16 @@ def _get_selected_col_models(main_window, col_file) -> List: #vers 1
         return []
 
 
-def _create_single_col_file(col_file, model, output_path: str) -> bool: #vers 1
-    """Create a single-model COL file
-    
-    Args:
-        col_file: Source COL file object
-        model: Single COL model to export
-        output_path: Output file path
-        
-    Returns:
-        True if successful, False otherwise
-    """
+def _create_single_col_file(col_file, model, output_path: str) -> bool: #vers 2
+    """Write one model as its own COL file; keeps original bytes if unedited."""
     try:
+        from apps.methods.col_workshop_parser import COLWriter
+        from apps.methods.col_splice import model_record
         with open(output_path, 'wb') as f:
-            # Write COL header for single model file
-            _write_col_header(f, col_file, 1)  # 1 model count
-            
-            # Write the single model
-            _write_col_model(f, model)
-        
+            f.write(model_record(model, COLWriter, getattr(model, 'name', 'model')))
         return True
-        
-    except Exception as e:
+    except Exception:
         return False
-
-
-def _write_col_header(f, col_file, model_count: int): #vers 1
-    """Write COL file header
-    
-    Args:
-        f: File object
-        col_file: Source COL file object
-        model_count: Number of models in file
-    """
-    # COL file format: "COLL" signature + version + model count
-    f.write(b'COLL')
-    
-    # Get version from source file or use default
-    version = getattr(col_file, 'version', 2)  # Default to COL2
-    f.write(struct.pack('<I', version))
-    
-    # Write model count
-    f.write(struct.pack('<I', model_count))
-
-
-def _write_col_model(f, model): #vers 1
-    """Write COL model data to file
-    
-    Args:
-        f: File object
-        model: COL model object
-    """
-    # Get raw model data if available
-    if hasattr(model, 'raw_data') and model.raw_data:
-        f.write(model.raw_data)
-        return
-    
-    # Otherwise, construct from model components
-    # Model name (24 bytes, null-padded)
-    model_name = getattr(model, 'name', 'model')[:24].encode('ascii')
-    model_name = model_name.ljust(24, b'\x00')
-    f.write(model_name)
-    
-    # Model ID
-    model_id = getattr(model, 'model_id', 0)
-    f.write(struct.pack('<I', model_id))
-    
-    # Bounding box
-    bbox = getattr(model, 'bounding_box', None)
-    if bbox:
-        # Min/Max coordinates
-        f.write(struct.pack('<fff', bbox.min.x, bbox.min.y, bbox.min.z))
-        f.write(struct.pack('<fff', bbox.max.x, bbox.max.y, bbox.max.z))
-        # Bounding sphere center and radius
-        f.write(struct.pack('<fff', bbox.center.x, bbox.center.y, bbox.center.z))
-        f.write(struct.pack('<f', bbox.radius))
-    else:
-        # Default bounding box/sphere
-        f.write(struct.pack('<fff', -1.0, -1.0, -1.0))  # min
-        f.write(struct.pack('<fff', 1.0, 1.0, 1.0))     # max
-        f.write(struct.pack('<fff', 0.0, 0.0, 0.0))     # center
-        f.write(struct.pack('<f', 1.0))                  # radius
-    
-    # Face data
-    faces = getattr(model, 'faces', [])
-    f.write(struct.pack('<I', len(faces)))
-    
-    for face in faces:
-        # Face surface type and material
-        surface = getattr(face, 'surface', 0)
-        material = getattr(face, 'material', 0)
-        f.write(struct.pack('<BB', surface, material))
-        
-        # Triangle vertices (3 vertices, each with x,y,z)
-        if hasattr(face, 'vertices') and len(face.vertices) >= 3:
-            for i in range(3):
-                v = face.vertices[i]
-                f.write(struct.pack('<fff', v.x, v.y, v.z))
-        else:
-            # Default triangle
-            for i in range(3):
-                f.write(struct.pack('<fff', 0.0, 0.0, 0.0))
 
 
 def integrate_col_export_functions(main_window) -> bool: #vers 1

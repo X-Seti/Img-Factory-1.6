@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 103
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 104
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -107,9 +107,8 @@ from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
 # Shared Methods
 from apps.methods.img_core_classes import IMGFile
 
-from apps.methods.col_core_classes import (COLFile, COLModel, COLVersion, COLMaterial, COLFaceGroup, COLSphere, COLBox, COLVertex, COLFace, Vector3, BoundingBox, diagnose_col_file)
+from apps.methods.col_workshop_loader import COLFile
 
-from apps.methods.col_structure_manager import COLStructureManager
 from apps.methods.img_analyze import analyze_img_corruption, show_analysis_dialog
 from apps.methods.img_validation import IMGValidator
 from apps.methods.tab_system import (setup_tab_system, migrate_tabs, create_tab, update_references, integrate_tab_system)
@@ -2179,39 +2178,33 @@ class IMGFactory(QMainWindow):
         QMessageBox.about(self, f"About {App_name}", f"{App_name}\nAdvanced IMG Archive Management\nX-Seti 2026")
 
 
-    def enable_col_debug(self): #vers 3
+    def enable_col_debug(self): #vers 4
         """Enable COL debug output"""
         # Set debug flag on all loaded COL files
         if hasattr(self, 'current_col') and self.current_col:
             self.current_col._debug_enabled = True
 
-        # Set global flag for future COL files
-        import apps.methods.col_core_classes as col_module
-        col_module._global_debug_enabled = True
+        set_col_debug_enabled(True)
 
         self.log_message("COL debug output enabled")
 
 
-    def disable_col_debug(self): #vers 3
+    def disable_col_debug(self): #vers 4
         """Disable COL debug output"""
         # Set debug flag on all loaded COL files
         if hasattr(self, 'current_col') and self.current_col:
             self.current_col._debug_enabled = False
 
-        # Set global flag for future COL files
-        import apps.methods.col_core_classes as col_module
-        col_module._global_debug_enabled = False
+        set_col_debug_enabled(False)
 
         self.log_message("COL debug output disabled")
 
 
-    def toggle_col_debug(self): #vers 3
+    def toggle_col_debug(self): #vers 4
         """Toggle COL debug output"""
         try:
-            import apps.methods.col_core_classes as col_module
-            debug_enabled = getattr(col_module, '_global_debug_enabled', False)
-
-            if debug_enabled:
+            from apps.debug.debug_functions import is_col_debug_enabled
+            if is_col_debug_enabled():
                 self.disable_col_debug()
             else:
                 self.enable_col_debug()
@@ -3079,7 +3072,7 @@ class IMGFactory(QMainWindow):
         """
         try:
             import os
-            from apps.methods.col_core_classes import COLFile
+            from apps.methods.col_workshop_loader import COLFile
             file_name = os.path.basename(file_path)
             self.log_message(f"Loading COL: {file_name}")
 
@@ -4193,11 +4186,10 @@ class IMGFactory(QMainWindow):
                 def toggle_col_debug():
                     """Simple COL debug toggle"""
                     try:
-                        import apps.methods.col_core_classes as col_module
-                        current = getattr(col_module, '_global_debug_enabled', False)
-                        col_module._global_debug_enabled = not current
-
-                        if col_module._global_debug_enabled:
+                        from apps.debug.debug_functions import toggle_col_debug as _toggle
+                        _toggle()
+                        from apps.debug.debug_functions import is_col_debug_enabled
+                        if is_col_debug_enabled():
                             self.log_message("COL debug enabled")
                         else:
                             self.log_message("COL debug disabled")
@@ -4209,8 +4201,7 @@ class IMGFactory(QMainWindow):
                 self.toggle_col_debug = toggle_col_debug
 
                 # Start with debug disabled for performance
-                import apps.methods.col_core_classes as col_module
-                col_module._global_debug_enabled = False
+                set_col_debug_enabled(False)
 
                 self.log_message("COL performance mode enabled")
 

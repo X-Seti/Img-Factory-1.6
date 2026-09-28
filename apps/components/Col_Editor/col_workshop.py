@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 99
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 100
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -2738,7 +2738,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             QMessageBox.warning(self, "No File", "Load a COL file first.")
             return
         from apps.methods.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
-        from apps.methods.col_core_classes import Vector3
+        from apps.methods.col_workshop_classes import Vector3
         hdr = COLHeader(fourcc=b'COLL', size=0, name='new_model',
                         model_id=0, version=COLVersion.COL_1)
         bnd = COLBounds(radius=1.0, center=Vector3(0,0,0),
@@ -2763,7 +2763,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             import traceback; traceback.print_exc()
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Mesh Editor Error", str(e))
-    def _build_col_from_txd(self): #vers 2
+    def _build_col_from_txd(self): #vers 3
         """Create stub COL models for each texture name in a loaded TXD."""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         from apps.methods.col_workshop_loader import COLFile
@@ -2797,17 +2797,13 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
                 self.current_col_file.models = []
             added = 0
             for name in names:
-                m = COLModel()
-                m.name = name
-                m.version = COLVersion.COL_2
-                m.spheres = []; m.boxes = []; m.vertices = []; m.faces = []
+                hdr = COLHeader(fourcc=b'COL2', size=0, name=name,
+                                model_id=0, version=COLVersion.COL_2)
+                bounds = COLBounds(radius=1.73, center=(0.0, 0.0, 0.0),
+                                   min=(-1.0, -1.0, -1.0), max=(1.0, 1.0, 1.0))
+                m = COLModel(header=hdr, bounds=bounds,
+                             spheres=[], boxes=[], vertices=[], faces=[])
                 m.shadow_verts = []; m.shadow_faces = []
-                bounds = COLBounds()
-                bounds.min = type('V', (), {'x': -1.0, 'y': -1.0, 'z': -1.0})()
-                bounds.max = type('V', (), {'x':  1.0, 'y':  1.0, 'z':  1.0})()
-                bounds.center = type('V', (), {'x': 0.0, 'y': 0.0, 'z': 0.0})()
-                bounds.radius = 1.73
-                m.bounds = bounds; m.model_id = 0
                 self.current_col_file.models.append(m)
                 added += 1
             self._populate_collision_list()

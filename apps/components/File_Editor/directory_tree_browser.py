@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 6
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 7
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -1803,7 +1803,7 @@ class DirectoryTreeBrowser(QWidget):
                 mw.log_message(f"COL file not found: {file_path}")
             return
         try:
-            from apps.methods.col_core_classes import COLFile
+            from apps.methods.col_workshop_loader import COLFile
             from apps.methods.populate_col_table import populate_table_with_col_data_debug
             from apps.methods.tab_system import create_tab
             col_file = COLFile()

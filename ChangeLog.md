@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 182
+#this belongs in root /ChangeLog.md - Version: 183
+
+## Sep 28 2026 - One set of COL classes, Build 431.92
+- col_core_classes, COL_Parser, COL_Materials, col_parsing_helpers, col_structure_manager, col_preview_generator removed; all tools use col_workshop_classes/loader. Old parser misread COL1 boxes/mesh.
+- COLFile.save_to_file/to_bytes added; renames now saved; SA sphere patch order fixed; single-model export writes valid COL.
+- Vector3 mutable + indexable: gizmo moves loaded spheres/boxes. COL Mesh Editor opens (missing _btn). Build COL from TXD stubs fixed.
 
 ## Sep 28 2026 - COL table code merged, Build 431.92
 - methods/populate_col_table.py is the one COL table module (shared row builder). Removed col_functions, col_loader, col_parsing_functions, gui/col_display, col_workshop_structures.
