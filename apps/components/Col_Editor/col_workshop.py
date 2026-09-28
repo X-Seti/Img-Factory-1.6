@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 100
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 101
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -158,6 +158,7 @@ DEBUG_STANDALONE = False
 # COLWorkshop._delete_surface
 # COLWorkshop._dock_to_main
 # COLWorkshop._draw_col_model
+# COLWorkshop._dropped_files
 # COLWorkshop._duplicate_selected_model
 # COLWorkshop._duplicate_surface
 # COLWorkshop._edit_main_surface
@@ -304,6 +305,9 @@ DEBUG_STANDALONE = False
 # COLWorkshop._update_transform_text_panel_visibility
 # COLWorkshop._wrap_middle_panel_with_surface_tab
 # COLWorkshop.closeEvent
+# COLWorkshop.dragEnterEvent
+# COLWorkshop.dragMoveEvent
+# COLWorkshop.dropEvent
 # COLWorkshop.export_all
 # COLWorkshop.export_all_surfaces
 # COLWorkshop.export_selected
@@ -2070,7 +2074,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
     # dual text/icon bottom info panel).
     _RIBBON_LAYOUT_VERSION = 2
 
-    def __init__(self, parent=None, main_window=None): #vers 11
+    def __init__(self, parent=None, main_window=None): #vers 12
         """initialize_features"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
@@ -2185,6 +2189,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
 
         # Apply theme ONCE at the end
         self._apply_theme()
+        self.setAcceptDrops(True)       # .col / .img dropped here open in this workshop
 
 
     def setup_ui(self): #vers 10
@@ -6986,6 +6991,44 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             print(f"Failed to save settings: {e}")
 
+
+    def _dropped_files(self, event): #vers 1
+        """Local .col/.img paths carried by a drag event."""
+        md = event.mimeData()
+        if not md.hasUrls():
+            return []
+        return [u.toLocalFile() for u in md.urls()
+                if u.isLocalFile() and u.toLocalFile().lower().endswith(('.col', '.img'))]
+
+    def dragEnterEvent(self, event): #vers 1
+        """Accept .col and .img files."""
+        if self._dropped_files(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event): #vers 1
+        """Keep accepting while over the workshop."""
+        self.dragEnterEvent(event)
+
+    def dropEvent(self, event): #vers 1
+        """Open first dropped file here; others in new COL Workshop tabs."""
+        paths = self._dropped_files(event)
+        if not paths:
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        first, rest = paths[0], paths[1:]
+        if first.lower().endswith('.img'):
+            self.load_from_img_archive(first)
+        else:
+            self.open_col_file(first)
+        tw = getattr(self.main_window, 'main_tab_widget', None)
+        if tw is not None and tw.indexOf(self.parentWidget()) >= 0:
+            tw.setTabText(tw.indexOf(self.parentWidget()), os.path.splitext(os.path.basename(first))[0])
+        if rest and self.main_window and hasattr(self.main_window, 'main_tab_widget'):
+            for path in rest:
+                open_col_workshop(self.main_window, path)
 
     def open_col_file(self, file_path): #vers 3
         """Open standalone COL file - supports COL1, COL2, COL3"""

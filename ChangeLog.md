@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 184
+#this belongs in root /ChangeLog.md - Version: 185
+
+## Sep 28 2026 - COL drag and drop, Build 431.92
+- COL Workshop accepts dropped .col/.img: first opens there (tab renamed), others open in new COL Workshop tabs.
+- Main window drop with no IMG tab active now opens files instead of doing nothing; garbled log prefixes removed.
 
 ## Sep 28 2026 - SA COL tested, Build 431.92
 - Tested all COL in GTA SA gta3.img/gta_int.img (251 archives, 10,155 COL2/COL3 models): load, unedited save identical, edits kept, fresh write reparses.

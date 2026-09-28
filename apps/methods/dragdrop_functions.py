@@ -1,4 +1,4 @@
-#this belongs in methods/dragdrop_functions.py - Version: 2
+#this belongs in apps/methods/dragdrop_functions.py - Version: 3
 # X-Seti - September04 2025 - IMG Factory 1.5 - Drag and Drop Support
 
 """
@@ -286,21 +286,23 @@ class DragDropHandler:
             self._log_debug(f"Create drag pixmap error: {e}")
             return None
     
-    def _default_file_drop(self, file_paths: List[str], target_type: str) -> bool: #vers 1
+    def _default_file_drop(self, file_paths: List[str], target_type: str) -> bool: #vers 2
         """Default file drop handler"""
         try:
             self._log_debug(f"Default file drop: {len(file_paths)} files to {target_type}")
             
-            # Try to import files if we have an active IMG
-            if hasattr(self.main_window, 'import_multiple_files'):
-                img_archive = None
-                if hasattr(self.main_window, 'main_tab_widget'):
-                    tab = self.main_window.main_tab_widget.currentWidget()
+            # Active IMG tab: import into it; otherwise open each file
+            img_archive = None
+            if hasattr(self.main_window, 'main_tab_widget'):
+                tab = self.main_window.main_tab_widget.currentWidget()
+                if getattr(tab, 'file_type', None) == 'IMG':
                     img_archive = getattr(tab, 'file_object', None)
-                if img_archive:
-                    return self.main_window.import_multiple_files(img_archive, file_paths)
-            
-            return False
+            if img_archive and hasattr(self.main_window, 'import_multiple_files'):
+                return self.main_window.import_multiple_files(img_archive, file_paths)
+
+            from apps.core.open import _detect_and_open_file
+            opened = [p for p in file_paths if _detect_and_open_file(self.main_window, p)]
+            return bool(opened)
             
         except Exception as e:
             self._log_debug(f"Default file drop error: {e}")
@@ -328,7 +330,7 @@ class DragDropHandler:
     def _log_debug(self, message: str): #vers 1
         """Debug logging"""
         if hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"ðŸŽ¯ [DRAG-DROP] {message}")
+            self.main_window.log_message(f"[DRAG-DROP] {message}")
         else:
             print(f"[DRAG-DROP] {message}")
 
@@ -396,7 +398,7 @@ def setup_main_window_drag_drop(main_window) -> bool: #vers 2
         main_window.extract_entries_for_drag = lambda entries, temp_folder: handler.extract_entries_for_drag(entries, temp_folder)
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("ðŸŽ¯ Drag-and-drop support initialized")
+            main_window.log_message("Drag-and-drop support initialized")
         
         return True
         
@@ -451,17 +453,17 @@ def integrate_drag_drop_system(main_window) -> bool: #vers 1
         success = setup_main_window_drag_drop(main_window)
         
         if success and hasattr(main_window, 'log_message'):
-            main_window.log_message("âœ… Complete drag-and-drop system integrated")
-            main_window.log_message("   â€¢ Files: Drag files onto IMG Factory to import")
-            main_window.log_message("   â€¢ Folders: Drag folders onto IMG Factory to import contents") 
-            main_window.log_message("   â€¢ Entries: Drag IMG entries to desktop to extract")
-            main_window.log_message("   â€¢ Cross-platform: Windows Explorer, Dolphin, Caja supported")
+            main_window.log_message("Complete drag-and-drop system integrated")
+            main_window.log_message("   - Files: Drag files onto IMG Factory to import")
+            main_window.log_message("   - Folders: Drag folders onto IMG Factory to import contents") 
+            main_window.log_message("   - Entries: Drag IMG entries to desktop to extract")
+            main_window.log_message("   - Cross-platform: Windows Explorer, Dolphin, Caja supported")
         
         return success
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"âŒ Drag-drop integration failed: {str(e)}")
+            main_window.log_message(f"Drag-drop integration failed: {str(e)}")
         return False
 
 
