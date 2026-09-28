@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 101
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 102
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -2828,35 +2828,62 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         if hasattr(self, 'preview_widget') and self.preview_widget:
             self.preview_widget._refresh()
 
-    def _convert_surface(self): #vers 2
-        """Convert selected model to a different COL version."""
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QMessageBox
+    def _convert_surface(self): #vers 3
+        """Convert selected model to COL1/COL2/COL3; optional surface remap."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
+                                     QPushButton, QMessageBox, QCheckBox)
         from apps.methods.col_workshop_classes import COLVersion
+        from apps.methods.col_materials import convert_material_id, COLGame
         model = self._get_selected_model()
         if not model:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
             return
-        current = getattr(model.version, 'name', str(model.version))
+        current = model.version
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Convert COL version — {model.name}")
-        dlg.setFixedSize(300, 130)
+        dlg.setWindowTitle(f"Convert COL version - {model.name}")
         lay = QVBoxLayout(dlg)
-        lay.addWidget(QLabel(f"Current version: <b>{current}</b>"))
+        lay.addWidget(QLabel(f"Current version: <b>{current.name}</b>"))
         lay.addWidget(QLabel("Convert to:"))
         combo = QComboBox()
-        ver_map = {'COL_1': COLVersion.COL_1, 'COL_2': COLVersion.COL_2, 'COL_3': COLVersion.COL_3}
-        [combo.addItem(k) for k in ver_map if k != current]
+        for v in (COLVersion.COL_1, COLVersion.COL_2, COLVersion.COL_3):
+            if v != current:
+                combo.addItem(v.name, v)
         lay.addWidget(combo)
+        remap = QCheckBox("Remap surface materials (GTA3/VC <-> SA)")
+        lay.addWidget(remap)
+        note = QLabel("")
+        note.setWordWrap(True)
+        lay.addWidget(note)
+
+        def _refresh():  #vers 1
+            target = combo.currentData()
+            cross = (current == COLVersion.COL_1) != (target == COLVersion.COL_1)
+            remap.setEnabled(cross)
+            remap.setChecked(cross)
+            note.setText("Face groups, shadow mesh and lines are not kept."
+                         if current.value >= 2 else "")
+        combo.currentIndexChanged.connect(_refresh)
+        _refresh()
+
         btns = QHBoxLayout()
         ok = QPushButton("Convert"); cancel = QPushButton("Cancel")
         btns.addStretch(); btns.addWidget(ok); btns.addWidget(cancel)
         lay.addLayout(btns)
         cancel.clicked.connect(dlg.reject)
-        def _do():  #vers 1
-            model.version = ver_map[combo.currentText()]
+
+        def _do():  #vers 2
+            target = combo.currentData()
+            if remap.isEnabled() and remap.isChecked():
+                src = COLGame.VC if current == COLVersion.COL_1 else COLGame.SA
+                dst = COLGame.VC if target == COLVersion.COL_1 else COLGame.SA
+                for item in list(model.spheres) + list(model.boxes) + list(model.faces):
+                    item.material = convert_material_id(int(item.material_id), src, dst)
+            model.version = target
             self._populate_collision_list()
             self._populate_compact_col_list()
-            self._set_status(f"Converted {model.name} to {combo.currentText()}")
+            if hasattr(self, 'save_btn'):
+                self.save_btn.setEnabled(True)
+            self._set_status(f"Converted {model.name} to {target.name} - not saved yet")
             dlg.accept()
         ok.clicked.connect(_do)
         dlg.exec()

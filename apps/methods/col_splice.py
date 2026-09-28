@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_splice.py - Version: 2
+#this belongs in apps/methods/col_splice.py - Version: 3
 # X-Seti - September 21 2026 - IMG Factory 1.6 - COL save by splicing original records
 
 """col_splice.py - Save a COL file without re-encoding what was not edited.
@@ -196,9 +196,12 @@ def write_new_record(m) -> bytes: #vers 2
     return COLWriter.write_model(m)
 
 
-def model_record(m, writer, name: str = "model") -> bytes: #vers 1
+def model_record(m, writer, name: str = "model") -> bytes: #vers 2
     """One model's record: original, patched original, or freshly written."""
     rec: Optional[bytes] = getattr(m, "_orig_record", None)
+    ver = getattr(getattr(m, "header", None), "version", None)
+    if rec is not None and ver is not None and _ver(rec) != getattr(ver, "value", ver):
+        rec = None                                 # version converted: write fresh
     if rec is not None and getattr(m, "_orig_fp", None) == fingerprint(m):
         return rec
     if rec is not None:                            # edited: patch the original record in place

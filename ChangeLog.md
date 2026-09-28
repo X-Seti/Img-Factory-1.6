@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 186
+#this belongs in root /ChangeLog.md - Version: 187
+
+## Sep 28 2026 - COL version convert saves, Build 431.92
+- Convert (COL1/COL2/COL3) was lost on save (original record reused); now written fresh. Optional GTA3/VC <-> SA surface remap (col_materials.convert_material_id).
 
 ## Sep 28 2026 - COL drop onto open file, Build 431.92
 - Dropping .col on a COL Workshop with a file open asks: Add to current (models appended, unsaved) / Open in new tab / Cancel. Before it replaced the open file.

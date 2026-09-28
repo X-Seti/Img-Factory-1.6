@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_materials.py - Version: 1
+#this belongs in apps/methods/col_materials.py - Version: 2
 # X-Seti - March29 2026 - IMG Factory 1.6 - COL Material Definitions
 # Reference: DragonFF col_materials.py (Parik, GPL-2.0+)
 """
@@ -12,6 +12,7 @@ Usage:
     )
 
 ##Functions list -
+# convert_material_id
 # get_material_name
 # get_material_colour
 # get_material_group
@@ -487,7 +488,35 @@ def material_id_from_name(name: str, game: COLGame = COLGame.SA) -> Optional[int
     return None
 
 
+def convert_material_id(material_id: int, from_game: COLGame, to_game: COLGame) -> int: #vers 1
+    """Map a surface id between games: same name, else same group."""
+    if from_game == to_game or (from_game != COLGame.SA and to_game != COLGame.SA):
+        return material_id
+    same = material_id_from_name(get_material_name(material_id, from_game), to_game)
+    if same is not None:
+        return same
+    group = get_material_group(material_id, from_game)
+    preset = COL_PRESET_SA if to_game == COLGame.SA else COL_PRESET_VC
+    cands = [(mat_id, name) for grp, _, mat_id, name, is_proc in preset
+             if grp == group and not is_proc and mat_id != 0]
+    for word in _GROUP_WORDS.get(COLGroup(int(group)), ()):
+        hits = [c for c in cands if word in c[1].lower()]
+        if hits:
+            return min(hits, key=lambda c: len(c[1]))[0]
+    return cands[0][0] if cands else 0
+
+
+_GROUP_WORDS = {
+    COLGroup.ROAD: ('tarmac', 'street', 'road'), COLGroup.CONCRETE: ('concrete', 'pavement'),
+    COLGroup.GRAVEL: ('gravel',), COLGroup.GRASS: ('grass',), COLGroup.DIRT: ('dirt', 'mud'),
+    COLGroup.SAND: ('sand',), COLGroup.GLASS: ('glass',), COLGroup.WOOD: ('wood',),
+    COLGroup.METAL: ('metal',), COLGroup.ROCK: ('rock',), COLGroup.BUSHES: ('hedge', 'bush'),
+    COLGroup.WATER: ('water',), COLGroup.VEHICLE: ('body',),
+}
+
+
 __all__ = [
+    'convert_material_id',
     'COLGame', 'COLGroup', 'COLFlagSA', 'COLFlagVC',
     'COL_PRESET_GROUP', 'COL_PRESET_SA', 'COL_PRESET_VC',
     'get_material_name', 'get_material_colour', 'get_material_group',
