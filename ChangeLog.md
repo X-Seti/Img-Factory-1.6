@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 181
+#this belongs in root /ChangeLog.md - Version: 182
+
+## Sep 28 2026 - COL table code merged, Build 431.92
+- methods/populate_col_table.py is the one COL table module (shared row builder). Removed col_functions, col_loader, col_parsing_functions, gui/col_display, col_workshop_structures.
+- COL/Model/Map "replace model" now refreshes their own model list.
 
 ## Sep 27 2026 - COL/DFF depends copies merged, Build 431.92
 - Removed 13 depends/ copies of COL/DFF modules; all workshops import apps/methods/ (old copies had COL\x02 fourcc bug, no splice save).

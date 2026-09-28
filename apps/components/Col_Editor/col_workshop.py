@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 98
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 99
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -46,7 +46,6 @@ from PyQt6.QtSvg import QSvgRenderer
 # Import project modules AFTER path setup
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
-from apps.components.Col_Editor.depends.col_workshop_structures import setup_col_table_structure, populate_col_table
 from apps.methods.col_workshop_parser import COLParser
 from apps.methods.col_workshop_loader import COLFile
 from apps.gui.tool_menu_mixin import ToolMenuMixin
@@ -7770,7 +7769,7 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
-    def _import_replace_col_model(self, row): #vers 1
+    def _import_replace_col_model(self, row): #vers 2
         """Replace a collision model entry from an external COL file."""
         try:
             file_path, _ = QFileDialog.getOpenFileName(
@@ -7813,8 +7812,8 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
             self.current_col_file.models[row] = src_model
 
             # Refresh the table row
-            from apps.methods.populate_col_table import populate_col_table
-            populate_col_table(self, self.current_col_file)
+            self._populate_collision_list()
+            self._populate_compact_col_list()
             self.collision_list.selectRow(row)
 
             if hasattr(self, 'save_btn'):

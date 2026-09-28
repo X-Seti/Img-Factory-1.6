@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 102
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 103
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -97,7 +97,6 @@ from apps.core.col_viewer_integration import integrate_col_viewer
 # GUI Layout
 from apps.gui.ide_dialog import integrate_ide_dialog
 from apps.gui.gui_backend import ButtonDisplayMode, GUIBackend
-from apps.gui.col_display import update_col_info_bar_enhanced
 from apps.gui.gui_layout import IMGFactoryGUILayout
 from apps.gui.unified_button_theme import apply_unified_button_theme
 from apps.gui.autosave_menu import integrate_autosave_menu
@@ -110,8 +109,6 @@ from apps.methods.img_core_classes import IMGFile
 
 from apps.methods.col_core_classes import (COLFile, COLModel, COLVersion, COLMaterial, COLFaceGroup, COLSphere, COLBox, COLVertex, COLFace, Vector3, BoundingBox, diagnose_col_file)
 
-from apps.methods.col_functions import setup_complete_col_integration
-from apps.methods.col_parsing_functions import load_col_file_safely
 from apps.methods.col_structure_manager import COLStructureManager
 from apps.methods.img_analyze import analyze_img_corruption, show_analysis_dialog
 from apps.methods.img_validation import IMGValidator
@@ -1948,7 +1945,7 @@ class IMGFactory(QMainWindow):
     # INTEGRATION FIX for imgfactory.py:
 
 
-    def _update_ui_for_loaded_col(self): #vers 2
+    def _update_ui_for_loaded_col(self): #vers 3
         """Update UI when COL file is loaded - Uses proper methods/populate_col_table.py"""
         if not hasattr(self, 'current_col') or not self.current_col:
             self.log_message("_update_ui_for_loaded_col called but no current_col")
@@ -1962,12 +1959,7 @@ class IMGFactory(QMainWindow):
 
             # Use proper COL table population from apps.methods.
             if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
-                from apps.methods.populate_col_table import setup_col_table_structure, populate_table_with_col_data_debug
-
-                # Setup COL table structure (proper headers and widths)
-                setup_col_table_structure(self)
-
-                # Populate with actual COL data using the methods system
+                from apps.methods.populate_col_table import populate_table_with_col_data_debug
                 populate_table_with_col_data_debug(self, self.current_col)
 
                 model_count = len(self.current_col.models) if hasattr(self.current_col, 'models') else 0
@@ -2687,21 +2679,6 @@ class IMGFactory(QMainWindow):
             self.log_message(f"IMG taskbar sync error: {e}")
 
 
-
-
-
-    def load_col_file_safely(self, file_path): #vers 4
-        """Load COL file safely - Use the actual COL loading function"""
-        try:
-            # Import and use the real COL loading function
-            from col_parsing_functions import load_col_file_safely as real_load_col
-            success = real_load_col(self, file_path)
-            if success:
-                self.log_message(f"COL file loaded: {os.path.basename(file_path)}")
-            return success
-        except Exception as e:
-            self.log_message(f"Error loading COL file: {str(e)}")
-            return False
 
 
 

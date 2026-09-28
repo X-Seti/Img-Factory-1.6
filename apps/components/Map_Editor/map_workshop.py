@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 221
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 222
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -15318,7 +15318,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
-    def _import_replace_col_model(self, row): #vers 1
+    def _import_replace_col_model(self, row): #vers 2
         """Replace a collision model entry from an external COL file."""
         try:
             file_path, _ = QFileDialog.getOpenFileName(
@@ -15361,8 +15361,8 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.current_col_file.models[row] = src_model
 
             # Refresh the table row
-            from apps.methods.populate_col_table import populate_col_table
-            populate_col_table(self, self.current_col_file)
+            self._populate_collision_list()
+            self._populate_compact_col_list()
             self.collision_list.selectRow(row)
 
             if hasattr(self, 'save_btn'):

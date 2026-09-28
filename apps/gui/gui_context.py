@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_context.py - Version: 12
+#this belongs in apps/gui/gui_context.py - Version: 13
 # X-Seti - August13 2025 - IMG Factory 1.5 - Context Menu Functions - WORKING COL IMPLEMENTATION
 
 """
@@ -465,7 +465,7 @@ def open_col_batch_proc_dialog(main_window): #vers 3
         return False
 
 
-def open_col_file_dialog(main_window): #vers 4
+def open_col_file_dialog(main_window): #vers 5
     """Open COL file dialog - WORKING VERSION"""
     try:
         file_path, _ = QFileDialog.getOpenFileName(
@@ -478,13 +478,8 @@ def open_col_file_dialog(main_window): #vers 4
         if file_path:
             main_window.log_message(f"Opening COL file: {os.path.basename(file_path)}")
             
-            # Check if main window has a COL loading method
-            if hasattr(main_window, 'load_col_file_safely'):
-                return main_window.load_col_file_safely(file_path)
-            else:
-                # Try to load using COL parsing functions
-                from apps.methods.populate_col_table import load_col_file_safely
-                return load_col_file_safely(main_window, file_path)
+            from apps.methods.populate_col_table import load_col_file_safely
+            return load_col_file_safely(main_window, file_path)
         
         return False
 
