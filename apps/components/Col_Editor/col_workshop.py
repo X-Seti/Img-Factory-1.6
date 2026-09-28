@@ -108,6 +108,7 @@ DEBUG_STANDALONE = False
 # COL3DViewport.zoom_in
 # COL3DViewport.zoom_out
 # COLWorkshop.__init__
+# COLWorkshop._add_models_from_files
 # COLWorkshop._analyze_collision
 # COLWorkshop._apply_always_on_top
 # COLWorkshop._apply_button_font
@@ -7011,24 +7012,78 @@ class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
         """Keep accepting while over the workshop."""
         self.dragEnterEvent(event)
 
-    def dropEvent(self, event): #vers 1
-        """Open first dropped file here; others in new COL Workshop tabs."""
+    def dropEvent(self, event): #vers 2
+        """Drop .col/.img: empty workshop opens it; loaded one asks add/new tab."""
         paths = self._dropped_files(event)
         if not paths:
             event.ignore()
             return
         event.acceptProposedAction()
+        loaded = bool(getattr(self.current_col_file, 'models', None))
+        tw = getattr(self.main_window, 'main_tab_widget', None)
+        if loaded:
+            from PyQt6.QtWidgets import QMessageBox
+            cols = [p for p in paths if p.lower().endswith('.col')]
+            names = ", ".join(os.path.basename(p) for p in paths[:3]) + (" ..." if len(paths) > 3 else "")
+            box = QMessageBox(self)
+            box.setWindowTitle("Dropped COL")
+            box.setText(f"{names}\n\nAdd to the open file, or open in a new tab?")
+            add_btn = box.addButton("Add to current", QMessageBox.ButtonRole.AcceptRole) if cols else None
+            new_btn = box.addButton("Open in new tab", QMessageBox.ButtonRole.ActionRole) if tw is not None else None
+            box.addButton(QMessageBox.StandardButton.Cancel)
+            box.exec()
+            clicked = box.clickedButton()
+            if add_btn is not None and clicked is add_btn:
+                self._add_models_from_files(cols)
+                for path in paths:
+                    if path.lower().endswith('.img') and tw is not None:
+                        open_col_workshop(self.main_window, path)
+            elif new_btn is not None and clicked is new_btn:
+                for path in paths:
+                    open_col_workshop(self.main_window, path)
+            return
         first, rest = paths[0], paths[1:]
         if first.lower().endswith('.img'):
             self.load_from_img_archive(first)
         else:
             self.open_col_file(first)
-        tw = getattr(self.main_window, 'main_tab_widget', None)
         if tw is not None and tw.indexOf(self.parentWidget()) >= 0:
             tw.setTabText(tw.indexOf(self.parentWidget()), os.path.splitext(os.path.basename(first))[0])
-        if rest and self.main_window and hasattr(self.main_window, 'main_tab_widget'):
+        if rest and tw is not None:
             for path in rest:
                 open_col_workshop(self.main_window, path)
+
+    def _add_models_from_files(self, paths): #vers 1
+        """Append every model from the given .col files to the open file."""
+        from PyQt6.QtWidgets import QMessageBox
+        from apps.methods.col_workshop_loader import COLFile
+        added, failed = 0, []
+        for path in paths:
+            cf = COLFile()
+            if cf.load_from_file(path) and cf.models:
+                for m in cf.models:
+                    m._orphans_after = []       # keep only the model records
+                self.current_col_file.models.extend(cf.models)
+                added += len(cf.models)
+            else:
+                failed.append(os.path.basename(path))
+        if added:
+            self._populate_collision_list()
+            self._populate_compact_col_list()
+            last = len(self.current_col_file.models) - 1
+            active = (self.col_compact_list
+                      if getattr(self, '_col_view_mode', 'list') == 'detail'
+                      else self.collision_list)
+            if active.rowCount() > last:
+                active.selectRow(last)
+            if hasattr(self, 'save_btn'):
+                self.save_btn.setEnabled(True)
+            msg = f"Added {added} model(s) from {len(paths) - len(failed)} file(s) - not saved yet"
+            self._set_status(msg)
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(msg)
+        if failed:
+            QMessageBox.warning(self, "Add COL", "Could not read:\n" + "\n".join(failed))
 
     def open_col_file(self, file_path): #vers 3
         """Open standalone COL file - supports COL1, COL2, COL3"""

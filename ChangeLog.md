@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 185
+#this belongs in root /ChangeLog.md - Version: 186
+
+## Sep 28 2026 - COL drop onto open file, Build 431.92
+- Dropping .col on a COL Workshop with a file open asks: Add to current (models appended, unsaved) / Open in new tab / Cancel. Before it replaced the open file.
 
 ## Sep 28 2026 - COL drag and drop, Build 431.92
 - COL Workshop accepts dropped .col/.img: first opens there (tab renamed), others open in new COL Workshop tabs.
