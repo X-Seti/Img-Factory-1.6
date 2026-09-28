@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 183
+#this belongs in root /ChangeLog.md - Version: 184
+
+## Sep 28 2026 - SA COL tested, Build 431.92
+- Tested all COL in GTA SA gta3.img/gta_int.img (251 archives, 10,155 COL2/COL3 models): load, unedited save identical, edits kept, fresh write reparses.
+- Loader resyncs one byte back on misaligned records (SA peds.col: 26 of 30 models, was 6).
 
 ## Sep 28 2026 - One set of COL classes, Build 431.92
 - col_core_classes, COL_Parser, COL_Materials, col_parsing_helpers, col_structure_manager, col_preview_generator removed; all tools use col_workshop_classes/loader. Old parser misread COL1 boxes/mesh.

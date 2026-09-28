@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_workshop_loader.py - Version: 3
+#this belongs in apps/methods/col_workshop_loader.py - Version: 4
 # X-Seti - December21 2025 / March2026 - Col Workshop - COL File Loader
 """
 COL File Loader — high-level interface for loading COL files.
@@ -145,13 +145,14 @@ class COLFile: #vers 2
             img_debugger.error(traceback.format_exc())
             return False
 
-    def _parse_all_models(self, data: bytes) -> List[COLModel]: #vers 3
+    def _parse_all_models(self, data: bytes) -> List[COLModel]: #vers 4
         """
         Parse all COL models from a buffer.
         COL files are linear archives: FOURCC + size + payload, repeat.
         """
         models = []
         offset = 0
+        prev_start = -1
 
         total_size = len(data)
         last_progress_pct = -1
@@ -175,17 +176,21 @@ class COLFile: #vers 2
             if fourcc not in _VALID_FOURCCS:
                 if self.debug:
                     print(f"_parse_all_models: unexpected at 0x{offset:X}: {fourcc.hex()}")
-                # Scan forward for a valid FOURCC
+                # Resync: look a few bytes back (bad size fields) then forward
                 found = False
-                for skip in range(1, min(64, total_size - offset - 8)):
-                    if data[offset + skip:offset + skip + 4] in _VALID_FOURCCS:
-                        offset += skip
+                for skip in list(range(-1, -9, -1)) + list(range(1, 64)):
+                    pos = offset + skip
+                    if pos <= prev_start or pos + 8 > total_size:
+                        continue
+                    if data[pos:pos + 4] in _VALID_FOURCCS:
+                        offset = pos
                         found = True
                         break
                 if not found:
                     break
                 fourcc = data[offset:offset + 4]
 
+            prev_start  = offset
             block_size  = struct.unpack_from('<I', data, offset + 4)[0]
             next_offset = offset + 8 + block_size   # fourcc(4)+size(4)+payload
 
