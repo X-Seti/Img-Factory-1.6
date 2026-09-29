@@ -1,4 +1,4 @@
-#this belongs in methods/imgfactory_ui_settings.py - Version: 8
+#this belongs in methods/imgfactory_ui_settings.py - Version: 9
 # X-Seti - February04 2026 - IMG Factory 1.6 - IMG Factory Settings Dialog
 
 """
@@ -18,6 +18,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 
 ##Methods list -
 # apply_compact_buttons
+# apply_windows_frame
 # get_collapse_threshold
 # show_imgfactory_settings_dialog
 
@@ -1023,6 +1024,20 @@ def show_imgfactory_settings_dialog(main_window): #vers 2
             "Error",
             f"Failed to open IMG Factory Settings: {str(e)}"
         )
+
+
+def apply_windows_frame(widget): #vers 1
+    """Windows 11: remove white DWM border on frameless windows, keep rounded corners."""
+    import sys
+    if sys.platform != 'win32':
+        return
+    import ctypes
+    hwnd = ctypes.c_void_p(int(widget.winId()))
+    corner = ctypes.c_int(2)             # DWMWCP_ROUND
+    border = ctypes.c_uint(0xFFFFFFFE)   # DWMWA_COLOR_NONE
+    dwm = ctypes.windll.dwmapi           # Win10 ignores attributes 33/34
+    dwm.DwmSetWindowAttribute(hwnd, 33, ctypes.byref(corner), ctypes.sizeof(corner))
+    dwm.DwmSetWindowAttribute(hwnd, 34, ctypes.byref(border), ctypes.sizeof(border))
 
 
 def apply_compact_buttons(buttons_meta: list, available_width: int,

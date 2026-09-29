@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 8
+#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 9
 # X-Seti - Sept 2026 - IMG Factory 1.6 - COL Workshop window functions
 
 from PyQt6.QtCore import Qt, QTimer
@@ -26,6 +26,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # _restore_splitter_sizes
 # _save_splitter_sizes
 # _set_icon_display_mode
+# showEvent
 # _splitter_key
 # _toggle_maximize
 # _update_all_buttons
@@ -464,6 +465,13 @@ class COLWindowMixin: #vers 1
 
         super().mouseDoubleClickEvent(event)
 
+
+    def showEvent(self, event): #vers 1
+        """Standalone frameless window: fix Windows 11 border on show."""
+        super().showEvent(event)
+        if self.standalone_mode:
+            from apps.methods.imgfactory_ui_settings import apply_windows_frame
+            apply_windows_frame(self)
 
     def _toggle_maximize(self): #vers 1
         """Toggle window maximize state"""

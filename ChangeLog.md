@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 192
+#this belongs in root /ChangeLog.md - Version: 193
+
+## Sep 29 2026 - Windows 11 frame, Build 431.92
+- New apply_windows_frame (imgfactory_ui_settings): removes white DWM border on frameless windows, rounded corners. Used by COL Workshop standalone.
 
 ## Sep 29 2026 - Exe settings default, Build 431.92
 - Exe builds: appfactory.settings.json and IMG Factory app settings live in settings/ beside the exe; bundled file copied as default on first run.
