@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 121
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 122
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -8,10 +8,12 @@ COL Editor - Main collision editor interface
 """
 
 import os
-# Force X11/GLX backend for NVIDIA on Wayland
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
-os.environ['QSG_RHI_BACKEND'] = 'opengl'
-os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
+import sys
+# Force X11/GLX backend for NVIDIA on Wayland (Linux only)
+if sys.platform.startswith('linux'):
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
+    os.environ['QSG_RHI_BACKEND'] = 'opengl'
+    os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
 
 import sys
 

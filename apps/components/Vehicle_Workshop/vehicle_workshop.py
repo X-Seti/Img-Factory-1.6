@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 10
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 11
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -14,8 +14,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
-os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-os.environ.setdefault('QSG_RHI_BACKEND',  'opengl')
+if sys.platform.startswith('linux'):   # xcb only exists on Linux
+    os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+    os.environ.setdefault('QSG_RHI_BACKEND',  'opengl')
 
 #Adding Standalone
 current_dir = os.path.dirname(os.path.abspath(__file__))

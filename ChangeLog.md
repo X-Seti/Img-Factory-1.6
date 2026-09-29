@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 189
+#this belongs in root /ChangeLog.md - Version: 190
+
+## Sep 29 2026 - Windows start fix, Build 431.92
+- xcb/opengl env forced on Linux only: col, model viewer, AI, DP5, map, model, radar, vehicle workshops. Windows builds now start.
 
 ## Sep 29 2026 - COL Workshop split into mixins, Build 431.92
 - col_workshop.py keeps init, settings, docking, help, theme, tabs; rest in depends/ col_win, col_setup_ui, col_core_logic, col_list, col_paint, col_viewport.

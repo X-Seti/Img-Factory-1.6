@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 223
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 224
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
 import math
 import json
 # Force X11/GLX backend for NVIDIA on Wayland
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
-os.environ['QSG_RHI_BACKEND'] = 'opengl'
-os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
+import sys
+if sys.platform.startswith('linux'):   # xcb only exists on Linux
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
+    os.environ['QSG_RHI_BACKEND'] = 'opengl'
+    os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
 
 import shutil
 import sys

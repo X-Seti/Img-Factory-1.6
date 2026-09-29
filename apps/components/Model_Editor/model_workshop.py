@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 206
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 207
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -16,9 +16,11 @@
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
-os.environ['QSG_RHI_BACKEND'] = 'opengl'
-os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
+import sys
+if sys.platform.startswith('linux'):   # xcb only exists on Linux
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
+    os.environ['QSG_RHI_BACKEND'] = 'opengl'
+    os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
 
 import sys
 

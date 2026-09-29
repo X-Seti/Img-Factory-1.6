@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 3
+#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 4
 # X-Seti - March 2026 - AI Workshop: Ollama chat interface
 # Based on COL Workshop template (col_workshop.py)
 
@@ -16,8 +16,10 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
-os.environ['QSG_RHI_BACKEND'] = 'opengl'
+import sys
+if sys.platform.startswith('linux'):   # xcb only exists on Linux
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
+    os.environ['QSG_RHI_BACKEND'] = 'opengl'
 
 import sys
 

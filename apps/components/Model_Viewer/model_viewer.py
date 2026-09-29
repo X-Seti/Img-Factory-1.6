@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 3
+#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 4
 # X-Seti - May10 2026 - IMG Factory 1.6 - DFF Model Viewer
 """
 DFF Model Viewer - OpenGL hardware 3D viewer for GTA RenderWare DFF files.
@@ -13,8 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
 
-os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-os.environ.setdefault('QSG_RHI_BACKEND',  'opengl')
+if sys.platform.startswith('linux'):   # xcb only exists on Linux
+    os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+    os.environ.setdefault('QSG_RHI_BACKEND',  'opengl')
 
 #Adding Standalone
 current_dir = os.path.dirname(os.path.abspath(__file__))
