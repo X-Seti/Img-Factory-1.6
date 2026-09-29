@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/col_mesh_editor.py - Version: 4
+#this belongs in apps/components/Col_Editor/col_mesh_editor.py - Version: 7
 # X-Seti - March 2026 - IMG Factory 1.6 - COL Mesh Editor Dialog
 
 """
@@ -13,6 +13,7 @@ Features:
 """
 
 import copy
+from apps.methods.grip_splitter import GripSplitter
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QSplitter,
     QTableWidget, QTableWidgetItem, QHeaderView,
@@ -363,7 +364,7 @@ class COLMeshEditorViewport(QWidget):
 class COLMeshEditor(QDialog): #vers 1
     """Dialog for editing COL mesh faces and vertices with undo support."""
 
-    def __init__(self, workshop, model_index, parent=None): #vers 2
+    def __init__(self, workshop, model_index, parent=None): #vers 4
         super().__init__(parent)
         self.workshop    = workshop
         self.model_index = model_index
@@ -382,6 +383,7 @@ class COLMeshEditor(QDialog): #vers 1
                           getattr(self._model, 'version', 3))
         self._game = COLGame.VC if col_ver == 1 else COLGame.SA
 
+        self._compact_rows = {}   # id(layout) -> (layout, [(button, label)])
         self._build_ui()
         # Wire viewport back-reference so it can pick the right colour cache
         self.viewport._editor = self
@@ -395,7 +397,8 @@ class COLMeshEditor(QDialog): #vers 1
         root.setSpacing(4)
 
         # - Main splitter: tabs left, viewport right
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter = GripSplitter(Qt.Orientation.Horizontal)
+        splitter.splitterMoved.connect(lambda *_: self._apply_compact())
 
         # - Tab widget
         self.tabs = QTabWidget()
@@ -441,27 +444,48 @@ class COLMeshEditor(QDialog): #vers 1
 
         # - Bottom buttons
         bot = QHBoxLayout()
-        self._undo_btn = self._btn(bot, "Undo  [Ctrl+Z]", self._undo)
+        self._undo_btn = self._btn(bot, "Undo  [Ctrl+Z]", self._undo, 'undo_icon')
         self._undo_btn.setEnabled(False)
-        self._btn(bot, "Select All  [Ctrl+A]", self._select_all)
-        self._btn(bot, "Deselect  [Ctrl+D]",   self._deselect_all)
+        self._btn(bot, "Select All  [Ctrl+A]", self._select_all, 'dp_select_icon')
+        self._btn(bot, "Deselect  [Ctrl+D]",   self._deselect_all, 'exclude_icon')
         bot.addStretch()
-        self._btn(bot, "Apply & Close", self._apply_and_close)
-        self._btn(bot, "Close",         self.reject)
+        self._btn(bot, "Apply & Close", self._apply_and_close, 'check_icon')
+        self._btn(bot, "Close",         self.reject, 'close_icon')
         root.addLayout(bot)
 
 
-    def _btn(self, layout, text, slot): #vers 1
-        """Add push button wired to slot; returns it."""
+    def _btn(self, layout, text, slot, icon): #vers 2
+        """Add icon button wired to slot; goes icon-only when narrow."""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
         b = QPushButton(text)
+        b.setIcon(getattr(SVGIconFactory, icon)(20, self.workshop._get_icon_color()))
+        b.setToolTip(text)
         b.clicked.connect(slot)
         layout.addWidget(b)
+        self._compact_rows.setdefault(id(layout), (layout, []))[1].append((b, text))
         return b
 
-    def _build_mesh_tab(self): #vers 1
+    def _apply_compact(self): #vers 1
+        """Each button row goes icon-only when its width is short."""
+        from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+        for layout, btns in self._compact_rows.values():
+            apply_compact_buttons(btns, layout.geometry().width())
+
+    def resizeEvent(self, event): #vers 1
+        """Re-check compact button rows on resize."""
+        super().resizeEvent(event)
+        self._apply_compact()
+
+    def showEvent(self, event): #vers 1
+        """Apply compact rows once layouts have real sizes."""
+        super().showEvent(event)
+        QTimer.singleShot(0, self._apply_compact)
+
+    def _build_mesh_tab(self): #vers 3
         """Faces + vertices sub-panel."""
         w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(4)
-        inner = QSplitter(Qt.Orientation.Horizontal)
+        inner = GripSplitter(Qt.Orientation.Horizontal)
+        inner.splitterMoved.connect(lambda *_: self._apply_compact())
 
         # Face table
         face_grp = QGroupBox("Faces")
@@ -476,10 +500,10 @@ class COLMeshEditor(QDialog): #vers 1
         self.face_table.itemChanged.connect(self._on_face_cell_changed)
         fl.addWidget(self.face_table)
         fb = QHBoxLayout()
-        self._btn(fb, "Add Face", self._add_face)
-        self._btn(fb, "Delete  [Del]", self._delete_faces)
-        self._btn(fb, "Flip Normal", self._flip_faces)
-        self._btn(fb, "Select Connected", self._select_connected)
+        self._btn(fb, "Add Face", self._add_face, 'add_icon')
+        self._btn(fb, "Delete  [Del]", self._delete_faces, 'delete_icon')
+        self._btn(fb, "Flip Normal", self._flip_faces, 'flip_vert_icon')
+        self._btn(fb, "Select Connected", self._select_connected, 'face_select_icon')
         fl.addLayout(fb)
         inner.addWidget(face_grp)
 
@@ -496,9 +520,9 @@ class COLMeshEditor(QDialog): #vers 1
         self.vert_table.itemChanged.connect(self._on_vert_cell_changed)
         vl.addWidget(self.vert_table)
         vb = QHBoxLayout()
-        self._btn(vb, "Delete  [Del]", self._delete_verts)
-        self._btn(vb, "Remove Orphans", self._remove_orphan_verts)
-        self._btn(vb, "Merge Close…", self._merge_verts_dialog)
+        self._btn(vb, "Delete  [Del]", self._delete_verts, 'delete_icon')
+        self._btn(vb, "Remove Orphans", self._remove_orphan_verts, 'trash_icon')
+        self._btn(vb, "Merge Close…", self._merge_verts_dialog, 'converge_to_center_icon')
         vl.addLayout(vb)
         inner.addWidget(vert_grp)
         inner.setSizes([240,200])
@@ -514,7 +538,7 @@ class COLMeshEditor(QDialog): #vers 1
         self._af_mat = QComboBox()
         self._af_mat.setMinimumWidth(200)
         al.addWidget(self._af_mat)
-        self._btn(al, "Add", self._commit_add_face)
+        self._btn(al, "Add", self._commit_add_face, 'add_icon')
         lay.addWidget(add_grp)
         return w
 
@@ -534,9 +558,9 @@ class COLMeshEditor(QDialog): #vers 1
         lay.addWidget(self.box_table, 1)
 
         btns = QHBoxLayout()
-        self._btn(btns, "Add Box", self._add_box)
-        self._btn(btns, "Delete Box", self._delete_boxes)
-        self._btn(btns, "Duplicate", self._duplicate_boxes)
+        self._btn(btns, "Add Box", self._add_box, 'box_icon')
+        self._btn(btns, "Delete Box", self._delete_boxes, 'delete_icon')
+        self._btn(btns, "Duplicate", self._duplicate_boxes, 'duplicate_icon')
         lay.addLayout(btns)
 
         # Quick-add form
@@ -550,7 +574,7 @@ class COLMeshEditor(QDialog): #vers 1
         al.addWidget(QLabel("Mat:"))
         self._b_mat = QSpinBox(); self._b_mat.setRange(0,70); self._b_mat.setMaximumWidth(48)
         al.addWidget(self._b_mat)
-        self._btn(al, "Add", self._commit_add_box)
+        self._btn(al, "Add", self._commit_add_box, 'add_icon')
         lay.addWidget(add_grp)
         return w
 
@@ -569,9 +593,9 @@ class COLMeshEditor(QDialog): #vers 1
         lay.addWidget(self.sphere_table, 1)
 
         btns = QHBoxLayout()
-        self._btn(btns, "Add Sphere", self._add_sphere)
-        self._btn(btns, "Delete Sphere", self._delete_spheres)
-        self._btn(btns, "Duplicate", self._duplicate_spheres)
+        self._btn(btns, "Add Sphere", self._add_sphere, 'sphere_icon')
+        self._btn(btns, "Delete Sphere", self._delete_spheres, 'delete_icon')
+        self._btn(btns, "Duplicate", self._duplicate_spheres, 'duplicate_icon')
         lay.addLayout(btns)
 
         add_grp = QGroupBox("Add Sphere")
@@ -586,7 +610,7 @@ class COLMeshEditor(QDialog): #vers 1
         al.addWidget(QLabel("Mat:"))
         self._s_mat = QSpinBox(); self._s_mat.setRange(0,70); self._s_mat.setMaximumWidth(48)
         al.addWidget(self._s_mat)
-        self._btn(al, "Add", self._commit_add_sphere)
+        self._btn(al, "Add", self._commit_add_sphere, 'add_icon')
         lay.addWidget(add_grp)
         return w
 
@@ -616,8 +640,8 @@ class COLMeshEditor(QDialog): #vers 1
         grp_mx, self._bd_mx = row("Max (X, Y, Z)", ["X","Y","Z"]); lay.addWidget(grp_mx)
 
         btn_row = QHBoxLayout()
-        self._btn(btn_row, "Recalculate from Geometry", self._recalc_bounds)
-        self._btn(btn_row, "Apply Bounds", self._apply_bounds)
+        self._btn(btn_row, "Recalculate from Geometry", self._recalc_bounds, 'bounds_icon')
+        self._btn(btn_row, "Apply Bounds", self._apply_bounds, 'check_icon')
         lay.addLayout(btn_row)
         lay.addStretch()
         return w
@@ -1351,33 +1375,20 @@ class COLMeshEditor(QDialog): #vers 1
         self.accept()
 
 ##Functions -
-def open_col_mesh_editor(workshop, parent=None): #vers 1
+def open_col_mesh_editor(workshop, parent=None): #vers 2
     """Open the COL Mesh Editor for the currently selected model."""
     if not getattr(workshop, 'current_col_file', None):
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.warning(parent or workshop, "No file", "No COL file loaded.")
         return
 
-    # Find selected model index
-    model_index = None
-    active = (workshop.col_compact_list
-              if getattr(workshop, '_col_view_mode', 'list') == 'detail'
-              else workshop.collision_list)
-
-    rows = active.selectionModel().selectedRows()
-
-    if rows:
-        row = rows[0].row()
-        item = active.item(row, 1) or active.item(row, 0)
-        if item:
-            from PyQt6.QtCore import Qt
-            model_index = item.data(Qt.ItemDataRole.UserRole)
-
-    if model_index is None:
+    # Selected model from the visible list (currentRow, delegate-safe)
+    model = workshop._get_selected_model()
+    if model is None:
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.warning(parent or workshop, "No model selected", "Select a model in the list first.")
-
         return
+    model_index = workshop.current_col_file.models.index(model)
 
     models = getattr(workshop.current_col_file, 'models', [])
     if model_index >= len(models):

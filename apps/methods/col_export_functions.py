@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_export_functions.py - Version: 2
+#this belongs in apps/methods/col_export_functions.py - Version: 4
 # X-Seti - November16 2025 - IMG Factory 1.5 - COL Export Functions
 
 """
@@ -63,7 +63,7 @@ def export_col_selected(main_window, col_file) -> bool: #vers 1
         return False
 
 
-def export_col_all(main_window, col_file) -> bool: #vers 1
+def export_col_all(main_window, col_file) -> bool: #vers 2
     """Export all COL models as individual .col files
     
     Args:
@@ -189,16 +189,16 @@ def _export_col_models(main_window, col_file, models: List, export_dir: str,
                 if _create_single_col_file(col_file, model, output_path):
                     success_count += 1
                     if hasattr(main_window, 'log_message'):
-                        main_window.log_message(f"✓ Exported: {model_name}")
+                        main_window.log_message(f"Exported: {model_name}")
                 else:
                     failed_count += 1
                     if hasattr(main_window, 'log_message'):
-                        main_window.log_message(f"✗ Failed: {model_name}")
+                        main_window.log_message(f"Failed: {model_name}")
                     
             except Exception as e:
                 failed_count += 1
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"✗ Error exporting {model_name}: {str(e)}")
+                    main_window.log_message(f"Error exporting {model_name}: {str(e)}")
         
         progress.setValue(len(models))
         
@@ -285,7 +285,7 @@ def _create_single_col_file(col_file, model, output_path: str) -> bool: #vers 2
         return False
 
 
-def integrate_col_export_functions(main_window) -> bool: #vers 1
+def integrate_col_export_functions(main_window) -> bool: #vers 2
     """Integrate COL export functions into main window
     
     Args:
@@ -301,9 +301,9 @@ def integrate_col_export_functions(main_window) -> bool: #vers 1
         
         if hasattr(main_window, 'log_message'):
             main_window.log_message("COL export functions integrated")
-            main_window.log_message("   • Individual COL file export only")
-            main_window.log_message("   • Supports COL2/COL3 formats")
-            main_window.log_message("   • Overwrite checking support")
+            main_window.log_message("   - Individual COL file export only")
+            main_window.log_message("   - Supports COL2/COL3 formats")
+            main_window.log_message("   - Overwrite checking support")
         
         return True
         

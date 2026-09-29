@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_workshop_loader.py - Version: 4
+#this belongs in apps/methods/col_workshop_loader.py - Version: 5
 # X-Seti - December21 2025 / March2026 - Col Workshop - COL File Loader
 """
 COL File Loader — high-level interface for loading COL files.
@@ -40,7 +40,7 @@ _VALID_FOURCCS = {b'COLL', b'COL2', b'COL3', b'COL4'}
 class COLFile: #vers 2
     """High-level COL file interface."""
 
-    def __init__(self, file_path: Optional[str] = None, debug: bool = False): #vers 2
+    def __init__(self, file_path: Optional[str] = None, debug: bool = False): #vers 3
         self.parser     = COLParser(debug=debug)
         self.debug      = debug
         self.models: List[COLModel] = []
@@ -49,6 +49,7 @@ class COLFile: #vers 2
         self.file_path  = file_path
         self.raw_data: Optional[bytes] = None
         self.splice_info = None
+        self.damaged_records = 0
 
     #    Public load API                                                    
 
@@ -145,7 +146,7 @@ class COLFile: #vers 2
             img_debugger.error(traceback.format_exc())
             return False
 
-    def _parse_all_models(self, data: bytes) -> List[COLModel]: #vers 4
+    def _parse_all_models(self, data: bytes) -> List[COLModel]: #vers 5
         """
         Parse all COL models from a buffer.
         COL files are linear archives: FOURCC + size + payload, repeat.
@@ -153,6 +154,7 @@ class COLFile: #vers 2
         models = []
         offset = 0
         prev_start = -1
+        self.damaged_records = 0   # blocks skipped by resync or failed parse
 
         total_size = len(data)
         last_progress_pct = -1
@@ -183,10 +185,14 @@ class COLFile: #vers 2
                     if pos <= prev_start or pos + 8 > total_size:
                         continue
                     if data[pos:pos + 4] in _VALID_FOURCCS:
+                        if skip > 0 and any(data[offset:pos]):
+                            self.damaged_records += 1   # skipped non-padding bytes
                         offset = pos
                         found = True
                         break
                 if not found:
+                    if any(data[offset:]):
+                        self.damaged_records += 1       # unreadable tail, not padding
                     break
                 fourcc = data[offset:offset + 4]
 
@@ -204,10 +210,12 @@ class COLFile: #vers 2
                 else:
                     if self.debug:
                         print(f"  parse_model None at 0x{offset:X}, skipping block")
+                    self.damaged_records += 1
                     offset = next_offset
             except Exception as e:
                 if self.debug:
                     print(f"  exception at 0x{offset:X}: {e}")
+                self.damaged_records += 1
                 offset = next_offset
 
         return models

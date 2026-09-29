@@ -1,4 +1,4 @@
-#this belongs in apps/gui/unified_menu.py - Version: 1
+#this belongs in apps/gui/unified_menu.py - Version: 2
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Unified Menu System
 """
 UnifiedMenuSystem — single menu source for all apps and UI modes.
@@ -145,15 +145,14 @@ class UnifiedMenuSystem: #vers 1
                     m.exec()
             gl.register_tool_menu_btn(label, _popup)
 
-    def deactivate_tool(self): #vers 1
+    def deactivate_tool(self): #vers 2
         """Remove tool menus when workshop tab loses focus."""
+        # Remove action before dropping menu; menu GC deletes the action
+        if self.menubar and getattr(self, '_tool_action_ref', None) is not None:
+            self.menubar.removeAction(self._tool_action_ref)
+        self._tool_action_ref = None
         self._tool_menu  = None
         self._tool_label = None
-
-        # Remove from system bar
-        if self.menubar and hasattr(self, '_tool_action_ref'):
-            self.menubar.removeAction(self._tool_action_ref)
-            self._tool_action_ref = None
 
         # Clear titlebar button
         gl = getattr(self.mw, 'gui_layout', None)

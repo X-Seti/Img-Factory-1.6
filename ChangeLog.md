@@ -1,4 +1,20 @@
-#this belongs in root /ChangeLog.md - Version: 188
+#this belongs in root /ChangeLog.md - Version: 189
+
+## Sep 29 2026 - COL Workshop split into mixins, Build 431.92
+- col_workshop.py keeps init, settings, docking, help, theme, tabs; rest in depends/ col_win, col_setup_ui, col_core_logic, col_list, col_paint, col_viewport.
+
+## Sep 29 2026 - COL Workshop UI, Build 431.92
+- New methods/grip_splitter.py: ribbon-style splitter grips; splitter sizes saved; list pane 220px default.
+- Compact icon-only buttons: Surface Data tab, mesh editor. GL toggle icon fixed.
+- Ticks, crosses, arrows replaced by SVG icons; emojis removed from COL logs.
+
+## Sep 29 2026 - COL Workshop fixes, Build 431.92
+- Mesh/surface editor, duplicate, copy used hidden list; now use selected model.
+- Hotkeys wired (copy, paste, delete, duplicate, import, export); invert Ctrl+Shift+I; F1 help.
+- Save As, export selected, import, find, details, close tab wrappers fixed; name field rename saves.
+- Damaged COL records counted on load; save asks first.
+- unified_menu deactivate_tool: removes action before menu is freed (QAction deleted error).
+- AI_Rules.md: rules 20-26 workshop layout.
 
 ## Sep 28 2026 - COL convert surface table, Build 431.92
 - Convert dialog lists used surfaces with editable GTA3/VC <-> SA target. SA originals restored on converting back. Windscreen piece flag mapped (SA 19 / VC 17).

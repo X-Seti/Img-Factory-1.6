@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gl_viewport_mixin.py - Version: 1
+#this belongs in apps/methods/gl_viewport_mixin.py - Version: 2
 # X-Seti - May11 2026 - IMG Factory 1.6 - GL Viewport Mixin
 """
 GLViewportMixin — adds OpenGL DFFViewport toggle to any workshop that uses
@@ -41,7 +41,7 @@ except Exception:
 class GLViewportMixin:
     """Mixin: adds OpenGL DFFViewport toggle to QPainter-based workshops."""
 
-    def setup_gl_toggle(self, toolbar_layout, icon_color='#ffffff'): #vers 1
+    def setup_gl_toggle(self, toolbar_layout, icon_color='#ffffff'): #vers 2
         """Call after creating self.preview_widget to inject GL toggle button.
         toolbar_layout: the QHBoxLayout or QToolBar that holds viewport controls.
         """
@@ -55,22 +55,16 @@ class GLViewportMixin:
         from PyQt6.QtWidgets import QPushButton
         from PyQt6.QtCore import Qt
 
-        self._gl_toggle_btn = QPushButton("GL")
+        from PyQt6.QtCore import QSize
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self._gl_toggle_btn = QPushButton()
         self._gl_toggle_btn.setCheckable(True)
         self._gl_toggle_btn.setChecked(False)
         self._gl_toggle_btn.setFixedSize(32, 26)
         self._gl_toggle_btn.setToolTip("Switch to OpenGL 3D viewport")
+        self._gl_toggle_btn.setIcon(SVGIconFactory.viewport_icon(20, icon_color))
+        self._gl_toggle_btn.setIconSize(QSize(20, 20))
         self._gl_toggle_btn.toggled.connect(self._toggle_gl_mode)
-
-        try:
-            from apps.methods.imgfactory_svg_icons import SVGIconFactory
-            ico = SVGIconFactory.cube_icon(16, icon_color)
-            if ico:
-                self._gl_toggle_btn.setIcon(ico)
-                from PyQt6.QtCore import QSize
-                self._gl_toggle_btn.setIconSize(QSize(16, 16))
-        except Exception:
-            pass
 
         # Try to add to existing icon button list (model_workshop pattern)
         if hasattr(self, '_mod_icon_buttons'):

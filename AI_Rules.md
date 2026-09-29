@@ -86,6 +86,20 @@ and GUI-related functions go in gui/
 
 19. Bugs are shown in the root/bugs folder; these are the issues we always fix first. Once done and tested, update the changelog.
 
+20. Workshop layout (COL Workshop is the reference). Main file keeps only __init__, settings, docking, help, theme, tabs.
+
+21. Other methods go into depends/ mixin classes, one job per file: <tool>_win_func, <tool>_setup_ui_func, <tool>_core_logic_func, <tool>_list_func, <tool>_paint_func, <tool>_viewport.
+
+22. Mixins come first in the class bases, before Qt and shared mixins. Mixins never import the main workshop file.
+
+23. Each file keeps an alphabetical methods list per class, updated when methods move.
+
+24. Splitters use methods/grip_splitter.py GripSplitter; sizes saved to the tool's config json; list pane default 220px.
+
+25. Text buttons go icon-only when space is short: methods/imgfactory_ui_settings.apply_compact_buttons. Every icon button has a tooltip.
+
+26. Test standalone and docked: every button and action clicked, no exceptions. Then sync the standalone repo.
+
 ## Workflow
 - Clone the repo first; confirm access before any work
 - Use the Claudia token to push directly to GitHub
