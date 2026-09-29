@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 191
+#this belongs in root /ChangeLog.md - Version: 192
+
+## Sep 29 2026 - Exe settings default, Build 431.92
+- Exe builds: appfactory.settings.json and IMG Factory app settings live in settings/ beside the exe; bundled file copied as default on first run.
 
 ## Sep 29 2026 - Portable settings for exe builds, Build 431.92
 - New img_factory_settings.get_user_config_dir: exe builds save tool settings in settings/ beside the exe; source runs keep ~/.config/imgfactory. 26 files switched.

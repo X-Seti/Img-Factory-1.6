@@ -1,4 +1,4 @@
-#this belongs in methods/img_factory_settings.py - Version: 5
+#this belongs in methods/img_factory_settings.py - Version: 6
 # X-Seti - December31 2025 - IMG Factory 1.6
 """
 IMG Factory-specific settings manager
@@ -20,10 +20,12 @@ def get_user_config_dir() -> Path: #vers 1
     return d
 
 
-def _img_factory_config_dir() -> Path: #vers 1
+def _img_factory_config_dir() -> Path: #vers 2
     """The one, correct location for IMG Factory's own app_settings.json
     - a dedicated config/ subfolder alongside imgfactory.py itself
-    (Aug 20 2026)"""
+    (Aug 20 2026); exe builds use settings/ beside the exe."""
+    if getattr(sys, 'frozen', False):
+        return get_user_config_dir()
     cfg_dir = Path(__file__).resolve().parent.parent / 'components' / 'Img_Factory' / 'config'
     try:
         cfg_dir.mkdir(parents=True, exist_ok=True)

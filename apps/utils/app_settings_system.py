@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 77
+#This goes in root/apps/utils/app_settings_system.py - version 78
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -1681,7 +1681,7 @@ class DebugSettings:
         return self.debug_enabled
 
 class AppSettings:
-    def __init__(self, settings_file="appfactory.settings.json"): #vers 3
+    def __init__(self, settings_file="appfactory.settings.json"): #vers 4
         """Initialize application settings with Windows compatibility"""
         current_file_dir = Path(__file__).parent
 
@@ -1692,6 +1692,18 @@ class AppSettings:
         else:
             self.themes_dir = current_file_dir / "themes"
             self.settings_file = current_file_dir / settings_file
+
+        # Exe build: settings/ beside the exe; bundled file is the default.
+        # Self-contained here as this master file is synced to all tool repos.
+        import sys
+        if getattr(sys, 'frozen', False):
+            import shutil
+            portable_dir = Path(sys.executable).resolve().parent / 'settings'
+            portable_dir.mkdir(parents=True, exist_ok=True)
+            portable = portable_dir / settings_file
+            if not portable.exists() and self.settings_file.exists():
+                shutil.copyfile(self.settings_file, portable)
+            self.settings_file = portable
 
         # FIXED: Windows-compatible default paths using Path objects
         if os.name == 'nt':  # Windows
