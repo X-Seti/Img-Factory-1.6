@@ -1,8 +1,9 @@
-#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 7
+#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 8
 # X-Seti - Sept 2026 - IMG Factory 1.6 - COL Workshop window functions
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QPushButton
+from apps.methods.img_factory_settings import get_user_config_dir
 
 ##class COLWindowMixin: -
 # _apply_button_mode_to_button
@@ -387,14 +388,14 @@ class COLWindowMixin: #vers 1
         """Config key; docked and standalone have different panel counts."""
         return f"splitter_sizes_{self._main_splitter.count()}"
 
-    def _restore_splitter_sizes(self): #vers 2
+    def _restore_splitter_sizes(self): #vers 3
         """Restore saved splitter sizes; default list panel 220px."""
         import json
         from pathlib import Path
         sp = getattr(self, '_main_splitter', None)
         if sp is None:
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'col_workshop.json'
+        path = get_user_config_dir() / 'col_workshop.json'
         try:
             sizes = json.loads(path.read_text()).get(self._splitter_key())
         except (OSError, ValueError):
@@ -405,14 +406,14 @@ class COLWindowMixin: #vers 1
         sp.setSizes(sizes)
         QTimer.singleShot(0, self._apply_left_compact)
 
-    def _save_splitter_sizes(self): #vers 1
+    def _save_splitter_sizes(self): #vers 2
         """Save main splitter sizes to col_workshop.json."""
         import json
         from pathlib import Path
         sp = getattr(self, '_main_splitter', None)
         if sp is None:
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'col_workshop.json'
+        path = get_user_config_dir() / 'col_workshop.json'
         try:
             data = json.loads(path.read_text())
         except (OSError, ValueError):

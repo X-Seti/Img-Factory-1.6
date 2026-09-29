@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 24
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 25
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
 
 from PyQt6.QtCore import pyqtSignal, Qt, QPoint, QSize, QThread, QTimer
 from PyQt6.QtGui import  QAction, QBrush, QColor, QFont, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 # - Detect standalone vs docked
@@ -837,8 +838,8 @@ class RADSettings:
         'window_h':                800,
     }
 
-    def __init__(self): #vers 1
-        cfg_dir = Path.home() / '.config' / 'imgfactory'
+    def __init__(self): #vers 2
+        cfg_dir = get_user_config_dir()
         cfg_dir.mkdir(parents=True, exist_ok=True)
         self._path = cfg_dir / 'radar_workshop.json'
         self._data = dict(self.DEFAULTS)

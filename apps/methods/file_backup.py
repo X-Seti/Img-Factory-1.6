@@ -1,4 +1,4 @@
-#this belongs in apps/methods/file_backup.py - Version: 1
+#this belongs in apps/methods/file_backup.py - Version: 2
 # X-Seti - September 12 2026 - IMG Factory 1.6 - Backup-Before-Write
 
 """file_backup.py - generic backup-before-write mechanism (Sep 12
@@ -98,13 +98,14 @@ def restore_backup(backup_path: str, restore_to: str) -> bool: #vers 1
 
 import json
 import time
+from apps.methods.img_factory_settings import get_user_config_dir
 
 _GROUP_GAP = 5.0
 _pending_label = ""
 
 
-def _journal_path() -> str: #vers 1
-    return os.path.join(os.path.expanduser("~"), ".config", "imgfactory", "change_journal.json")
+def _journal_path() -> str: #vers 2
+    return os.path.join(get_user_config_dir(), "change_journal.json")
 
 
 def _journal_load() -> list: #vers 1

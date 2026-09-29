@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 190
+#this belongs in root /ChangeLog.md - Version: 191
+
+## Sep 29 2026 - Portable settings for exe builds, Build 431.92
+- New img_factory_settings.get_user_config_dir: exe builds save tool settings in settings/ beside the exe; source runs keep ~/.config/imgfactory. 26 files switched.
 
 ## Sep 29 2026 - Windows start fix, Build 431.92
 - xcb/opengl env forced on Linux only: col, model viewer, AI, DP5, map, model, radar, vehicle workshops. Windows builds now start.

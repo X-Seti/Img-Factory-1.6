@@ -1,4 +1,4 @@
-#this belongs in methods/file_associations.py - Version: 2
+#this belongs in methods/file_associations.py - Version: 3
 # X-Seti - Sep 22 2026 - IMG Factory 1.6 - File Type Associations
 
 """
@@ -9,6 +9,7 @@ or external apps. User overrides persist in file_associations.json.
 import json
 import subprocess
 from pathlib import Path
+from apps.methods.img_factory_settings import get_user_config_dir
 
 ##Methods list -
 # get_associations
@@ -17,7 +18,7 @@ from pathlib import Path
 # launch_external
 # save_associations
 
-CONFIG_PATH = Path.home() / '.config' / 'imgfactory' / 'file_associations.json'
+CONFIG_PATH = get_user_config_dir() / 'file_associations.json'
 
 INTERNAL_HANDLERS = {'model_workshop', 'txd_workshop', 'col_workshop', 'img_factory'}
 

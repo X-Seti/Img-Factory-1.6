@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 94
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 95
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -45,6 +45,7 @@ from PyQt6.QtGui import (
     QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
     QPainterPath, QKeySequence
 )
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 ##Methods list -
@@ -1437,8 +1438,8 @@ class DP5Settings:
         'ribbon_tool_order': [],
     }
 
-    def __init__(self): #vers 1
-        cfg_dir = Path.home() / '.config' / 'imgfactory'
+    def __init__(self): #vers 2
+        cfg_dir = get_user_config_dir()
         cfg_dir.mkdir(parents=True, exist_ok=True)
         self._path = cfg_dir / 'dp5_workshop.json'
         self._data = dict(self.DEFAULTS)
@@ -4633,7 +4634,7 @@ class _CanvasTextOverlay(QWidget):
         else:
             super().keyPressEvent(e)
 
-    def _commit(self): #vers 3
+    def _commit(self): #vers 4
         """Blit the typed text onto the canvas at (tx, ty), using the
         corner panel's current font/size/colour/transparency/effect.
         Shadow/Ghost/3D are rendered as extra offset/shaded copies drawn
@@ -4708,7 +4709,7 @@ class BrushManager(QWidget):
     """
     brush_selected = pyqtSignal(bytearray, int, int)   # buf, w, h
 
-    _BRUSH_DIR = Path.home() / '.config' / 'imgfactory' / 'dp5_brushes'
+    _BRUSH_DIR = get_user_config_dir() / 'dp5_brushes'
 
     def __init__(self, parent=None):  #vers 1
         super().__init__(parent)
@@ -7407,9 +7408,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if self.dp5_canvas:
             self._select_tool(self.dp5_canvas.tool, from_button_click=False)
 
-    def _ribbon_presets_dir(self): #vers 1
+    def _ribbon_presets_dir(self): #vers 2
         """Folder where Ribbon Manager presets are saved/loaded from."""
-        d = Path.home() / '.config' / 'imgfactory' / 'ribbon_presets'
+        d = get_user_config_dir() / 'ribbon_presets'
         d.mkdir(parents=True, exist_ok=True)
         return d
 

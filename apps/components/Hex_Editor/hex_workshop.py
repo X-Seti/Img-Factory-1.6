@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 8
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 9
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -48,6 +48,7 @@ from apps.components.Hex_Editor.depends.diffcode import GUIWorkshop
 from apps.components.Hex_Editor.hex_canvas import HexDoc, HexCanvas
 from apps.components.Hex_Editor.hex_panels import (
     InspectorPanel, StructurePanel, SearchPanel, BookmarksPanel, ComparePanel, ConvertDialog, hashes)
+from apps.methods.img_factory_settings import get_user_config_dir
 
 App_name   = "Hex Workshop"
 App_build  = "Build 2"
@@ -170,9 +171,9 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                          ("Shift+F3", lambda: self.search._emit_find(False)), ("Ctrl+B", self._add_bookmark)):
             QShortcut(QKeySequence(keys), self, activated=fn)
 
-    def _splitter_path(self) -> Path: #vers 1
+    def _splitter_path(self) -> Path: #vers 2
         """Splitter sizes file beside the other workshop settings."""
-        return Path.home() / ".config" / "imgfactory" / f"{config_key}_splitter.json"
+        return get_user_config_dir() / f"{config_key}_splitter.json"
 
     def _load_splitter(self): #vers 1
         try:

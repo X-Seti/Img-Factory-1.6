@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 10
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 11
 # X-Seti - September 17 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -30,6 +30,7 @@ from apps.methods.master_ide import (
 from apps.methods.master_ide_edit import rename_entry, add_entry, remove_entry, write_source_file
 from apps.methods.file_backup import backup_file
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 class _MasterIDETable(QTableWidget): #vers 1
@@ -233,7 +234,7 @@ class MasterIDEWorkshop(QWidget): #vers 9
                      for tb in self._inner_mw.findChildren(_QTB)])
         menu.exec(toolbar.mapToGlobal(pos))
 
-    def _save_toolbar_state(self): #vers 1
+    def _save_toolbar_state(self): #vers 2
         """Save the ribbon layout to master_ide.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
@@ -241,7 +242,7 @@ class MasterIDEWorkshop(QWidget): #vers 9
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'master_ide.json'
+            path = get_user_config_dir() / 'master_ide.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -256,7 +257,7 @@ class MasterIDEWorkshop(QWidget): #vers 9
         except Exception as e:
             print(f"[Master IDE] _save_toolbar_state error: {e}")
 
-    def _restore_toolbar_state(self): #vers 1
+    def _restore_toolbar_state(self): #vers 2
         """Restore the ribbon layout from master_ide.json - rejects a
         saved layout from an older ribbon structure (see
         _RIBBON_LAYOUT_VERSION) instead of silently failing."""
@@ -267,7 +268,7 @@ class MasterIDEWorkshop(QWidget): #vers 9
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'master_ide.json'
+            path = get_user_config_dir() / 'master_ide.json'
             if not path.exists():
                 return
             data = json.loads(path.read_text())

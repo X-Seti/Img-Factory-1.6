@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Ai_Workshop/web/server.py - Version: 1
+# apps/components/Ai_Workshop/web/server.py - Version: 2
 # AI Workshop Web Server - FastAPI + WebSockets + Ollama proxy
 # X-Seti March 2026
 
@@ -31,6 +31,7 @@ templates_dir = current_dir / "templates"
 
 # Serve static files with no-cache headers so JS changes take effect immediately
 from fastapi.responses import FileResponse, Response
+from apps.methods.img_factory_settings import get_user_config_dir
 
 @app.get("/static/{filename:path}")
 async def static_files(filename: str):
@@ -60,7 +61,7 @@ async def static_files(filename: str):
 
 _config = {
     "ollama_url":   "http://localhost:11434",
-    "sessions_dir": os.path.expanduser("~/.config/imgfactory/ai_sessions"),
+    "sessions_dir": os.path.join(get_user_config_dir(), "ai_sessions"),
     "port":         8080,
     "host":         "0.0.0.0",
 }

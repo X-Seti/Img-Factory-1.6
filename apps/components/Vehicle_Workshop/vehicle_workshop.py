@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 11
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 12
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -375,8 +375,8 @@ class WorkshopSettings:
         "recent_files": [],
     }
 
-    def __init__(self, config_key: str = "gui_workshop"): #vers 1
-        cfg = Path.home() / ".config" / "imgfactory"
+    def __init__(self, config_key: str = "gui_workshop"): #vers 2
+        cfg = get_user_config_dir()
         cfg.mkdir(parents=True, exist_ok=True)
         self._path = cfg / f"{config_key}.json"
         self._data = dict(self.DEFAULTS)
@@ -3756,6 +3756,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
 # carcols.dat / carmods.dat: byte-exact models in apps/methods/vehicle_data_files.py
 from apps.methods.vehicle_data_files import (
     CarColour as _CarColourBase, CarColEntry, CarModEntry, CarColsFile, CarModsFile)
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 class CarColour(_CarColourBase): #vers 2

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 5
+#this belongs in apps/methods/gui_workshop.py - Version: 6
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -37,6 +37,7 @@ from PyQt6.QtGui import (
     QShortcut, QPolygon
 )
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 # SECTION 1 — GUI Core
@@ -108,7 +109,7 @@ class WorkshopSettings:
     }
 
     def __init__(self, config_key: str = "gui_workshop"):
-        cfg = Path.home() / ".config" / "imgfactory"
+        cfg = get_user_config_dir()
         cfg.mkdir(parents=True, exist_ok=True)
         self._path = cfg / f"{config_key}.json"
         self._data = dict(self.DEFAULTS)

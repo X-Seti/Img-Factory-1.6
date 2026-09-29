@@ -1,4 +1,4 @@
-#this belongs in methods/img_factory_settings.py - Version: 4
+#this belongs in methods/img_factory_settings.py - Version: 5
 # X-Seti - December31 2025 - IMG Factory 1.6
 """
 IMG Factory-specific settings manager
@@ -6,8 +6,19 @@ Handles application-specific settings separate from global theme settings
 """
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Any
+
+def get_user_config_dir() -> Path: #vers 1
+    """Tool settings folder: beside the exe when frozen, else ~/.config/imgfactory."""
+    if getattr(sys, 'frozen', False):
+        d = Path(sys.executable).resolve().parent / 'settings'
+    else:
+        d = Path.home() / '.config' / 'imgfactory'
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
 
 def _img_factory_config_dir() -> Path: #vers 1
     """The one, correct location for IMG Factory's own app_settings.json

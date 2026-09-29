@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 12
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 13
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 from apps.methods.ribbon_system import RibbonMixin
 from PyQt6.QtCore import QSize, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont, QColor
+from apps.methods.img_factory_settings import get_user_config_dir
 
 try:
     from apps.methods.gta_dat_parser import (
@@ -104,7 +105,7 @@ class TXDDumpDialog(QDialog): #vers 1
         ('generics', 'Generics (SA/SOL)',   'Prop TXDs from generic.ide/generics.ide'),
     ]
 
-    def _build_ui(self): #vers 2
+    def _build_ui(self): #vers 3
         from apps.methods.gta_dat_parser import GTAGame
         import json
         game = self.loader.game
@@ -338,7 +339,7 @@ class TXDDumpDialog(QDialog): #vers 1
 
     def _cfg_path(self):
         import os
-        return os.path.expanduser("~/.config/imgfactory/txd_dump_paths.json")
+        return os.path.join(get_user_config_dir(), "txd_dump_paths.json")
 
     def _load_saved_paths(self) -> dict:
         import json, os
@@ -1302,7 +1303,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                                   QSizePolicy.Policy.Fixed)
             btn.setToolTip(tooltip)
 
-    def _open_dat_settings(self): #vers 1
+    def _open_dat_settings(self): #vers 2
         """Open DAT Browser settings dialog."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
             QGroupBox, QRadioButton, QCheckBox, QLabel, QDialogButtonBox,
@@ -1379,7 +1380,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._texlist_edit.setPlaceholderText("(auto-discover if blank)")
         self._texlist_edit.setFixedHeight(24)
         import json as _json
-        _mw_cfg = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        _mw_cfg = os.path.join(get_user_config_dir(), 'model_workshop.json')
         if os.path.isfile(_mw_cfg):
             try:
                 self._texlist_edit.setText(
@@ -1429,7 +1430,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         # Save texlist folder to model_workshop.json (shared with Model Workshop)
         import json as _json2
         _tl = self._texlist_edit.text().strip()
-        _mw_cfg2 = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        _mw_cfg2 = os.path.join(get_user_config_dir(), 'model_workshop.json')
         try:
             _d = {}
             if os.path.isfile(_mw_cfg2):
@@ -1443,10 +1444,10 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         # Persist to JSON settings
         self._save_dat_settings()
 
-    def _save_dat_settings(self): #vers 1
+    def _save_dat_settings(self): #vers 2
         """Persist DAT Browser UI settings to ~/.config/imgfactory/dat_browser.json"""
         import json
-        cfg_dir = os.path.expanduser('~/.config/imgfactory')
+        cfg_dir = str(get_user_config_dir())
         os.makedirs(cfg_dir, exist_ok=True)
         cfg = {
             'btn_mode':          getattr(self, '_dat_btn_mode', 'both'),
@@ -1464,10 +1465,10 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         except Exception:
             pass
 
-    def _load_dat_settings(self): #vers 1
+    def _load_dat_settings(self): #vers 2
         """Load persisted DAT Browser settings from JSON."""
         import json
-        path = os.path.expanduser('~/.config/imgfactory/dat_browser.json')
+        path = os.path.join(get_user_config_dir(), 'dat_browser.json')
         if not os.path.isfile(path):
             return
         try:

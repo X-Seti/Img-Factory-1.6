@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ribbon_system.py - Version: 1
+#this belongs in apps/methods/ribbon_system.py - Version: 2
 # X-Seti - September 20 2026 - IMG Factory 1.6 - Shared ribbon (toolbar) system
 
 """ribbon_system.py - Ribbon toolbars for QWidget-based workshops (same
@@ -23,6 +23,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt, QSize, QByteArray
 from PyQt6.QtWidgets import QMainWindow, QToolBar, QToolButton, QMenu, QLabel
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 class RibbonMixin:
@@ -95,8 +96,8 @@ class RibbonMixin:
         for tb in self._ribbon_mw.findChildren(QToolBar):
             tb.setMovable(movable)
 
-    def _ribbon_path(self) -> Path: #vers 1
-        return Path.home() / '.config' / 'imgfactory' / f'{self._ribbon_name}_ribbons.json'
+    def _ribbon_path(self) -> Path: #vers 2
+        return get_user_config_dir() / f'{self._ribbon_name}_ribbons.json'
 
     def ribbon_save_state(self): #vers 1
         mw = getattr(self, '_ribbon_mw', None)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 224
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 225
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -50,6 +50,7 @@ from apps.methods.txd_parser import parse_txd as _parse_txd_shared
 # COL Workshop parser system
 
 from apps.gui.tool_menu_mixin import ToolMenuMixin
+from apps.methods.img_factory_settings import get_user_config_dir
 try:
     from apps.methods.gl_viewport_mixin import GLViewportMixin
 except ImportError:
@@ -999,7 +1000,7 @@ class _KeyCaptureButton(QPushButton):
         return {'key': self._key, 'numpad': self._is_numpad}
 
 
-def _model_workshop_config_dir() -> Path: #vers 2
+def _model_workshop_config_dir() -> Path: #vers 3
     """The one, shared, correct location for every Map/Model Workshop
     config file in this app - a dedicated config/ subfolder alongside
     this app's own depends/ folder (Aug 20 2026)"""
@@ -1016,7 +1017,7 @@ def _model_workshop_config_dir() -> Path: #vers 2
     except Exception as e:
         print(f"[Map/Model Workshop config] App folder not writable "
               f"({e}), falling back to ~/.config/imgfactory")
-        fallback = Path.home() / '.config' / 'imgfactory'
+        fallback = get_user_config_dir()
         fallback.mkdir(parents=True, exist_ok=True)
         return fallback
 

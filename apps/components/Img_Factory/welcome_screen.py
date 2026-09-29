@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from apps.app_info import App_name, App_build, App_auth, App_build_num, get_full_build
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 def _get_pref_path() -> str:
@@ -38,7 +39,7 @@ def _get_pref_path() -> str:
     if sys.platform == 'win32':
         base = os.environ.get('APPDATA', os.path.expanduser('~'))
         return os.path.join(base, 'ImgFactory', 'welcome_prefs.json')
-    return os.path.expanduser('~/.config/imgfactory/welcome_prefs.json')
+    return os.path.join(get_user_config_dir(), 'welcome_prefs.json')
 
 _PREF_PATH = _get_pref_path()
 

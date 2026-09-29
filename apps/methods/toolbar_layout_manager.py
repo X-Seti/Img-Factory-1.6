@@ -1,4 +1,4 @@
-#this belongs in apps/methods/toolbar_layout_manager.py - Version: 4
+#this belongs in apps/methods/toolbar_layout_manager.py - Version: 5
 # X-Seti - June 2026 - IMG Factory 1.6 - Toolbar Group/Divider Customization
 
 """
@@ -24,6 +24,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import QWidget, QGridLayout, QFrame, QSizePolicy, QMenu
 from PyQt6.QtCore import Qt, QMimeData, QPoint
 from PyQt6.QtGui import QDrag, QPainter, QColor, QPen
+from apps.methods.img_factory_settings import get_user_config_dir
 
 ##Methods list -
 # add_divider_before
@@ -392,8 +393,8 @@ class GroupedToolbarLayout:
         except Exception:
             pass
 
-    def _settings_path(self) -> Path: #vers 1
-        cfg = Path.home() / '.config' / 'imgfactory'
+    def _settings_path(self) -> Path: #vers 2
+        cfg = get_user_config_dir()
         cfg.mkdir(parents=True, exist_ok=True)
         return cfg / 'model_toolbar_layout.json'
 

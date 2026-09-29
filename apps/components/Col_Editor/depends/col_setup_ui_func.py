@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 5
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 6
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -82,6 +82,7 @@ from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QDialog, QFrame, QHBox
 from apps.components.Col_Editor.depends.col_viewport import COL3DViewport
 from apps.methods.grip_splitter import GripSplitter
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.img_factory_settings import get_user_config_dir
 
 App_name = "Col Workshop"
 App_build = "106"
@@ -285,7 +286,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             self._cancel_state = self._mw.saveState()
 
 
-    def _build_ui(self): #vers 4
+    def _build_ui(self): #vers 5
         from PyQt6.QtWidgets import (QSplitter, QListWidget, QListWidgetItem,
             QDialogButtonBox, QAbstractItemView, QSlider)
         outer = QVBoxLayout(self)
@@ -318,7 +319,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home()/'.config'/'imgfactory'/'col_workshop.json').read_text()
+                (get_user_config_dir()/'col_workshop.json').read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -511,7 +512,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._act_list.clear()
 
 
-    def _save_preset(self): #vers 1
+    def _save_preset(self): #vers 2
         """Save current toolbar layout as a named preset."""
         from PyQt6.QtWidgets import QInputDialog
         import json
@@ -521,7 +522,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
         if not ok or not name.strip():
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'col_workshop.json'
+        path = get_user_config_dir() / 'col_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -532,7 +533,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._ws._set_status(f"Preset '{name.strip()}' saved")
 
 
-    def _load_preset(self): #vers 1
+    def _load_preset(self): #vers 2
         """Load a named preset."""
         from PyQt6.QtWidgets import QInputDialog
         from PyQt6.QtCore import QByteArray
@@ -540,7 +541,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         from pathlib import Path
         if not self._mw:
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'col_workshop.json'
+        path = get_user_config_dir() / 'col_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -1458,7 +1459,7 @@ class COLSetupUIMixin: #vers 1
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 4
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 5
         """Build all QToolBar instances using QAction (Model Workshop pattern,
         Build 388+). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_preview_controls panels."""
@@ -1469,7 +1470,7 @@ class COLSetupUIMixin: #vers 1
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home()/'.config'/'imgfactory'/'col_workshop.json').read_text()
+                (get_user_config_dir()/'col_workshop.json').read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -1654,7 +1655,7 @@ class COLSetupUIMixin: #vers 1
         self._col_icon_buttons = []
         self._col_ctrl_buttons = []
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 1
+    def _toolbar_context_menu(self, toolbar, pos): #vers 2
         """Right-click context menu on any toolbar."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
@@ -1668,7 +1669,7 @@ class COLSetupUIMixin: #vers 1
         try:
             import json
             from pathlib import Path
-            data = json.loads((Path.home()/'.config'/'imgfactory'/'col_workshop.json').read_text())
+            data = json.loads((get_user_config_dir()/'col_workshop.json').read_text())
             slider.setValue(data.get('icon_scale', 20))
         except Exception:
             slider.setValue(20)
@@ -1689,7 +1690,7 @@ class COLSetupUIMixin: #vers 1
                      for tb in self._inner_mw.findChildren(_QTB)])
         menu.exec(toolbar.mapToGlobal(pos))
 
-    def _apply_icon_scale(self, px: int): #vers 1
+    def _apply_icon_scale(self, px: int): #vers 2
         """Apply icon size to all toolbars live and persist it."""
         mw = getattr(self, '_inner_mw', None)
         if mw:
@@ -1700,7 +1701,7 @@ class COLSetupUIMixin: #vers 1
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'col_workshop.json'
+            path = get_user_config_dir() / 'col_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1715,7 +1716,7 @@ class COLSetupUIMixin: #vers 1
         dlg = RibbonManagerDialog(self, parent=self)
         dlg.exec()
 
-    def _save_toolbar_state(self): #vers 2
+    def _save_toolbar_state(self): #vers 3
         """Save QMainWindow toolbar state to col_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
@@ -1723,7 +1724,7 @@ class COLSetupUIMixin: #vers 1
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'col_workshop.json'
+            path = get_user_config_dir() / 'col_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1738,7 +1739,7 @@ class COLSetupUIMixin: #vers 1
         except Exception as _e:
             print(f"[COLWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 3
+    def _restore_toolbar_state(self): #vers 4
         """Restore QMainWindow toolbar state from col_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -1752,7 +1753,7 @@ class COLSetupUIMixin: #vers 1
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'col_workshop.json'
+            path = get_user_config_dir() / 'col_workshop.json'
             if not path.exists():
                 return
             data = json.loads(path.read_text())

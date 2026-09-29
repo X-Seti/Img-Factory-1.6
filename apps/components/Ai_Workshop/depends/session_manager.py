@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Ai_Workshop/depends/session_manager.py - Version: 1
+# apps/components/Ai_Workshop/depends/session_manager.py - Version: 2
 # AI Workshop - Session persistence, pin, search, export
 
 import os
@@ -7,9 +7,10 @@ import json
 import tarfile
 from datetime import datetime
 from pathlib import Path
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
-DEFAULT_SESSIONS_DIR = os.path.expanduser("~/.config/imgfactory/ai_sessions")
+DEFAULT_SESSIONS_DIR = os.path.join(get_user_config_dir(), "ai_sessions")
 
 
 class SessionManager:

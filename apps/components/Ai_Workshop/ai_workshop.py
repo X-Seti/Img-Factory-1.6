@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 4
+#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 5
 # X-Seti - March 2026 - AI Workshop: Ollama chat interface
 # Based on COL Workshop template (col_workshop.py)
 
@@ -38,6 +38,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QThread, pyqtSlot
 from PyQt6.QtGui import QFont, QIcon, QColor, QPainter, QPen, QBrush, QPainterPath, QKeySequence, QShortcut
+from apps.methods.img_factory_settings import get_user_config_dir
 
 App_name = "AI Workshop"
 DEBUG_STANDALONE = False
@@ -194,7 +195,7 @@ class AIWorkshop(QWidget):
             "- For code, always specify the language in fenced blocks\n"
             "- Never make up library names or functions that don't exist"
         )
-        self.sessions_dir     = os.path.expanduser("~/.config/imgfactory/ai_sessions")
+        self.sessions_dir     = os.path.join(get_user_config_dir(), "ai_sessions")
 
         # SSH settings
         self.ssh_config = {

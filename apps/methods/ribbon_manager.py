@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/ribbon_manager.py - Version: 8
+#this belongs in apps/methods/ribbon_manager.py - Version: 9
 # X-Seti - June 2026 - IMG Factory 1.6 - Ribbon Manager
 
 """
@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QMimeData, QSize
 from PyQt6.QtGui import QUndoStack, QUndoCommand, QIcon, QKeySequence
+from apps.methods.img_factory_settings import get_user_config_dir
 
 ##Methods list -
 # RibbonRegistry.__init__
@@ -52,7 +53,7 @@ from PyQt6.QtGui import QUndoStack, QUndoCommand, QIcon, QKeySequence
 # Button tagging utility                                               #
 # ------------------------------------------------------------------ #
 
-def tag_button(widget, icon_fn=None) -> str: #vers 1
+def tag_button(widget, icon_fn=None) -> str: #vers 2
     """Assign a stable _ribbon_id UUID to a toolbar button if it doesn't
     already have one. Also sets _icon_fn if provided. Returns the id.
 
@@ -78,7 +79,7 @@ class RibbonRegistry: #vers 1
     global, so multiple workshop windows each have their own isolated state.
     """
 
-    _SETTINGS_FILE = Path.home() / '.config' / 'imgfactory' / 'ribbon_registry.json'
+    _SETTINGS_FILE = get_user_config_dir() / 'ribbon_registry.json'
 
     def __init__(self, workshop): #vers 1
         self._workshop = workshop   # ModelWorkshop instance

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 4
+#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 5
 # X-Seti - May10 2026 - IMG Factory 1.6 - DFF Model Viewer
 """
 DFF Model Viewer - OpenGL hardware 3D viewer for GTA RenderWare DFF files.
@@ -57,6 +57,7 @@ except ImportError:
     from apps.methods.dff_viewport import DFFViewport
 
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.img_factory_settings import get_user_config_dir
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -158,7 +159,7 @@ except ImportError:
 # - Settings
 class MVSettings:
     """Lightweight JSON settings for Model Viewer."""
-    _PATH = os.path.expanduser('~/.config/imgfactory/model_viewer.json')
+    _PATH = os.path.join(get_user_config_dir(), 'model_viewer.json')
 
     def __init__(self): #vers 1
         self._data = {}

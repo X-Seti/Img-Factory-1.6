@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 207
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 208
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -544,7 +544,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         if self._mw:
             self._cancel_state = self._mw.saveState()
 
-    def _build_ui(self): #vers 2
+    def _build_ui(self): #vers 3
         from PyQt6.QtWidgets import (QSplitter, QListWidget, QDialogButtonBox,
             QAbstractItemView, QSlider)
         outer = QVBoxLayout(self)
@@ -578,7 +578,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text()
+                (get_user_config_dir()/'model_workshop.json').read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -759,7 +759,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._refresh_toolbar_list()
         self._act_list.clear()
 
-    def _save_preset(self): #vers 1
+    def _save_preset(self): #vers 2
         """Save current toolbar layout as a named preset."""
         from PyQt6.QtWidgets import QInputDialog
         import json
@@ -769,7 +769,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
         if not ok or not name.strip():
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        path = get_user_config_dir() / 'model_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -779,7 +779,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         path.write_text(json.dumps(data, indent=2))
         self._ws._set_status(f"Preset '{name.strip()}' saved")
 
-    def _load_preset(self): #vers 1
+    def _load_preset(self): #vers 2
         """Load a named preset."""
         from PyQt6.QtWidgets import QInputDialog
         from PyQt6.QtCore import QByteArray
@@ -787,7 +787,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         from pathlib import Path
         if not self._mw:
             return
-        path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+        path = get_user_config_dir() / 'model_workshop.json'
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -4510,9 +4510,9 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                               QDialogButtonBox.StandardButton.Cancel)
 
-        def _save():  #vers 1
+        def _save():  #vers 2
             _apply_live()
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.join(get_user_config_dir(), 'model_workshop.json')
             try:
                 try: cfg = json.load(open(cfg_path))
                 except Exception: cfg = {}
@@ -4540,11 +4540,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         root.addWidget(bb)
         _apply_live(); dlg.exec()
 
-    def _load_viewport_light_settings(self): #vers 2
+    def _load_viewport_light_settings(self): #vers 3
         """Load saved viewport light settings from model_workshop.json."""
         import json, os
-        cfg_path = os.path.expanduser(
-            '~/.config/imgfactory/model_workshop.json')
+        cfg_path = os.path.join(get_user_config_dir(), 'model_workshop.json')
         try:
             cfg = json.load(open(cfg_path))
             vl = cfg.get('viewport_light', {})
@@ -5717,7 +5716,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                             lambda: self._move_info_ribbon(key, 'middle'))
         menu.exec(tb.mapToGlobal(pos))
 
-    def _move_info_ribbon(self, key: str, location: str): #vers 1
+    def _move_info_ribbon(self, key: str, location: str): #vers 2
         """Reparent one of the Name/IDE-TXD toolbars (identified by key,
         'name' or 'ide') between the middle panel's own nested QMainWindow
         and the right panel's QMainWindow - dockable/floatable in both
@@ -5747,7 +5746,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -6093,7 +6092,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._sel_face_btn   = None
         self._sel_poly_btn   = None
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 2
+    def _toolbar_context_menu(self, toolbar, pos): #vers 3
         """Right-click context menu on any toolbar."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
@@ -6117,7 +6116,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            data = json.loads((Path.home()/'.config'/'imgfactory'/'model_workshop.json').read_text())
+            data = json.loads((get_user_config_dir()/'model_workshop.json').read_text())
             slider.setValue(data.get('icon_scale', 20))
         except Exception:
             slider.setValue(20)
@@ -6138,12 +6137,12 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                      for tb in self._inner_mw.findChildren(_QTB)])
         menu.exec(toolbar.mapToGlobal(pos))
 
-    def _switch_icon_set(self, key: str): #vers 1
+    def _switch_icon_set(self, key: str): #vers 2
         """Save icon set choice and rebuild toolbars to apply it."""
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -6169,7 +6168,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self._build_toolbars(mw, icon_color)
         self._set_status(f"Icon set applied")
 
-    def _apply_icon_scale(self, px: int): #vers 1
+    def _apply_icon_scale(self, px: int): #vers 2
         """Apply icon size to all toolbars live and persist it."""
         mw = getattr(self, '_inner_mw', None)
         if mw:
@@ -6180,7 +6179,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -6195,7 +6194,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg = RibbonManagerDialog(self, parent=self)
         dlg.exec()
 
-    def _save_toolbar_state(self): #vers 2
+    def _save_toolbar_state(self): #vers 3
         """Save QMainWindow toolbar state to model_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
@@ -6203,7 +6202,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -6218,7 +6217,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as _e:
             print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 5
+    def _restore_toolbar_state(self): #vers 6
         """Restore QMainWindow toolbar state from model_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -6232,7 +6231,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             if not path.exists():
                 return
             data = json.loads(path.read_text())
@@ -6277,7 +6276,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     # into their own top-level dock widgets too, same as Files.
     _OUTER_LAYOUT_VERSION = 2
 
-    def _save_outer_layout(self): #vers 1
+    def _save_outer_layout(self): #vers 2
         """Save _outer_mw's dock layout (Files/Models around the viewport)."""
         mw = getattr(self, '_outer_mw', None)
         if mw is None:
@@ -6285,7 +6284,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -6296,7 +6295,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception as _e:
             print(f"[ModelWorkshop] _save_outer_layout error: {_e}")
 
-    def _restore_outer_layout(self): #vers 1
+    def _restore_outer_layout(self): #vers 2
         """Restore _outer_mw's dock layout, with the same version-check +
         force-visible safety net pattern as _restore_toolbar_state."""
         mw = getattr(self, '_outer_mw', None)
@@ -6306,7 +6305,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
                 state_hex = data.get('outer_layout_state')
@@ -6355,7 +6354,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             if path.exists():
                 data = json.loads(path.read_text())
                 saved_locations = data.get('info_ribbon_locations', {})
@@ -6657,14 +6656,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             pane._auto_fit()
             pane.update()
 
-    def _save_quad_layout(self): #vers 1
+    def _save_quad_layout(self): #vers 2
         """Persist per-pane view assignment + splitter sizes."""
         import json, os
         panes = getattr(self, '_quad_panes', None)
         if not panes:
             return
         try:
-            cfg_dir = os.path.expanduser('~/.config/imgfactory')
+            cfg_dir = str(get_user_config_dir())
             os.makedirs(cfg_dir, exist_ok=True)
             cfg_path = os.path.join(cfg_dir, 'model_workshop.json')
             data = {}
@@ -6689,14 +6688,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             pass
 
-    def _load_quad_layout(self): #vers 1
+    def _load_quad_layout(self): #vers 2
         """Restore per-pane view assignment + splitter sizes, if saved."""
         import json, os
         panes = getattr(self, '_quad_panes', None)
         if not panes:
             return
         try:
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.join(get_user_config_dir(), 'model_workshop.json')
             if not os.path.exists(cfg_path):
                 return
             with open(cfg_path) as f:
@@ -7560,13 +7559,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 pass
         return '#cccccc'
 
-    def _get_icon_set(self) -> str: #vers 1
+    def _get_icon_set(self) -> str: #vers 2
         """Return active icon set: 'default' or '3dsmax'.
         Read from model_workshop.json 'icon_set' key."""
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'model_workshop.json'
+            path = get_user_config_dir() / 'model_workshop.json'
             if path.exists():
                 return json.loads(path.read_text()).get('icon_set', 'default')
         except Exception:
@@ -8566,10 +8565,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             return None
 
 
-    def _save_texlist_setting(self): #vers 1
+    def _save_texlist_setting(self): #vers 2
         """Persist the texlist folder path to ~/.config/imgfactory/model_workshop.json"""
         import json
-        cfg_dir = os.path.expanduser('~/.config/imgfactory')
+        cfg_dir = str(get_user_config_dir())
         os.makedirs(cfg_dir, exist_ok=True)
         try:
             p = os.path.join(cfg_dir, 'model_workshop.json')
@@ -8581,10 +8580,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         except Exception:
             pass
 
-    def _load_texlist_setting(self): #vers 1
+    def _load_texlist_setting(self): #vers 2
         """Load the texlist folder path from ~/.config/imgfactory/model_workshop.json"""
         import json
-        p = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        p = os.path.join(get_user_config_dir(), 'model_workshop.json')
         if os.path.isfile(p):
             try:
                 data = json.load(open(p))
@@ -11821,7 +11820,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self.hotkey_edit_help.setKeySequence(QKeySequence.StandardKey.HelpContents)
 
 
-    def _apply_hotkey_settings(self, dialog, close=False): #vers 1
+    def _apply_hotkey_settings(self, dialog, close=False): #vers 2
         """Apply hotkey changes"""
         # Update all hotkeys with new sequences
         self.hotkey_open.setKey(self.hotkey_edit_open.keySequence())
@@ -11849,7 +11848,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         # Save hotkeys to config
         try:
             import json, os
-            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.join(get_user_config_dir(), 'model_workshop.json')
             try:
                 cfg = json.load(open(cfg_path))
             except Exception:
@@ -12082,6 +12081,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
 # --- External AI upscaler integration helper ---
 import sys
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 def open_model_workshop(main_window, dff_path=None,

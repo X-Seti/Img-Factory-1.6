@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/dockable_toolbar.py - Version: 12
+#this belongs in apps/components/Model_Editor/dockable_toolbar.py - Version: 13
 """
 apps/components/Model_Editor/dockable_toolbar.py  — Build 11
 
@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QPoint, QRect, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QCursor, QBrush, QPolygon
+from apps.methods.img_factory_settings import get_user_config_dir
 
 SNAP_NONE   = ''
 SNAP_TOP    = 'top'
@@ -422,7 +423,7 @@ class _FloatWindow(QWidget):
         return SNAP_NONE
 
     # Allow dragging the static float window anywhere (not just title bar)
-    def changeEvent(self, event): #vers 1
+    def changeEvent(self, event): #vers 2
         """Repaint grip when palette changes (theme switch)."""
         super().changeEvent(event)
         from PyQt6.QtCore import QEvent
@@ -674,7 +675,7 @@ class DockableToolbar(QWidget):
 
     #    Settings save/load                                                     
     def _settings_path(self) -> Path:
-        cfg = Path.home() / '.config' / 'imgfactory'
+        cfg = get_user_config_dir()
         cfg.mkdir(parents=True, exist_ok=True)
         return cfg / 'model_toolbar_layout.json'
 

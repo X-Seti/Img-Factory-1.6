@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 8
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 9
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -111,7 +111,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         if self._mw:
             self._cancel_state = self._mw.saveState()
 
-    def _build_ui(self): #vers 2
+    def _build_ui(self): #vers 3
         from PyQt6.QtWidgets import (QSplitter, QListWidget, QListWidgetItem,
             QDialogButtonBox, QAbstractItemView, QSlider)
         outer = QVBoxLayout(self)
@@ -144,7 +144,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home() / ".config" / "imgfactory" / (_App_name + ".json")).read_text()
+                (get_user_config_dir() / (_App_name + ".json")).read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -325,7 +325,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._refresh_toolbar_list()
         self._act_list.clear()
 
-    def _save_preset(self): #vers 1
+    def _save_preset(self): #vers 2
         """Save current toolbar layout as a named preset."""
         from PyQt6.QtWidgets import QInputDialog
         import json
@@ -335,7 +335,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
         if not ok or not name.strip():
             return
-        path = Path.home() / ".config" / "imgfactory" / (_App_name + ".json")
+        path = get_user_config_dir() / (_App_name + ".json")
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -345,7 +345,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         path.write_text(json.dumps(data, indent=2))
         self._ws._set_status(f"Preset '{name.strip()}' saved")
 
-    def _load_preset(self): #vers 1
+    def _load_preset(self): #vers 2
         """Load a named preset."""
         from PyQt6.QtWidgets import QInputDialog
         from PyQt6.QtCore import QByteArray
@@ -353,7 +353,7 @@ class RibbonManagerDialog(QDialog): #vers 1
         from pathlib import Path
         if not self._mw:
             return
-        path = Path.home() / ".config" / "imgfactory" / (_App_name + ".json")
+        path = get_user_config_dir() / (_App_name + ".json")
         try:
             data = json.loads(path.read_text())
         except Exception:
@@ -1339,9 +1339,9 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             return "default"
         return hashlib.md5(",".join(names).encode()).hexdigest()[:12]
 
-    def _config_path(self): #vers 1
+    def _config_path(self): #vers 2
         from pathlib import Path
-        return Path.home() / '.config' / 'imgfactory' / 'asset_workshop.json'
+        return get_user_config_dir() / 'asset_workshop.json'
 
     def _load_exclusions(self): #vers 1
         """Returns (names, files, id_min, id_max)."""
@@ -2856,7 +2856,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 3
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 4
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -2873,7 +2873,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (Path.home()/'.config'/'imgfactory'/'asset_workshop.json').read_text()
+                (get_user_config_dir()/'asset_workshop.json').read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -2965,7 +2965,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Apply current icons-vs-text display mode
         self._update_transform_text_panel_visibility()
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 1
+    def _toolbar_context_menu(self, toolbar, pos): #vers 2
         """Right-click context menu on any toolbar."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
@@ -2978,7 +2978,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         try:
             import json
             from pathlib import Path
-            data = json.loads((Path.home()/'.config'/'imgfactory'/'asset_workshop.json').read_text())
+            data = json.loads((get_user_config_dir()/'asset_workshop.json').read_text())
             slider.setValue(data.get('icon_scale', 20))
         except Exception:
             slider.setValue(20)
@@ -3014,7 +3014,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._build_toolbars(mw, icon_color)
         self._set_status("Toolbars rebuilt")
 
-    def _apply_icon_scale(self, px: int): #vers 1
+    def _apply_icon_scale(self, px: int): #vers 2
         """Apply icon size to all toolbars live and persist it."""
         mw = getattr(self, '_inner_mw', None)
         if mw:
@@ -3025,7 +3025,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'asset_workshop.json'
+            path = get_user_config_dir() / 'asset_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -3040,7 +3040,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         dlg = RibbonManagerDialog(self, parent=self)
         dlg.exec()
 
-    def _save_toolbar_state(self): #vers 2
+    def _save_toolbar_state(self): #vers 3
         """Save QMainWindow toolbar state to asset_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
@@ -3048,7 +3048,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         try:
             import json
             from pathlib import Path
-            path = Path.home() / '.config' / 'imgfactory' / 'asset_workshop.json'
+            path = get_user_config_dir() / 'asset_workshop.json'
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -3062,7 +3062,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as _e:
             print(f"[" + App_name + "] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 3
+    def _restore_toolbar_state(self): #vers 4
         """Restore QMainWindow toolbar state from asset_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -3076,7 +3076,7 @@ class AssetWorkshop(ToolMenuMixin, QWidget): #vers 4
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = Path.home() / ".config" / "imgfactory" / "asset_workshop.json"
+            path = get_user_config_dir() / "asset_workshop.json"
             if not path.exists():
                 return
             data = json.loads(path.read_text())
@@ -16516,6 +16516,7 @@ import subprocess
 import tempfile
 import shutil
 import sys
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 def _call_external_upscaler(self, qimg, factor, command): #vers 1

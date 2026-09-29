@@ -1,4 +1,4 @@
-#this belongs in core/scan_img.py - Version: 1
+#this belongs in core/scan_img.py - Version: 2
 # X-Seti - March 2026 - IMG Factory 1.6
 # Recursive IMG scanner — finds all .img / .dir files in a folder tree,
 # detects their version and platform, and lets the user batch-open them.
@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor
+from apps.methods.img_factory_settings import get_user_config_dir
 
 ## Methods list -
 # scan_img_folder
@@ -37,7 +38,7 @@ from PyQt6.QtGui import QFont, QColor
 
 #    Extensions we care about                                                   
 
-SCAN_CACHE_PATH = os.path.expanduser("~/.config/imgfactory/scan_cache.json")
+SCAN_CACHE_PATH = os.path.join(get_user_config_dir(), "scan_cache.json")
 MAX_CACHED_SCANS = 20   # keep last N scan folders
 
 #    Cache helpers                                                              
