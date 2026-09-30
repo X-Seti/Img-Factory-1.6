@@ -12,6 +12,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _auto_generate_mipmaps
 # _auto_generate_mipmaps_to_level
 # _batch_import_from_folder
+# _build_new_txd_data
 # _build_txd_from_dff
 # _change_bit_depth
 # _change_format
@@ -117,8 +118,8 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _save_texture_format
 # _save_texture_name
 # _save_texture_png
-# save_txd_file
 # _save_txd_file
+# save_txd_file
 # _save_txd_to_img_with_version_selector
 # _save_undo_state
 # _set_current_rgba
@@ -1009,13 +1010,13 @@ class TXDLogicMixin: #vers 1
                     f"Deleted bumpmap from: {self.selected_texture.get('name', 'texture')}"
                 )
 
-    def _has_bumpmap_data(self, texture): #vers 1
+    def _has_bumpmap_data(self, texture): #vers 2
         """Check if texture has bumpmap data"""
         if not texture:
             return False
 
         # Check explicit bumpmap data
-        if 'bumpmap_data' in texture or texture.get('has_bumpmap', False):
+        if texture.get('bumpmap_data') or texture.get('has_bumpmap', False):
             return True
 
         # Check format flags
@@ -3559,17 +3560,11 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to uncompress: {str(e)}")
 
-    def _rebuild_txd_data(self): #vers 4
+    def _rebuild_txd_data(self): #vers 6
         """Rebuild TXD data with modified texture names and properties"""
         try:
-            if not self.current_txd_data:
-                return None
-
-            # Preserve original version header
-            if len(self.current_txd_data) < 28:
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("Cannot rebuild: insufficient header data")
-                return None
+            if not self.current_txd_data or len(self.current_txd_data) < 28:
+                return self._build_new_txd_data()     # new TXD, no original file
 
             # Read original header to preserve version
             original_header = bytearray(self.current_txd_data[:28])
@@ -3589,8 +3584,9 @@ class TXDLogicMixin: #vers 1
             # Update header if converting to different version
             if target_version != self.txd_version_id or target_device != self.txd_device_id:
                 import struct
-                # Update RenderWare version at offset 4
-                struct.pack_into('<I', original_header, 4, target_version)
+                # Update RenderWare version (header offset 8, struct offset 20)
+                struct.pack_into('<I', original_header, 8, target_version)   # dict header version
+                struct.pack_into('<I', original_header, 20, target_version)  # dict struct version
 
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     from apps.methods.txd_versions import get_version_string
@@ -3624,7 +3620,8 @@ class TXDLogicMixin: #vers 1
                 if spliced:
                     original_header = bytearray(spliced[:28])
                     if target_version != self.txd_version_id:
-                        struct.pack_into('<I', original_header, 4, target_version)
+                        struct.pack_into('<I', original_header, 8, target_version)   # dict header version
+                        struct.pack_into('<I', original_header, 20, target_version)  # dict struct version
                 rebuilt_data = bytes(original_header) + base[28:]
 
                 if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -3634,18 +3631,21 @@ class TXDLogicMixin: #vers 1
 
             # No original data? Use serializer as fallback
             if self.texture_list:
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Using serializer...")
-
-                # Try methods folder first (docked/IMG Factory)
-                from apps.methods.txd_serializer import serialize_txd_file
-                return serialize_txd_file(self.texture_list, target_version, target_device)
+                return self._build_new_txd_data()
 
 
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Rebuild error: {str(e)}")
             return None
+
+    def _build_new_txd_data(self): #vers 1
+        """TXD bytes from scratch when there is no original file."""
+        from apps.methods.txd_splice import build_txd, build_d3d8_chunk
+        if not self.texture_list:
+            return None
+        ver = getattr(self, '_save_target_version', None) or self.txd_version_id or 0x1803FFFF
+        return build_txd(self.texture_list, ver, lambda t: build_d3d8_chunk(t, ver, _encode_dxt1))
 
     def _get_format_description(self) -> str: #vers 1
         """Get human-readable format description for UI display"""
@@ -4053,7 +4053,7 @@ class TXDLogicMixin: #vers 1
             # IMG-based TXD save with version selector
             return self._save_txd_to_img_with_version_selector()
 
-    def _save_txd_file(self): #vers 2
+    def _save_txd_file(self): #vers 3
         """Save TXD file with detailed structural logging"""
         if not self.current_txd_path and not self.current_txd_name:
             QMessageBox.warning(self, "No TXD", "No TXD file loaded")
@@ -4329,6 +4329,13 @@ class TXDLogicMixin: #vers 1
                 0,
                 serializer.RW_VERSION
             ))
+
+            # Splice: untouched textures byte-exact, edited ones re-encoded
+            spliced = self._rebuild_txd_data()
+            if not spliced:
+                raise RuntimeError("TXD rebuild failed")
+            log(f"  Spliced output replaces serializer output ({len(spliced):,} bytes)")
+            result = bytearray(spliced)
 
             # Write to file
             log("")

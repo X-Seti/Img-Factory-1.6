@@ -5,6 +5,8 @@
 - TXD Paint loads texture via DP5 _load_rgba (size, palette, bitmap list).
 - TXD Pick Background crashed when no colour set yet; starts from theme colour.
 - TXD/Asset Check DFF and Build from DFF found no materials; now read DFF texture names via rw_chunks.
+- TXD Save (Ctrl+S) wrote the original DXT data back, dropping pixel edits; now splices like Save As, mip levels rebuilt. New TXDs save (no placeholder encoder). Version convert wrote into the size field.
+- Mipmap/Bumpmap windows follow the theme (hard-coded styles removed); bumpmap no longer shown Present when empty.
 - TXD Undo: title bar button was never enabled; delete, rename, duplicate, paste, create, format, upscale, mipmaps, bumpmap import now undoable; selection kept.
 - Grip splitters: bumpmap window, DP5 ribbon manager, SVG icon browser; DP5 dock separators show the grip (GripDockSeparators).
 

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_dialogs.py - Version: 4
+#this belongs in apps/methods/txd_dialogs.py - Version: 5
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD dialogs
 
 """
@@ -375,7 +375,7 @@ class TexturePropertiesDialog(QDialog): #vers 1
         self.setup_ui()
 
 
-    def setup_ui(self): #vers 2
+    def setup_ui(self): #vers 3
         """Setup properties dialog UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -1002,12 +1002,6 @@ class MipmapManagerWindow(QWidget): #vers 2
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("""
-            QScrollArea {
-                background: palette(base);
-                border: none;
-            }
-        """)
 
         content_widget = QWidget()
         self.content_layout = QVBoxLayout(content_widget)
@@ -1032,16 +1026,10 @@ class MipmapManagerWindow(QWidget): #vers 2
         layout.addWidget(title_bar)
 
 
-    def _create_title_bar(self): #vers 1
+    def _create_title_bar(self): #vers 2
         """Create custom title bar"""
         title_bar = QFrame()
         title_bar.setFrameStyle(QFrame.Shape.StyledPanel)
-        title_bar.setStyleSheet("""
-            QFrame {
-                background: palette(base);
-                border-bottom: 1px solid #3a3a3a;
-            }
-        """)
         title_bar.setFixedHeight(40)
 
         layout = QHBoxLayout(title_bar)
@@ -1054,7 +1042,6 @@ class MipmapManagerWindow(QWidget): #vers 2
         fmt = self.texture_data.get('format', 'Unknown')
 
         title_label = QLabel(f"Mipmap Manager - {texture_name} ({width}x{height}, {fmt})")
-        title_label.setStyleSheet("font-weight: bold; color: palette(mid); font-size: 14px;")
         layout.addWidget(title_label)
 
         layout.addStretch()
@@ -1063,44 +1050,16 @@ class MipmapManagerWindow(QWidget): #vers 2
         drag_btn = QPushButton()
         drag_btn.setIcon(SVGIconFactory.hamburger_menu_icon())
         drag_btn.setFixedSize(30, 30)
-        drag_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                color: #888;
-                font-size: 16px;
-            }
-            QPushButton:hover {
-                color: palette(mid);
-            }
-        """)
         drag_btn.setCursor(Qt.CursorShape.SizeAllCursor)
         layout.addWidget(drag_btn)
 
         return title_bar
 
 
-    def _create_toolbar(self): #vers 2
+    def _create_toolbar(self): #vers 3
         """Create toolbar with action buttons AND Apply/Close"""
         toolbar = QFrame()
         toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        toolbar.setStyleSheet("""
-            QFrame {
-                background: palette(base);
-                border-bottom: 1px solid #3a3a3a;
-            }
-            QPushButton {
-                background: palette(mid);
-                color: palette(mid);
-                border: 1px solid palette(mid);
-                padding: 8px 16px;
-                border-radius: 3px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background: palette(mid);
-            }
-        """)
         toolbar.setFixedHeight(50)
 
         layout = QHBoxLayout(toolbar)
@@ -1137,17 +1096,6 @@ class MipmapManagerWindow(QWidget): #vers 2
         # Right side - Apply/Close buttons
         apply_btn = QPushButton("Apply Changes")
         apply_btn.setIcon(SVGIconFactory.check_icon())
-        apply_btn.setStyleSheet("""
-            QPushButton {
-                background: palette(highlight);
-                border-color: palette(highlight);
-                font-weight: bold;
-                padding: 8px 20px;
-            }
-            QPushButton:hover {
-                background: palette(highlight);
-            }
-        """)
         apply_btn.clicked.connect(self._apply_changes)
         layout.addWidget(apply_btn)
 
@@ -1158,21 +1106,10 @@ class MipmapManagerWindow(QWidget): #vers 2
         return toolbar
 
 
-    def _create_level_card(self, level_data): #vers 2
+    def _create_level_card(self, level_data): #vers 3
         """Create modern level card matching mockup"""
         card = QFrame()
         card.setFrameStyle(QFrame.Shape.StyledPanel)
-        card.setStyleSheet("""
-            QFrame {
-                background: palette(base);
-                border: 1px solid palette(mid);
-                border-radius: 5px;
-            }
-            QFrame:hover {
-                border-color: palette(highlight);
-                background: palette(base);
-            }
-        """)
         card.setMinimumHeight(140)
 
         layout = QHBoxLayout(card)
@@ -1194,7 +1131,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         return card
 
 
-    def _create_preview_widget(self, level_data): #vers 1
+    def _create_preview_widget(self, level_data): #vers 2
         """Create preview thumbnail with checkerboard"""
         level_num = level_data.get('level', 0)
         width = level_data.get('width', 0)
@@ -1206,13 +1143,6 @@ class MipmapManagerWindow(QWidget): #vers 2
 
         preview = QLabel()
         preview.setFixedSize(preview_size, preview_size)
-        preview.setStyleSheet("""
-            QLabel {
-                background: palette(base);
-                border: 2px solid palette(mid);
-                border-radius: 3px;
-            }
-        """)
         preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         if rgba_data and width > 0:
@@ -1234,7 +1164,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         return preview
 
 
-    def _create_info_section(self, level_data): #vers 1
+    def _create_info_section(self, level_data): #vers 2
         """Create info section with stats grid"""
         info_widget = QWidget()
         layout = QVBoxLayout(info_widget)
@@ -1246,22 +1176,11 @@ class MipmapManagerWindow(QWidget): #vers 2
 
         level_num = level_data.get('level', 0)
         level_badge = QLabel(f"Level {level_num}")
-        level_badge.setStyleSheet("""
-            QLabel {
-                background: palette(highlight);
-                color: white;
-                padding: 4px 12px;
-                border-radius: 3px;
-                font-weight: bold;
-                font-size: 13px;
-            }
-        """)
         header_layout.addWidget(level_badge)
 
         width = level_data.get('width', 0)
         height = level_data.get('height', 0)
         dim_label = QLabel(f"{width} x {height}")
-        dim_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #4a9eff;")
         header_layout.addWidget(dim_label)
 
         # Main texture indicator
@@ -1317,22 +1236,14 @@ class MipmapManagerWindow(QWidget): #vers 2
         return grid_widget
 
 
-    def _create_stat_box(self, label, value, value_color="#e0e0e0"): #vers 1
+    def _create_stat_box(self, label, value, value_color="#e0e0e0"): #vers 2
         """Create individual stat box"""
         stat = QFrame()
-        stat.setStyleSheet("""
-            QFrame {
-                background: palette(base);
-                border-radius: 3px;
-                padding: 6px 10px;
-            }
-        """)
 
         layout = QHBoxLayout(stat)
         layout.setContentsMargins(8, 4, 8, 4)
 
         label_widget = QLabel(label)
-        label_widget.setStyleSheet("color: #888; font-size: 12px;")
         layout.addWidget(label_widget)
 
         value_widget = QLabel(value)
@@ -1342,7 +1253,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         return stat
 
 
-    def _create_action_section(self, level_data): #vers 1
+    def _create_action_section(self, level_data): #vers 2
         """Create action buttons section"""
         action_widget = QWidget()
         layout = QVBoxLayout(action_widget)
@@ -1354,38 +1265,12 @@ class MipmapManagerWindow(QWidget): #vers 2
         # Export button
         export_btn = QPushButton("Export")
         export_btn.setIcon(SVGIconFactory.export_icon())
-        export_btn.setStyleSheet("""
-            QPushButton {
-                background: #2e5d2e;
-                border: 1px solid #3d7d3d;
-                color: white;
-                padding: 6px 12px;
-                border-radius: 3px;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background: #3d7d3d;
-            }
-        """)
         export_btn.clicked.connect(lambda: self._export_level(level_num))
         layout.addWidget(export_btn)
 
         # Import button
         import_btn = QPushButton("Import")
         import_btn.setIcon(SVGIconFactory.import_icon())
-        import_btn.setStyleSheet("""
-            QPushButton {
-                background: #5d3d2e;
-                border: 1px solid #7d4d3d;
-                color: white;
-                padding: 6px 12px;
-                border-radius: 3px;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background: #7d4d3d;
-            }
-        """)
         import_btn.clicked.connect(lambda: self._import_level(level_num))
         layout.addWidget(import_btn)
 
@@ -1393,53 +1278,21 @@ class MipmapManagerWindow(QWidget): #vers 2
         if level_num == 0:
             edit_btn = QPushButton("Edit")
             edit_btn.setIcon(SVGIconFactory.edit_icon())
-            edit_btn.setStyleSheet("""
-                QPushButton {
-                    background: palette(mid);
-                    border: 1px solid palette(mid);
-                    color: white;
-                    padding: 6px 12px;
-                    border-radius: 3px;
-                    font-size: 11px;
-                }
-                QPushButton:hover {
-                    background: palette(mid);
-                }
-            """)
             edit_btn.clicked.connect(self._edit_main_texture)
             layout.addWidget(edit_btn)
         else:
             delete_btn = QPushButton("Delete")
             delete_btn.setIcon(SVGIconFactory.trash_icon())
-            delete_btn.setStyleSheet("""
-                QPushButton {
-                    background: #5d2e2e;
-                    border: 1px solid #7d3d3d;
-                    color: white;
-                    padding: 6px 12px;
-                    border-radius: 3px;
-                    font-size: 11px;
-                }
-                QPushButton:hover {
-                    background: #7d3d3d;
-                }
-            """)
             delete_btn.clicked.connect(lambda: self._delete_level(level_num))
             layout.addWidget(delete_btn)
 
         return action_widget
 
 
-    def _create_bottom_bar(self): #vers 1
+    def _create_bottom_bar(self): #vers 2
         """Create bottom status bar"""
         bottom_bar = QFrame()
         bottom_bar.setFrameStyle(QFrame.Shape.StyledPanel)
-        bottom_bar.setStyleSheet("""
-            QFrame {
-                background: palette(base);
-                border-top: 1px solid #3a3a3a;
-            }
-        """)
         bottom_bar.setFixedHeight(45)
 
         layout = QHBoxLayout(bottom_bar)
@@ -1452,7 +1305,6 @@ class MipmapManagerWindow(QWidget): #vers 2
         total_size_kb = total_size / 1024
 
         stats_label = QLabel(f"Total Levels: {num_levels} | Total Size: {total_size_kb:.1f} KB")
-        stats_label.setStyleSheet("color: #888; font-size: 12px;")
         layout.addWidget(stats_label)
 
         # Modified badge if there are changes
@@ -1726,7 +1578,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         self.setMouseTracking(True)
 
 
-    def setup_ui(self): #vers 8
+    def setup_ui(self): #vers 9
         """Setup modern UI - Now includes reflection maps"""
         from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                     QPushButton, QGroupBox, QSplitter, QFrame)
@@ -1776,45 +1628,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         # main_layout.addWidget(button_bar)
 
         # Set dark theme
-        self.setStyleSheet("""
-            QWidget {
-                background-color: palette(base);
-                color: palette(mid);
-                font-family: 'Segoe UI', sans-serif;
-            }
-            QGroupBox {
-                border: 1px solid palette(mid);
-                border-radius: 4px;
-                margin-top: 8px;
-                padding-top: 8px;
-                font-weight: bold;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 8px;
-                padding: 0 4px;
-            }
-            QPushButton {
-                background-color: palette(mid);
-                border: 1px solid palette(mid);
-                border-radius: 3px;
-                padding: 5px 15px;
-                min-height: 25px;
-            }
-            QPushButton:hover {
-                background-color: palette(mid);
-                border: 1px solid palette(mid);
-            }
-            QPushButton:pressed {
-                background-color: palette(base);
-            }
-            QLabel {
-                border: none;
-            }
-            QFrame {
-                border: 1px solid palette(mid);
-            }
-        """)
 
         # Update previews AFTER all widgets are created
         if hasattr(self, 'bumpmap_preview'):
@@ -1823,27 +1636,10 @@ class BumpmapManagerWindow(QWidget): #vers 1
             self._update_reflection_previews()
 
 
-    def _create_left_panel(self): #vers 6
+    def _create_left_panel(self): #vers 7
         """Create left panel - title on far right"""
         panel = QGroupBox("Main Texture    .")
         # Style to move title to the right
-        panel.setStyleSheet("""
-            QGroupBox {
-                font-size: 14px;
-                border: 1px solid palette(mid);
-                border-radius: 1px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: palette(base);
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top right;
-                right: 20px;
-                padding: 0 5px;
-                color: palette(mid);
-            }
-        """)
 
         layout = QVBoxLayout(panel)
         layout.setSpacing(10)
@@ -1857,7 +1653,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
 
         # Name
         name_label = QLabel(f"Name: {self.texture_data.get('name', 'Unknown')}")
-        name_label.setStyleSheet("font-size: 14pt; line-height: 1.4;")
         name_label.setWordWrap(False)
         info_layout.addWidget(name_label)
 
@@ -1865,13 +1660,11 @@ class BumpmapManagerWindow(QWidget): #vers 1
         width = self.texture_data.get('width', 0)
         height = self.texture_data.get('height', 0)
         size_label = QLabel(f"Size: {width} x {height}")
-        size_label.setStyleSheet("font-size: 14pt; line-height: 1.4;")
         info_layout.addWidget(size_label)
 
         # Format
         fmt = self.texture_data.get('format', 'Unknown')
         format_label = QLabel(f"Format: {fmt}")
-        format_label.setStyleSheet("font-size: 14pt; line-height: 1.4;")
         info_layout.addWidget(format_label)
 
         info_layout.addStretch()
@@ -1882,7 +1675,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         preview_label = QLabel()
         preview_label.setMinimumHeight(250)
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(base);")
 
         # Load texture preview
         rgba_data = self.texture_data.get('rgba_data')
@@ -1902,30 +1694,12 @@ class BumpmapManagerWindow(QWidget): #vers 1
 
 
 
-    def _create_middle_panel(self): #vers 2
+    def _create_middle_panel(self): #vers 3
         """Create middle panel with bumpmap controls"""
         from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QGroupBox, QLabel
 
         panel = QGroupBox("Controls    .")
         # Match your styling
-        panel.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                border: 1px solid #3a3a3a;
-                border-radius: 1px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: #2b2b2b;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top right;
-                right: 20px;
-                padding: 0 5px;
-                color: #e0e0e0;
-            }
-        """)
 
         layout = QVBoxLayout(panel)
         layout.setSpacing(10)
@@ -1936,7 +1710,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
             "Generate from texture or import."
         )
         info_label.setFont(self.panel_font)
-        info_label.setStyleSheet("color: #888; line-height: 1.4;")
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
 
@@ -1976,33 +1749,14 @@ class BumpmapManagerWindow(QWidget): #vers 1
             "• Both (Height + Normal)"
         )
         type_info.setFont(self.panel_font)
-        type_info.setStyleSheet("color: #aaa; font-size: 9pt;")
         type_info.setWordWrap(True)
         layout.addWidget(type_info)
         return panel
 
-    def _create_right_panel(self): #vers 6
+    def _create_right_panel(self): #vers 7
         """Create right panel - title on far right"""
         panel = QGroupBox("Bumpmap    .")
         # Style to move title to the right
-        panel.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                border: 1px solid palette(mid);
-                border-radius: 1px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: palette(base);
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top right;
-                right: 20px;
-                padding: 0 5px;
-                color: palette(mid);
-            }
-        """)
 
         layout = QVBoxLayout(panel)
         layout.setSpacing(10)
@@ -2027,7 +1781,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         # Type
         type_label = QLabel("Type: Environment map (Normal map)")
         type_label.setFont(self.panel_font)
-        type_label.setStyleSheet("line-height: 1.4;")
         info_layout.addWidget(type_label)
 
         info_layout.addStretch()
@@ -2039,7 +1792,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         self.bumpmap_preview.setMinimumHeight(250)
         self.bumpmap_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.bumpmap_preview.setFont(self.panel_font)
-        self.bumpmap_preview.setStyleSheet("border: 1px solid palette(mid); background: palette(base);")
 
         # Load bumpmap preview if available
         if has_bumpmap:
@@ -2052,16 +1804,10 @@ class BumpmapManagerWindow(QWidget): #vers 1
         return panel
 
 
-    def _create_title_bar(self): #vers 8
+    def _create_title_bar(self): #vers 9
         """Create title bar with 14px button text"""
         title_bar = QFrame()
         title_bar.setFixedHeight(40)
-        title_bar.setStyleSheet("""
-            QFrame {
-                background-color: palette(base);
-                border-bottom: 1px solid #3a3a3a;
-            }
-        """)
 
         layout = QHBoxLayout(title_bar)
         layout.setContentsMargins(10, 5, 10, 5)
@@ -2076,7 +1822,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         title_label = QLabel(f"{self.texture_data.get('name', 'Unknown')}")
         title_label.setObjectName("title_label")
         title_label.setFont(self.panel_font)
-        title_label.setStyleSheet("color: palette(mid); font-weight: bold;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label, stretch=1)
 
@@ -2090,17 +1835,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         add_btn.clicked.connect(self._generate_bumpmap)
         add_btn.setToolTip("Generate bumpmap (F9)")
         add_btn.setFont(self.button_font)
-        add_btn.setStyleSheet("""
-            QPushButton {
-                background-color: palette(mid);
-                color: palette(mid);
-                border: 1px solid palette(mid);
-                border-radius: 1px;
-            }
-            QPushButton:hover {
-                background-color: palette(mid);
-            }
-        """)
 
         layout.addWidget(add_btn)
 
@@ -2111,14 +1845,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         delete_btn.setEnabled(self._has_bumpmap())
         delete_btn.setToolTip("Remove bumpmap (F11)")
         delete_btn.setFont(self.button_font)
-        delete_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #c42b1c;
-                color: palette(mid);
-                border: 1px solid #d43b2c;
-                border-radius: 1px;
-            }
-        """)
         layout.addWidget(delete_btn)
 
         # Apply button
@@ -2126,18 +1852,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         apply_btn.setFixedSize(button_width, button_height)
         apply_btn.clicked.connect(self._apply_changes)
         apply_btn.setToolTip("Apply changes")
-        apply_btn.setStyleSheet("""
-            QPushButton {
-                background-color: palette(highlight);
-                color: white;
-                border: 1px solid palette(highlight);
-                border-radius: 1px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: palette(highlight);
-            }
-        """)
         layout.addWidget(apply_btn)
 
         # Close button
@@ -2145,25 +1859,12 @@ class BumpmapManagerWindow(QWidget): #vers 1
         close_btn.setFixedSize(button_width, button_height)
         close_btn.clicked.connect(self.close)
         close_btn.setToolTip("Close window")
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background-color: palette(mid);
-                color: palette(mid);
-                border: 1px solid palette(mid);
-                border-radius: 1px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #c42b1c;
-                color: white;
-            }
-        """)
         layout.addWidget(close_btn)
 
         return title_bar
 
 
-    def _create_menu_bar(self): #vers 3
+    def _create_menu_bar(self): #vers 4
         """Create compact menu bar for embedding in title bar"""
         from PyQt6.QtWidgets import QMenuBar
         from PyQt6.QtGui import QKeySequence
@@ -2173,31 +1874,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
             from PyQt6.QtWidgets import QAction
 
         menu_bar = QMenuBar()
-        menu_bar.setStyleSheet("""
-            QMenuBar {
-                background-color: transparent;
-                color: palette(mid);
-                border: none;
-            }
-            QMenuBar::item {
-                background-color: transparent;
-                padding: 5px 14px;
-            }
-            QMenuBar::item:selected {
-                background-color: palette(mid);
-            }
-            QMenu {
-                background-color: palette(base);
-                color: palette(mid);
-                border: 1px solid palette(mid);
-            }
-            QMenu::item {
-                padding: 5px 25px 5px 14px;
-            }
-            QMenu::item:selected {
-                background-color: palette(mid);
-            }
-        """)
 
         # Edit menu
         edit_menu = menu_bar.addMenu("Edit")
@@ -2304,9 +1980,9 @@ class BumpmapManagerWindow(QWidget): #vers 1
             self.showMaximized()
 
 
-    def _has_bumpmap(self): #vers 1
+    def _has_bumpmap(self): #vers 2
         """Check if texture has bumpmap"""
-        if 'bumpmap_data' in self.texture_data or self.texture_data.get('has_bumpmap', False):
+        if self.texture_data.get('bumpmap_data') or self.texture_data.get('has_bumpmap', False):
             return True
         if 'raster_format_flags' in self.texture_data:
             return bool(self.texture_data.get('raster_format_flags', 0) & 0x10)
@@ -2424,30 +2100,12 @@ class BumpmapManagerWindow(QWidget): #vers 1
 
             QMessageBox.information(self, "Success", "Bumpmap deleted")
 
-    def _create_reflection_panel(self): #vers 2
+    def _create_reflection_panel(self): #vers 3
         """Create panel for reflection map display and generation - WITH IMPORT"""
         from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGroupBox
         from PyQt6.QtCore import Qt
 
         panel = QGroupBox("Reflection Maps    .")
-        panel.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                border: 1px solid palette(mid);
-                border-radius: 1px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: palette(base);
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top right;
-                right: 20px;
-                padding: 0 5px;
-                color: palette(mid);
-            }
-        """)
 
         layout = QVBoxLayout(panel)
         layout.setSpacing(10)
@@ -2455,7 +2113,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         # Info label
         info = QLabel("Generate from normal map\nor import existing maps")
         info.setFont(self.panel_font)
-        info.setStyleSheet("color: #888; line-height: 1.4;")
         info.setWordWrap(True)
         layout.addWidget(info)
 
@@ -2469,9 +2126,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         self.reflection_preview.setMinimumSize(150, 150)
         self.reflection_preview.setMaximumSize(150, 150)
         self.reflection_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.reflection_preview.setStyleSheet(
-            "border: 1px solid palette(mid); background: palette(base);"
-        )
         self.reflection_preview.setText("No data")
         self.reflection_preview.setFont(self.panel_font)
         layout.addWidget(self.reflection_preview)
@@ -2486,9 +2140,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         self.fresnel_preview.setMinimumSize(150, 150)
         self.fresnel_preview.setMaximumSize(150, 150)
         self.fresnel_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.fresnel_preview.setStyleSheet(
-            "border: 1px solid palette(mid); background: palette(base);"
-        )
         self.fresnel_preview.setText("No data")
         self.fresnel_preview.setFont(self.panel_font)
         layout.addWidget(self.fresnel_preview)

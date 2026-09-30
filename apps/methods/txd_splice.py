@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_splice.py - Version: 1
+#this belongs in apps/methods/txd_splice.py - Version: 2
 # X-Seti - September 20 2026 - IMG Factory 1.6 - TXD splice rebuild
 
 """txd_splice.py - Rebuild a TXD from the ORIGINAL file bytes so a save
@@ -14,6 +14,8 @@ edit (original data kept as-is) or re-encoded everything in SA layout
 # texture_signature
 # split_txd
 # build_d3d8_chunk
+# build_txd
+# _level_rgba
 # rebuild_txd
 
 import struct
@@ -77,41 +79,76 @@ def _patch_names(chunk: bytes, name: str, alpha: str) -> bytes:
     return bytes(b)
 
 
-def build_d3d8_chunk(tex: Dict, rw_ver: int, enc_dxt1: Callable, enc_dxt5: Callable = None) -> Optional[bytes]: #vers 1
+def _level_rgba(rgba: bytes, w: int, h: int, lw: int, lh: int) -> bytes: #vers 1
+    """RGBA of one mip level, box-filtered down from the full image."""
+    if (lw, lh) == (w, h):
+        return rgba
+    from PIL import Image
+    return Image.frombytes('RGBA', (w, h), rgba).resize((lw, lh), Image.Resampling.BOX).tobytes()
+
+
+def build_d3d8_chunk(tex: Dict, rw_ver: int, enc_dxt1: Callable, enc_dxt5: Callable = None) -> Optional[bytes]: #vers 2
     """One D3D8 (GTA III/VC layout, also read by SA) texture-native chunk
-    for a new/replaced texture: always DXT1 (no alpha) or DXT3 (alpha),
-    single mip level, sourced from tex['rgba_data'] (RGBA). Matches the
-    layout of real VC files: 88 byte struct + one size-prefixed level +
-    empty extension."""
+    for a new/replaced texture: DXT1 (no alpha) or DXT3 (alpha), sourced
+    from tex['rgba_data'] (RGBA). Keeps the texture's mip level count
+    (levels rebuilt from the edited image). 88 byte struct, one
+    size-prefixed block per level, empty extension."""
     w, h = int(tex.get('width') or 0), int(tex.get('height') or 0)
     rgba = bytes(tex.get('rgba_data') or b'')
     if w <= 0 or h <= 0 or len(rgba) < w * h * 4:
         return None
-    alpha = rgba[3:w * h * 4:4]
-    has_alpha = min(alpha) < 255 if alpha else False
-    if has_alpha:
-        opaque = bytearray(rgba[:w * h * 4])
-        opaque[3::4] = b'\xff' * (w * h)
-        colour = enc_dxt1(bytes(opaque), w, h)
-        bx, by = (w + 3) // 4, (h + 3) // 4
-        data = bytearray()
-        for j in range(by):
-            for i in range(bx):
-                bits = 0
-                for k in range(16):
-                    x, y = min(i * 4 + (k & 3), w - 1), min(j * 4 + (k >> 2), h - 1)
-                    bits |= (alpha[y * w + x] >> 4) << (4 * k)
-                data += bits.to_bytes(8, 'little') + colour[(j * bx + i) * 8:(j * bx + i) * 8 + 8]
-        data, cmp_code, rf = bytes(data), 3, 0x300
-    else:
-        data, cmp_code, rf = enc_dxt1(rgba, w, h), 1, 0x200
+    rgba = rgba[:w * h * 4]
+    alpha_all = rgba[3::4]
+    has_alpha = min(alpha_all) < 255 if alpha_all else False
+    levels = max(1, len(tex.get('mipmap_levels') or []))
+    blocks = []
+    lw, lh = w, h
+    for _ in range(levels):
+        lv = _level_rgba(rgba, w, h, lw, lh)
+        if has_alpha:
+            alpha = lv[3::4]
+            opaque = bytearray(lv)
+            opaque[3::4] = b'\xff' * (lw * lh)
+            colour = enc_dxt1(bytes(opaque), lw, lh)
+            bx, by = (lw + 3) // 4, (lh + 3) // 4
+            data = bytearray()
+            for j in range(by):
+                for i in range(bx):
+                    bits = 0
+                    for k in range(16):
+                        x, y = min(i * 4 + (k & 3), lw - 1), min(j * 4 + (k >> 2), lh - 1)
+                        bits |= (alpha[y * lw + x] >> 4) << (4 * k)
+                    data += bits.to_bytes(8, 'little') + colour[(j * bx + i) * 8:(j * bx + i) * 8 + 8]
+            blocks.append(bytes(data))
+        else:
+            blocks.append(enc_dxt1(lv, lw, lh))
+        if lw == 1 and lh == 1:
+            break
+        lw, lh = max(1, lw // 2), max(1, lh // 2)
+    cmp_code, rf = (3, 0x300) if has_alpha else (1, 0x200)
+    if len(blocks) > 1:
+        rf |= 0x8000                                    # rwRASTERFORMATMIPMAP
     name = str(tex.get('name', 'texture')).encode('ascii', 'ignore')[:31].ljust(32, b'\0')
     mask = str(tex.get('alpha_name', '') or '').encode('ascii', 'ignore')[:31].ljust(32, b'\0')
     body = (struct.pack('<II', 8, int(tex.get('filter_flags') or 0x1106)) + name + mask
-            + struct.pack('<IIHHBBBB', rf, 1 if has_alpha else 0, w, h, 16, 1, 4, cmp_code)
-            + struct.pack('<I', len(data)) + data)
+            + struct.pack('<IIHHBBBB', rf, 1 if has_alpha else 0, w, h, 16, len(blocks), 4, cmp_code)
+            + b''.join(struct.pack('<I', len(b)) + b for b in blocks))
     st = struct.pack('<III', 1, len(body), rw_ver) + body
     return struct.pack('<III', _TEX_NATIVE, len(st) + 12, rw_ver) + st + struct.pack('<III', 3, 0, rw_ver)
+
+
+def build_txd(textures: List[Dict], rw_ver: int,
+              serialize_one: Callable[[Dict], Optional[bytes]]) -> Optional[bytes]: #vers 1
+    """New TXD from scratch: every texture through serialize_one."""
+    out = []
+    for t in textures:
+        c = serialize_one(t)
+        if not c:
+            return None
+        out.append(c)
+    inner = (struct.pack('<III', 1, 4, rw_ver) + struct.pack('<HH', len(out), 0)
+             + b''.join(out) + struct.pack('<III', 3, 0, rw_ver))
+    return struct.pack('<III', _TXD_DICT, len(inner), rw_ver) + inner
 
 
 def rebuild_txd(original: bytes, textures: List[Dict],
