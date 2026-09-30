@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 3
+#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 4
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop 3D viewport
 
 """
@@ -290,10 +290,9 @@ class COL3DViewport(QWidget): #vers 2
         self.update()
 
 
-    def _pick_face(self, mx, my):  #vers 1
-        """Return (face_index, face) of the closest face whose projected centroid
-        is within 20px of click, or (None, None)."""
-        import math
+    def _pick_face(self, mx, my):  #vers 2
+        """Return (face_index, face) whose projected triangle contains the click,
+        topmost (drawn last) first, or (None, None)."""
         model = self._model
         if not model: return None, None
         verts = getattr(model, 'vertices', [])
@@ -302,31 +301,25 @@ class COL3DViewport(QWidget): #vers 2
 
         scale, ox, oy = self._get_scale_origin()
 
-        def ts(x, y, z):  #vers 1
+        def ts(v):  #vers 2
+            x, y, z = (v.x, v.y, v.z) if hasattr(v, 'x') else (float(v[0]), float(v[1]), float(v[2]))
             px, py = self._proj(x, y, z)
             return px * scale + ox, py * scale + oy
 
-        def g3(obj):  #vers 1
-            if hasattr(obj, 'x'): return obj.x, obj.y, obj.z
-            return float(obj[0]), float(obj[1]), float(obj[2])
+        def side(ax, ay, bx, by, cx, cy):  #vers 1
+            return (ax - cx) * (by - cy) - (bx - cx) * (ay - cy)
 
-        best_i, best_d = None, 20.0   # 20px pick radius
-        for i, face in enumerate(faces):
-            fa = getattr(face, 'a', None)
-            if fa is None: continue
-            try:
-                ax, ay, az = g3(verts[face.a])
-                bx, by, bz = g3(verts[face.b])
-                cx, cy, cz = g3(verts[face.c])
-            except IndexError: continue
-            # centroid in screen space
-            sx, sy = ts((ax+bx+cx)/3, (ay+by+cy)/3, (az+bz+cz)/3)
-            d = math.hypot(mx - sx, my - sy)
-            if d < best_d:
-                best_d, best_i = d, i
-
-        if best_i is not None:
-            return best_i, faces[best_i]
+        n = len(verts)
+        for i in range(len(faces) - 1, -1, -1):   # faces are painted in order
+            face = faces[i]
+            a, b, c = getattr(face, 'a', -1), getattr(face, 'b', -1), getattr(face, 'c', -1)
+            if not (0 <= a < n and 0 <= b < n and 0 <= c < n): continue
+            (ax, ay), (bx, by), (cx, cy) = ts(verts[a]), ts(verts[b]), ts(verts[c])
+            d1 = side(mx, my, ax, ay, bx, by)
+            d2 = side(mx, my, bx, by, cx, cy)
+            d3 = side(mx, my, cx, cy, ax, ay)
+            if not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0)):
+                return i, face
         return None, None
 
 

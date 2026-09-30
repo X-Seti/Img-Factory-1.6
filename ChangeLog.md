@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 193
+#this belongs in root /ChangeLog.md - Version: 194
+
+## Sep 30 2026 - COL face picking, Build 431.92
+- COL viewport _pick_face: click anywhere inside a face (topmost wins); was centroid within 20px only.
 
 ## Sep 29 2026 - Windows 11 frame, Build 431.92
 - New apply_windows_frame (imgfactory_ui_settings): removes white DWM border on frameless windows, rounded corners. Used by COL Workshop standalone.
