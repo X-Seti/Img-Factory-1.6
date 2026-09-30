@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 196
+#this belongs in root /ChangeLog.md - Version: 197
+
+## Sep 30 2026 - COL PS5 controller, Build 431.105
+- COL viewport game controller (Edit ribbon toggle, saved): Map Workshop layout; Cross select/grab, left stick moves selection, right stick orbit, L2/R2 zoom, Triangle mode, L1/R1 axis.
+- Undo re-selects its model; Move/Rotate/Scale chip widened.
 
 ## Sep 30 2026 - COL edit tools, Build 431.105
 - Gizmo moves/rotates/scales selected faces (whole model if none), arrows and rings clickable, undo, bounds rebuilt; S = scale gizmo.

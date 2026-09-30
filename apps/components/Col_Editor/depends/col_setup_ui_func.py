@@ -1659,6 +1659,10 @@ class COLSetupUIMixin: #vers 1
                 tb_edit.addSeparator()
                 continue
             _act(tb_edit, name, icon, cb, checkable=chk, enabled=False, attr=attr)
+        tb_edit.addSeparator()
+        _act(tb_edit, "Game Controller (PS5)", IF.controller_icon, self._edit_toggle_gamepad,
+             checkable=True, attr='gamepad_btn')
+        self.gamepad_btn.setChecked(self._edit_gamepad_saved())
 
         # Store toolbar refs
         self._tb_transform = tb_xform

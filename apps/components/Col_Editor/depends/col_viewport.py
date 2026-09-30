@@ -13,6 +13,7 @@ COL 3D Viewport - QPainter preview of collision models.
 # fit_to_window
 # flip_horizontal
 # flip_vertical
+# gamepad_step
 # _get_scale_origin
 # _get_ui_color
 # _gizmo_arm
@@ -24,6 +25,8 @@ COL 3D Viewport - QPainter preview of collision models.
 # mouseMoveEvent
 # mousePressEvent
 # mouseReleaseEvent
+# _pad_begin_grab
+# _pad_end_grab
 # paintEvent
 # pan
 # _pick_face
@@ -37,6 +40,7 @@ COL 3D Viewport - QPainter preview of collision models.
 # set_backface
 # set_background_color
 # set_current_model
+# set_gamepad
 # _set_gizmo
 # set_paint_mode
 # set_render_style
@@ -66,7 +70,7 @@ class COL3DViewport(QWidget): #vers 2
     G key / button = translate gizmo, R key / button = rotate gizmo.
     """
 
-    def __init__(self, parent=None):  #vers 2
+    def __init__(self, parent=None):  #vers 3
         super().__init__(parent)
         self.setMinimumSize(200, 200)
         self._model        = None
@@ -102,6 +106,11 @@ class COL3DViewport(QWidget): #vers 2
         self._view_lock    = None         # (scale, ox, oy) frozen while dragging
         self._select_mode  = 'face'       # 'face' | 'vertex'
         self._selected_verts = set()
+        # game controller (methods/gamepad_input.GamepadPoller)
+        self._gamepad      = None
+        self._pad_grab     = False
+        self._pad_fine     = False
+        self._pad_axis     = 'free'       # 'free' | 'X' | 'Y' | 'Z' (L1/R1)
         # face selection / paint state
         self._selected_faces  = set()    # set of face indices currently selected
         self._paint_mode      = False    # True = click face to paint material
@@ -659,6 +668,128 @@ class COL3DViewport(QWidget): #vers 2
         self.update()
 
 
+    def set_gamepad(self, poller):  #vers 1
+        """Attach a GamepadPoller (None detaches); its state drives view and edits."""
+        if self._gamepad is not None:
+            try:
+                self._gamepad.state.disconnect(self.gamepad_step)
+            except TypeError:
+                pass
+        self._gamepad = poller
+        if poller is not None:
+            poller.state.connect(self.gamepad_step)
+        self.update()
+
+
+    def _pad_begin_grab(self):  #vers 1
+        """Start moving the selection (or whole model) with the left stick."""
+        ws = self._find_workshop()
+        if not self._model or not ws: return
+        ws._push_undo(ws.current_col_file.models.index(self._model), f"Controller {self._gizmo_mode}")
+        self._gizmo_pivot3 = self._gizmo_pivot()
+        self._view_lock = self._get_scale_origin()
+        self._pad_grab = True
+        self._gamepad.rumble(0.2, 0.2, 40)
+
+
+    def _pad_end_grab(self, commit):  #vers 1
+        """Drop (commit) or cancel (undo) the controller grab."""
+        self._pad_grab = False
+        self._view_lock = None
+        ws = self._find_workshop()
+        if commit:
+            from apps.methods.col_mesh_ops import recalc_bounds
+            recalc_bounds(self._model)
+            ws._mesh_edited(self._model, f"Controller {self._gizmo_mode}", reselect=False)
+        else:
+            keep = set(self._selected_faces)
+            ws._undo_last_action()
+            self._selected_faces = keep
+        self.update()
+
+
+    def gamepad_step(self, st):  #vers 1
+        """One controller frame (same layout as Map Workshop).
+        Right stick orbit, L2/R2 zoom, left stick pan or move the grab.
+        Cross select / grab / drop, Square add face, Circle cancel / clear,
+        Triangle Move/Rotate/Scale, L1/R1 axis, D-pad models or Z / 15 deg,
+        Options render style, Create undo, touchpad fit, L3 fine, R3 vertex mode."""
+        import math
+        from apps.methods import col_mesh_ops as ops
+        if not self._model:
+            return
+        ws = self._find_workshop()
+        dt, pr, held = st['dt'], st['pressed'], st['held']
+        if 'l3' in pr:
+            self._pad_fine = not self._pad_fine
+        fine = 0.2 if self._pad_fine else 1.0
+        if st['rx'] or st['ry']:
+            self._yaw = (self._yaw + st['rx'] * 120.0 * dt) % 360
+            self._pitch = max(-89.0, min(89.0, self._pitch + st['ry'] * 90.0 * dt))
+        if (st['lt'] or st['rt']) and not self._view_lock:
+            self._zoom = max(0.02, min(40.0, self._zoom * (1.0 + (st['rt'] - st['lt']) * 1.5 * dt)))
+        if 'y' in pr:
+            modes = ['translate', 'rotate', 'scale']
+            self._set_gizmo(modes[(modes.index(self._gizmo_mode) + 1) % 3])
+        if 'l1' in pr or 'r1' in pr:
+            axes = ['free', 'X', 'Y', 'Z']
+            self._pad_axis = axes[(axes.index(self._pad_axis) + (-1 if 'l1' in pr else 1)) % 4]
+        if 'start' in pr:
+            self._cycle_render_style()
+        if 'b' in pr:
+            if self._pad_grab: self._pad_end_grab(False)
+            else: self._selected_faces = set()
+        centre = self._pick_face(self.width() / 2, self.height() / 2)[0]
+        if 'a' in pr:
+            if self._pad_grab:
+                self._pad_end_grab(True)
+            elif centre is None or centre in self._selected_faces:
+                self._pad_begin_grab()
+            else:
+                self._selected_faces = {centre}
+        if 'x' in pr and not self._pad_grab and centre is not None:
+            self._selected_faces ^= {centre}
+        if not self._pad_grab and ws:
+            if 'back' in pr:
+                keep = set(self._selected_faces)
+                ws._undo_last_action(); self._selected_faces = keep
+            if 'touchpad' in pr:
+                self.fit_to_window()
+            if 'r3' in pr and hasattr(ws, 'vertex_mode_btn'):
+                ws.vertex_mode_btn.toggle()
+            step = (-1 if 'up' in pr else 1 if 'down' in pr else 0)
+            if step:
+                n = len(ws.current_col_file.models)
+                ws._select_model_by_row((ws.current_col_file.models.index(self._model) + step) % n)
+                return
+        if self._pad_grab:
+            sel, piv, ax = self._selected_faces, self._gizmo_pivot3, self._pad_axis
+            if self._gizmo_mode == 'rotate':
+                deg = st['lx'] * 90.0 * dt * fine + (-15.0 if 'left' in pr else 15.0 if 'right' in pr else 0.0)
+                if deg:
+                    ops.rotate(self._model, sel, 'Z' if ax == 'free' else ax, deg, piv)
+            elif self._gizmo_mode == 'scale':
+                f = 1.0 - st['ly'] * 0.8 * dt * fine
+                if f != 1.0:
+                    fx, fy, fz = [(f if ax in ('free', a) else 1.0) for a in 'XYZ']
+                    ops.scale(self._model, sel, fx, fy, fz, piv)
+            else:
+                spd = max(0.5, float(self._model.bounds.radius)) * 0.6 * dt * fine
+                yr = math.radians(self._yaw)
+                dx = (st['lx'] * math.cos(yr) + st['ly'] * math.sin(yr)) * spd
+                dy = (-st['lx'] * math.sin(yr) + st['ly'] * math.cos(yr)) * spd
+                dz = (spd if 'up' in held else -spd if 'down' in held else 0.0)
+                if ax == 'X': dy = dz = 0.0
+                elif ax == 'Y': dx = dz = 0.0
+                elif ax == 'Z': dx = dy = 0.0; dz += -st['ly'] * spd
+                if dx or dy or dz:
+                    ops.translate(self._model, sel, dx, dy, dz)
+        elif st['lx'] or st['ly']:
+            self._pan_x -= st['lx'] * 400.0 * dt * fine
+            self._pan_y -= st['ly'] * 400.0 * dt * fine
+        self.update()
+
+
     def resizeEvent(self, event):  #vers 1
         super().resizeEvent(event)
         ws = self._find_workshop()
@@ -729,7 +860,7 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    paint                                                              
-    def paintEvent(self, event):  #vers 6
+    def paintEvent(self, event):  #vers 7
         """Fully self-contained paint — grid, mesh, boxes, spheres, bounds, gizmo, HUD."""
         from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush, QRadialGradient,
                                   QPolygonF, QLinearGradient)
@@ -1137,7 +1268,7 @@ class COL3DViewport(QWidget): #vers 2
             icon_y = _ROW2_Y + (_CHIP_H - _ICON_SZ)//2
             icon.paint(p, QRect(icon_x, icon_y, _ICON_SZ, _ICON_SZ))
         else:
-            bx,by,bw,bh=W-70,4,66,22
+            bx,by,bw,bh=W-88,4,84,22
             _pal7 = self.palette()
             p.setBrush(QBrush(_pal7.color(_pal7.ColorRole.Button)))
             p.setPen(QPen(_pal7.color(_pal7.ColorRole.Mid), 1))
@@ -1155,6 +1286,17 @@ class COL3DViewport(QWidget): #vers 2
             p.drawRoundedRect(W-70,28,66,18,3,3)
             p.setPen(mode_col); p.setFont(QFont('Arial',7))
             p.drawText(W-66,41,f"[V] {mode_lbl}")
+
+        #    Controller reticle: Cross / Square act on the face under it
+        if self._gamepad is not None:
+            cx0, cy0 = W / 2, H / 2
+            p.setPen(QPen(QColor(150, 240, 255), 2))
+            for a0, b0 in (((cx0-12, cy0), (cx0-4, cy0)), ((cx0+4, cy0), (cx0+12, cy0)),
+                           ((cx0, cy0-12), (cx0, cy0-4)), ((cx0, cy0+4), (cx0, cy0+12))):
+                p.drawLine(QPointF(*a0), QPointF(*b0))
+            p.setFont(QFont('Arial', 7))
+            tag = ("GRAB " if self._pad_grab else "") + f"{self._gizmo_mode} {self._pad_axis}" + (" fine" if self._pad_fine else "")
+            p.drawText(int(cx0) + 14, int(cy0) + 18, tag)
 
         #    HUD                                                            
         p.setFont(QFont('Arial',8)); p.setPen(self._get_ui_color('border'))

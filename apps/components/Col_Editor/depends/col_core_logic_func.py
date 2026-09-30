@@ -660,7 +660,7 @@ class COLCoreLogicMixin: #vers 1
         if hasattr(self, 'paint_undo_btn') and getattr(self, 'paint_toolbar', None)                 and self.paint_toolbar.isVisible():
             self.paint_undo_btn.setEnabled(True)
 
-    def _undo_last_action(self): #vers 2
+    def _undo_last_action(self): #vers 3
         """Restore the last deep-copied model from the undo stack."""
         try:
             if not self.undo_stack:
@@ -675,8 +675,7 @@ class COLCoreLogicMixin: #vers 1
                     models[idx] = saved
                     self._populate_collision_list()
                     self._populate_compact_col_list()
-                    if hasattr(self, 'preview_widget'):
-                        self.preview_widget.set_current_model(saved, idx)
+                    self._select_model_by_row(idx)
             if hasattr(self, 'undo_col_btn'):
                 self.undo_col_btn.setEnabled(bool(self.undo_stack))
             msg = f"Undo: {desc}" if desc else "Undo applied"

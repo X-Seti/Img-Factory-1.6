@@ -16,11 +16,13 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _edit_faces_to_box
 # _edit_faces_to_sphere
 # _edit_fill_hole
+# _edit_gamepad_saved
 # _edit_scale_dialog
 # _edit_selection
 # _edit_selection_to_file
 # _edit_selection_to_model
 # _edit_sphere_to_mesh
+# _edit_toggle_gamepad
 # _edit_toggle_vertex_mode
 # _edit_weld
 # _merge_col_files
@@ -284,6 +286,48 @@ class COLEditMixin: #vers 1
         ops.translate(model, set(), -c.x, -c.y, -c.z)
         ops.recalc_bounds(model)
         self._mesh_edited(model, f"Centred {model.name} (moved {-c.x:.2f}, {-c.y:.2f}, {-c.z:.2f})")
+
+    def _edit_gamepad_saved(self): #vers 1
+        """Saved controller on/off from col_workshop.json."""
+        import json
+        from apps.methods.img_factory_settings import get_user_config_dir
+        try:
+            return bool(json.loads((get_user_config_dir() / 'col_workshop.json').read_text()).get('gamepad_enabled'))
+        except (OSError, ValueError):
+            return False
+
+    def _edit_toggle_gamepad(self, on): #vers 1
+        """Start or stop the PS5 / game controller; remembered in col_workshop.json."""
+        import json
+        from apps.methods.img_factory_settings import get_user_config_dir
+        vp = self.preview_widget
+        pad = getattr(self, '_gamepad', None)
+        if on and pad is None:
+            from apps.methods.gamepad_input import GamepadPoller
+            pad = GamepadPoller(self)
+            pad.connected.connect(lambda n: self._set_status(
+                f"Controller connected: {n}" if n else "Controller disconnected"))
+            try:
+                pad.start()
+            except ImportError:
+                QMessageBox.warning(self, "Game Controller",
+                                    "Controller support needs pygame 2:\n\npip install pygame")
+                self.gamepad_btn.setChecked(False)
+                return
+            self._gamepad = pad
+            vp.set_gamepad(pad)
+            self._set_status("Controller on: Cross select/grab, right stick orbit, L2/R2 zoom")
+        elif not on and pad is not None:
+            pad.stop()
+            vp.set_gamepad(None)
+            self._gamepad = None
+        path = get_user_config_dir() / 'col_workshop.json'
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            data = {}
+        data['gamepad_enabled'] = bool(on and self._gamepad is not None)
+        path.write_text(json.dumps(data, indent=2))
 
     def _merge_col_files(self): #vers 1
         """Pick COL files; all their models are added to the open file."""
