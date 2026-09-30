@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 37
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 38
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -38,6 +38,7 @@ from PyQt6.QtCore import Qt
 # delete_surface_icon
 # delete_vertex_icon
 # detach_faces_icon
+# duplicate_surface_icon
 # edit_icon
 # export_icon
 # file_icon
@@ -3635,6 +3636,19 @@ class SVGIconFactory: #vers 8
                 <rect x="14.8" y="9.3" width="3.4" height="1.8" fill="#e03030" opacity="0.7"/>
                 <path d="M14.8,11.1 L18.2,11.1 L17.6,14.5 C17.2,15.6 15.8,15.6 15.4,14.5 Z" fill="#e03030"/>
             </g>
+        </svg>''', size, color)
+
+    @staticmethod
+    def duplicate_surface_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Duplicate surface - green stroke copied to an offset red dotted one"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="21" height="21" rx="1.5" fill="none" stroke="currentColor"
+                  stroke-width="1.2" stroke-dasharray="2.2 1.8" opacity="0.8"/>
+            <rect x="2.5" y="17.5" width="15" height="3" fill="#30b040"/>
+            <rect x="6.5" y="5" width="15" height="3" fill="none" stroke="#e03030"
+                  stroke-width="1.2" stroke-dasharray="1.6 1.2"/>
+            <line x1="9" y1="16" x2="12.2" y2="10.6" stroke="#e03030" stroke-width="1.5" stroke-linecap="round"/>
+            <polygon points="13.2,8.9 13.6,12.2 10.6,10.4" fill="#e03030"/>
         </svg>''', size, color)
 
     @staticmethod
