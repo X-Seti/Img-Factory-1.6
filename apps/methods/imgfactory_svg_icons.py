@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 27
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 28
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -3461,14 +3461,12 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def create_shadow_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """Create shadow mesh - red S casting its shadow on the ground"""
+    def create_shadow_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 2
+        """Create shadow mesh - red S with a 3D drop shadow"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <line x1="1" y1="21.5" x2="23" y2="21.5" stroke="currentColor" stroke-width="1" opacity="0.5"/>
-            <path d="M16.5,6.5 C15,3.5 7.5,3.5 7.5,8 C7.5,12 16.5,11 16.5,15.5 C16.5,20.5 8.5,20.5 7,17.5" transform="matrix(0.62,0,0.75,0.22,-0.5,16.7)" fill="none" stroke="currentColor"
-                  stroke-width="3.6" stroke-linecap="round" opacity="0.55"/>
-            <path d="M16.5,6.5 C15,3.5 7.5,3.5 7.5,8 C7.5,12 16.5,11 16.5,15.5 C16.5,20.5 8.5,20.5 7,17.5" transform="matrix(0.72,0,0,0.9,-2,1.8)" fill="none" stroke="#e03030"
-                  stroke-width="3" stroke-linecap="round"/>
+            <path d="M16.5,6.5 C15,3.5 7.5,3.5 7.5,8 C7.5,12 16.5,11 16.5,15.5 C16.5,20.5 8.5,20.5 7,17.5" transform="translate(2.2,2)" fill="none" stroke="currentColor"
+                  stroke-width="3.4" stroke-linecap="round" opacity="0.6"/>
+            <path d="M16.5,6.5 C15,3.5 7.5,3.5 7.5,8 C7.5,12 16.5,11 16.5,15.5 C16.5,20.5 8.5,20.5 7,17.5" fill="none" stroke="#e03030" stroke-width="3.4" stroke-linecap="round"/>
         </svg>''', size, color)
 
     @staticmethod
@@ -3483,12 +3481,14 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def remove_shadow_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-        """Remove shadow mesh - red S with a 3D drop shadow"""
+    def remove_shadow_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 2
+        """Remove shadow mesh - shadowed S under a null sign"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M16.5,6.5 C15,3.5 7.5,3.5 7.5,8 C7.5,12 16.5,11 16.5,15.5 C16.5,20.5 8.5,20.5 7,17.5" transform="translate(2.2,2)" fill="none" stroke="currentColor"
                   stroke-width="3.4" stroke-linecap="round" opacity="0.6"/>
             <path d="M16.5,6.5 C15,3.5 7.5,3.5 7.5,8 C7.5,12 16.5,11 16.5,15.5 C16.5,20.5 8.5,20.5 7,17.5" fill="none" stroke="#e03030" stroke-width="3.4" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+            <line x1="4.9" y1="19.1" x2="19.1" y2="4.9" stroke="currentColor" stroke-width="2"/>
         </svg>''', size, color)
 
     @staticmethod
