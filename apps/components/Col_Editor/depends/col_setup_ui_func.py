@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 6
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 7
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -1459,7 +1459,7 @@ class COLSetupUIMixin: #vers 1
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 5
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 6
         """Build all QToolBar instances using QAction (Model Workshop pattern,
         Build 388+). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_preview_controls panels."""
@@ -1633,6 +1633,33 @@ class COLSetupUIMixin: #vers 1
         _act(tb_shadow, "Remove Shadow Mesh", self.icon_factory.delete_icon,
              self._remove_shadow,       enabled=False, attr='remove_shadow_btn')
 
+        #    Ribbon 7: Edit (selection tools; whole model when nothing selected)
+        tb_edit = _tb("Edit", Qt.ToolBarArea.TopToolBarArea)
+        IF = self.icon_factory
+        for name, icon, cb, attr, chk in [
+            ("Vertex Select Mode",         IF.vertex_select_icon,      self._edit_toggle_vertex_mode, 'vertex_mode_btn', True),
+            ("Scale Gizmo [S]",            IF.dp_resize_icon,          lambda: pw._set_gizmo('scale'), 'scale_gizmo_btn', False),
+            ("Scale...",                   IF.bounds_icon,             self._edit_scale_dialog,       'scale_btn',       False),
+            ("Centre to Origin",           IF.snap_to_center_icon,     self._edit_centre_origin,      'centre_btn',      False),
+            (None, None, None, None, None),
+            ("Detach Selected Faces",      IF.poly_select_icon,        self._edit_detach,             'detach_btn',      False),
+            ("Selection to New Model",     IF.new_icon,                self._edit_selection_to_model, 'sel_model_btn',   False),
+            ("Save Selection as COL...",   IF.export_icon,             self._edit_selection_to_file,  'sel_file_btn',    False),
+            ("Delete Selected Faces",      IF.delete_icon,             self._edit_delete_faces,       'del_faces_btn',   False),
+            ("Weld Selected Vertices",     IF.converge_to_center_icon, self._edit_weld,               'weld_btn',        False),
+            ("Fill Hole",                  IF.fill_icon,               self._edit_fill_hole,          'fill_hole_btn',   False),
+            (None, None, None, None, None),
+            ("Box to Mesh",                IF.box_icon,                self._edit_box_to_mesh,        'box_mesh_btn',    False),
+            ("Sphere to Mesh",             IF.sphere_icon,             self._edit_sphere_to_mesh,     'sphere_mesh_btn', False),
+            ("Faces to Box",               IF.mesh_icon,               self._edit_faces_to_box,       'faces_box_btn',   False),
+            ("Faces to Sphere",            IF.shading_sphere_icon,     self._edit_faces_to_sphere,    'faces_sphere_btn', False),
+            (None, None, None, None, None),
+            ("Merge COL Files...",         IF.import_icon,             self._merge_col_files,         'merge_btn',       False)]:
+            if name is None:
+                tb_edit.addSeparator()
+                continue
+            _act(tb_edit, name, icon, cb, checkable=chk, enabled=False, attr=attr)
+
         # Store toolbar refs
         self._tb_transform = tb_xform
         self._tb_nav       = tb_nav
@@ -1640,6 +1667,7 @@ class COLSetupUIMixin: #vers 1
         self._tb_name        = tb_name
         self._tb_format      = tb_format
         self._tb_shadow      = tb_shadow
+        self._tb_edit        = tb_edit
 
         # Collision-loaded-only actions - disabled until a COL model is loaded.
         # (Actual enable/disable on file load still goes through the existing
@@ -2238,7 +2266,7 @@ class COLSetupUIMixin: #vers 1
         self.info_name.selectAll()
         self.info_name.setFocus()
 
-    def _set_col_buttons_enabled(self, enabled: bool): #vers 1
+    def _set_col_buttons_enabled(self, enabled: bool): #vers 2
         """Enable/disable all transform buttons in BOTH icon and text panels.
         The text panel overwrites self.X refs, so when the icon panel is visible
         (narrow mode) those refs point to hidden buttons. Walk the icon panel too.
@@ -2249,6 +2277,9 @@ class COLSetupUIMixin: #vers 1
             'paint_btn', 'surface_type_btn', 'surface_edit_btn', 'build_from_txd_btn',
             'show_shadow_btn', 'create_shadow_btn', 'remove_shadow_btn',
             'compress_btn', 'uncompress_btn', 'switch_btn', 'convert_btn',
+            'vertex_mode_btn', 'scale_gizmo_btn', 'scale_btn', 'centre_btn', 'detach_btn',
+            'sel_model_btn', 'sel_file_btn', 'del_faces_btn', 'weld_btn', 'fill_hole_btn',
+            'box_mesh_btn', 'sphere_mesh_btn', 'faces_box_btn', 'faces_sphere_btn', 'merge_btn',
         ]
         for attr in col_btn_attrs:
             btn = getattr(self, attr, None)

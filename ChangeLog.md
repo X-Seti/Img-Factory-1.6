@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 195
+#this belongs in root /ChangeLog.md - Version: 196
+
+## Sep 30 2026 - COL edit tools, Build 431.105
+- Gizmo moves/rotates/scales selected faces (whole model if none), arrows and rings clickable, undo, bounds rebuilt; S = scale gizmo.
+- New Edit ribbon + face menu: detach, selection to model/COL (copy or move), delete, vertex mode + weld, fill hole, box/sphere to mesh and back, scale, centre, merge COL files.
+- New methods/col_mesh_ops.py (shared geometry) and depends/col_edit_func.py (COLEditMixin).
 
 ## Sep 30 2026 - COL shadow mesh, ghost fills, dead code, Build 431.105
 - COL3 shadow mesh now read, drawn (View toggle, magenta), created, removed, undone, saved; lines and flags kept on fresh writes (574 SA models verified).

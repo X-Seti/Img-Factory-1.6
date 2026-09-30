@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 123
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 124
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -39,6 +39,7 @@ from apps.methods.gl_viewport_mixin import GLViewportMixin
 
 from apps.components.Col_Editor.depends.col_win_func import COLWindowMixin
 from apps.components.Col_Editor.depends.col_paint_func import COLPaintMixin
+from apps.components.Col_Editor.depends.col_edit_func import COLEditMixin
 from apps.components.Col_Editor.depends.col_list_func import COLListMixin
 from apps.components.Col_Editor.depends.col_core_logic_func import COLCoreLogicMixin
 from apps.components.Col_Editor.depends.col_setup_ui_func import COLSetupUIMixin, App_name, App_build
@@ -58,8 +59,8 @@ DEBUG_STANDALONE = False
 # _show_amiga_locale_error
 # _show_col_info
 # show_help
-# show_settings_dialog
 # _show_settings_dialog
+# show_settings_dialog
 # _show_settings_hotkeys
 # _show_shaders_dialog
 # _show_workshop_settings
@@ -75,10 +76,11 @@ DEBUG_STANDALONE = False
 # COLCoreLogicMixin - col_core_logic_func.py
 # COLListMixin - col_list_func.py
 # COLPaintMixin - col_paint_func.py
+# COLEditMixin - col_edit_func.py
 # COL3DViewport - col_viewport.py
 
 
-class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 10
+class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 11
     """COL Workshop - Main window"""
 
     #    ToolMenuMixin implementation                                      
@@ -93,7 +95,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # to restore it. History: 1 = Transform/Navigation/Render ribbons,
     # 2 = added Name/Format/Shadow Mesh ribbons (replacing the old
     # dual text/icon bottom info panel).
-    _RIBBON_LAYOUT_VERSION = 2
+    _RIBBON_LAYOUT_VERSION = 3
 
     def __init__(self, parent=None, main_window=None): #vers 12
         """initialize_features"""

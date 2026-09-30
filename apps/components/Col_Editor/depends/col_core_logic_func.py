@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 5
+#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 6
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop core logic
 
 """
@@ -97,7 +97,7 @@ from apps.methods.col_workshop_classes import COLHeader
 class COLCoreLogicMixin: #vers 1
     """File, model and surface.dat operations for COLWorkshop."""
 
-    def _delete_selected_model(self): #vers 2
+    def _delete_selected_model(self): #vers 3
         """Delete selected collision model(s) — uses currentRow() for reliability."""
         if not self.current_col_file: return
         models = getattr(self.current_col_file, 'models', [])
@@ -122,8 +122,9 @@ class COLCoreLogicMixin: #vers 1
                ) != QMessageBox.StandardButton.Yes:
                 return
         else:
+            names = ", ".join(models[i].name for i in sorted(indices)[:10]) + (" ..." if len(indices) > 10 else "")
             if QMessageBox.question(self, "Delete",
-               f"Delete {len(indices)} collision models?",
+               f"Delete {len(indices)} collision models?\n\n{names}",
                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                ) != QMessageBox.StandardButton.Yes:
                 return
@@ -132,7 +133,9 @@ class COLCoreLogicMixin: #vers 1
             del models[idx]
         self._populate_collision_list()
         self._populate_compact_col_list()
-        self._set_status(f"Deleted {len(indices)} model(s).")
+        if hasattr(self, 'save_btn'):
+            self.save_btn.setEnabled(True)
+        self._set_status(f"Deleted {len(indices)} model(s) - not saved yet")
 
     def _duplicate_selected_model(self): #vers 2
         model = self._get_selected_model()   # visible list, delegate-safe
