@@ -5,7 +5,8 @@
 - Vertex tools: position dialog (absolute/relative), create face, delete (Del), weld, mirror, select all/none/invert, faces inside.
 - Split Selected Faces adds a centre vertex.
 - Unique SVG icons for vertex/face tools, surfaces, shadow mesh, conversions, render mode, merge, select none.
-, resize, Paint window, Build 431.105
+
+## Sep 30 2026 - TXD multi-select, resize, Paint window, Build 431.105
 - Shift/Ctrl select several textures: flip, rotate, resize, colour adjust, seamless, snow, alpha coverage apply to all; one undo step; mip levels rebuilt.
 - Resize dialog: current size above, width/height together, keep ratio, power of two, presets. Old resize scaled with the wrong size.
 - Paint opens DP5 as its own custom window (no system frame) with Apply/Cancel.
