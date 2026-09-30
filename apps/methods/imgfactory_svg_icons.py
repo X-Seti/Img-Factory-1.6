@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 29
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 30
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -65,6 +65,7 @@ from PyQt6.QtCore import Qt
 # saveas_icon
 # screenshot_icon
 # search_icon
+# split_faces_icon
 # svg_edit_icon
 # settings_icon
 # sphere_icon
@@ -3531,6 +3532,16 @@ class SVGIconFactory: #vers 8
             <circle cx="10" cy="11" r="2.6" fill="#e03030"/>
             <circle cx="20" cy="20" r="2.6" fill="#e03030"/>
             <circle cx="4" cy="20" r="2.6" fill="#e03030"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def split_faces_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Split faces - four triangles, top one pulled apart"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="12.0,2.4 15.8,9.5 8.2,9.5" fill="#e03030"/>
+            <polygon points="7.5,13.4 11.3,20.5 3.7,20.5" fill="currentColor" opacity="0.85"/>
+            <polygon points="16.5,13.4 20.3,20.5 12.7,20.5" fill="currentColor" opacity="0.85"/>
+            <polygon points="8.2,13.0 15.8,13.0 12.0,20.1" fill="currentColor" opacity="0.6"/>
         </svg>''', size, color)
 
     @staticmethod
