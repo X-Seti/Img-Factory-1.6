@@ -9,6 +9,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _add_texture_to_table
 # _add_warning_badge
 # _apply_gaussian_blur
+# _ask_resize
 # _auto_generate_mipmaps
 # _auto_generate_mipmaps_to_level
 # _batch_import_from_folder
@@ -101,6 +102,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _perform_ai_upscale
 # _preview_bumpmap_generation
 # _quick_alpha_check
+# _rebuild_mip_levels
 # _rebuild_txd_data
 # _reload_texture_table
 # _remove_mipmaps
@@ -111,6 +113,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _rgba_to_iff_ilbm
 # _rotate_clockwise
 # _rotate_counterclockwise
+# _run_texture_tool
 # _save_alpha_name
 # _save_as_txd_file
 # _save_as_txd_file_with_version_selector
@@ -122,6 +125,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # save_txd_file
 # _save_txd_to_img_with_version_selector
 # _save_undo_state
+# _selected_textures
 # _set_current_rgba
 # _set_undo_enabled
 # show_properties
@@ -131,6 +135,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _strip_unsupported_features_for_version
 # _texture_statistics
 # _toggle_alpha_invert
+# _transform_selection
 # _uncompress_texture
 # _undo_last_action
 # _upscale_texture
@@ -3675,58 +3680,31 @@ class TXDLogicMixin: #vers 1
 
         return ' | '.join(desc_parts) if desc_parts else "Standard format"
 
-    def _resize_texture(self): #vers 1
-        """Resize selected texture with size validation"""
-        if not self.selected_texture:
+    def _resize_texture(self): #vers 2
+        """Resize the selected texture(s): width and height together, old size shown."""
+        texs = [t for t in self._selected_textures() if t.get('rgba_data')]
+        if not texs:
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
             return
-
-        # Get current dimensions
-        current_width = self.selected_texture.get('width', 256)
-        current_height = self.selected_texture.get('height', 256)
-
-        # Get new dimensions from user
-        w, ok1 = QInputDialog.getInt(self, "Resize Texture", "New width:",value=current_width, min=1, max=4096)
-        if not ok1:
+        size = self._ask_resize(texs)
+        if not size:
             return
-
-        h, ok2 = QInputDialog.getInt(
-            self, "Resize Texture", "New height:",
-            value=current_height, min=1, max=4096
-        )
-        if not ok2:
-            return
-
-        # Calculate size impact
-        old_pixels = current_width * current_height
-        new_pixels = w * h
-        size_multiplier = new_pixels / old_pixels if old_pixels > 0 else 1
-
-        # Warn for large size increases
-        if size_multiplier > 4:
-            reply = QMessageBox.question(
-                self, "Large Resize",
-                f"Resizing to {w}x{h} will increase texture size by {size_multiplier:.1f}x. "
-                f"This may require IMG rebuilding. Continue?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                return
-
-        # Update texture dimensions
-        self.selected_texture['width'] = w
-        self.selected_texture['height'] = h
-
-        # If we have RGBA data, resize it
-        if self.selected_texture.get('rgba_data'):
-            self._resize_texture_data(w, h)
-
-        # Update display
+        nw, nh, keep_ratio = size
+        from PIL import Image
+        self._save_undo_state("Resize texture")
+        for t in texs:
+            w, h = t['width'], t['height']
+            tw, th = (nw, nh) if not keep_ratio or t is texs[0] else (nw, max(1, round(nw * h / w)))
+            img = Image.frombytes('RGBA', (w, h), bytes(t['rgba_data'])).resize(
+                (tw, th), Image.Resampling.LANCZOS)
+            t['rgba_data'] = img.tobytes()
+            t['width'], t['height'] = tw, th
+            self._rebuild_mip_levels(t)
         self._update_texture_info(self.selected_texture)
         self._update_table_display()
-
+        self._mark_as_modified()
         if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Resized texture to {w}x{h}")
+            self.main_window.log_message(f"Resized {len(texs)} texture(s) to {nw}x{nh}")
 
     def _resize_texture_data(self, new_width, new_height): #vers 1
         """Resize the actual texture image data using QImage"""
@@ -5638,59 +5616,58 @@ class TXDLogicMixin: #vers 1
 
         dialog.exec()
 
-    def _open_paint_editor(self): #vers 5
-        """Open DP5 Workshop paint editor for the selected texture."""
+    def _open_paint_editor(self): #vers 6
+        """Open DP5 Workshop (its own custom window) on the selected texture."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
             QMessageBox.warning(self, "No Texture",
                 "Select a texture with RGBA data first.")
             return
         try:
             from apps.components.DP5_Workshop.dp5_workshop import DP5Workshop
-            from PyQt6.QtWidgets import QVBoxLayout, QDialog
+            from PyQt6.QtCore import QEventLoop
+            from PyQt6.QtWidgets import QWidget
 
-            tex  = self.selected_texture
-            w    = tex.get('width', 256)
-            h    = tex.get('height', 256)
-            rgba = bytearray(tex['rgba_data'])
+            tex = self.selected_texture
+            w = tex.get('width', 256)
+            h = tex.get('height', 256)
 
-            # Create DP5 as a modal dialog so TXD Workshop waits for the edit
-            dlg = QDialog(self)
-            dlg.setWindowTitle(f"DP5 Paint — {tex.get('name', 'texture')}")
-            dlg.resize(1400, 820)
-            lay = QVBoxLayout(dlg)
-            lay.setContentsMargins(0, 0, 0, 0)
-
-            workshop = DP5Workshop(dlg, None)
-            workshop.setWindowFlags(Qt.WindowType.Widget)
-
-            # Load the texture through DP5's own loader (size, palette, bitmap list)
-            workshop._load_rgba(rgba, w, h, tex.get('name', 'texture'))
+            # Standalone DP5: frameless window with its own title bar only
+            workshop = DP5Workshop(None, None)
+            workshop.setWindowTitle(f"DP5 Paint - {tex.get('name', 'texture')}")
+            workshop.setWindowModality(Qt.WindowModality.ApplicationModal)
+            workshop.resize(1400, 820)
+            workshop._load_rgba(bytearray(tex['rgba_data']), w, h, tex.get('name', 'texture'))
             workshop._set_zoom(max(0.05, min(4, 512 / max(w, h, 1))))
 
-            lay.addWidget(workshop)
-
-            # Add OK / Cancel at the bottom
-            from PyQt6.QtWidgets import QHBoxLayout, QPushButton
-            btn_row = QHBoxLayout()
-            btn_row.addStretch()
-            ok_btn  = QPushButton("Apply to Texture")
+            # Apply / Cancel row under DP5's own UI
+            bar = QWidget(workshop)
+            row = QHBoxLayout(bar)
+            row.setContentsMargins(6, 4, 6, 6)
+            row.addStretch()
+            ok_btn = QPushButton("Apply to Texture")
             ok_btn.setDefault(True)
-            ok_btn.clicked.connect(dlg.accept)
             can_btn = QPushButton("Cancel")
-            can_btn.clicked.connect(dlg.reject)
-            btn_row.addWidget(ok_btn); btn_row.addWidget(can_btn)
-            lay.addLayout(btn_row)
+            row.addWidget(ok_btn)
+            row.addWidget(can_btn)
+            workshop.layout().addWidget(bar)
 
-            if dlg.exec() == QDialog.DialogCode.Accepted:
-                # Write edited RGBA back into the texture dict
-                if workshop.dp5_canvas:
-                    tex['rgba_data'] = bytes(workshop.dp5_canvas.rgba)
-                    tex['width']     = workshop.dp5_canvas.tex_w
-                    tex['height']    = workshop.dp5_canvas.tex_h
+            result = {'apply': False}
+            loop = QEventLoop()
+            ok_btn.clicked.connect(lambda: (result.update(apply=True), workshop.close()))
+            can_btn.clicked.connect(workshop.close)
+            workshop.window_closed.connect(loop.quit)
+            workshop.show()
+            loop.exec()
+
+            if result['apply'] and workshop.dp5_canvas:
                 self._save_undo_state("DP5 Paint edit")
+                tex['rgba_data'] = bytes(workshop.dp5_canvas.rgba)
+                tex['width'] = workshop.dp5_canvas.tex_w
+                tex['height'] = workshop.dp5_canvas.tex_h
                 self._update_texture_info(tex)
                 self._update_table_display()
                 self._mark_as_modified()
+            workshop.deleteLater()
 
         except Exception as e:
             import traceback; traceback.print_exc()
@@ -5995,87 +5972,25 @@ class TXDLogicMixin: #vers 1
                 self.main_window.log_message(f"Bumpmap decode error: {str(e)}")
             return QImage()
 
-    def _flip_vertical(self): #vers 3
-        """Flip texture vertically using PIL (fast)."""
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-        try:
-            from PIL import Image
-            tex = self.selected_texture
-            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-            flipped = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-            self._save_undo_state("Flip vertical")
-            tex['rgba_data'] = flipped.tobytes()
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Flipped vertically")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to flip: {str(e)}")
+    def _flip_vertical(self): #vers 4
+        """Flip vertically every selected texture using PIL."""
+        from PIL import Image
+        self._transform_selection(lambda img: img.transpose(Image.Transpose.FLIP_TOP_BOTTOM), "Flip vertical")
 
-    def _flip_horizontal(self): #vers 2
-        """Flip texture horizontally using PIL (fast)."""
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-        try:
-            from PIL import Image
-            tex = self.selected_texture
-            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-            flipped = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-            self._save_undo_state("Flip horizontal")
-            tex['rgba_data'] = flipped.tobytes()
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Flipped horizontally")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to flip: {str(e)}")
+    def _flip_horizontal(self): #vers 3
+        """Flip horizontally every selected texture using PIL."""
+        from PIL import Image
+        self._transform_selection(lambda img: img.transpose(Image.Transpose.FLIP_LEFT_RIGHT), "Flip horizontal")
 
-    def _rotate_clockwise(self): #vers 2
-        """Rotate texture 90° CW using PIL (fast)."""
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-        try:
-            from PIL import Image
-            tex = self.selected_texture
-            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-            rotated = img.transpose(Image.Transpose.ROTATE_270)  # 270 CCW = 90 CW
-            self._save_undo_state("Rotate 90° CW")
-            tex['rgba_data'] = rotated.tobytes()
-            tex['width'], tex['height'] = rotated.width, rotated.height
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rotated 90° CW -> {rotated.width}x{rotated.height}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to rotate: {str(e)}")
+    def _rotate_clockwise(self): #vers 3
+        """Rotate 90 degrees clockwise every selected texture using PIL."""
+        from PIL import Image
+        self._transform_selection(lambda img: img.transpose(Image.Transpose.ROTATE_270), "Rotate 90 CW")
 
-    def _rotate_counterclockwise(self): #vers 2
-        """Rotate texture 90° CCW using PIL (fast)."""
-        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-        try:
-            from PIL import Image
-            tex = self.selected_texture
-            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
-            rotated = img.transpose(Image.Transpose.ROTATE_90)  # 90 CCW
-            self._save_undo_state("Rotate 90° CCW")
-            tex['rgba_data'] = rotated.tobytes()
-            tex['width'], tex['height'] = rotated.width, rotated.height
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rotated 90° CCW -> {rotated.width}x{rotated.height}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to rotate: {str(e)}")
+    def _rotate_counterclockwise(self): #vers 3
+        """Rotate 90 degrees counter-clockwise every selected texture using PIL."""
+        from PIL import Image
+        self._transform_selection(lambda img: img.transpose(Image.Transpose.ROTATE_90), "Rotate 90 CCW")
 
     def _rename_texture_shortcut(self): #vers 1
         """Rename selected texture via F2 shortcut"""
@@ -6225,6 +6140,168 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open TXD: {str(e)}")
 
+    def _selected_textures(self): #vers 1
+        """Textures of every selected table row (Shift/Ctrl), in list order."""
+        rows = sorted({i.row() for i in self.texture_table.selectionModel().selectedRows()})
+        texs = [self.texture_list[r] for r in rows if 0 <= r < len(self.texture_list)]
+        if not texs and self.selected_texture:
+            texs = [self.selected_texture]
+        return texs
+
+    def _transform_selection(self, op, label): #vers 1
+        """Apply a PIL image op to every selected texture, one undo step."""
+        from PIL import Image
+        texs = [t for t in self._selected_textures() if t.get('rgba_data')]
+        if not texs:
+            QMessageBox.warning(self, "No Selection", "Please select a texture first")
+            return
+        try:
+            self._save_undo_state(label)
+            for t in texs:
+                img = op(Image.frombytes('RGBA', (t['width'], t['height']), bytes(t['rgba_data'])))
+                t['rgba_data'] = img.tobytes()
+                t['width'], t['height'] = img.width, img.height
+                self._rebuild_mip_levels(t)
+            self._update_texture_info(self.selected_texture)
+            self._update_table_display()
+            self._mark_as_modified()
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"{label}: {len(texs)} texture(s)")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"{label} failed: {str(e)}")
+
+    def _rebuild_mip_levels(self, tex): #vers 1
+        """Regenerate an edited texture's mip levels from its RGBA (same count)."""
+        levels = tex.get('mipmap_levels') or []
+        if len(levels) <= 1:
+            if levels:
+                levels[0].update(width=tex['width'], height=tex['height'], rgba_data=tex['rgba_data'],
+                                 compressed_data=None, compressed_size=len(tex['rgba_data']))
+            return
+        from PIL import Image
+        img = Image.frombytes('RGBA', (tex['width'], tex['height']), bytes(tex['rgba_data']))
+        new, w, h = [], tex['width'], tex['height']
+        for i in range(len(levels)):
+            data = img.resize((w, h), Image.Resampling.BOX).tobytes() if i else tex['rgba_data']
+            new.append({'level': i, 'width': w, 'height': h, 'rgba_data': data,
+                        'compressed_data': None, 'compressed_size': len(data)})
+            if w == 1 and h == 1:
+                break
+            w, h = max(1, w // 2), max(1, h // 2)
+        tex['mipmap_levels'] = new
+        tex['mipmaps'] = len(new)
+
+    def _ask_resize(self, texs): #vers 1
+        """Resize dialog: current size above, new width/height below. Returns (w, h, keep) or None."""
+        from PyQt6.QtWidgets import QDialogButtonBox, QGridLayout
+        t0 = texs[0]
+        w0, h0 = t0['width'], t0['height']
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Resize Texture")
+        lo = QVBoxLayout(dlg)
+        cur = QGroupBox("Current size")
+        cl = QVBoxLayout(cur)
+        name = t0.get('name', '') if len(texs) == 1 else f"{len(texs)} textures (first: {t0.get('name', '')})"
+        cl.addWidget(QLabel(f"{name}\n{w0} x {h0}  ({w0 * h0 * 4 / 1024:.1f} KB RGBA)"))
+        lo.addWidget(cur)
+        new = QGroupBox("New size")
+        g = QGridLayout(new)
+        sw, sh = QSpinBox(), QSpinBox()
+        for sp, v in ((sw, w0), (sh, h0)):
+            sp.setRange(1, 4096)
+            sp.setValue(v)
+        keep = QCheckBox("Keep aspect ratio")
+        keep.setChecked(True)
+        pow2 = QCheckBox("Power of two (GTA)")
+        pow2.setChecked((w0 & (w0 - 1)) == 0 and (h0 & (h0 - 1)) == 0)
+        info = QLabel()
+        g.addWidget(QLabel("Width:"), 0, 0)
+        g.addWidget(sw, 0, 1)
+        g.addWidget(QLabel("Height:"), 0, 2)
+        g.addWidget(sh, 0, 3)
+        g.addWidget(keep, 1, 0, 1, 2)
+        g.addWidget(pow2, 1, 2, 1, 2)
+        presets = QHBoxLayout()
+        for label, f in (("25%", 0.25), ("50%", 0.5), ("200%", 2.0), ("400%", 4.0)):
+            b = QPushButton(label)
+            b.clicked.connect(lambda _, f=f: set_size(max(1, int(w0 * f)), max(1, int(h0 * f))))
+            presets.addWidget(b)
+        g.addLayout(presets, 2, 0, 1, 4)
+        g.addWidget(info, 3, 0, 1, 4)
+        lo.addWidget(new)
+        state = {'busy': False, sw: w0, sh: h0}
+
+        def pow2_step(v, prev): #vers 1
+            """Next/previous power of two in the direction the value moved."""
+            pows = [1 << k for k in range(13)]
+            if v > prev:
+                return next((p for p in pows if p > prev), pows[-1])
+            if v < prev:
+                return next((p for p in reversed(pows) if p < prev), 1)
+            return min(pows, key=lambda p: abs(p - v))
+
+        def set_size(w, h): #vers 1
+            state['busy'] = True
+            sw.setValue(w)
+            sh.setValue(h)
+            state[sw], state[sh] = w, h
+            state['busy'] = False
+            show()
+
+        def show(): #vers 1
+            info.setText(f"{w0} x {h0}  ->  {sw.value()} x {sh.value()}  "
+                         f"({sw.value() * sh.value() * 4 / 1024:.1f} KB RGBA)")
+
+        def changed(src, other, ratio): #vers 1
+            if state['busy']:
+                return
+            state['busy'] = True
+            v = src.value()
+            if pow2.isChecked():
+                v = pow2_step(v, state[src])
+                src.setValue(v)
+            state[src] = v
+            if keep.isChecked():
+                o = max(1, round(v * ratio))
+                if pow2.isChecked():
+                    o = min((1 << k for k in range(13)), key=lambda p: abs(p - o))
+                other.setValue(o)
+                state[other] = o
+            state['busy'] = False
+            show()
+        sw.valueChanged.connect(lambda _: changed(sw, sh, h0 / w0))
+        sh.valueChanged.connect(lambda _: changed(sh, sw, w0 / h0))
+        show()
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept)
+        bb.rejected.connect(dlg.reject)
+        lo.addWidget(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return None
+        if (sw.value(), sh.value()) == (w0, h0) and len(texs) == 1:
+            return None
+        return sw.value(), sh.value(), keep.isChecked()
+
+    def _run_texture_tool(self, dlg, compute, label): #vers 1
+        """Exec a tool dialog; its settings go to every selected texture."""
+        def on_applied(rgba): #vers 1
+            others = [t for t in self._selected_textures()
+                      if t is not self.selected_texture and t.get('rgba_data')]
+            self._save_undo_state(label)
+            self._set_current_rgba(rgba)
+            for t in others:
+                dlg._orig_rgba, dlg._w, dlg._h = bytes(t['rgba_data']), t['width'], t['height']
+                res = compute()
+                if res:
+                    t['rgba_data'] = res
+                    self._rebuild_mip_levels(t)
+            self._rebuild_mip_levels(self.selected_texture)
+            self._update_table_display()
+            self._mark_as_modified()
+            self._set_status(f"{label}: {len(others) + 1} texture(s)")
+        dlg.applied.connect(on_applied)
+        dlg.exec()
+
     def _get_current_rgba(self):  #vers 1
         """Return (rgba, w, h, name) for the selected texture, or (None,0,0,'')."""
         t = getattr(self, 'selected_texture', None)
@@ -6256,7 +6333,7 @@ class TXDLogicMixin: #vers 1
             except Exception:
                 pass
 
-    def _open_colour_adjust(self): #vers 1
+    def _open_colour_adjust(self): #vers 2
         """Colour adjustments — brightness/contrast/hue/sat/sharp/opacity."""
         from apps.methods.txd_tools import ColourAdjustDialog
         rgba, w, h, name = self._get_current_rgba()
@@ -6264,10 +6341,9 @@ class TXDLogicMixin: #vers 1
             if hasattr(self, 'status_label'): self.status_label.setText("Select a texture first")
             return
         dlg = ColourAdjustDialog(rgba, w, h, name, self)
-        dlg.applied.connect(self._set_current_rgba)
-        dlg.exec()
+        self._run_texture_tool(dlg, dlg._process, "Colour adjust")
 
-    def _open_seamless_tool(self): #vers 1
+    def _open_seamless_tool(self): #vers 2
         """Seamless texture conversion tool."""
         from apps.methods.txd_tools import SeamlessDialog
         rgba, w, h, name = self._get_current_rgba()
@@ -6275,10 +6351,9 @@ class TXDLogicMixin: #vers 1
             if hasattr(self, 'status_label'): self.status_label.setText("Select a texture first")
             return
         dlg = SeamlessDialog(rgba, w, h, name, self)
-        dlg.applied.connect(self._set_current_rgba)
-        dlg.exec()
+        self._run_texture_tool(dlg, lambda: (dlg._run(), dlg._result)[1], "Seamless")
 
-    def _open_snow_tool(self): #vers 1
+    def _open_snow_tool(self): #vers 2
         """Snow effect generator."""
         from apps.methods.txd_tools import SnowDialog
         rgba, w, h, name = self._get_current_rgba()
@@ -6286,10 +6361,9 @@ class TXDLogicMixin: #vers 1
             if hasattr(self, 'status_label'): self.status_label.setText("Select a texture first")
             return
         dlg = SnowDialog(rgba, w, h, name, self)
-        dlg.applied.connect(self._set_current_rgba)
-        dlg.exec()
+        self._run_texture_tool(dlg, lambda: (dlg._run(), dlg._result)[1], "Snow")
 
-    def _open_alpha_coverage(self): #vers 1
+    def _open_alpha_coverage(self): #vers 2
         """Scale alpha for mipmap coverage (foliage, fences, decals)."""
         from apps.methods.txd_tools import compute_mip0_coverage, scale_alpha_for_coverage
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QDoubleSpinBox
@@ -6332,8 +6406,15 @@ class TXDLogicMixin: #vers 1
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
             target = sp.value()
+            others = [t for t in self._selected_textures()
+                      if t is not self.selected_texture and t.get('rgba_data')]
+            self._save_undo_state("Alpha coverage")
             new_rgba = scale_alpha_for_coverage(rgba, w, h, target)
             self._set_current_rgba(new_rgba)
+            for t in others:
+                t['rgba_data'] = scale_alpha_for_coverage(bytes(t['rgba_data']), t['width'], t['height'], target)
+            self._update_table_display()
+            self._mark_as_modified()
             new_cov = compute_mip0_coverage(new_rgba, w, h)
             msg = "Alpha coverage adjusted: {:.1%} -> {:.1%} (target {:.1%})".format(
                 coverage, new_cov, target)

@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 203
+#this belongs in root /ChangeLog.md - Version: 204
+
+## Sep 30 2026 - TXD multi-select, resize, Paint window, Build 431.105
+- Shift/Ctrl select several textures: flip, rotate, resize, colour adjust, seamless, snow, alpha coverage apply to all; one undo step; mip levels rebuilt.
+- Resize dialog: current size above, width/height together, keep ratio, power of two, presets. Old resize scaled with the wrong size.
+- Paint opens DP5 as its own custom window (no system frame) with Apply/Cancel.
 
 ## Sep 30 2026 - TXD controller, grip splitters, DP5 docks, Build 431.105
 - TXD game controller (Navigation ribbon toggle, saved): left stick pan, L2/R2 zoom, D-pad texture, Circle reset, Square flip, Triangle view, L1/R1 tab.

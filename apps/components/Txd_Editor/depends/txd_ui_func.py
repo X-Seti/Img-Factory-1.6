@@ -493,7 +493,7 @@ class TXDUIMixin: #vers 1
 
         return panel
 
-    def _create_middle_panel(self): #vers 8
+    def _create_middle_panel(self): #vers 9
         """Create middle panel - Texture list with mini toolbar shown in docked mode."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -568,7 +568,7 @@ class TXDUIMixin: #vers 1
         self.texture_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.texture_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection)
+            QAbstractItemView.SelectionMode.ExtendedSelection)   # Shift/Ctrl multi-select
         self.texture_table.setAlternatingRowColors(True)
         self.texture_table.itemSelectionChanged.connect(self._on_texture_selected)
         self.texture_table.setIconSize(QSize(64, 64))
@@ -764,9 +764,9 @@ class TXDUIMixin: #vers 1
         tb_fx.addSeparator()
         _act(tb_fx, "Checkerboard", self.icon_factory.checkerboard_icon,
              lambda: pw.set_checkerboard_background())
-        _act(tb_fx, "Black Background", self.icon_factory.settings_icon,
+        _act(tb_fx, "Black Background", self.icon_factory.stop_icon,
              lambda: pw.set_background_color(QColor(0, 0, 0)))
-        _act(tb_fx, "White Background", self.icon_factory.settings_icon,
+        _act(tb_fx, "White Background", self.icon_factory.stop_icon,
              lambda: pw.set_background_color(QColor(255, 255, 255)))
 
         #    Ribbon 4: Name                                                 
