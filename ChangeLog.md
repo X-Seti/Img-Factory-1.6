@@ -4,6 +4,8 @@
 - TXD game controller (Navigation ribbon toggle, saved): left stick pan, L2/R2 zoom, D-pad texture, Circle reset, Square flip, Triangle view, L1/R1 tab.
 - TXD Paint loads texture via DP5 _load_rgba (size, palette, bitmap list).
 - TXD Pick Background crashed when no colour set yet; starts from theme colour.
+- TXD/Asset Check DFF and Build from DFF found no materials; now read DFF texture names via rw_chunks.
+- TXD Undo: title bar button was never enabled; delete, rename, duplicate, paste, create, format, upscale, mipmaps, bumpmap import now undoable; selection kept.
 - Grip splitters: bumpmap window, DP5 ribbon manager, SVG icon browser; DP5 dock separators show the grip (GripDockSeparators).
 
 ## Sep 30 2026 - TXD audit: dead code, bugs, COL features, Build 431.105

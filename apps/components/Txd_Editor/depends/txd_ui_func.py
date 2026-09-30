@@ -278,7 +278,7 @@ class TXDUIMixin: #vers 1
         from apps.methods.button_mode import apply_button_mode_to_button
         apply_button_mode_to_button(button, text, self.button_display_mode)
 
-    def _create_toolbar(self): #vers 12
+    def _create_toolbar(self): #vers 13
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
         self.titlebar = QFrame()
         self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -367,6 +367,7 @@ class TXDUIMixin: #vers 1
         self.undo_btn.setEnabled(False)
         self.undo_btn.setToolTip("Undo last change")
         layout.addWidget(self.undo_btn)
+        self._undo_buttons = [self.undo_btn]
 
         layout.addSpacing(10)
 
@@ -492,7 +493,7 @@ class TXDUIMixin: #vers 1
 
         return panel
 
-    def _create_middle_panel(self): #vers 7
+    def _create_middle_panel(self): #vers 8
         """Create middle panel - Texture list with mini toolbar shown in docked mode."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -549,6 +550,7 @@ class TXDUIMixin: #vers 1
         self.undo_btn.clicked.connect(self._undo_last_action)
         self.undo_btn.setEnabled(False)
         btn_layout.addWidget(self.undo_btn)
+        self._undo_buttons.append(self.undo_btn)
 
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)

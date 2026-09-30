@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 12
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 13
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -11580,57 +11580,17 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             QMessageBox.critical(self, "Check Error", f"Failed to check DFF:\n\n{str(e)}")
 
 
-    def _parse_dff_materials(self, dff_path): #vers 1
-        """Parse DFF file and extract material/texture names"""
-        import struct
-
+    def _parse_dff_materials(self, dff_path): #vers 2
+        """Texture names used by a DFF's materials, in file order, no repeats."""
+        from apps.methods.rw_chunks import texture_names
         try:
             with open(dff_path, 'rb') as f:
-                dff_data = f.read()
-
-            materials = []
-            offset = 0
-
-            # Simple RenderWare parser - look for material sections
-            while offset < len(dff_data) - 12:
-                try:
-                    section_type = struct.unpack('<I', dff_data[offset:offset+4])[0]
-                    section_size = struct.unpack('<I', dff_data[offset+4:offset+8])[0]
-
-                    # Material section (0x07) or Texture section (0x06)
-                    if section_type == 0x07:  # Material
-                        # Look for string data in material section
-                        mat_end = min(offset + section_size + 12, len(dff_data))
-                        mat_data = dff_data[offset:mat_end]
-
-                        # Find null-terminated strings (potential texture names)
-                        for i in range(len(mat_data) - 32):
-                            if mat_data[i:i+1].isalpha():
-                                # Try to extract string
-                                end = i
-                                while end < len(mat_data) and mat_data[end] != 0 and end < i + 32:
-                                    end += 1
-
-                                if end > i + 3:  # At least 4 chars
-                                    try:
-                                        name = mat_data[i:end].decode('ascii', errors='ignore')
-                                        if name and len(name) > 3 and name.replace('_', '').replace('.', '').isalnum():
-                                            if name not in materials:
-                                                materials.append(name)
-                                    except:
-                                        pass
-
-                    offset += 12 + section_size
-
-                except:
-                    offset += 1
-
-            return materials
-
-        except Exception as e:
+                names = texture_names(f.read())
+        except OSError as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"DFF parse error: {str(e)}")
+                self.main_window.log_message(f"DFF read error: {e}")
             return []
+        return list(dict.fromkeys(n for n in names if n))
 
 
     def _build_txd_from_dff(self): #vers 2

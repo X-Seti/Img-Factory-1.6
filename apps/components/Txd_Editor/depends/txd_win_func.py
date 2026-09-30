@@ -30,7 +30,7 @@ from PyQt6.QtWidgets import QPushButton
 class TXDWindowMixin: #vers 1
     """window methods for TXDWorkshop."""
 
-    def _is_on_draggable_area(self, pos): #vers 4
+    def _is_on_draggable_area(self, pos): #vers 5
         """Check if position is on draggable toolbar area (stretch space, not buttons)"""
         if not hasattr(self, 'titlebar'):
             print("[DRAG] No titlebar attribute")
@@ -82,9 +82,8 @@ class TXDWindowMixin: #vers 1
         if hasattr(self, 'close_btn'):
             buttons_to_check.append(self.close_btn)
         # Should be enabled on selection:
-        if hasattr(self, 'undo_btn'):
-            # Undo depends on undo stack, not selection
-            self.undo_btn.setEnabled(len(self.undo_stack) > 0)
+        # Undo depends on undo stack, not selection
+        self._set_undo_enabled()
 
         if hasattr(self, 'check_dff_btn'):
             # Always enabled if textures exist

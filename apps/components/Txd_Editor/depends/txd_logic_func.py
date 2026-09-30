@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 6
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 7
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -122,6 +122,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _save_txd_to_img_with_version_selector
 # _save_undo_state
 # _set_current_rgba
+# _set_undo_enabled
 # show_properties
 # _show_txd_info
 # _show_version_selector_dialog
@@ -1025,7 +1026,7 @@ class TXDLogicMixin: #vers 1
 
         return False
 
-    def _auto_generate_mipmaps_to_level(self, num_levels): #vers 2
+    def _auto_generate_mipmaps_to_level(self, num_levels): #vers 3
         """Generate mipmaps down to specified level count"""
         if not self.selected_texture:
             return
@@ -1047,6 +1048,7 @@ class TXDLogicMixin: #vers 1
                 QMessageBox.warning(self, "Error", "Failed to create source image")
                 return
 
+            self._save_undo_state("Generate mipmaps")
             # Clear existing mipmap levels except level 0
             if 'mipmap_levels' not in self.selected_texture:
                 self.selected_texture['mipmap_levels'] = []
@@ -1342,7 +1344,7 @@ class TXDLogicMixin: #vers 1
         header = struct.pack('<III', 0x16, 0, 0x1803FFFF)  # Type, Size, Version
         return header
 
-    def _create_new_texture_entry(self): #vers 2
+    def _create_new_texture_entry(self): #vers 3
         """Create new blank texture with size dialog"""
         if not self.current_img and not self.current_txd_data:
             QMessageBox.warning(self, "No TXD", "Please open or create a TXD file first")
@@ -1520,6 +1522,7 @@ class TXDLogicMixin: #vers 1
                 }]
             }
 
+            self._save_undo_state("Create texture")
             # Add to texture list
             self.texture_list.append(new_texture)
             self._add_texture_to_table(new_texture)
@@ -1554,7 +1557,7 @@ class TXDLogicMixin: #vers 1
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Created new TXD: {name}")
 
-    def _delete_texture(self): #vers 3
+    def _delete_texture(self): #vers 4
         """Delete texture with granular component selection"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
@@ -1716,6 +1719,7 @@ class TXDLogicMixin: #vers 1
             return
 
         # Process deletion
+        self._save_undo_state("Delete texture")
         try:
             if delete_all_radio.isChecked():
                 # Delete entire texture
@@ -2025,7 +2029,7 @@ class TXDLogicMixin: #vers 1
                     self.texture_table.selectRow(row)
                     break
 
-    def _save_undo_state(self, action_name): #vers 2
+    def _save_undo_state(self, action_name): #vers 3
         """
         Save current state to undo stack - FIXED: Properly preserves binary data
 
@@ -2090,24 +2094,28 @@ class TXDLogicMixin: #vers 1
         # Limit undo stack to 10 items
         if len(self.undo_stack) > 10:
             self.undo_stack.pop(0)
+        self._set_undo_enabled()
 
-    def _undo_last_action(self): #vers 2
+    def _set_undo_enabled(self): #vers 1
+        """Undo buttons follow the undo stack."""
+        for btn in getattr(self, '_undo_buttons', []):
+            btn.setEnabled(bool(self.undo_stack))
+
+    def _undo_last_action(self): #vers 3
         """Undo the last action from undo stack"""
         if not self.undo_stack:
             return
 
         try:
-            # Pop last action
+            row = self.texture_table.currentRow()
             last_state = self.undo_stack.pop()
-
-            # Restore texture list state
             self.texture_list = last_state.get('texture_list', [])
-
-            # Reload table
+            self.selected_texture = None
             self._reload_texture_table()
-
-            # Update undo button state
-            self.undo_btn.setEnabled(len(self.undo_stack) > 0)
+            if self.texture_list:
+                self.texture_table.selectRow(min(max(row, 0), len(self.texture_list) - 1))
+            self._mark_as_modified()
+            self._set_undo_enabled()
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message("Undo applied")
@@ -2115,7 +2123,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Undo Error", f"Failed to undo: {str(e)}")
 
-    def _auto_generate_mipmaps(self): #vers 2
+    def _auto_generate_mipmaps(self): #vers 3
         """Auto-generate all mipmap levels from main texture"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
@@ -2138,6 +2146,7 @@ class TXDLogicMixin: #vers 1
                 QMessageBox.warning(self, "Error", "Failed to create source image")
                 return
 
+            self._save_undo_state("Generate mipmaps")
             # Clear existing mipmap levels except level 0
             if 'mipmap_levels' not in self.selected_texture:
                 self.selected_texture['mipmap_levels'] = []
@@ -2957,7 +2966,7 @@ class TXDLogicMixin: #vers 1
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD load error: {str(e)}")
 
-    def _upscale_texture(self): #vers 2
+    def _upscale_texture(self): #vers 3
         """AI upscale selected texture with size management"""
         from PyQt6.QtWidgets import QInputDialog
 
@@ -2989,6 +2998,7 @@ class TXDLogicMixin: #vers 1
             if reply != QMessageBox.StandardButton.Yes:
                 return
 
+        self._save_undo_state("AI upscale")
         # Perform the upscale
         if self._perform_ai_upscale(factor):
             self.selected_texture['width'] = new_width
@@ -3341,11 +3351,12 @@ class TXDLogicMixin: #vers 1
                 self._save_texture_png(alpha_data, width, height, file_path)
                 QMessageBox.information(self, "Success", "Alpha channel exported!")
 
-    def _change_format(self, format_name): #vers 2
+    def _change_format(self, format_name): #vers 3
         """Change texture format - only set has_alpha if alpha data exists"""
         if not self.selected_texture:
             return
 
+        self._save_undo_state("Change format")
         old_format = self.selected_texture.get('format', 'Unknown')
         self.selected_texture['format'] = format_name
 
@@ -5872,7 +5883,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
 
-    def _import_bumpmap(self): #vers 1
+    def _import_bumpmap(self): #vers 2
         """Import bumpmap from image file"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection",
@@ -5906,6 +5917,7 @@ class TXDLogicMixin: #vers 1
             # Encode bumpmap data
             bumpmap_data = self._encode_bumpmap(bumpmap_image)
 
+            self._save_undo_state("Import bumpmap")
             # Add to texture data
             self.selected_texture['bumpmap_data'] = bumpmap_data
             self.selected_texture['has_bumpmap'] = True
@@ -6069,7 +6081,7 @@ class TXDLogicMixin: #vers 1
             self.info_name.selectAll()
             self.info_name.setFocus()
 
-    def _rename_texture(self, alpha=False): #vers 2
+    def _rename_texture(self, alpha=False): #vers 3
         """Rename texture or alpha name and mark as modified"""
         from PyQt6.QtWidgets import QInputDialog
 
@@ -6087,6 +6099,7 @@ class TXDLogicMixin: #vers 1
             alpha_name = self.selected_texture.get('alpha_name', current_name + 'a')
             new_name, ok = QInputDialog.getText(self, "Rename Alpha", "Enter alpha name:", text=alpha_name)
             if ok and new_name and new_name != alpha_name:
+                self._save_undo_state("Rename alpha")
                 self.selected_texture['alpha_name'] = new_name
                 self.info_alpha_name.setText(f"Alpha: {new_name}")
                 self._update_table_display()
@@ -6096,6 +6109,7 @@ class TXDLogicMixin: #vers 1
         else:
             new_name, ok = QInputDialog.getText(self, "Rename Texture", "Enter texture name:", text=current_name)
             if ok and new_name and new_name != current_name:
+                self._save_undo_state("Rename texture")
                 self.selected_texture['name'] = new_name
                 self.info_name.setText(f"Name: {new_name}")
                 self._update_table_display()
@@ -6926,7 +6940,7 @@ class TXDLogicMixin: #vers 1
             for row in range(self.texture_table.rowCount()):
                 self.texture_table.setRowHidden(row, False)
 
-    def _duplicate_texture(self): #vers 4
+    def _duplicate_texture(self): #vers 5
         """Duplicate selected texture - FIXED: Only copy alpha if it exists"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection", "Please select a texture to duplicate")
@@ -6972,6 +6986,7 @@ class TXDLogicMixin: #vers 1
             if 'fresnel_map' in self.selected_texture:
                 new_texture['fresnel_map'] = self.selected_texture['fresnel_map']
 
+            self._save_undo_state("Duplicate texture")
             # Add to texture list
             self.texture_list.append(new_texture)
 
@@ -7035,7 +7050,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Copy Error", f"Failed to copy texture: {str(e)}")
 
-    def _paste_texture(self): #vers 3
+    def _paste_texture(self): #vers 4
         """Paste copied texture data - FIXED: Preserves binary data"""
         if not hasattr(self, 'clipboard_texture') or not self.clipboard_texture:
             QMessageBox.warning(self, "Nothing to Paste", "Clipboard is empty")
@@ -7064,6 +7079,7 @@ class TXDLogicMixin: #vers 1
             if 'fresnel_map' in self.clipboard_texture:
                 new_texture['fresnel_map'] = self.clipboard_texture['fresnel_map']
 
+            self._save_undo_state("Paste texture")
             # Add to texture list
             self.texture_list.append(new_texture)
 
@@ -7176,14 +7192,14 @@ class TXDLogicMixin: #vers 1
                 result_text += f"  • {tex_name}\n"
 
             if missing_in_txd:
-                result_text += f"\n Missing in TXD ({len(missing_in_txd)}):\n"
+                result_text += f"\nMissing in TXD ({len(missing_in_txd)}):\n"
                 for tex_name in sorted(missing_in_txd):
                     result_text += f"  {tex_name}\n"
             else:
-                result_text += "\n All DFF materials found in TXD\n"
+                result_text += "\nAll DFF materials found in TXD\n"
 
             if extra_in_txd:
-                result_text += f"\n Extra in TXD ({len(extra_in_txd)}):\n"
+                result_text += f"\nExtra in TXD ({len(extra_in_txd)}):\n"
                 for tex_name in sorted(extra_in_txd):
                     result_text += f"  • {tex_name}\n"
 
@@ -7193,57 +7209,17 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Check Error", f"Failed to check DFF:\n\n{str(e)}")
 
-    def _parse_dff_materials(self, dff_path): #vers 1
-        """Parse DFF file and extract material/texture names"""
-        import struct
-
+    def _parse_dff_materials(self, dff_path): #vers 2
+        """Texture names used by a DFF's materials, in file order, no repeats."""
+        from apps.methods.rw_chunks import texture_names
         try:
             with open(dff_path, 'rb') as f:
-                dff_data = f.read()
-
-            materials = []
-            offset = 0
-
-            # Simple RenderWare parser - look for material sections
-            while offset < len(dff_data) - 12:
-                try:
-                    section_type = struct.unpack('<I', dff_data[offset:offset+4])[0]
-                    section_size = struct.unpack('<I', dff_data[offset+4:offset+8])[0]
-
-                    # Material section (0x07) or Texture section (0x06)
-                    if section_type == 0x07:  # Material
-                        # Look for string data in material section
-                        mat_end = min(offset + section_size + 12, len(dff_data))
-                        mat_data = dff_data[offset:mat_end]
-
-                        # Find null-terminated strings (potential texture names)
-                        for i in range(len(mat_data) - 32):
-                            if mat_data[i:i+1].isalpha():
-                                # Try to extract string
-                                end = i
-                                while end < len(mat_data) and mat_data[end] != 0 and end < i + 32:
-                                    end += 1
-
-                                if end > i + 3:  # At least 4 chars
-                                    try:
-                                        name = mat_data[i:end].decode('ascii', errors='ignore')
-                                        if name and len(name) > 3 and name.replace('_', '').replace('.', '').isalnum():
-                                            if name not in materials:
-                                                materials.append(name)
-                                    except:
-                                        pass
-
-                    offset += 12 + section_size
-
-                except:
-                    offset += 1
-
-            return materials
-
-        except Exception as e:
+                names = texture_names(f.read())
+        except OSError as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"DFF parse error: {str(e)}")
+                self.main_window.log_message(f"DFF read error: {e}")
             return []
+        return list(dict.fromkeys(n for n in names if n))
 
     def _build_txd_from_dff(self): #vers 2
         """Build TXD structure from DFF material names with version/platform selection"""
