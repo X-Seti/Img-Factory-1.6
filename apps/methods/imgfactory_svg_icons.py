@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 22
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 23
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -28,6 +28,7 @@ from PyQt6.QtCore import Qt
 # controller_icon
 # convert_icon
 # copy_icon
+# create_face_icon
 # database_icon
 # delete_icon
 # edit_icon
@@ -3453,6 +3454,17 @@ class SVGIconFactory: #vers 8
                   stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
             <circle cx="12" cy="3"  r="2" fill="currentColor"/>
             <circle cx="21" cy="19" r="2" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def create_face_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Create face - three red vertices joined by a dotted line"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="12,4 20,19 4,19" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-dasharray="2 2" stroke-linecap="round"/>
+            <circle cx="12" cy="4" r="2.6" fill="#e03030"/>
+            <circle cx="20" cy="19" r="2.6" fill="#e03030"/>
+            <circle cx="4" cy="19" r="2.6" fill="#e03030"/>
         </svg>''', size, color)
 
     @staticmethod

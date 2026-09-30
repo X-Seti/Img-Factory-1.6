@@ -1313,7 +1313,7 @@ class COLSetupUIMixin: #vers 1
             ("Delete Selected Faces",      IF.delete_icon,             self._edit_delete_faces,       'del_faces_btn',   False),
             ("Weld Selected Vertices",     IF.converge_to_center_icon, self._edit_weld,               'weld_btn',        False),
             ("Vertex Position...",         IF.bounds_icon,             self._edit_vertex_position,    'vert_pos_btn',    False),
-            ("Create Face from 3 Vertices", IF.add_icon,               self._edit_add_face,           'add_face_btn',    False),
+            ("Create Face from 3 Vertices", IF.create_face_icon,               self._edit_add_face,           'add_face_btn',    False),
             ("Delete Selected Vertices",   IF.delete_icon,             self._edit_delete_vertices,    'del_verts_btn',   False),
             ("Split Selected Faces",       IF.poly_select_icon,        self._edit_split_faces,        'split_faces_btn', False),
             ("Mirror...",                  IF.flip_horz_icon,          self._edit_mirror,             'mirror_btn',      False),
