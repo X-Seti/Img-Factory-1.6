@@ -3610,13 +3610,13 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def add_surface_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 2
+    def add_surface_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 3
         """Add surface - red brush painting a straight green stroke"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <rect x="1.5" y="1.5" width="21" height="21" rx="1.5" fill="none" stroke="currentColor"
                   stroke-width="1.2" stroke-dasharray="2.2 1.8" opacity="0.8"/>
             <rect x="2" y="17.5" width="20" height="3" fill="#30b040"/>
-            <g transform="translate(15.5,17) scale(0.8) translate(-13.4,-13.3) rotate(45 16.5 10)">
+            <g transform="translate(12,17) scale(0.8) translate(-13.4,-13.3) rotate(45 16.5 10)">
                 <rect x="15.2" y="1.5" width="2.6" height="8" rx="1.2" fill="#e03030"/>
                 <rect x="14.8" y="9.3" width="3.4" height="1.8" fill="#e03030" opacity="0.7"/>
                 <path d="M14.8,11.1 L18.2,11.1 L17.6,14.5 C17.2,15.6 15.8,15.6 15.4,14.5 Z" fill="#e03030"/>
