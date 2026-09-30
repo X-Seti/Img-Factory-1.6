@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 25
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 26
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -56,6 +56,7 @@ from PyQt6.QtCore import Qt
 # pause_icon
 # properties_icon
 # record_icon
+# remove_shadow_icon
 # reset_icon
 # rotate_ccw_icon
 # rotate_cw_icon
@@ -3467,6 +3468,15 @@ class SVGIconFactory: #vers 8
             <circle cx="12" cy="4" r="2.6" fill="#e03030"/>
             <circle cx="20" cy="19" r="2.6" fill="#e03030"/>
             <circle cx="4" cy="19" r="2.6" fill="#e03030"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def remove_shadow_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Remove shadow mesh - red S with a 3D drop shadow"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.5,6.5 C15,3.5 7.5,3.5 7.5,8 C7.5,12 16.5,11 16.5,15.5 C16.5,20.5 8.5,20.5 7,17.5" transform="translate(2.2,2)" fill="none" stroke="currentColor"
+                  stroke-width="3.4" stroke-linecap="round" opacity="0.6"/>
+            <path d="M16.5,6.5 C15,3.5 7.5,3.5 7.5,8 C7.5,12 16.5,11 16.5,15.5 C16.5,20.5 8.5,20.5 7,17.5" fill="none" stroke="#e03030" stroke-width="3.4" stroke-linecap="round"/>
         </svg>''', size, color)
 
     @staticmethod

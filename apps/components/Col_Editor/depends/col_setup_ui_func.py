@@ -1295,7 +1295,7 @@ class COLSetupUIMixin: #vers 1
              self._show_shadow_mesh,    enabled=False, attr='show_shadow_btn')
         _act(tb_shadow, "Create Shadow Mesh", self.icon_factory.add_icon,
              self.shadow_dialog,        enabled=False, attr='create_shadow_btn')
-        _act(tb_shadow, "Remove Shadow Mesh", self.icon_factory.delete_icon,
+        _act(tb_shadow, "Remove Shadow Mesh", self.icon_factory.remove_shadow_icon,
              self._remove_shadow,       enabled=False, attr='remove_shadow_btn')
 
         #    Ribbon 7: Edit (selection tools; whole model when nothing selected)
