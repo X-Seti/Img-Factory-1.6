@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 33
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 34
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -73,6 +73,7 @@ from PyQt6.QtCore import Qt
 # settings_icon
 # sphere_icon
 # stop_icon
+# triad_icon
 # txd_workshop_icon
 # trash_icon
 # uncompress_icon
@@ -3578,6 +3579,17 @@ class SVGIconFactory: #vers 8
             <polygon points="3.5,17 7.5,7 11.5,17" fill="currentColor" opacity="0.8"/>
             <polygon points="8.6,5.75 15.4,5.75 12,14.35" fill="#e03030"/>
             <polygon points="12.5,17 16.5,7 20.5,17" fill="currentColor" opacity="0.8"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def triad_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Triad - three triangles in a dotted box, one red (spare)"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="21" height="21" rx="1.5" fill="none" stroke="currentColor"
+                  stroke-width="1.4" stroke-dasharray="2.2 1.8"/>
+            <polygon points="7,5 11,12 3,12" fill="currentColor" opacity="0.8"/>
+            <polygon points="17,5 21,12 13,12" fill="currentColor" opacity="0.8"/>
+            <polygon points="12,12.5 16.5,20 7.5,20" fill="#e03030"/>
         </svg>''', size, color)
 
     @staticmethod
