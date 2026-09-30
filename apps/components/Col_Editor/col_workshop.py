@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 125
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 126
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -43,6 +43,8 @@ from apps.components.Col_Editor.depends.col_edit_func import COLEditMixin
 from apps.components.Col_Editor.depends.col_list_func import COLListMixin
 from apps.components.Col_Editor.depends.col_core_logic_func import COLCoreLogicMixin
 from apps.components.Col_Editor.depends.col_setup_ui_func import COLSetupUIMixin, App_name, App_build
+from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 DEBUG_STANDALONE = False
@@ -56,6 +58,7 @@ DEBUG_STANDALONE = False
 # __init__
 # _launch_theme_settings
 # _open_render_settings_dialog
+# _ribbon_config_path
 # _show_amiga_locale_error
 # _show_col_info
 # show_help
@@ -78,9 +81,10 @@ DEBUG_STANDALONE = False
 # COLPaintMixin - col_paint_func.py
 # COLEditMixin - col_edit_func.py
 # COL3DViewport - col_viewport.py
+# RibbonIconsMixin - methods/ribbon_dialog.py
 
 
-class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 11
+class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, RibbonIconsMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 12
     """COL Workshop - Main window"""
 
     #    ToolMenuMixin implementation                                      
@@ -1457,6 +1461,10 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
 
         dialog.exec()
 
+
+    def _ribbon_config_path(self): #vers 1
+        """Ribbon layout, presets and custom icons file."""
+        return get_user_config_dir() / 'col_workshop.json'
 
     def _show_col_info(self): #vers 5
         """About COL Workshop: author, version, features, shortcuts."""

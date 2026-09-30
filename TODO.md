@@ -1,4 +1,10 @@
-#this belongs in root /TODO.md - Version: 12
+#this belongs in root /TODO.md - Version: 13
+
+## Sep 2026 - Duplicates still to review
+- apps/methods/ribbon_manager.py (DockableToolbar ribbon) has no users; remove?
+- DP5 Workshop builds its own Ribbon Manager inline; could move to methods/ribbon_dialog.py.
+- Radar Workshop encode_dxt1 duplicates methods/txd_dxt_encode.py.
+- TXD show_help, _show_detailed_info are empty stubs.
 
 ## July 2026 - Map Editor (Map Workshop) - status and plan
 

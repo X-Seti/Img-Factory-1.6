@@ -1,1963 +1,179 @@
-#!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 11
-# X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 1
+# X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
-Check, Optimize, Adjust the game data.
+TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpmaps.
 """
 
-import sys, os
-from pathlib import Path
-_root = Path(__file__).resolve().parents[3]
-if str(_root) not in sys.path: sys.path.insert(0, str(_root))
+##class TXDLogicMixin: -
+# _add_texture_to_table
+# _add_warning_badge
+# _apply_gaussian_blur
+# _apply_settings
+# _apply_texture_filters
+# _auto_generate_mipmaps
+# _auto_generate_mipmaps_to_level
+# _batch_import_from_folder
+# _build_txd_from_dff
+# _calculate_new_txd_size
+# _change_bit_depth
+# _change_format
+# _check_alpha_validity
+# _check_txd_vs_dff
+# _clear_texture_search
+# _compress_texture
+# _convert_format
+# _convert_texture
+# copy_texture
+# _copy_texture
+# _create_blank_texture
+# _create_bumpmap_data
+# _create_empty_txd_data
+# _create_mipmaps_dialog
+# _create_new_texture_entry
+# _create_new_txd
+# _create_thumbnail
+# _decode_bumpmap
+# _decompress_dxt1
+# _decompress_dxt3
+# _decompress_dxt5
+# _decompress_texture
+# _decompress_uncompressed
+# _delete_bumpmap
+# _delete_texture
+# delete_texture
+# _detect_txd_info
+# _detect_y_flip
+# _display_mobile_textures
+# _display_xtx_texture
+# duplicate_texture
+# _duplicate_texture
+# _edit_texture_external
+# _emboss_filter
+# _encode_bumpmap
+# export_all_textures
+# _export_all_textures
+# _export_alpha_only
+# _export_bumpmap
+# export_selected_texture
+# _export_selected_texture
+# export_texture
+# _extract_alpha_channel
+# _extract_txd_from_img
+# _flip_horizontal
+# _flip_vertical
+# _force_save_txd
+# _generate_alpha_mask
+# _generate_bumpmap_from_texture
+# _generate_rgb_normal_map
+# _get_current_rgba
+# _get_format_description
+# _has_bumpmap_data
+# _height_map
+# _import_alpha_texture
+# _import_bumpmap
+# _import_normal_texture
+# import_normal_texture
+# import_textures
+# _import_textures
+# _invert_grayscale
+# load_from_img_archive
+# _load_img_txd_list
+# _load_settings
+# _load_texture_with_pil
+# _load_txd_textures
+# _log
+# _mark_as_modified
+# _normal_to_reflection
+# _normalize_vector
+# _on_texture_selected
+# _on_texture_table_double_click
+# _on_txd_selected
+# _open_alpha_coverage
+# _open_chk_file
+# _open_colour_adjust
+# _open_filters_dialog
+# open_img_archive
+# _open_mipmap_manager
+# _open_mobile_texture_db
+# _open_paint_editor
+# _open_ps2_txd
+# _open_seamless_tool
+# _open_snow_tool
+# _open_txd_file
+# open_txd_file
+# _open_xtd_file
+# _open_xtx_file
+# _parse_dff_materials
+# _parse_single_texture
+# paste_texture
+# _paste_texture
+# _perform_ai_upscale
+# _perform_texture_search
+# _preview_bumpmap_generation
+# _quick_alpha_check
+# _rebuild_img_with_new_txd
+# _rebuild_txd_data
+# _rebuild_txd_data_with_texture_progress
+# refresh
+# _refresh_main_window
+# _reload_texture_table
+# reload_texture_table
+# _remove_mipmaps
+# _rename_texture
+# _rename_texture_shortcut
+# _requires_img_rebuild
+# _resize_texture
+# _resize_texture_data
+# _rgba_to_iff_ilbm
+# _rotate_clockwise
+# _rotate_counterclockwise
+# _save_alpha_name
+# _save_as_new_img
+# _save_as_new_txd
+# _save_as_txd_file
+# save_as_txd_file
+# _save_as_txd_file_with_version_selector
+# _save_settings
+# _save_texture_format
+# _save_texture_name
+# _save_texture_png
+# save_txd_file
+# _save_txd_file
+# _save_txd_to_img_with_version_selector
+# _save_undo_state
+# _set_current_rgba
+# _show_detailed_info
+# show_properties
+# _show_texture_info
+# _show_txd_info
+# _show_version_selector_dialog
+# _sobel_filter
+# _strip_unsupported_features_for_version
+# _texture_statistics
+# _toggle_alpha_invert
+# _uncompress_texture
+# _undo_last_action
+# undo_last_action
+# _update_img_with_txd
+# _upscale_texture
+# _upscale_texture_advanced
+# _validate_texture_dimensions
+# _view_bumpmap
 
-import os
-import tempfile
-import subprocess
-import shutil
-import struct
-import sys
-import io
 import numpy as np
-from pathlib import Path
-from typing import Optional, List, Dict, Tuple
-from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStackedWidget
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
-from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
-from PyQt6.QtSvg import QSvgRenderer
-
-from apps.methods.ribbon_dialog import RibbonIconsMixin
-from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow, ZoomablePreview
+import os
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QImage, QPixmap
+from PyQt6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidgetItem, QMessageBox, QPushButton, QRadioButton, QSlider, QSpinBox, QTableWidgetItem, QTextEdit, QVBoxLayout
+from apps.components.Txd_Editor.depends.txd_ui_func import App_name
+from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow
 from apps.methods.txd_dxt_encode import _encode_dxt1
-from apps.methods.txd_versions import ( detect_txd_version, get_platform_name, get_game_from_version, get_version_capabilities, get_platform_capabilities, is_mipmap_supported, is_bumpmap_supported, validate_txd_format, TXDPlatform, detect_platform_from_data)
-
-from apps.methods.txd_versions import (detect_txd_version, get_version_string, get_platform_name, get_platform_capabilities, TXDPlatform, TXDVersion)
-
-from apps.methods.imgfactory_svg_icons import SVGIconFactory
-from apps.gui.txd_context_menu import setup_txd_context_menu
-from apps.methods.asset_checker import check_assets, find_sibling_asset_files, find_game_asset_files
-
-
-from apps.debug.debug_functions import img_debugger
-from apps.gui.tool_menu_mixin import ToolMenuMixin
-
-try:
-    from PIL import Image
-except ImportError:
-    Image = None
-
-# Import AppSettings
-try:
-    from apps.utils.app_settings_system import AppSettings, SettingsDialog
-    APPSETTINGS_AVAILABLE = True
-except ImportError:
-    APPSETTINGS_AVAILABLE = False
-    print("Warning: AppSettings not available")
-
-DEBUG_STANDALONE = False
-
-##Methods list -
-# Needs updating
-
-# Build information
-App_name = "Asset Workshop"; _App_name = "Asset_Workshop"
-App_build = "1"
-
-
-class _NumericSortItem(QTableWidgetItem): #vers 1
-    """Table item sorting by real numeric value, not text. Blank
-    IDs sort last instead of crashing on empty string."""
-    def __lt__(self, other): #vers 1
-        def _num(item):
-            try:
-                return int(item.text())
-            except (ValueError, AttributeError):
-                return float('inf')
-        return _num(self) < _num(other)
-
-
-
-class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
-    """Workshop - Main texture editing window"""
-
-    workshop_closed = pyqtSignal()
-    window_closed = pyqtSignal()
-
-    # Bump whenever the set of ribbon toolbars changes (added/removed/
-    # renamed) so a saved layout from an older structure is cleanly
-    # rejected by _restore_toolbar_state instead of Qt silently failing
-    # to restore it. History: 1 = Transform/Nav/Effects only,
-    # 2 = added merged Name/Format + Mipmaps, 3 = split Name/Format apart,
-    # 4 = added Asset Check ribbon (Master IDE), 5 = removed Navigation
-    # and Effects ribbons (viewport/background/effects tools dropped),
-    # 6 = removed Name/Format/Mipmaps ribbons and Transform's flip/
-    # rotate/switch/invert/generate-alpha actions.
-    _RIBBON_LAYOUT_VERSION = 7
-
-    def _get_ui_color(self, key): #vers 2
-        """Theme QColor via shared helper."""
-        from apps.methods.ui_color import get_ui_color
-        return get_ui_color(self, key)
-
-
-    def __init__(self, parent=None, main_window=None): #vers 10
-        """Initialize Workshop"""
-        if DEBUG_STANDALONE and main_window is None:
-            print(App_name + " Initializing ...")
-
-        super().__init__(parent)
-        self.main_window = main_window
-        self.setWindowTitle(App_name)
-        self.setWindowIcon(SVGIconFactory.txd_workshop_icon())
-        self.icon_factory = SVGIconFactory()
-
-        # Initialize app_settings for theme support
-        if main_window and hasattr(main_window, 'app_settings'):
-            self.app_settings = main_window.app_settings
-        else:
-            self.app_settings = None
-        if self.app_settings and hasattr(self.app_settings, 'theme_changed'):
-            self.app_settings.theme_changed.connect(self._refresh_icons)
-
-        self.result = None            # AssetCheckResult, when opened as a checker
-        self._checker_tab = None
-        self.current_img = None
-        self.current_txd_data = None
-        self.current_txd_name = None
-        self.txd_list = []
-        self.texture_list = []
-        self.selected_texture = None
-        self.undo_stack = []
-        self.button_display_mode = 'icons'
-        self.current_txd_path = None
-        self.save_to_source_location = True
-        self.last_save_directory = None
-        self.texture_view_states = {}
-        self._current_view_state = 0
-
-        # Set default fonts
-        from PyQt6.QtGui import QFont
-        default_font = QFont("Fira Sans Condensed", 14)
-        self.setFont(default_font)
-        self.title_font = QFont("Arial", 14)
-        self.panel_font = QFont("Arial", 10)
-        self.button_font = QFont("Arial", 10)
-        self.infobar_font = QFont("Courier New", 9)
-
-        # Preview settings
-        self._show_checkerboard = True
-        self._checkerboard_size = 16
-        self._overlay_opacity = 50
-        self._invert_alpha = False
-        self.zoom_level = 1.0
-        self.pan_offset = QPoint(0, 0)
-        #self.background_color = self._get_ui_color('viewport_bg')
-        self.background_mode = 'solid'
-        self.placeholder_text = "No texture"
-        self.setMinimumSize(200, 200)
-
-        # Asset Check settings
-        self.auto_find_gta3_img = True
-        self.excluded_names = set()
-        self.excluded_files = set()
-        self.ignore_id_min = None
-        self.ignore_id_max = None
-        self._all_img_paths = []
-        self._all_col_paths = []
-        self._all_ide_paths = []
-
-        # Texture import/export settings
-        self.dimension_limiting_enabled = False
-        self.splash_screen_mode = False
-        self.custom_max_dimension = 4096
-
-        # Texture naming settings
-        self.name_limit_enabled = True
-        self.max_texture_name_length = 32
-
-        # Format support flags
-        self.iff_import_enabled = True
-        self.splash_formats_enabled = True
-
-        # Export preferences
-        self.export_target_game = "auto"
-        self.export_target_platform = "pc"
-
-        # TXD version tracking
-        self.txd_version_id = 0
-        self.txd_device_id = 0
-        self.txd_version_str = "Unknown"
-        self.txd_platform_name = "Unknown"
-        self.txd_game = "Unknown"
-        self.txd_capabilities = {}
-
-        # Detect standalone mode FIRST
-        self.standalone_mode = (main_window is None)
-
-        if main_window and hasattr(main_window, 'app_settings'):
-            self.app_settings = main_window.app_settings
-        else:
-            # FIXED: Create AppSettings for standalone mode
-            try:
-                from apps.utils.app_settings_system import AppSettings
-                self.app_settings = AppSettings()
-                img_debugger.debug("AppSettings initialized for standalone COL Workshop")
-            except Exception as e:
-                img_debugger.warning(f"Could not initialize AppSettings: {e}")
-                self.app_settings = None
-
-
-        # Docking state
-        self.is_docked = (main_window is not None)
-        self.dock_widget = None
-        self.is_overlay = False
-        self.overlay_table = None
-        self.overlay_tab_index = -1
-
-        self.setWindowTitle(App_name + ": No File")
-        self.resize(1400, 800)
-        self.use_system_titlebar = False
-        self.window_always_on_top = False
-
-        # Window flags
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-
-        self._initialize_features()
-
-        # Corner resize variables
-        self.dragging = False
-        self.drag_position = None
-        self.resizing = False
-        self.resize_corner = None
-        self.corner_size = 20
-        self.hover_corner = None
-
-        if parent:
-            parent_pos = parent.pos()
-            self.move(parent_pos.x() + 50, parent_pos.y() + 80)
-
-        if self.standalone_mode:
-            self._ensure_depends_structure()
-
-        self.txd_tabs = []
-        self.current_tab_index = 0
-
-        # Setup UI FIRST
-        self.setup_ui()
-
-        # THEN setup context menu
-        setup_txd_context_menu(self)
-
-        # Setup hotkeys
-        self._setup_hotkeys()
-
-        # Apply theme ONCE at the end
-        self._apply_theme()
-
-        # Enable mouse tracking
-        self.setMouseTracking(True)
-
-        if DEBUG_STANDALONE and self.standalone_mode:
-            print(App_name + " initialized")
-
-
-    #    ToolMenuMixin implementation                                      
-
-    def get_menu_title(self) -> str: #vers 1
-        """Return menu label for imgfactory menu bar."""
-        return "TXD"
-
-    def _build_menus_into_qmenu(self, parent_menu): #vers 1
-        """Populate parent_menu with "Workshop"" actions for imgfactory injection."""
-        from PyQt6.QtGui import QAction
-
-        # File
-        fm = parent_menu.addMenu("File")
-        fm.addAction("Open TXD…",           self._open_txd_file if hasattr(self, '_open_txd_file') else lambda: None)
-        fm.addAction("Save TXD",             self._save_txd_file)
-        fm.addAction("Save TXD As…",         self._save_as_txd_file)
-        fm.addSeparator()
-        fm.addAction("New TXD",              self._create_new_txd)
-        fm.addSeparator()
-        fm.addAction("Close TXD",            lambda: None)
-
-        # Texture
-        tm = parent_menu.addMenu("Texture")
-        tm.addAction("Import Texture…",      self._import_textures)
-        tm.addAction("Export Selected…",     self.export_selected_texture)
-        tm.addAction("Export All…",          self.export_all_textures)
-        tm.addSeparator()
-        tm.addAction("Convert Format…",      self._show_convert_dialog if hasattr(self, '_show_convert_dialog') else lambda: None)
-
-        # Tools
-        tools = parent_menu.addMenu("Tools")
-        tools.addAction("Colour Adjustments…", self._open_colour_adjust)
-        tools.addAction("Seamless Tool…",       self._open_seamless_tool)
-        tools.addAction("Snow Effect…",         self._open_snow_tool)
-        tools.addSeparator()
-        tools.addAction("Tiled Preview 1×1",    lambda: self._set_tiled_preview(1))
-        tools.addAction("Tiled Preview 2×2",    lambda: self._set_tiled_preview(2))
-        tools.addAction("Tiled Preview 3×3",    lambda: self._set_tiled_preview(3))
-        tools.addSeparator()
-        tools.addAction("Alpha Coverage…",      self._open_alpha_coverage)
-
-        # View
-        vm = parent_menu.addMenu("View")
-        vm.addAction("TXD Info",             self._show_txd_info)
-
-    def setup_ui(self): #vers 9
-        """Setup the main UI layout"""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5)
-        main_layout.setSpacing(5)
-
-        # Toolbar - hidden when embedded in main window tab
-        toolbar = self._create_toolbar()
-        self._workshop_toolbar = toolbar
-        if not self.standalone_mode:
-            toolbar.setVisible(False)
-        main_layout.addWidget(toolbar)
-
-        # Tab bar for multiple TXD files
-        self.txd_tabs = QTabWidget()
-        self.txd_tabs.setTabsClosable(True)
-        self.txd_tabs.tabCloseRequested.connect(self._close_txd_tab)
-        self.txd_tabs.currentChanged.connect(self._switch_txd_tab)
-
-        # Create initial tab with main content
-        initial_tab = QWidget()
-        tab_layout = QVBoxLayout(initial_tab)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-
-
-        # Main splitter
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        # Create all panels first
-        #left_panel = self._create_left_panel() # Disabled pane.
-        middle_panel = self._create_middle_panel()
-        self._middle_panel = middle_panel
-        middle_panel.setVisible(False)   # hidden until a TXD is actually loaded
-        right_panel = self._create_right_panel()
-
-        # Left panel disabled - just middle (texture list) + right (viewport)
-        main_splitter.addWidget(middle_panel)
-        main_splitter.addWidget(right_panel)
-        main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 2)
-
-        self._main_splitter = main_splitter
-        self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
-        main_layout.addWidget(main_splitter)
-
-        # Apply themed icons now UI is fully built
-        self._refresh_icons()
-
-        # Connect signals AFTER texture_table is created
-        #self._connect_texture_table_signals()
-
-        # NEW: Status bar at bottom with texture info
-        #self.status_bar = self._create_status_bar()
-        #main_layout.addWidget(self.status_bar)
-
-        # Status indicators - hidden when embedded in main window tab, or
-        # if the user has turned off Show "Workshop" status bar
-        if hasattr(self, '_setup_status_indicators'):
-            status_frame = self._setup_status_indicators()
-            if not self.standalone_mode or not getattr(self, 'show_status_bar', True):
-                status_frame.setVisible(False)
-            main_layout.addWidget(status_frame)
-
-
-
-# - Asset Checker (adapted from asset_workshop_org.py, added into new UI)
-
-    def load_result(self, result): #vers 4
-        """Populate Asset Check with a real AssetCheckResult, building
-        it into the right panel's own viewport on first use - ribbons
-        stay visible, left panel stays disabled. Excluded names/files
-        and the ID-range filter (Sep 17 2026, per Keith: "exclude
-        files... img, col, ide should ignore them" / "start listing
-        from a given ID") are stripped from the result right here,
-        once, so every view/diff downstream (all pure functions of
-        img_names/col_names/ide_names) simply never sees them.
-
-        The FULL, never-filtered path lists are captured once on the
-        first real load only (never overwritten by a later reload)
-        - excluding a whole file re-runs check_assets() with that
-        file's path dropped from the input list, which would
-        otherwise permanently lose it from self.result.*_paths and
-        make excluding it irreversible, and would also drift
-        _exclusions_key() out from under any names/files already
-        saved against the original full set."""
-        self.result = result
-        if not (self._all_img_paths or self._all_col_paths or self._all_ide_paths):
-            self._all_img_paths = list(result.img_paths)
-            self._all_col_paths = list(result.col_paths)
-            self._all_ide_paths = list(result.ide_paths)
-        self.excluded_names, self.excluded_files, self.ignore_id_min, self.ignore_id_max = \
-            self._load_exclusions()
-        self._apply_exclusions(self.result)
-        if self._checker_tab is None:
-            self._build_checker_tab()
-        self._refresh_checker_summary()
-        self._populate_columns_view()
-        self._populate_merged_view()
-        self._populate_cross_reference_view()
-        self._viewport_stack.setCurrentWidget(self._checker_tab)
-        all_checked = self._all_checked_names()
-        if len(all_checked) > 3:
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(200, lambda: self._show_checked_files_popup(all_checked))
-
-    def _all_checked_names(self): #vers 1
-        """Every real checked filename, one per file."""
-        names = []
-        if self.result.img_path:
-            if "," in self.result.img_path:
-                names.extend(n.strip() for n in self.result.img_path.split(","))
-            else:
-                names.append(os.path.basename(self.result.img_path))
-        if self.result.col_path:
-            if "," in self.result.col_path:
-                names.extend(n.strip() for n in self.result.col_path.split(","))
-            else:
-                names.append(os.path.basename(self.result.col_path))
-        if self.result.ide_path:
-            names.extend(n.strip() for n in self.result.ide_path.split(","))
-        return names
-
-    def _show_checked_files_popup(self, names): #vers 1
-        """Small non-modal popup listing checked files, auto-closes
-        after 5 seconds."""
-        from PyQt6.QtCore import QTimer
-        popup = QDialog(self)
-        popup.setWindowTitle(f"Checked files ({len(names)})")
-        v = QVBoxLayout(popup)
-        lst = QListWidget()
-        lst.addItems(names)
-        v.addWidget(lst)
-        popup.resize(360, 400)
-        popup.setModal(False)
-        popup.show()
-        QTimer.singleShot(5000, popup.close)
-
-    def _build_checker_tab(self): #vers 2
-        """Build Asset Check: summary/actions row + stacked 4-column/
-        merged/cross-reference views. Added as a page in the right
-        panel's own viewport stack, alongside the texture preview."""
-        tab = QWidget()
-        lay = QVBoxLayout(tab)
-        lay.setContentsMargins(2, 2, 2, 2)
-
-        self._checker_top = QHBoxLayout()
-        lay.addLayout(self._checker_top)
-
-        self._checker_stack = QStackedWidget()
-        lay.addWidget(self._checker_stack, 1)
-
-        columns_widget = QWidget()
-        columns_lay = QHBoxLayout(columns_widget)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        columns_lay.addWidget(splitter)
-
-        self.id_list = self._make_column(splitter, "ID", None)
-        self.ide_list = self._make_column(splitter, "IDE entry list", None)
-        self.img_list = self._make_column(splitter, "IMG archive", None)
-        self.col_list = self._make_column(splitter, "COL archive", None)
-        self.error_list = self._make_column(splitter, "Error list", None)
-        self._checker_stack.addWidget(columns_widget)
-
-        self._sync_lists = [self.id_list, self.ide_list, self.img_list, self.col_list]
-        self._sync_guard = False
-        for lst in self._sync_lists:
-            lst.verticalScrollBar().valueChanged.connect(self._on_checker_sync_scroll)
-
-        self.merged_table = QTableWidget()
-        self.merged_table.setColumnCount(3)
-        self.merged_table.setHorizontalHeaderLabels(["Model Name", "Source", "Status"])
-        self.merged_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.merged_table.horizontalHeader().setStretchLastSection(True)
-        self._checker_stack.addWidget(self.merged_table)
-
-        self.xref_table = QTableWidget()
-        self.xref_table.setColumnCount(6)
-        self.xref_table.setHorizontalHeaderLabels(
-            ["ID", "DFF", "COL", "IDE Model Name", "Texture entry", "Errors"])
-        self.xref_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.xref_table.horizontalHeader().setStretchLastSection(True)
-        self.xref_table.setSortingEnabled(True)
-        self.xref_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.xref_table.customContextMenuRequested.connect(self._xref_context_menu)
-        self._checker_stack.addWidget(self.xref_table)
-
-        self._checker_tab = tab
-        self._viewport_stack.addWidget(tab)
-
-    def _refresh_checker_summary(self): #vers 1
-        """Rebuild the checker tab's own summary/actions row,
-        recomputed against self.result each time."""
-        while self._checker_top.count():
-            item = self._checker_top.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        all_checked = self._all_checked_names()
-        if not all_checked:
-            summary = "No sibling files found"
-        elif len(all_checked) <= 3:
-            summary = "Checked: " + ", ".join(all_checked)
-        else:
-            summary = (f"Checked: {', '.join(all_checked[:2])} "
-                       f"+{len(all_checked) - 2} more")
-        self._checker_top.addWidget(QLabel(summary))
-        if len(all_checked) > 3:
-            show_files_btn = QPushButton("Show list")
-            show_files_btn.clicked.connect(
-                lambda: self._show_checked_files_popup(all_checked))
-            self._checker_top.addWidget(show_files_btn)
-        self._checker_top.addStretch()
-        self._checker_top.addWidget(QLabel("View:"))
-        self.checker_view_combo = QComboBox()
-        # Master IDE is always reachable, even with nothing loaded yet
-        # (Sep 17 2026, per Keith: it "can't be called from Asset_
-        # workshop.py when that's standalone" - previously gated on
-        # self.result.ide_path, so a bare/empty Asset Workshop had no
-        # way to reach it at all). With no real IDE path yet, it just
-        # opens Master IDE empty, ready for its own Load/Insert buttons.
-        self.checker_view_combo.addItems(
-            ["4-Column View", "Merged View", "Cross-Reference Table", "Master IDE..."])
-        self.checker_view_combo.currentIndexChanged.connect(self._on_checker_view_changed)
-        self._checker_top.addWidget(self.checker_view_combo)
-        if hasattr(self, 'master_ide_ribbon_btn'):
-            self.master_ide_ribbon_btn.setEnabled(True)
-        export_report_btn = QPushButton("Export Full Report...")
-        export_report_btn.setToolTip(
-            "Export every real missing/extra entry across IMG, COL, and IDE - "
-            "the same real check every cross-reference row shows, in one file.")
-        export_report_btn.clicked.connect(self._on_export_full_report)
-        self._checker_top.addWidget(export_report_btn)
-
-        ide_count = len(self.result.ide_names)
-        img_extra_count = len(self.result.img_extra_over_ide) if self.result.img_path and self.result.ide_path else 0
-        img_missing_count = len(self.result.missing_from_img) if self.result.img_path and self.result.ide_path else 0
-        col_extra_count = len(self.result.col_extra_over_ide) if self.result.col_path and self.result.ide_path else 0
-        col_missing_count = len(self.result.missing_from_col) if self.result.col_path and self.result.ide_path else 0
-        self._set_column_header(self.ide_list, "IDE entry list", ide_count)
-        self._set_column_header(self.img_list, "IMG archive", ide_count,
-            diffs=self._real_diffs(img_extra_count, img_missing_count, "IMG"))
-        self._set_column_header(self.col_list, "COL archive", ide_count,
-            diffs=self._real_diffs(col_extra_count, col_missing_count, "COL"))
-
-    def _set_column_header(self, lst, title, count, diffs=None): #vers 1
-        """Rebuild one column's header row (label + diff buttons)."""
-        header_lay = lst.property("header_layout")
-        if header_lay is None:
-            return
-        while header_lay.count():
-            item = header_lay.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        label_text = title if count is None else f"{title} ({count})"
-        header_lbl = QLabel(label_text)
-        bright = self.palette().color(self.palette().currentColorGroup(),
-                                       self.palette().ColorRole.BrightText)
-        header_lbl.setStyleSheet(f"color: {bright.name()}; font-weight: bold;")
-        header_lay.addWidget(header_lbl)
-        for label, tooltip, on_click in (diffs or []):
-            diff_btn = QPushButton(label)
-            diff_btn.setFlat(True)
-            diff_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            diff_btn.setStyleSheet(
-                "text-decoration: underline; padding: 0px 3px; font-size: 11px;")
-            diff_btn.setMaximumWidth(diff_btn.fontMetrics().horizontalAdvance(label) + 10)
-            diff_btn.setToolTip(tooltip)
-            if on_click:
-                diff_btn.clicked.connect(on_click)
-            header_lay.addWidget(diff_btn)
-        header_lay.addStretch()
-
-    def _make_column(self, splitter, title, count, diffs=None): #vers 1
-        container = QWidget()
-        container.setMinimumWidth(150)
-        v = QVBoxLayout(container)
-        v.setContentsMargins(2, 2, 2, 2)
-        header_row = QHBoxLayout()
-        v.addLayout(header_row)
-        lst = QListWidget()
-        lst.setAlternatingRowColors(True)
-        lst.setProperty("header_layout", header_row)
-        v.addWidget(lst)
-        splitter.addWidget(container)
-        self._set_column_header(lst, title, count, diffs)
-        return lst
-
-    def _real_diffs(self, extra_count, missing_count, source_label): #vers 1
-        diffs = []
-        if extra_count:
-            diffs.append((
-                f"+{extra_count}",
-                f"{extra_count} {source_label} entr{'y' if extra_count == 1 else 'ies'} "
-                f"not declared anywhere in IDE",
-                lambda: self._show_diff_popup(
-                    self.result.img_extra_over_ide if source_label == "IMG" else self.result.col_extra_over_ide,
-                    f"{source_label} entries not in IDE")))
-        if missing_count:
-            diffs.append((
-                f"-{missing_count}",
-                f"{missing_count} IDE entr{'y' if missing_count == 1 else 'ies'} "
-                f"with no matching {source_label} file",
-                lambda: self._show_diff_popup(
-                    self.result.missing_from_img if source_label == "IMG" else self.result.missing_from_col,
-                    f"IDE entries missing from {source_label}")))
-        return diffs
-
-    def _on_checker_sync_scroll(self, value): #vers 1
-        if self._sync_guard:
-            return
-        self._sync_guard = True
-        try:
-            for lst in self._sync_lists:
-                if lst.verticalScrollBar().value() != value:
-                    lst.verticalScrollBar().setValue(value)
-        finally:
-            self._sync_guard = False
-
-    def _show_diff_popup(self, names, title): #vers 1
-        dlg = QDialog(self)
-        dlg.setWindowTitle(title)
-        dlg.resize(360, 400)
-        v = QVBoxLayout(dlg)
-        v.addWidget(QLabel(f"{len(names)} entr{'y' if len(names) == 1 else 'ies'}:"))
-        lst = QListWidget()
-        lst.addItems(sorted(names))
-        v.addWidget(lst)
-        btn_row = QHBoxLayout()
-        copy_one_btn = QPushButton("Copy Selected")
-        copy_one_btn.clicked.connect(
-            lambda: QApplication.clipboard().setText(
-                lst.currentItem().text() if lst.currentItem() else ""))
-        copy_all_btn = QPushButton("Copy All")
-        copy_all_btn.clicked.connect(
-            lambda: QApplication.clipboard().setText("\n".join(sorted(names))))
-        export_btn = QPushButton("Export to File...")
-        export_btn.clicked.connect(lambda: self._export_text_report(title, sorted(names)))
-        btn_row.addWidget(copy_one_btn)
-        btn_row.addWidget(copy_all_btn)
-        btn_row.addWidget(export_btn)
-        btn_row.addStretch()
-        v.addLayout(btn_row)
-        dlg.exec()
-
-    def _on_export_full_report(self): #vers 1
-        """Export every real mismatch across IMG/COL/IDE to one
-        plain text file."""
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export Full Report", "asset_report.txt", "Text Files (*.txt)")
-        if not path:
-            return
-        r = self.result
-        lines = [f"Asset Workshop Report", f"Checked: {', '.join(self._all_checked_names())}", ""]
-
-        def _section(title, names):
-            lines.append(f"{title} ({len(names)}):")
-            lines.extend(f"  {n}" for n in sorted(names))
-            lines.append("")
-
-        if r.img_path and r.ide_path:
-            _section("IMG entries not declared in IDE", r.img_extra_over_ide)
-            _section("IDE entries missing from IMG", r.missing_from_img)
-        if r.col_path and r.ide_path:
-            _section("COL entries not declared in IDE", r.col_extra_over_ide)
-            _section("IDE entries missing from COL", r.missing_from_col)
-        if r.ide_path:
-            _section("Names not found in IDE at all", r.not_in_ide)
-
-        try:
-            with open(path, "w", encoding="utf-8", errors="ignore") as f:
-                f.write("\n".join(lines))
-            QMessageBox.information(self, "Export Full Report", f"Saved to:\n{path}")
-        except Exception as e:
-            QMessageBox.warning(self, "Export Failed", str(e))
-
-    def _export_text_report(self, title: str, lines: list): #vers 1
-        """Write a plain text report of the given entries."""
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export Report", f"{title}.txt", "Text Files (*.txt)")
-        if not path:
-            return
-        try:
-            with open(path, "w", encoding="utf-8", errors="ignore") as f:
-                f.write(f"{title}\n{len(lines)} entr{'y' if len(lines) == 1 else 'ies'}\n\n")
-                f.write("\n".join(lines))
-            QMessageBox.information(self, "Export Report", f"Saved to:\n{path}")
-        except Exception as e:
-            QMessageBox.warning(self, "Export Failed", str(e))
-
-    def _on_checker_view_changed(self, index): #vers 2
-        """Master IDE isn't a real page in _checker_stack - it opens
-        its own workshop - so route that entry to _on_master_ide and
-        snap the dropdown back to whatever page is actually showing."""
-        if self.checker_view_combo.itemText(index) == "Master IDE...":
-            self._on_master_ide()
-            self.checker_view_combo.blockSignals(True)
-            self.checker_view_combo.setCurrentIndex(self._checker_stack.currentIndex())
-            self.checker_view_combo.blockSignals(False)
-            return
-        self._checker_stack.setCurrentIndex(index)
-
-    def _on_master_ide_ribbon(self): #vers 1
-        """Ribbon entry point for Master IDE - routes through the same
-        checker view dropdown as the 4-Column/Merged/Cross-Reference
-        views, so ribbon and dropdown stay in sync."""
-        idx = self.checker_view_combo.findText("Master IDE...")
-        if idx >= 0:
-            self.checker_view_combo.setCurrentIndex(idx)
-        else:
-            self._on_master_ide()
-
-    def _on_master_ide(self): #vers 2
-        """Open Master IDE Workshop for the same real IDE file(s), or
-        with nothing pre-loaded if Asset Workshop itself has no real
-        IDE path yet (Sep 17 2026 - previously this passed [None] as
-        ide_paths when standalone with nothing loaded, which loaded
-        nothing useful anyway; opening it genuinely empty instead
-        lets its own Load from .dat/Insert IDE File buttons work)."""
-        from apps.components.Master_Ide.master_ide_workshop import open_master_ide_workshop
-        paths = self.result.ide_paths or ([self.result.ide_path] if self.result.ide_path else None)
-        open_master_ide_workshop(self.main_window, ide_paths=paths)
-
-    def _on_load_from_dat(self): #vers 1
-        """Load a whole game's real IMG/COL/IDE via its .dat, same
-        resolution open_asset_workshop's own dat_path branch uses -
-        needed standalone, where nothing else can hand this a path."""
-        dat_path, _ = QFileDialog.getOpenFileName(
-            self, "Load from .dat", "",
-            "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat "
-            "gtasol.dat gta_quick.dat);;All files (*.dat)")
-        if not dat_path:
-            return
-        img_path, col_path, ide_paths, game = find_game_asset_files(
-            dat_path, auto_find_gta3_img=getattr(self, 'auto_find_gta3_img', True))
-        if not img_path and not col_path and not ide_paths:
-            QMessageBox.warning(self, App_name,
-                f"Could not find any real IMG/COL/IDE files from:\n{dat_path}")
-            return
-        result = check_assets(img_path=img_path, col_path=col_path, ide_path=ide_paths, game=game)
-        self._all_img_paths, self._all_col_paths, self._all_ide_paths = [], [], []   # new game - recapture
-        self.dat_path, self._dat_game = dat_path, game
-        self.load_result(result)
-
-    def _on_integrity_check(self): #vers 2
-        """Read-only consistency report: orphaned IPL/2dfx/path, duplicate
-        IDs/names, TXD usage (info only), ID gaps. Uses ALL ide files
-        (ignoring Exclude Files) so nothing shows as falsely orphaned."""
-        from apps.methods.master_ide import load_master_ide, collect_ipl_paths_from_dat
-        from apps.methods.asset_integrity import check_integrity, format_report, show_integrity_dialog
-        r = self.result
-        ides = list(self._all_ide_paths or (r.ide_paths if r else [])
-                    or ([r.ide_path] if r and r.ide_path else []))
-        if not ides:
-            QMessageBox.information(self, App_name, "No IDE files loaded.")
-            return
-        dat = getattr(self, 'dat_path', None)
-        game = getattr(self, '_dat_game', None)
-        if dat:
-            ipls = collect_ipl_paths_from_dat(dat, game=game)
-        else:
-            ipls = [os.path.splitext(p)[0] + ext for p in ides for ext in (".ipl", ".IPL")
-                    if os.path.isfile(os.path.splitext(p)[0] + ext)]
-        rep = check_integrity(load_master_ide(ides, game=game), ipls)
-        show_integrity_dialog(self, format_report(rep))
-
-    def _populate_columns_view(self): #vers 1
-        r = self.result
-
-        def _ide_order_key(name):
-            return (r.ide_id_by_name.get(name, float('inf')), name)
-        self.img_list.clear()
-        self.col_list.clear()
-        self.ide_list.clear()
-        self.id_list.clear()
-        self.error_list.clear()
-        self.img_list.addItems(sorted(r.img_names, key=_ide_order_key))
-        self.col_list.addItems(sorted(r.col_names, key=_ide_order_key))
-        sorted_ide_names = sorted(r.ide_names, key=lambda n: r.ide_id_by_name.get(n, 0))
-        self.ide_list.addItems(sorted_ide_names)
-        self.id_list.addItems(str(r.ide_id_by_name.get(name, "")) for name in sorted_ide_names)
-
-        errors = []
-        for name in sorted(r.missing_from_col):
-            errors.append(f"Missing in COL: {name}")
-        for name in sorted(r.missing_from_img):
-            errors.append(f"Missing in IMG: {name}")
-        for name in sorted(r.not_in_ide):
-            errors.append(f"Not found in IDE: {name}")
-        if not errors:
-            errors.append("No mismatches found among the checked sources.")
-        self.error_list.addItems(errors)
-
-    def _populate_merged_view(self): #vers 1
-        base = self.palette().color(self.palette().currentColorGroup(),
-                                     self.palette().ColorRole.Base)
-        shades = {
-            'IMG': base.lighter(112),
-            'COL': base,
-            'IDE': base.darker(108),
-        }
-        rows = []
-        for name in self.result.all_names:
-            if name in self.result.img_names:
-                rows.append((name, 'IMG', self.result.status_for(name)))
-            if name in self.result.col_names:
-                rows.append((name, 'COL', self.result.status_for(name)))
-            if name in self.result.ide_names:
-                rows.append((name, 'IDE', self.result.status_for(name)))
-
-        self.merged_table.setRowCount(len(rows))
-        for row, (name, source, status) in enumerate(rows):
-            for col, val in enumerate([name, source, status]):
-                item = QTableWidgetItem(val)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                item.setBackground(shades[source])
-                self.merged_table.setItem(row, col, item)
-
-    def _populate_cross_reference_view(self): #vers 1
-        """Uses a real numeric-sort item for the ID column only, so
-        "10000" doesn't sort before "1001"."""
-        base = self.palette().color(self.palette().currentColorGroup(),
-                                     self.palette().ColorRole.Base)
-        error_tint = QColor(
-            min(255, base.red() + 40), max(0, base.green() - 25), max(0, base.blue() - 25))
-
-        rows = self.result.cross_reference_rows()
-        self.xref_table.setSortingEnabled(False)
-        self.xref_table.setRowCount(len(rows))
-        for row, values in enumerate(rows):
-            has_error = values[5] != "OK"
-            for col, val in enumerate(values):
-                item = _NumericSortItem(val) if col == 0 else QTableWidgetItem(val)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                if has_error:
-                    item.setBackground(error_tint)
-                self.xref_table.setItem(row, col, item)
-        self.xref_table.setSortingEnabled(True)
-
-    def _xref_context_menu(self, pos): #vers 1
-        item = self.xref_table.itemAt(pos)
-        if item is None:
-            return
-        row = item.row()
-        menu = QMenu(self)
-
-        copy_cell_act = menu.addAction("Copy Cell")
-        copy_cell_act.triggered.connect(lambda: self._xref_copy_cell(item))
-        copy_row_act = menu.addAction("Copy Row")
-        copy_row_act.triggered.connect(lambda: self._xref_copy_row(row))
-
-        texture_item = self.xref_table.item(row, 4)
-        if (texture_item and "(missing)" in texture_item.text()
-                and self.result.img_path):
-            menu.addSeparator()
-            txd_act = menu.addAction("Open in TXD Workshop to add missing texture")
-            txd_act.triggered.connect(lambda: self._xref_open_txd_workshop())
-
-        model_item = self.xref_table.item(row, 3)
-        errors_item = self.xref_table.item(row, 5)
-        model_name = model_item.text() if model_item else ""
-        errors_text = errors_item.text() if errors_item else ""
-        if model_name and "Missing DFF" in errors_text and self.result.img_path:
-            menu.addSeparator()
-            add_dff_act = menu.addAction("Add file externally... (DFF)")
-            add_dff_act.triggered.connect(lambda: self._xref_add_missing_dff(model_name))
-        if model_name and "Missing COL" in errors_text:
-            menu.addSeparator()
-            add_col_act = menu.addAction("Add file externally... (COL)")
-            add_col_act.triggered.connect(lambda: self._xref_add_missing_col(model_name))
-
-        menu.exec(self.xref_table.viewport().mapToGlobal(pos))
-
-    def _xref_copy_cell(self, item): #vers 1
-        QApplication.clipboard().setText(item.text())
-
-    def _xref_copy_row(self, row): #vers 1
-        values = [self.xref_table.item(row, c).text() if self.xref_table.item(row, c) else ""
-                   for c in range(self.xref_table.columnCount())]
-        QApplication.clipboard().setText("\t".join(values))
-
-    def _xref_open_txd_workshop(self): #vers 1
-        """Open the real TXD Workshop (not the local duplicate) for
-        the target IMG holding the missing texture."""
-        try:
-            from apps.components.Txd_Editor.txd_workshop import open_txd_workshop as _open_real_txd_workshop
-            target = self._pick_target_img()
-            if target:
-                _open_real_txd_workshop(self.main_window, target)
-        except Exception:
-            pass
-
-    def _pick_target_img(self): #vers 1
-        """Resolve which real loaded IMG a write should target - ask
-        explicitly when several are loaded (e.g. SOL's own
-        game_vc.img/game_sa.img/etc)."""
-        paths = self.result.img_paths
-        if not paths:
-            return None
-        if len(paths) == 1:
-            return paths[0]
-        names = [os.path.basename(p) for p in paths]
-        name, ok = QInputDialog.getItem(
-            self, "Select Target IMG", "Multiple real IMG archives are loaded - add to which one?",
-            names, 0, False)
-        if not ok or not name:
-            return None
-        return next((p for p in paths if os.path.basename(p) == name), None)
-
-    def _xref_add_missing_dff(self, model_name): #vers 1
-        """Browse to a real external .dff and add it to the target
-        IMG under this exact model name."""
-        target = self._pick_target_img()
-        if not target:
-            return
-        path, _ = QFileDialog.getOpenFileName(
-            self, f"Select external DFF for {model_name}", "", "DFF Files (*.dff)")
-        if not path:
-            return
-        try:
-            from apps.methods.img_core_classes import IMGFile
-            with open(path, "rb") as f:
-                data = f.read()
-            img_file = IMGFile(target)
-            if not img_file.open():
-                QMessageBox.warning(self, "Add File Failed", f"Could not open:\n{target}")
-                return
-            if not img_file.add_entry(f"{model_name}.dff", data):
-                QMessageBox.warning(self, "Add File Failed",
-                    "add_entry() (including its own save) returned False.")
-                return
-        except Exception as e:
-            QMessageBox.warning(self, "Add File Failed", str(e))
-            return
-        self._reload_result()
-
-    def _xref_add_missing_col(self, model_name): #vers 1
-        """Browse to a real external .col and merge its model(s)
-        into the currently loaded standalone col file. Embedded COL
-        data inside an IMG isn't supported here yet."""
-        if not self.result.col_paths:
-            QMessageBox.information(self, "Add File Failed",
-                "This game's real COL data is embedded inside the IMG itself, "
-                "not a standalone .col file - adding to embedded IMG collision "
-                "data isn't supported yet.")
-            return
-        standalone_path = self.result.col_paths[0]
-
-        path, _ = QFileDialog.getOpenFileName(
-            self, f"Select external COL for {model_name}", "", "COL Files (*.col)")
-        if not path:
-            return
-        try:
-            from apps.methods.col_workshop_loader import COLFile
-            from apps.methods.file_backup import backup_file
-
-            external = COLFile()
-            if not external.load_from_file(path):
-                QMessageBox.warning(self, "Add File Failed", f"Could not parse:\n{path}")
-                return
-            if not external.models:
-                QMessageBox.warning(self, "Add File Failed", "External COL has no real models.")
-                return
-
-            target = COLFile()
-            target.load_from_file(standalone_path)   # OK if this is empty/new
-            target.models.extend(external.models)
-
-            if backup_file(standalone_path) is None:
-                QMessageBox.warning(self, "Add File Failed",
-                    f"Could not back up before writing:\n{standalone_path}")
-                return
-            if not target.save_to_file(standalone_path):
-                QMessageBox.warning(self, "Add File Failed", "COLFile.save_to_file() returned False.")
-                return
-        except Exception as e:
-            QMessageBox.warning(self, "Add File Failed", str(e))
-            return
-        self._reload_result()
-
-    def _reload_result(self): #vers 2
-        """Re-run check_assets against the FULL original path lists
-        (minus any excluded whole files) and repopulate every view."""
-        excluded = {f.lower() for f in self.excluded_files}
-
-        def _filt(paths):
-            kept = [p for p in paths if os.path.basename(p).lower() not in excluded]
-            return kept or None
-
-        result = check_assets(img_path=_filt(self._all_img_paths),
-                               col_path=_filt(self._all_col_paths),
-                               ide_path=_filt(self._all_ide_paths))
-        self.load_result(result)
-
-    def _apply_exclusions(self, result): #vers 2
-        """Strip excluded names, plus any name whose IDE ID falls
-        outside the ID range, from the three base sets every other
-        view/diff on AssetCheckResult is a pure function of. Names
-        with no IDE ID (IMG/COL only) are unaffected by the ID range."""
-        to_exclude = set(self.excluded_names)
-        if self.ignore_id_min is not None or self.ignore_id_max is not None:
-            lo = self.ignore_id_min if self.ignore_id_min is not None else float('-inf')
-            hi = self.ignore_id_max if self.ignore_id_max is not None else float('inf')
-            for name, mid in result.ide_id_by_name.items():
-                if not (lo <= mid <= hi):
-                    to_exclude.add(name)
-        if not to_exclude:
-            return
-        result.img_names -= to_exclude
-        result.col_names -= to_exclude
-        result.ide_names -= to_exclude
-        for name in to_exclude:
-            result.ide_id_by_name.pop(name, None)
-            result.ide_txd_by_name.pop(name, None)
-            result.ide_txd_display_by_name.pop(name, None)
-
-    def _exclusions_key(self): #vers 2
-        """Stable key for the ORIGINAL full img/col/ide file set, so
-        exclusions never bleed between projects and never drift when
-        a whole file is excluded."""
-        import hashlib
-        paths = (getattr(self, '_all_img_paths', None) or self.result.img_paths or []) + \
-                (getattr(self, '_all_col_paths', None) or self.result.col_paths or []) + \
-                (getattr(self, '_all_ide_paths', None) or self.result.ide_paths or [])
-        names = sorted(set(os.path.basename(p) for p in paths))
-        if not names:
-            return "default"
-        return hashlib.md5(",".join(names).encode()).hexdigest()[:12]
-
-    def _config_path(self): #vers 2
-        from pathlib import Path
-        return get_user_config_dir() / 'asset_workshop.json'
-
-    def _load_exclusions(self): #vers 1
-        """Returns (names, files, id_min, id_max)."""
-        try:
-            import json
-            data = json.loads(self._config_path().read_text())
-            entry = data.get('excluded_names', {}).get(self._exclusions_key())
-            if not entry:
-                return set(), set(), None, None
-            return (set(entry.get('names', [])), set(entry.get('excluded_files', [])),
-                    entry.get('id_min'), entry.get('id_max'))
-        except Exception:
-            return set(), set(), None, None
-
-    def _save_exclusions(self): #vers 1
-        try:
-            import json
-            path = self._config_path()
-            try:
-                data = json.loads(path.read_text())
-            except Exception:
-                data = {}
-            all_excl = data.setdefault('excluded_names', {})
-            key = self._exclusions_key()
-            if (self.excluded_names or self.excluded_files
-                    or self.ignore_id_min is not None or self.ignore_id_max is not None):
-                files = sorted(set(os.path.basename(p) for p in
-                                   self._all_img_paths + self._all_col_paths + self._all_ide_paths))
-                all_excl[key] = {
-                    'names': sorted(self.excluded_names),
-                    'excluded_files': sorted(self.excluded_files),
-                    'id_min': self.ignore_id_min, 'id_max': self.ignore_id_max,
-                    'files': files,
-                }
-            else:
-                all_excl.pop(key, None)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(data, indent=2))
-        except Exception:
-            pass
-
-    def _get_selected_checker_names(self): #vers 1
-        """Every real name currently selected across the checker's
-        own list/table views - id_list resolves via ide_list's own
-        same-index pairing (both built from the same sorted_ide_names
-        loop); xref_table resolves via self.result.all_names since
-        its own "IDE Model Name" column is blank for anything not
-        declared in IDE."""
-        names = set()
-        for lst in (getattr(self, 'ide_list', None), getattr(self, 'img_list', None),
-                    getattr(self, 'col_list', None)):
-            if lst is None:
-                continue
-            for item in lst.selectedItems():
-                text = item.text().strip()
-                if text:
-                    names.add(text.lower())
-        id_list = getattr(self, 'id_list', None)
-        ide_list = getattr(self, 'ide_list', None)
-        if id_list is not None and ide_list is not None:
-            for item in id_list.selectedItems():
-                row = id_list.row(item)
-                paired = ide_list.item(row)
-                if paired and paired.text().strip():
-                    names.add(paired.text().strip().lower())
-        merged_table = getattr(self, 'merged_table', None)
-        if merged_table is not None:
-            for idx in merged_table.selectionModel().selectedRows():
-                item = merged_table.item(idx.row(), 0)
-                if item and item.text().strip():
-                    names.add(item.text().strip().lower())
-        xref_table = getattr(self, 'xref_table', None)
-        if xref_table is not None and self.result:
-            all_names = self.result.all_names
-            for idx in xref_table.selectionModel().selectedRows():
-                row = idx.row()
-                if 0 <= row < len(all_names):
-                    names.add(all_names[row])
-        return names
-
-    def _on_exclude_selected(self): #vers 1
-        """Exclude every real name currently selected in any checker
-        view - it stops showing anywhere and stops being counted as
-        missing/extra, and the exclusion persists across sessions
-        for this same img/col/ide file set."""
-        names = self._get_selected_checker_names()
-        if not names:
-            QMessageBox.information(self, "Exclude Files",
-                "Select one or more entries in the 4-Column, Merged, or "
-                "Cross-Reference view first.")
-            return
-        self.excluded_names |= names
-        self._save_exclusions()
-        self._reload_result()
-        self._set_status(f"Excluded {len(names)} name(s)")
-
-    def _on_manage_exclusions(self): #vers 2
-        """Names / Files / ID Range tabs. Files excludes a whole loaded
-        .ide/.img/.col (e.g. vehicles.ide, peds.ide, weapons.ide);
-        ID Range hides IDE entries outside [from, to] - leave a side
-        unchecked for open-ended ("show everything after ID 300")."""
-        from PyQt6.QtWidgets import QTabWidget, QCheckBox, QSpinBox
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Manage Exclusions")
-        dialog.resize(420, 460)
-        layout = QVBoxLayout(dialog)
-        tabs = QTabWidget()
-        layout.addWidget(tabs)
-
-        # Names
-        names_tab = QWidget()
-        nl = QVBoxLayout(names_tab)
-        nl.addWidget(QLabel(f"{len(self.excluded_names)} name(s) excluded:"))
-        names_lst = QListWidget()
-        names_lst.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        names_lst.addItems(sorted(self.excluded_names))
-        nl.addWidget(names_lst)
-        rm_btn = QPushButton("Remove Selected")
-
-        def _remove_names(): #vers 1
-            for item in names_lst.selectedItems():
-                self.excluded_names.discard(item.text())
-                names_lst.takeItem(names_lst.row(item))
-        rm_btn.clicked.connect(_remove_names)
-        nl.addWidget(rm_btn)
-        tabs.addTab(names_tab, "Names")
-
-        # Files
-        files_tab = QWidget()
-        fl = QVBoxLayout(files_tab)
-        fl.addWidget(QLabel("Checked files are excluded from every view:"))
-        files_lst = QListWidget()
-        all_paths = self._all_ide_paths + self._all_img_paths + self._all_col_paths
-        for base in sorted({os.path.basename(p) for p in all_paths}, key=str.lower):
-            item = QListWidgetItem(base)
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked if base.lower() in
-                               {f.lower() for f in self.excluded_files} else Qt.CheckState.Unchecked)
-            files_lst.addItem(item)
-        fl.addWidget(files_lst)
-        tabs.addTab(files_tab, "Files")
-
-        # ID range
-        id_tab = QWidget()
-        il = QVBoxLayout(id_tab)
-        il.addWidget(QLabel("Only list IDE entries inside this ID range:"))
-        min_row = QHBoxLayout()
-        min_chk = QCheckBox("From ID")
-        min_chk.setChecked(self.ignore_id_min is not None)
-        min_spin = QSpinBox(); min_spin.setRange(0, 999999)
-        min_spin.setValue(self.ignore_id_min if self.ignore_id_min is not None else 0)
-        min_row.addWidget(min_chk); min_row.addWidget(min_spin); min_row.addStretch()
-        il.addLayout(min_row)
-        max_row = QHBoxLayout()
-        max_chk = QCheckBox("To ID")
-        max_chk.setChecked(self.ignore_id_max is not None)
-        max_spin = QSpinBox(); max_spin.setRange(0, 999999)
-        max_spin.setValue(self.ignore_id_max if self.ignore_id_max is not None else 32767)
-        max_row.addWidget(max_chk); max_row.addWidget(max_spin); max_row.addStretch()
-        il.addLayout(max_row)
-        il.addWidget(QLabel("Entries with no IDE ID (IMG/COL only) are unaffected."))
-        il.addStretch()
-        tabs.addTab(id_tab, "ID Range")
-
-        btn_row = QHBoxLayout()
-        clear_btn = QPushButton("Clear All")
-
-        def _clear_all(): #vers 1
-            self.excluded_names.clear()
-            self.excluded_files.clear()
-            self.ignore_id_min = self.ignore_id_max = None
-            self._save_exclusions()
-            self._reload_result()
-            dialog.accept()
-        clear_btn.clicked.connect(_clear_all)
-        btn_row.addWidget(clear_btn)
-        btn_row.addStretch()
-        apply_btn = QPushButton("Apply")
-
-        def _apply(): #vers 1
-            self.excluded_files = {files_lst.item(i).text().lower()
-                                   for i in range(files_lst.count())
-                                   if files_lst.item(i).checkState() == Qt.CheckState.Checked}
-            self.ignore_id_min = min_spin.value() if min_chk.isChecked() else None
-            self.ignore_id_max = max_spin.value() if max_chk.isChecked() else None
-            if (self.ignore_id_min is not None and self.ignore_id_max is not None
-                    and self.ignore_id_min > self.ignore_id_max):
-                QMessageBox.warning(dialog, "Manage Exclusions", "'From' must not exceed 'To'.")
-                return
-            self._save_exclusions()
-            self._reload_result()
-            dialog.accept()
-        apply_btn.clicked.connect(_apply)
-        btn_row.addWidget(apply_btn)
-        close_btn = QPushButton("Cancel")
-        close_btn.clicked.connect(lambda: (setattr(self, 'excluded_names', self._load_exclusions()[0]), dialog.reject()))
-        btn_row.addWidget(close_btn)
-        layout.addLayout(btn_row)
-        dialog.exec()
-
-
-# - Panel Creation
-
-    def _create_status_bar(self): #vers 6
-        """Create bottom status bar - single line compact"""
-        from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel
-
-        status_bar = QFrame()
-        status_bar.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
-        status_bar.setFixedHeight(22)
-
-        layout = QHBoxLayout(status_bar)
-        layout.setContentsMargins(5, 0, 5, 0)
-        layout.setSpacing(15)
-
-        # Left: Ready
-        self.status_label = QLabel("Ready")
-        layout.addWidget(self.status_label)
-
-        # TXD info
-        self.status_txd_info = QLabel("TXD: None")
-        layout.addWidget(self.status_txd_info)
-
-        layout.addStretch()
-
-        # Right: Size and Format
-        self.info_size = QLabel("Size: -")
-        layout.addWidget(self.info_size)
-
-        self.format_status_label = QLabel("Format: -")
-        layout.addWidget(self.format_status_label)
-
-        return status_bar
-
-
-# - Settings Reusable
-
-    def _show_workshop_settings(self): #vers 6
-        """Show workshop settings dialog - Fonts/Display/Preview only,
-        Export and Performance tabs removed (values were never read
-        anywhere, and Texture List Display referenced a table that
-        no longer exists)."""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
-                                    QTabWidget, QWidget, QGroupBox, QFormLayout,
-                                    QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
-                                    QFontComboBox)
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtGui import QFont
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle(App_name + " Settings")
-        dialog.setMinimumWidth(650)
-        dialog.setMinimumHeight(550)
-
-        layout = QVBoxLayout(dialog)
-
-        # Create tabs
-        tabs = QTabWidget()
-
-        # TAB 1: FONTS (FIRST TAB)
-
-        fonts_tab = QWidget()
-        fonts_layout = QVBoxLayout(fonts_tab)
-
-        # Default Font
-        default_font_group = QGroupBox("Default Font")
-        default_font_layout = QHBoxLayout()
-
-        default_font_combo = QFontComboBox()
-        default_font_combo.setCurrentFont(self.font())
-        default_font_layout.addWidget(default_font_combo)
-
-        default_font_size = QSpinBox()
-        default_font_size.setRange(8, 24)
-        default_font_size.setValue(self.font().pointSize())
-        default_font_size.setSuffix(" pt")
-        default_font_size.setFixedWidth(80)
-        default_font_layout.addWidget(default_font_size)
-
-        default_font_group.setLayout(default_font_layout)
-        fonts_layout.addWidget(default_font_group)
-
-        # Title Font
-        title_font_group = QGroupBox("Title Font")
-        title_font_layout = QHBoxLayout()
-
-        title_font_combo = QFontComboBox()
-        if hasattr(self, 'title_font'):
-            title_font_combo.setCurrentFont(self.title_font)
-        else:
-            title_font_combo.setCurrentFont(QFont("Arial", 14))
-        title_font_layout.addWidget(title_font_combo)
-
-        title_font_size = QSpinBox()
-        title_font_size.setRange(10, 32)
-        title_font_size.setValue(getattr(self, 'title_font', QFont("Arial", 14)).pointSize())
-        title_font_size.setSuffix(" pt")
-        title_font_size.setFixedWidth(80)
-        title_font_layout.addWidget(title_font_size)
-
-        title_font_group.setLayout(title_font_layout)
-        fonts_layout.addWidget(title_font_group)
-
-        # Panel Font
-        panel_font_group = QGroupBox("Panel Headers Font")
-        panel_font_layout = QHBoxLayout()
-
-        panel_font_combo = QFontComboBox()
-        if hasattr(self, 'panel_font'):
-            panel_font_combo.setCurrentFont(self.panel_font)
-        else:
-            panel_font_combo.setCurrentFont(QFont("Arial", 10))
-        panel_font_layout.addWidget(panel_font_combo)
-
-        panel_font_size = QSpinBox()
-        panel_font_size.setRange(8, 18)
-        panel_font_size.setValue(getattr(self, 'panel_font', QFont("Arial", 10)).pointSize())
-        panel_font_size.setSuffix(" pt")
-        panel_font_size.setFixedWidth(80)
-        panel_font_layout.addWidget(panel_font_size)
-
-        panel_font_group.setLayout(panel_font_layout)
-        fonts_layout.addWidget(panel_font_group)
-
-        # Button Font
-        button_font_group = QGroupBox("Button Font")
-        button_font_layout = QHBoxLayout()
-
-        button_font_combo = QFontComboBox()
-        if hasattr(self, 'button_font'):
-            button_font_combo.setCurrentFont(self.button_font)
-        else:
-            button_font_combo.setCurrentFont(QFont("Arial", 10))
-        button_font_layout.addWidget(button_font_combo)
-
-        button_font_size = QSpinBox()
-        button_font_size.setRange(8, 16)
-        button_font_size.setValue(getattr(self, 'button_font', QFont("Arial", 10)).pointSize())
-        button_font_size.setSuffix(" pt")
-        button_font_size.setFixedWidth(80)
-        button_font_layout.addWidget(button_font_size)
-
-        button_font_group.setLayout(button_font_layout)
-        fonts_layout.addWidget(button_font_group)
-
-        # Info Bar Font
-        infobar_font_group = QGroupBox("Info Bar Font")
-        infobar_font_layout = QHBoxLayout()
-
-        infobar_font_combo = QFontComboBox()
-        if hasattr(self, 'infobar_font'):
-            infobar_font_combo.setCurrentFont(self.infobar_font)
-        else:
-            infobar_font_combo.setCurrentFont(QFont("Courier New", 9))
-        infobar_font_layout.addWidget(infobar_font_combo)
-
-        infobar_font_size = QSpinBox()
-        infobar_font_size.setRange(7, 14)
-        infobar_font_size.setValue(getattr(self, 'infobar_font', QFont("Courier New", 9)).pointSize())
-        infobar_font_size.setSuffix(" pt")
-        infobar_font_size.setFixedWidth(80)
-        infobar_font_layout.addWidget(infobar_font_size)
-
-        infobar_font_group.setLayout(infobar_font_layout)
-        fonts_layout.addWidget(infobar_font_group)
-
-        fonts_layout.addStretch()
-        tabs.addTab(fonts_tab, "Fonts")
-
-        # TAB 2: DISPLAY SETTINGS
-
-        display_tab = QWidget()
-        display_layout = QVBoxLayout(display_tab)
-
-        # Button display mode
-        button_group = QGroupBox("Button Display Mode")
-        button_layout = QVBoxLayout()
-
-        button_mode_combo = QComboBox()
-        button_mode_combo.addItems(["Icons + Text", "Icons Only", "Text Only"])
-        current_mode = getattr(self, 'button_display_mode', 'both')
-        mode_map = {'both': 0, 'icons': 1, 'text': 2}
-        button_mode_combo.setCurrentIndex(mode_map.get(current_mode, 0))
-        button_layout.addWidget(button_mode_combo)
-
-        button_hint = QLabel("Changes how toolbar buttons are displayed")
-        button_hint.setStyleSheet("color: #888; font-style: italic;")
-        button_layout.addWidget(button_hint)
-
-        button_group.setLayout(button_layout)
-        display_layout.addWidget(button_group)
-
-        # Asset Check
-        asset_check_group = QGroupBox("Asset Check")
-        asset_check_layout = QVBoxLayout()
-
-        auto_gta3_img_chk = QCheckBox("Automatically search for gta3.img")
-        auto_gta3_img_chk.setChecked(getattr(self, 'auto_find_gta3_img', True))
-        auto_gta3_img_chk.setToolTip(
-            "GTA III/VC's gta3.img is hard-coded into the engine - the "
-            ".dat never declares it. When Load from .dat finds no IMG "
-            "at all, fall back to game_root/models/gta3.img.")
-        asset_check_layout.addWidget(auto_gta3_img_chk)
-
-        asset_check_group.setLayout(asset_check_layout)
-        display_layout.addWidget(asset_check_group)
-
-        display_layout.addStretch()
-        tabs.addTab(display_tab, "Display")
-
-        # TAB 3: PREVIEW SETTINGS (LAST TAB)
-
-        preview_tab = QWidget()
-        preview_layout = QVBoxLayout(preview_tab)
-
-        # Zoom Settings
-        zoom_group = QGroupBox("Zoom Settings")
-        zoom_form = QFormLayout()
-
-        zoom_spin = QSpinBox()
-        zoom_spin.setRange(10, 500)
-        zoom_spin.setValue(int(getattr(self, 'zoom_level', 1.0) * 100))
-        zoom_spin.setSuffix("%")
-        zoom_form.addRow("Default Zoom:", zoom_spin)
-
-        zoom_group.setLayout(zoom_form)
-        preview_layout.addWidget(zoom_group)
-
-        # Background Settings
-        bg_group = QGroupBox("Background Settings")
-        bg_layout = QVBoxLayout()
-
-        # Background mode
-        bg_mode_layout = QFormLayout()
-        bg_mode_combo = QComboBox()
-        bg_mode_combo.addItems(["Solid Color", "Checkerboard", "Grid"])
-        current_bg_mode = getattr(self, 'background_mode', 'solid')
-        mode_idx = {"solid": 0, "checkerboard": 1, "checker": 1, "grid": 2}.get(current_bg_mode, 0)
-        bg_mode_combo.setCurrentIndex(mode_idx)
-        bg_mode_layout.addRow("Background Mode:", bg_mode_combo)
-        bg_layout.addLayout(bg_mode_layout)
-
-        bg_layout.addSpacing(10)
-
-        # Checkerboard size
-        cb_label = QLabel("Checkerboard Size:")
-        bg_layout.addWidget(cb_label)
-
-        cb_layout = QHBoxLayout()
-        cb_slider = QSlider(Qt.Orientation.Horizontal)
-        cb_slider.setMinimum(4)
-        cb_slider.setMaximum(64)
-        cb_slider.setValue(getattr(self, '_checkerboard_size', 16))
-        cb_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        cb_slider.setTickInterval(8)
-        cb_layout.addWidget(cb_slider)
-
-        cb_spin = QSpinBox()
-        cb_spin.setMinimum(4)
-        cb_spin.setMaximum(64)
-        cb_spin.setValue(getattr(self, '_checkerboard_size', 16))
-        cb_spin.setSuffix(" px")
-        cb_spin.setFixedWidth(80)
-        cb_layout.addWidget(cb_spin)
-
-        bg_layout.addLayout(cb_layout)
-
-        # Connect checkerboard controls
-        cb_slider.valueChanged.connect(cb_spin.setValue)
-        cb_spin.valueChanged.connect(cb_slider.setValue)
-
-        # Hint
-        cb_hint = QLabel("Smaller = tighter pattern, larger = bigger squares")
-        cb_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
-        bg_layout.addWidget(cb_hint)
-
-        bg_group.setLayout(bg_layout)
-        preview_layout.addWidget(bg_group)
-
-        # Overlay Settings
-        overlay_group = QGroupBox("Overlay View Settings")
-        overlay_layout = QVBoxLayout()
-
-        overlay_label = QLabel("Overlay Opacity (Normal over Alpha):")
-        overlay_layout.addWidget(overlay_label)
-
-        opacity_layout = QHBoxLayout()
-        opacity_slider = QSlider(Qt.Orientation.Horizontal)
-        opacity_slider.setMinimum(0)
-        opacity_slider.setMaximum(100)
-        opacity_slider.setValue(getattr(self, '_overlay_opacity', 50))
-        opacity_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        opacity_slider.setTickInterval(10)
-        opacity_layout.addWidget(opacity_slider)
-
-        opacity_spin = QSpinBox()
-        opacity_spin.setMinimum(0)
-        opacity_spin.setMaximum(100)
-        opacity_spin.setValue(getattr(self, '_overlay_opacity', 50))
-        opacity_spin.setSuffix(" %")
-        opacity_spin.setFixedWidth(80)
-        opacity_layout.addWidget(opacity_spin)
-
-        overlay_layout.addLayout(opacity_layout)
-
-        # Connect opacity controls
-        opacity_slider.valueChanged.connect(opacity_spin.setValue)
-        opacity_spin.valueChanged.connect(opacity_slider.setValue)
-
-        # Hint
-        opacity_hint = QLabel("0% = Only alpha visible, 100% = Only normal visible")
-        opacity_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
-        overlay_layout.addWidget(opacity_hint)
-
-        overlay_group.setLayout(overlay_layout)
-        preview_layout.addWidget(overlay_group)
-
-        preview_layout.addStretch()
-        tabs.addTab(preview_tab, "Preview")
-
-        # Add tabs to dialog
-        layout.addWidget(tabs)
-
-        # BUTTONS
-
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-
-        # Apply button
-        apply_btn = QPushButton("Apply Settings")
-        apply_btn.setStyleSheet("""
-            QPushButton {
-                background: palette(highlight);
-                color: white;
-                padding: 10px 24px;
-                font-weight: bold;
-                border-radius: 4px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background: palette(highlight);
-            }
-        """)
-
-        def apply_settings():  #vers 1
-            # FONTS
-            self.setFont(QFont(default_font_combo.currentFont().family(),
-                            default_font_size.value()))
-            self.title_font = QFont(title_font_combo.currentFont().family(),
-                                title_font_size.value())
-            self.panel_font = QFont(panel_font_combo.currentFont().family(),
-                                panel_font_size.value())
-            self.button_font = QFont(button_font_combo.currentFont().family(),
-                                    button_font_size.value())
-            self.infobar_font = QFont(infobar_font_combo.currentFont().family(),
-                                    infobar_font_size.value())
-
-            # Apply fonts to UI
-            self._apply_title_font()
-            self._apply_panel_font()
-            self._apply_button_font()
-            self._apply_infobar_font()
-
-            # DISPLAY
-            mode_map = {0: 'both', 1: 'icons', 2: 'text'}
-            self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
-
-            # ASSET CHECK
-            self.auto_find_gta3_img = auto_gta3_img_chk.isChecked()
-
-            # PREVIEW
-            self.zoom_level = zoom_spin.value() / 100.0
-
-            bg_modes = ['solid', 'checkerboard', 'grid']
-            self.background_mode = bg_modes[bg_mode_combo.currentIndex()]
-
-            self._checkerboard_size = cb_spin.value()
-            self._overlay_opacity = opacity_spin.value()
-
-            # Update preview widget
-            if hasattr(self, 'preview_widget'):
-                if self.background_mode == 'checkerboard':
-                    self.preview_widget.set_checkerboard_background()
-                    self.preview_widget._checkerboard_size = self._checkerboard_size
-                else:
-                    self.preview_widget.set_background_color(self.preview_widget.bg_color)
-
-            # Apply button display mode
-            if hasattr(self, '_update_all_buttons'):
-                self._update_all_buttons()
-
-            # Refresh display
-            if self.selected_texture:
-                self._update_texture_info(self.selected_texture)
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(App_name + " settings updated successfully")
-
-        apply_btn.clicked.connect(apply_settings)
-        btn_layout.addWidget(apply_btn)
-
-        # Close button
-        close_btn = QPushButton("Close")
-        close_btn.setStyleSheet("padding: 10px 24px; font-size: 13px;")
-        close_btn.clicked.connect(dialog.close)
-        btn_layout.addWidget(close_btn)
-
-        layout.addLayout(btn_layout)
-
-        # Show dialog
-        dialog.exec()
-
-
-    def _apply_window_flags(self): #vers 1
-        """Apply window flags based on settings"""
-        # Save current geometry
-        current_geometry = self.geometry()
-        was_visible = self.isVisible()
-
-        if self.use_system_titlebar:
-            # Use system window with title bar
-            self.setWindowFlags(
-                Qt.WindowType.Window |
-                Qt.WindowType.WindowMinimizeButtonHint |
-                Qt.WindowType.WindowMaximizeButtonHint |
-                Qt.WindowType.WindowCloseButtonHint
-            )
-        else:
-            # Use custom frameless window
-            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-
-        # Restore geometry and visibility
-        self.setGeometry(current_geometry)
-
-        if was_visible:
-            self.show()
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            mode = "System title bar" if self.use_system_titlebar else "Custom frameless"
-            self.main_window.log_message(f"Window mode: {mode}")
-
-
-
-    def _show_amiga_locale_error(self): #vers 1
-        """Show Amiga Workbench 3.1 style error dialog"""
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtGui import QFont
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Workbench Request")
-        dialog.setFixedSize(450, 150)
-
-        # Amiga Workbench styling
-        dialog.setStyleSheet("""
-            QDialog {
-                background-color: palette(placeholderText);
-                border: 2px solid palette(buttonText);
-            }
-            QLabel {
-                color: palette(windowText);
-                background-color: palette(placeholderText);
-            }
-            QPushButton {
-                background-color: palette(midlight);
-                color: palette(windowText);
-                border: 2px outset palette(buttonText);
-                padding: 5px 15px;
-                min-width: 80px;
-            }
-            QPushButton:pressed {
-                border: 2px inset palette(mid);
-            }
-        """)
-
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        # Amiga Topaz font style
-        amiga_font = QFont("Courier", 10, QFont.Weight.Normal)
-
-        # Error message
-        message = QLabel("Workbench 3.1 installer\n\nPlease insert Local disk in any drive")
-        message.setFont(amiga_font)
-        message.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(message)
-
-        layout.addStretch()
-
-        # Button layout
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        # Retry and Cancel buttons (Amiga style)
-        retry_btn = QPushButton("Retry")
-        retry_btn.setFont(amiga_font)
-        retry_btn.clicked.connect(dialog.accept)
-        button_layout.addWidget(retry_btn)
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFont(amiga_font)
-        cancel_btn.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_btn)
-
-        button_layout.addStretch()
-        layout.addLayout(button_layout)
-
-        dialog.exec()
-
-
-# - Docking functions
-
-    def _update_dock_button_visibility(self): #vers 1
-        """Show/hide dock and tearoff buttons based on docked state"""
-        if hasattr(self, 'dock_btn'):
-            # Hide D button when docked, show when standalone
-            self.dock_btn.setVisible(not self.is_docked)
-
-        if hasattr(self, 'tearoff_btn'):
-            # T button only visible when docked and not in standalone mode
-            self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
-
-
-    def toggle_dock_mode(self): #vers 1
-        """Toggle between docked and standalone mode"""
-        if self.is_docked:
-            self._undock_from_main()
-        else:
-            self._dock_to_main()
-
-        self._update_dock_button_visibility()
-
-
-    def _dock_to_main(self): #vers 9
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
-        try:
-            if hasattr(self, 'is_overlay') and self.is_overlay:
-                self.show()
-                self.raise_()
-                return
-
-            # For proper docking, we need to be called from imgfactory
-            # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
-
-            # Update dock state
-            self.is_docked = True
-            self._update_dock_button_visibility()
-            if hasattr(self, '_middle_btn_row'):
-                self._middle_btn_row.setVisible(True)
-
-            if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{App_name} docked to main window")
-
-
-        except Exception as e:
-            img_debugger.error(f"Error docking: {str(e)}")
-            self.show()
-
-
-    def _undock_from_main(self): #vers 4
-        """Undock from overlay mode to standalone window - IMPROVED"""
-        try:
-            if hasattr(self, 'is_overlay') and self.is_overlay:
-                # Switch from overlay to normal window
-                self.setWindowFlags(Qt.WindowType.Window)
-                self.is_overlay = False
-                self.overlay_table = None
-
-            # Set proper window flags for standalone mode
-            self.setWindowFlags(Qt.WindowType.Window)
-
-            # Ensure proper size when undocking
-            if hasattr(self, 'original_size'):
-                self.resize(self.original_size)
-            else:
-                self.resize(1000, 700)  # Reasonable default size
-
-            self.is_docked = False
-            self._update_dock_button_visibility()
-            if hasattr(self, '_middle_btn_row'):
-                self._middle_btn_row.setVisible(False)
-
-            self.show()
-            self.raise_()
-
-            if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{App_name} undocked to standalone")
-
-        except Exception as e:
-            img_debugger.error(f"Error undocking: {str(e)}")
-            # Fallback
-            self.setWindowFlags(Qt.WindowType.Window)
-            self.show()
-
-
-
-# - Window functionality
-
-    def _initialize_features(self): #vers 3
-        """Initialize all features after UI setup"""
-        try:
-            self._apply_theme()
-            self._update_status_indicators()
-
-            if hasattr(self, 'format_filter'):
-                self.format_filter.setCurrentIndex(0)
-            if hasattr(self, 'size_filter'):
-                self.size_filter.setCurrentIndex(0)
-            if hasattr(self, 'alpha_filter'):
-                self.alpha_filter.setCurrentIndex(0)
-
-            self._clear_texture_search()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(App_name + " features initialized")
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Feature init error: {str(e)}")
-
-
-    def _is_on_draggable_area(self, pos): #vers 3
-        """Check if position is on draggable toolbar area (stretch space, not buttons)"""
-        if not hasattr(self, 'titlebar'):
-            print("[DRAG] No titlebar attribute")
-            return False
-
-        # Verify pos is within titlebar bounds
-        if not self.titlebar.rect().contains(pos):
-            print(f"[DRAG] Position {pos} outside titlebar rect {self.titlebar.rect()}")
-            return False
-
-        # Check if clicking on any button - if so, NOT draggable
-        for widget in self.titlebar.findChildren(QPushButton):
-            if widget.isVisible():
-                # Get button geometry in titlebar coordinates
-                button_rect = widget.geometry()
-                if button_rect.contains(pos):
-                    print(f"[DRAG] Clicked on button: {widget.toolTip()}")
-                    return False
-
-        # Not on any button = draggable
-        print(f"[DRAG] On draggable area at {pos}")
-        return True
-
-
-# - From the fixed gui - move, drag
-
-    def _update_all_buttons(self): #vers 4
-        """Update all buttons to match display mode"""
-        buttons_to_update = [
-            # Toolbar buttons
-            ('open_img_btn', 'Open IMG'),
-            ('open_txd_btn', 'Open TXD'),
-            ('save_txd_btn', 'Save TXD'),
-            ('import_btn', 'Import'),
-            ('export_btn', 'Export'),
-            ('export_all_btn', 'Export All'),
-            ('switch_btn', 'Switch'),
-            ('props_btn', 'Prop'),
-            ('info_btn', 'I'),
-            ('undo_btn', 'Undo'),
-            ('paint_btn', 'Paint'),
-            ('build_from_dff_btn', 'Build from DFF'),
-            # Transform buttons
-            ('flip_vert_btn', 'Flip Vertical'),
-            ('flip_horz_btn', 'Flip Horizontal'),
-            ('rotate_cw_btn', 'Rotate 90° CW"'),
-            ('rotate_ccw_btn', 'Rotate 90° CCW"'),
-            ('copy_btn', 'Copy'),
-            ('paste_btn', 'Paste'),
-            ('convert_btn', 'Convert'),
-            # Manage buttons
-            ('create_texture_btn', 'Create'),
-            ('delete_texture_btn', 'Delete'),
-            ('duplicate_texture_btn', 'Duplicate'),
-            # Effects buttons
-            ('filters_btn', 'Filters'),
-            ('paint_btn', 'Paint'),
-            ('check_dff_btn', 'Check Dff'),
-            # Format/Size buttons
-            ('bitdepth_btn', 'Bit Depth'),
-            ('resize_btn', 'Resize'),
-            ('upscale_btn', 'Upscale'),
-            ('compress_btn', 'Compress'),
-            ('uncompress_btn', 'Uncompress'),
-            # Mipmap buttons
-            ('show_mipmaps_btn', 'View'),
-            ('create_mipmaps_btn', 'Create'),
-            ('remove_mipmaps_btn', 'Remove'),
-            # Bumpmap buttons
-            ('view_bumpmap_btn', 'View'),
-            ('export_bumpmap_btn', 'Export'),
-            ('import_bumpmap_btn', 'Import'),
-        ]
-
-        # Toggle panel visibility based on mode
-        self._update_transform_text_panel_visibility()
-
-        for btn_name, btn_text in buttons_to_update:
-            if hasattr(self, btn_name):
-                button = getattr(self, btn_name)
-                self._apply_button_mode_to_button(button, btn_text)
-        self._update_dock_button_visibility()
-
-
-    def _apply_button_mode_to_button(self, button, text): #vers 8
-        """Apply display mode via shared helper."""
-        from apps.methods.button_mode import apply_button_mode_to_button
-        apply_button_mode_to_button(button, text, self.button_display_mode)
-
-
+from apps.methods.txd_versions import detect_txd_version, get_game_from_version, get_platform_name, get_version_capabilities, is_bumpmap_supported, validate_txd_format
+from apps.methods.img_factory_settings import get_user_config_dir
+
+class TXDLogicMixin: #vers 1
+    """logic methods for TXDWorkshop."""
 
     def _detect_txd_info(self, txd_data: bytes) -> bool: #vers 1
         """
@@ -1998,1729 +214,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.main_window.log_message(f"Version detection error: {str(e)}")
             return False
 
-
-    def paintEvent(self, event): #vers 3
-        """Paint corner resize triangles"""
-        super().paintEvent(event)
-        if not self.standalone_mode:           # docked: no corner handles
-            return
-
-        from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Colors
-
-        normal_color = self._get_ui_color('viewport_text'); normal_color.setAlpha(150)
-        hover_color = self._get_ui_color('accent_primary'); hover_color.setAlpha(200)
-
-        w = self.width()
-        h = self.height()
-        grip_size = 8  # Make corners visible (8x8px)
-        size = self.corner_size
-
-        # Define corner triangles
-        corners = {
-            'top-left': [(0, 0), (size, 0), (0, size)],
-            'top-right': [(w, 0), (w-size, 0), (w, size)],
-            'bottom-left': [(0, h), (size, h), (0, h-size)],
-            'bottom-right': [(w, h), (w-size, h), (w, h-size)]
-        }
-        corners2 = {
-            "top-left": [(0, grip_size), (0, 0), (grip_size, 0)],
-            "top-right": [(w-grip_size, 0), (w, 0), (w, grip_size)],
-            "bottom-left": [(0, h-grip_size), (0, h), (grip_size, h)],
-            "bottom-right": [(w-grip_size, h), (w, h), (w, h-grip_size)]
-        }
-
-        # Get theme colors for corner indicators
-        if self.app_settings:
-            theme_colors = self.app_settings.get_theme_colors()
-            accent_color = QColor(theme_colors.get('accent_primary', '#1976d2'))
-            accent_color.setAlpha(180)
-        else:
-            accent_color = self._get_ui_color('accent_primary'); accent_color.setAlpha(180)
-
-        hover_color = QColor(accent_color)
-        hover_color.setAlpha(255)
-
-        # Draw all corners with hover effect
-        for corner_name, points in corners.items():
-            path = QPainterPath()
-            path.moveTo(points[0][0], points[0][1])
-            path.lineTo(points[1][0], points[1][1])
-            path.lineTo(points[2][0], points[2][1])
-            path.closeSubpath()
-
-            # Use hover color if mouse is over this corner
-            color = hover_color if self.hover_corner == corner_name else accent_color
-
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(color))
-            painter.drawPath(path)
-
-        painter.end()
-
-
-    def _get_resize_corner(self, pos): #vers 4
-        """Determine which corner is under mouse position"""
-        if not self.standalone_mode:           # docked: no corner resize
-            return None
-        size = self.corner_size; w = self.width(); h = self.height()
-
-        if pos.x() < size and pos.y() < size:
-            return "top-left"
-        if pos.x() > w - size and pos.y() < size:
-            return "top-right"
-        if pos.x() < size and pos.y() > h - size:
-            return "bottom-left"
-        if pos.x() > w - size and pos.y() > h - size:
-            return "bottom-right"
-
-        return None
-
-
-    # mousePressEvent with this logic:
-    def mousePressEvent(self, event): #vers 8
-        """Handle ALL mouse press - dragging and resizing"""
-        if event.button() != Qt.MouseButton.LeftButton:
-            super().mousePressEvent(event)
-            return
-
-        pos = event.pos()
-
-        # Check corner resize FIRST
-        self.resize_corner = self._get_resize_corner(pos)
-        if self.resize_corner:
-            self.resizing = True
-            self.drag_position = event.globalPosition().toPoint()
-            self.initial_geometry = self.geometry()
-            event.accept()
-            return
-
-        # Check if on titlebar
-        if hasattr(self, 'titlebar') and self.titlebar.geometry().contains(pos):
-            titlebar_pos = self.titlebar.mapFromParent(pos)
-            if self._is_on_draggable_area(titlebar_pos):
-                handle = self.windowHandle()
-                if handle:
-                    handle.startSystemMove()
-                event.accept()
-                return
-
-        super().mousePressEvent(event)
-
-
-    def mouseMoveEvent(self, event): #vers 4
-        """Handle mouse move for resizing and hover effects
-
-        Window dragging is handled by eventFilter to avoid conflicts
-        """
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            if self.resizing and self.resize_corner:
-                self._handle_corner_resize(event.globalPosition().toPoint())
-                event.accept()
-                return
-        else:
-            # Update hover state and cursor
-            corner = self._get_resize_corner(event.pos())
-            if corner != self.hover_corner:
-                self.hover_corner = corner
-                self.update()  # Trigger repaint for hover effect
-            self._update_cursor(corner)
-
-        # Let parent handle everything else
-        super().mouseMoveEvent(event)
-
-
-    def mouseReleaseEvent(self, event): #vers 2
-        """Handle mouse release"""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = False
-            self.resizing = False
-            self.resize_corner = None
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-            event.accept()
-
-
-    def _handle_corner_resize(self, global_pos): #vers 2
-        """Handle window resizing from corners"""
-        if not self.resize_corner or not self.drag_position:
-            return
-
-        delta = global_pos - self.drag_position
-        geometry = self.initial_geometry
-
-        min_width = 800
-        min_height = 600
-
-        # Calculate new geometry based on corner
-        if self.resize_corner == "top-left":
-            # Move top-left corner
-            new_x = geometry.x() + delta.x()
-            new_y = geometry.y() + delta.y()
-            new_width = geometry.width() - delta.x()
-            new_height = geometry.height() - delta.y()
-
-            if new_width >= min_width and new_height >= min_height:
-                self.setGeometry(new_x, new_y, new_width, new_height)
-
-        elif self.resize_corner == "top-right":
-            # Move top-right corner
-            new_y = geometry.y() + delta.y()
-            new_width = geometry.width() + delta.x()
-            new_height = geometry.height() - delta.y()
-
-            if new_width >= min_width and new_height >= min_height:
-                self.setGeometry(geometry.x(), new_y, new_width, new_height)
-
-        elif self.resize_corner == "bottom-left":
-            # Move bottom-left corner
-            new_x = geometry.x() + delta.x()
-            new_width = geometry.width() - delta.x()
-            new_height = geometry.height() + delta.y()
-
-            if new_width >= min_width and new_height >= min_height:
-                self.setGeometry(new_x, geometry.y(), new_width, new_height)
-
-        elif self.resize_corner == "bottom-right":
-            # Move bottom-right corner
-            new_width = geometry.width() + delta.x()
-            new_height = geometry.height() + delta.y()
-
-            if new_width >= min_width and new_height >= min_height:
-                self.resize(new_width, new_height)
-
-
-    def _get_resize_direction(self, pos): #vers 1
-        """Determine resize direction based on mouse position"""
-        rect = self.rect()
-        margin = self.resize_margin
-
-        left = pos.x() < margin
-        right = pos.x() > rect.width() - margin
-        top = pos.y() < margin
-        bottom = pos.y() > rect.height() - margin
-
-        if left and top:
-            return "top-left"
-        elif right and top:
-            return "top-right"
-        elif left and bottom:
-            return "bottom-left"
-        elif right and bottom:
-            return "bottom-right"
-        elif left:
-            return "left"
-        elif right:
-            return "right"
-        elif top:
-            return "top"
-        elif bottom:
-            return "bottom"
-
-        return None
-
-
-    def _update_cursor(self, direction): #vers 1
-        """Update cursor based on resize direction"""
-        if direction == "top" or direction == "bottom":
-            self.setCursor(Qt.CursorShape.SizeVerCursor)
-        elif direction == "left" or direction == "right":
-            self.setCursor(Qt.CursorShape.SizeHorCursor)
-        elif direction == "top-left" or direction == "bottom-right":
-            self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        elif direction == "top-right" or direction == "bottom-left":
-            self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-        else:
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-
-
-
-    def resizeEvent(self, event): #vers 2
-        """Keep resize grip in corner; auto-collapse text panel when narrow."""
-        super().resizeEvent(event)
-        if hasattr(self, 'size_grip'):
-            self.size_grip.move(self.width() - 16, self.height() - 16)
-        self._update_transform_text_panel_visibility()
-
-    def _on_splitter_moved(self, pos, index): #vers 3
-        """Main splitter dragged - refresh ribbon text mode."""
-        self._update_transform_text_panel_visibility()
-
-    def _update_transform_text_panel_visibility(self): #vers 6
-        """Apply the icon/text/both display mode to the ribbon toolbars via
-        QToolBar's native setToolButtonStyle - replaces the old approach of
-        keeping two separate panels (icon-only strip + wide text panel) and
-        toggling their visibility."""
-        from PyQt6.QtCore import Qt as _Qt
-        mode = getattr(self, 'button_display_mode', 'both')
-        style = {
-            'icons': _Qt.ToolButtonStyle.ToolButtonIconOnly,
-            'text':  _Qt.ToolButtonStyle.ToolButtonTextOnly,
-        }.get(mode, _Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        for tb in (getattr(self, '_tb_asset', None),
-                   getattr(self, '_tb_transform', None)):
-            if tb:
-                tb.setToolButtonStyle(style)
-
-
-    def mouseDoubleClickEvent(self, event): #vers 2
-        """Handle double-click - maximize/restore
-
-        Handled here instead of eventFilter for better control
-        """
-        if event.button() == Qt.MouseButton.LeftButton:
-            # Convert to titlebar coordinates if needed
-            if hasattr(self, 'titlebar'):
-                titlebar_pos = self.titlebar.mapFromParent(event.pos())
-                if self._is_on_draggable_area(titlebar_pos):
-                    self._toggle_maximize()
-                    event.accept()
-                    return
-
-        super().mouseDoubleClickEvent(event)
-
-
-# - Marker 3
-
-    def _toggle_maximize(self): #vers 1
-        """Toggle window maximize state"""
-        if self.isMaximized():
-            self.showNormal()
-        else:
-            self.showMaximized()
-
-
-# - Panel Setup
-
-    def _create_toolbar(self): #vers 12
-        """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
-
-        # Install event filter for drag detection
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
-        self.layout = QHBoxLayout(self.titlebar)
-        self.layout.setContentsMargins(5, 5, 5, 5)
-        self.layout.setSpacing(5)
-
-        # Get icon color from theme
-        icon_color = self._get_icon_color()
-
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(50)
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-
-        # Settings button
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon(color=self._get_icon_color()))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip(App_name + " Settings")
-        layout.addWidget(self.settings_btn)
-
-        layout.addStretch()
-
-        # App title in center
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_label)
-
-        layout.addStretch()
-        #layout.addStretch()
-
-        # Only show "Open IMG" button if NOT standalone
-        if not self.standalone_mode:
-            self.open_img_btn = QPushButton("OpenIMG")
-            self.open_img_btn.setFont(self.button_font)
-            self.open_img_btn.setIcon(self.icon_factory.folder_icon(color=self._get_icon_color()))
-            self.open_img_btn.setIconSize(QSize(20, 20))
-            self.open_img_btn.clicked.connect(self.open_img_archive)
-            layout.addWidget(self.open_img_btn)
-
-        self.undo_btn = QPushButton()
-        self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon(color=self._get_icon_color()))
-        self.undo_btn.setText("Undo")
-        self.undo_btn.setIconSize(QSize(20, 20))
-        self.undo_btn.clicked.connect(self._undo_last_action)
-        self.undo_btn.setEnabled(False)
-        self.undo_btn.setToolTip("Undo last change")
-        layout.addWidget(self.undo_btn)
-
-        layout.addSpacing(10)
-
-        # Info button
-        self.info_btn = QPushButton("")
-        self.info_btn.setText("")  # CHANGED from "Info"
-        self.info_btn.setIcon(self.icon_factory.info_icon(color=self._get_icon_color()))
-        self.info_btn.setMinimumWidth(40)
-        self.info_btn.setMaximumWidth(40)
-        self.info_btn.setMinimumHeight(30)
-        self.info_btn.setToolTip("Information")
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_txd_info)
-        layout.addWidget(self.info_btn)
-
-        # Properties/Theme button
-        self.properties_btn = QPushButton()
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
-        self.properties_btn.setToolTip("Theme")
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
-        layout.addWidget(self.properties_btn)
-
-        # Dock button [D]
-        self.dock_btn = QPushButton("D")
-        #self.dock_btn.setFont(self.button_font)
-        self.dock_btn.setMinimumWidth(40)
-        self.dock_btn.setMaximumWidth(40)
-        self.dock_btn.setMinimumHeight(30)
-        self.dock_btn.setToolTip("Dock")
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        layout.addWidget(self.dock_btn)
-
-        # Tear-off button [T] - only in IMG Factory mode
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton("T")
-            #self.tearoff_btn.setFont(self.button_font)
-            self.tearoff_btn.setMinimumWidth(40)
-            self.tearoff_btn.setMaximumWidth(40)
-            self.tearoff_btn.setMinimumHeight(30)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip(App_name + " - Tearoff window")
-            layout.addWidget(self.tearoff_btn)
-
-        # Window controls
-        self.minimize_btn = QPushButton()
-        self.minimize_btn.setIcon(self.icon_factory.minimize_icon(color=self._get_icon_color()))
-        self.minimize_btn.setIconSize(QSize(20, 20))
-        self.minimize_btn.setMinimumWidth(40)
-        self.minimize_btn.setMaximumWidth(40)
-        self.minimize_btn.setMinimumHeight(30)
-        self.minimize_btn.clicked.connect(self.showMinimized)
-        self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
-        layout.addWidget(self.minimize_btn)
-
-        self.maximize_btn = QPushButton()
-        self.maximize_btn.setIcon(self.icon_factory.maximize_icon(color=self._get_icon_color()))
-        self.maximize_btn.setIconSize(QSize(20, 20))
-        self.maximize_btn.setMinimumWidth(40)
-        self.maximize_btn.setMaximumWidth(40)
-        self.maximize_btn.setMinimumHeight(30)
-        self.maximize_btn.clicked.connect(self._toggle_maximize)
-        self.maximize_btn.setToolTip("Maximize/Restore Window")
-        layout.addWidget(self.maximize_btn)
-
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(self.icon_factory.close_icon(color=self._get_icon_color()))
-        self.close_btn.setIconSize(QSize(20, 20))
-        self.close_btn.setMinimumWidth(40)
-        self.close_btn.setMaximumWidth(40)
-        self.close_btn.setMinimumHeight(30)
-        self.close_btn.clicked.connect(self.close)
-        self.close_btn.setToolTip("Close Window") # closes tab
-        layout.addWidget(self.close_btn)
-
-        return self.toolbar
-
-
-    def _create_left_panel(self): #vers 6
-        """Left panel disabled - TXD file list moved out, Asset Check
-        now uses the right panel's own viewport instead."""
-        self.txd_list_widget = None
-        return None
-
-        #Been disabled as this is no longer needed in Asset_Browser
-    def _create_middle_panel(self): #vers 6
-        """Create middle panel - just the texture list. The old mini
-        toolbar (Open/Save/Extract/Undo) was dropped (Sep 17 2026) -
-        those are all still reachable via the Tools menu and their
-        existing keyboard shortcuts (Ctrl+O/S/E), so a second set of
-        buttons here was redundant. This panel's real job is giving
-        the user something to click to set self.selected_texture -
-        without it, load/replace/save/preview all silently do
-        nothing useful (see the disabled call site's own history)."""
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(250)
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(4)
-
-        # Header label
-        self._textures_header = QLabel("Textures")
-        self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(self._textures_header)
-
-        #    Texture table
-        self.texture_table = QTableWidget()
-        self.texture_table.setColumnCount(2)
-        self.texture_table.setHorizontalHeaderLabels(["Preview", "Details"])
-        self.texture_table.horizontalHeader().setStretchLastSection(True)
-        self.texture_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows)
-        self.texture_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection)
-        self.texture_table.setAlternatingRowColors(True)
-        self.texture_table.itemSelectionChanged.connect(self._on_texture_selected)
-        self.texture_table.setIconSize(QSize(64, 64))
-        self.texture_table.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        self.texture_table.customContextMenuRequested.connect(
-            self._show_texture_context_menu)
-        layout.addWidget(self.texture_table)
-
-        return panel
-
-
-    def _create_right_panel(self): #vers 14
-        """Right panel using QMainWindow + QToolBar for native docking.
-        Central widget is a stack: texture preview or Asset Check
-        (load_result swaps pages) - ribbons stay docked to inner_mw
-        either way, unaffected by which page is showing."""
-        icon_color = self._get_icon_color()
-
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(250)
-        self._right_panel_ref = panel   # used by visibility method
-        has_bumpmap = False
-        outer_layout = QVBoxLayout(panel)
-        outer_layout.setContentsMargins(4, 4, 4, 4)
-        outer_layout.setSpacing(3)
-
-        from PyQt6.QtWidgets import QMainWindow
-        inner_mw = QMainWindow()
-        inner_mw.setWindowFlags(Qt.WindowType.Widget)
-        inner_mw.setDockOptions(
-            QMainWindow.DockOption.AllowNestedDocks |
-            QMainWindow.DockOption.AllowTabbedDocks)
-        self._inner_mw = inner_mw
-
-        self.preview_widget = ZoomablePreview(self)
-        self._viewport_stack = QStackedWidget()
-        self._viewport_stack.addWidget(self.preview_widget)   # page 0
-        inner_mw.setCentralWidget(self._viewport_stack)
-
-        self._build_toolbars(inner_mw, icon_color)
-        self._apply_custom_icons()
-
-        outer_layout.addWidget(inner_mw, stretch=1)
-
-        from PyQt6.QtCore import QTimer as _QTimer
-        _QTimer.singleShot(400, self._restore_toolbar_state)
-
-        self.window_closed.connect(self._save_toolbar_state)
-
-        return panel
-
-
-    def _set_status(self, msg: str): #vers 1
-        """Write msg to the status label (whichever one exists). Was called
-        in a few places already but never defined - added to match every
-        other workshop's pattern."""
-        if hasattr(self, 'status_label'):
-            self.status_label.setText(msg)
-        elif hasattr(self, 'status_bar') and hasattr(self.status_bar, 'showMessage'):
-            self.status_bar.showMessage(msg, 3000)
-        else:
-            print(f"[TXD] {msg}")
-
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 4
-        """Build all QToolBar instances using QAction (Model/COL Workshop
-        pattern). Replaces the old DockableToolbar-based
-        _create_transform_icon_panel/_create_transform_text_panel/
-        _create_preview_controls panels. attr= names match the original
-        QPushButton names exactly so _set_transform_buttons_enabled(),
-        _set_selection_buttons_enabled(), _on_texture_selected() and
-        _refresh_icons() elsewhere in this file keep working unchanged -
-        QAction supports setEnabled()/setIcon()/setText() same as
-        QPushButton."""
-        from PyQt6.QtWidgets import QToolBar
-        from PyQt6.QtGui import QAction
-        _saved_px = 20
-        try:
-            import json
-            from pathlib import Path
-            _saved_px = json.loads(
-                (get_user_config_dir()/'asset_workshop.json').read_text()
-            ).get('icon_scale', 20)
-        except Exception:
-            pass
-        icon_size = QSize(_saved_px, _saved_px)
-        self._ribbon_actions = []
-
-        def _tb(name, area=Qt.ToolBarArea.TopToolBarArea): #vers 1
-            tb = QToolBar(name, mw)
-            tb.setObjectName(name)
-            tb.setIconSize(icon_size)
-            tb.setMovable(True)
-            tb.setFloatable(True)
-            tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            tb.customContextMenuRequested.connect(
-                lambda pos, t=tb: self._toolbar_context_menu(t, pos))
-            mw.addToolBar(area, tb)
-            return tb
-
-        def _act(tb, name, icon_fn, callback=None, checkable=False,
-                 checked=False, attr=None, enabled=True): #vers 1
-            try:
-                icon = icon_fn(color=icon_color)
-            except Exception:
-                icon = self.icon_factory.settings_icon(color=icon_color)
-            act = QAction(icon, name, mw)
-            act.setToolTip(name)
-            act.setCheckable(checkable)
-            act.setEnabled(enabled)
-            if checkable:
-                act.setChecked(checked)
-            if callback:
-                if checkable:
-                    act.toggled.connect(callback)
-                else:
-                    act.triggered.connect(callback)
-            tb.addAction(act)
-            self._ribbon_actions.append({
-                'action': act, 'toolbar': tb, 'name': name,
-                'icon_fn': icon_fn, 'checkable': checkable,
-            })
-            if attr:
-                setattr(self, attr, act)
-            return act
-
-        #    Ribbon 0: Asset Check
-        tb_asset = _tb("Asset Check")
-        _act(tb_asset, "Load from .dat...", self.icon_factory.folder_icon,
-             self._on_load_from_dat)
-        _act(tb_asset, "Master IDE...", self.icon_factory.master_ide_icon,
-             self._on_master_ide_ribbon, enabled=False, attr='master_ide_ribbon_btn')
-        _act(tb_asset, "Integrity Check...", self.icon_factory.check_icon,
-             self._on_integrity_check)
-        tb_asset.addSeparator()
-        _act(tb_asset, "Exclude Selected", self.icon_factory.exclude_icon,
-             self._on_exclude_selected)
-        _act(tb_asset, "Manage Exclusions...", self.icon_factory.list_icon,
-             self._on_manage_exclusions)
-
-        #    Ribbon 1: Transform
-        tb_xform = _tb("Transform")
-        _act(tb_xform, "Copy",  self.icon_factory.copy_icon,
-             self._copy_texture,  enabled=False, attr='copy_btn')
-        _act(tb_xform, "Paste", self.icon_factory.paste_icon,
-             self._paste_texture, enabled=False, attr='paste_btn')
-        tb_xform.addSeparator()
-        _act(tb_xform, "Create",    self.icon_factory.add_icon,
-             self._create_new_texture_entry, attr='create_texture_btn')
-        _act(tb_xform, "Delete",    self.icon_factory.delete_icon,
-             self._delete_texture,     enabled=False, attr='delete_texture_btn')
-        _act(tb_xform, "Duplicate", self.icon_factory.duplicate_icon,
-             self._duplicate_texture,  enabled=False, attr='duplicate_texture_btn')
-        tb_xform.addSeparator()
-        _act(tb_xform, "Paint", self.icon_factory.paint_icon,
-             self._open_paint_editor, enabled=False, attr='paint_btn')
-        _act(tb_xform, "Check DFF",      self.icon_factory.analyze_icon,
-             self._check_txd_vs_dff,    attr='check_dff_btn')
-        _act(tb_xform, "Build from DFF", self.icon_factory.build_icon,
-             self._build_txd_from_dff,  attr='build_from_dff_btn')
-        _act(tb_xform, "Filters", self.icon_factory.filter_icon,
-             self._open_filters_dialog, enabled=False, attr='filters_btn')
-        tb_xform.addSeparator()
-        _act(tb_xform, "Properties",    self.icon_factory.properties_icon,
-             self.show_properties,          enabled=False, attr='props_btn')
-
-        # Store toolbar refs
-        self._tb_asset      = tb_asset
-        self._tb_transform = tb_xform
-
-        # Apply current icons-vs-text display mode
-        self._update_transform_text_panel_visibility()
-
-    def _toolbar_context_menu(self, toolbar, pos): #vers 2
-        """Right-click context menu on any toolbar."""
-        from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self)
-
-        size_menu = menu.addMenu("Icon Size")
-        from PyQt6.QtWidgets import QSlider, QWidgetAction
-        slider = QSlider(Qt.Orientation.Horizontal)
-        slider.setRange(14, 40)
-        slider.setSingleStep(2)
-        try:
-            import json
-            from pathlib import Path
-            data = json.loads((get_user_config_dir()/'asset_workshop.json').read_text())
-            slider.setValue(data.get('icon_scale', 20))
-        except Exception:
-            slider.setValue(20)
-        slider.valueChanged.connect(self._apply_icon_scale)
-        wa = QWidgetAction(menu)
-        wa.setDefaultWidget(slider)
-        size_menu.addAction(wa)
-
-        menu.addSeparator()
-        menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
-        menu.addAction("Save Ribbon Config", self._save_toolbar_state)
-        menu.addSeparator()
-        from PyQt6.QtWidgets import QToolBar as _QTB
-        menu.addAction("Lock All Toolbars",
-            lambda: [tb.setMovable(False)
-                     for tb in self._inner_mw.findChildren(_QTB)])
-        menu.addAction("Unlock All Toolbars",
-            lambda: [tb.setMovable(True)
-                     for tb in self._inner_mw.findChildren(_QTB)])
-        menu.exec(toolbar.mapToGlobal(pos))
-
-    def _rebuild_toolbars(self): #vers 1
-        """Remove all existing toolbars and rebuild them."""
-        mw = getattr(self, '_inner_mw', None)
-        if mw is None:
-            return
-        from PyQt6.QtWidgets import QToolBar
-        for tb in list(mw.findChildren(QToolBar)):
-            mw.removeToolBar(tb)
-            tb.deleteLater()
-        self._ribbon_actions = []
-        icon_color = self._get_icon_color()
-        self._build_toolbars(mw, icon_color)
-        self._apply_custom_icons()
-        self._set_status("Toolbars rebuilt")
-
-    def _apply_icon_scale(self, px: int): #vers 2
-        """Apply icon size to all toolbars live and persist it."""
-        mw = getattr(self, '_inner_mw', None)
-        if mw:
-            from PyQt6.QtWidgets import QToolBar
-            from PyQt6.QtCore import QSize as _QS
-            for tb in mw.findChildren(QToolBar):
-                tb.setIconSize(_QS(px, px))
-        try:
-            import json
-            from pathlib import Path
-            path = get_user_config_dir() / 'asset_workshop.json'
-            try:
-                data = json.loads(path.read_text())
-            except Exception:
-                data = {}
-            data['icon_scale'] = px
-            path.write_text(json.dumps(data, indent=2))
-        except Exception:
-            pass
-
-    def _ribbon_config_path(self): #vers 1
-        """Ribbon layout, presets and custom icons file."""
-        return get_user_config_dir() / (_App_name + '.json')
-
-    def _save_toolbar_state(self): #vers 3
-        """Save QMainWindow toolbar state to asset_workshop.json."""
-        mw = getattr(self, '_inner_mw', None)
-        if mw is None:
-            return
-        try:
-            import json
-            from pathlib import Path
-            path = get_user_config_dir() / 'asset_workshop.json'
-            try:
-                data = json.loads(path.read_text())
-            except Exception:
-                data = {}
-            data['toolbar_state'] = mw.saveState(self._RIBBON_LAYOUT_VERSION).toHex().data().decode()
-            data['toolbar_state_version'] = self._RIBBON_LAYOUT_VERSION
-            path.write_text(json.dumps(data, indent=2))
-            self._set_status("Ribbon config saved")
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(App_name + ": Ribbon config saved")
-        except Exception as _e:
-            print(f"[" + App_name + "] _save_toolbar_state error: {_e}")
-
-    def _restore_toolbar_state(self): #vers 4
-        """Restore QMainWindow toolbar state from asset_workshop.json.
-        Uses an explicit layout version - bumped whenever ribbons are
-        added/removed/renamed - so a stale save from an older ribbon
-        layout is cleanly rejected instead of silently failing to
-        restore (Qt's own toolbar-name hashing does this invisibly and
-        without any way to detect success/failure)."""
-        mw = getattr(self, '_inner_mw', None)
-        if mw is None:
-            return
-        try:
-            import json
-            from pathlib import Path
-            from PyQt6.QtCore import QByteArray
-            path = get_user_config_dir() / "asset_workshop.json"
-            if not path.exists():
-                return
-            data = json.loads(path.read_text())
-            state_hex = data.get('toolbar_state')
-            saved_version = data.get('toolbar_state_version')
-            if state_hex and saved_version == self._RIBBON_LAYOUT_VERSION:
-                ok = mw.restoreState(QByteArray.fromHex(state_hex.encode()),
-                                      self._RIBBON_LAYOUT_VERSION)
-                if ok:
-                    self._set_status("Ribbon config loaded")
-                    if self.main_window and hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message(App_name + ": Ribbon config loaded")
-                else:
-                    print("[" + App_name + "] _restore_toolbar_state: restoreState() returned False")
-            elif state_hex:
-                print(f"[" + App_name + "] Saved ribbon layout is from an older version "
-                      f"({saved_version} != {self._RIBBON_LAYOUT_VERSION}) - skipping, "
-                      f"will save fresh on next change.")
-        except Exception as _e:
-            print(f"[{App_name}] _restore_toolbar_state error: {_e}")
-        finally:
-            # Safety net: restoreState() can leave a ribbon fully hidden
-            # (e.g. if it was saved mid-drag, floating off-screen, or
-            # squeezed out) with no way for the user to bring it back -
-            # there's no "closed" state exposed anywhere for these ribbons,
-            # so force every one of them visible no matter what happened
-            # above. Only position/floating/row is meant to be restorable,
-            # never full visibility.
-            for tb in (getattr(self, '_tb_asset', None),
-                       getattr(self, '_tb_transform', None)):
-                if tb is not None:
-                    tb.setVisible(True)
-                    tb.toggleViewAction().setChecked(True)
-
-# - Rest of the logic for the panels
-
-
-
-# - Marker 5
-
-    def _apply_title_font(self): #vers 1
-        """Apply title font to title bar labels"""
-        if hasattr(self, 'title_font'):
-            # Find all title labels
-            for label in self.findChildren(QLabel):
-                if label.objectName() == "title_label" or "🗺️" in label.text():
-                    label.setFont(self.title_font)
-
-
-    def _apply_panel_font(self): #vers 1
-        """Apply panel font to info panels and labels"""
-        if hasattr(self, 'panel_font'):
-            # Apply to info labels (Mipmaps, Bumpmaps, status labels)
-            for label in self.findChildren(QLabel):
-                if any(x in label.text() for x in ["Mipmaps:", "Bumpmaps:", "Status:", "Type:", "Format:"]):
-                    label.setFont(self.panel_font)
-
-
-    def _apply_button_font(self): #vers 1
-        """Apply button font to all buttons"""
-        if hasattr(self, 'button_font'):
-            for button in self.findChildren(QPushButton):
-                button.setFont(self.button_font)
-
-
-    def _apply_infobar_font(self): #vers 1
-        """Apply fixed-width font to info bar at bottom"""
-        if hasattr(self, 'infobar_font'):
-            if hasattr(self, 'info_bar'):
-                self.info_bar.setFont(self.infobar_font)
-
-
-    def _toggle_tearoff(self): #vers 2
-        """Toggle tear-off state (merge back to IMG Factory) - IMPROVED"""
-        try:
-            if self.is_docked:
-                # Undock from main window
-                self._undock_from_main()
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"{App_name} torn off from main window")
-            else:
-                # Dock back to main window
-                self._dock_to_main()
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"{App_name} docked back to main window")
-
-        except Exception as e:
-            img_debugger.error(f"Error toggling tear-off: {str(e)}")
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Tear-off Error", f"Could not toggle tear-off state:\n{str(e)}")
-
-
-# - Marker 6
-
-
-    def _launch_theme_settings(self): #vers 2
-        """Launch theme engine from app_settings_system"""
-        try:
-            from apps.utils.app_settings_system import AppSettings, SettingsDialog
-
-            # Get or create app_settings
-            if not hasattr(self, 'app_settings') or self.app_settings is None:
-                self.app_settings = AppSettings()
-                if not hasattr(self.app_settings, 'current_settings'):
-                    img_debugger.error("AppSettings failed to initialize")
-                    from PyQt6.QtWidgets import QMessageBox
-                    QMessageBox.warning(self, "Error", "Could not initialize theme system")
-                    return
-
-            # Launch settings dialog
-            dialog = SettingsDialog(self.app_settings, self)
-
-            # Connect theme change signal to apply theme
-            dialog.themeChanged.connect(lambda theme: self._apply_theme())
-
-            if dialog.exec():
-                # Apply theme after dialog closes
-                self._apply_theme()
-                img_debugger.success("Theme settings applied")
-                if hasattr(self, 'main_window') and self.main_window:
-                    if hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message("Theme settings updated")
-
-        except Exception as e:
-            img_debugger.error(f"Theme settings error: {e}")
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Theme Error", f"Could not load theme system:\n{e}")
-
-
-
-    def _show_settings_dialog(self): #vers 6
-        """Show comprehensive settings dialog with all tabs including hotkeys"""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
-                                    QWidget, QLabel, QPushButton, QGroupBox,
-                                    QCheckBox, QSpinBox, QFormLayout, QScrollArea,
-                                    QKeySequenceEdit, QComboBox, QMessageBox)
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtGui import QKeySequence
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle(App_name + " Settings")
-        dialog.setMinimumWidth(700)
-        dialog.setMinimumHeight(600)
-
-        layout = QVBoxLayout(dialog)
-
-        # Create tabs
-        tabs = QTabWidget()
-
-        # === DISPLAY TAB ===
-        display_tab = QWidget()
-        display_layout = QVBoxLayout(display_tab)
-
-        # Thumbnail settings
-        thumb_group = QGroupBox("Thumbnail Display")
-        thumb_layout = QVBoxLayout()
-
-        thumb_size_layout = QHBoxLayout()
-        thumb_size_layout.addWidget(QLabel("Thumbnail size:"))
-        thumb_size_spin = QSpinBox()
-        thumb_size_spin.setRange(32, 256)
-        thumb_size_spin.setValue(self.thumbnail_size if hasattr(self, 'thumbnail_size') else 64)
-        thumb_size_spin.setSuffix(" px")
-        thumb_size_layout.addWidget(thumb_size_spin)
-        thumb_size_layout.addStretch()
-        thumb_layout.addLayout(thumb_size_layout)
-
-        thumb_group.setLayout(thumb_layout)
-        display_layout.addWidget(thumb_group)
-
-        # Table display settings
-        table_group = QGroupBox("Table Display")
-        table_layout = QVBoxLayout()
-
-        row_height_layout = QHBoxLayout()
-        row_height_layout.addWidget(QLabel("Row height:"))
-        row_height_spin = QSpinBox()
-        row_height_spin.setRange(50, 200)
-        row_height_spin.setValue(getattr(self, 'table_row_height', 100))
-        row_height_spin.setSuffix(" px")
-        row_height_layout.addWidget(row_height_spin)
-        row_height_layout.addStretch()
-        table_layout.addLayout(row_height_layout)
-
-        show_grid_check = QCheckBox("Show grid lines")
-        show_grid_check.setChecked(getattr(self, 'show_grid_lines', True))
-        table_layout.addWidget(show_grid_check)
-
-        table_group.setLayout(table_layout)
-        display_layout.addWidget(table_group)
-
-        # Status bar settings
-        status_group = QGroupBox("Status Bar")
-        status_layout = QVBoxLayout()
-
-        show_status_bar_check = QCheckBox("Show " + App_name + " status bar")
-        show_status_bar_check.setChecked(getattr(self, 'show_status_bar', True))
-        show_status_bar_check.setToolTip(
-            "The bottom row showing texture count, selection, and size")
-        status_layout.addWidget(show_status_bar_check)
-
-        relay_status_check = QCheckBox("Relay status to IMG Factory status bar when docked")
-        relay_status_check.setChecked(getattr(self, 'relay_status_to_img_factory', True))
-        relay_status_check.setToolTip(
-            "Pushes texture count/selection/size into IMG Factory's own\n"
-            "status bar - useful on its own, and worth keeping on if you\n"
-            "turn off this workshop's own status bar above")
-        status_layout.addWidget(relay_status_check)
-
-        status_group.setLayout(status_layout)
-        display_layout.addWidget(status_group)
-
-        display_layout.addStretch()
-        tabs.addTab(display_tab, "Display")
-
-        # === PREVIEW TAB ===
-        preview_tab = QWidget()
-        preview_layout = QVBoxLayout(preview_tab)
-
-        # Preview window settings
-        preview_window_group = QGroupBox("Preview Window")
-        preview_window_layout = QVBoxLayout()
-
-        show_preview_check = QCheckBox("Show preview window by default")
-        show_preview_check.setChecked(getattr(self, 'show_preview_default', True))
-        show_preview_check.setToolTip("Automatically open preview when selecting textures")
-        preview_window_layout.addWidget(show_preview_check)
-
-        auto_refresh_check = QCheckBox("Auto-refresh preview on selection")
-        auto_refresh_check.setChecked(getattr(self, 'auto_refresh_preview', True))
-        auto_refresh_check.setToolTip("Update preview immediately when clicking textures")
-        preview_window_layout.addWidget(auto_refresh_check)
-
-        preview_window_group.setLayout(preview_window_layout)
-        preview_layout.addWidget(preview_window_group)
-
-        # Preview size settings
-        preview_size_group = QGroupBox("Preview Size")
-        preview_size_layout = QVBoxLayout()
-
-        preview_width_layout = QHBoxLayout()
-        preview_width_layout.addWidget(QLabel("Default width:"))
-        preview_width_spin = QSpinBox()
-        preview_width_spin.setRange(200, 1920)
-        preview_width_spin.setValue(getattr(self, 'preview_width', 512))
-        preview_width_spin.setSuffix(" px")
-        preview_width_layout.addWidget(preview_width_spin)
-        preview_width_layout.addStretch()
-        preview_size_layout.addLayout(preview_width_layout)
-
-        preview_height_layout = QHBoxLayout()
-        preview_height_layout.addWidget(QLabel("Default height:"))
-        preview_height_spin = QSpinBox()
-        preview_height_spin.setRange(200, 1080)
-        preview_height_spin.setValue(getattr(self, 'preview_height', 512))
-        preview_height_spin.setSuffix(" px")
-        preview_height_layout.addWidget(preview_height_spin)
-        preview_height_layout.addStretch()
-        preview_size_layout.addLayout(preview_height_layout)
-
-        preview_size_group.setLayout(preview_size_layout)
-        preview_layout.addWidget(preview_size_group)
-
-        # Preview background
-        preview_bg_group = QGroupBox("Preview Background")
-        preview_bg_layout = QVBoxLayout()
-
-        bg_combo = QComboBox()
-        bg_combo.addItems(["Checkerboard", "Black", "White", "Gray", "Custom Color"])
-        bg_combo.setCurrentText(getattr(self, 'preview_background', 'Checkerboard'))
-        preview_bg_layout.addWidget(bg_combo)
-
-        bg_hint = QLabel("Checkerboard helps visualize alpha transparency")
-        bg_hint.setStyleSheet("color: #888; font-style: italic;")
-        preview_bg_layout.addWidget(bg_hint)
-
-        preview_bg_group.setLayout(preview_bg_layout)
-        preview_layout.addWidget(preview_bg_group)
-
-        # Preview zoom
-        preview_zoom_group = QGroupBox("Preview Zoom")
-        preview_zoom_layout = QVBoxLayout()
-
-        fit_to_window_check = QCheckBox("Fit to window by default")
-        fit_to_window_check.setChecked(getattr(self, 'preview_fit_to_window', True))
-        preview_zoom_layout.addWidget(fit_to_window_check)
-
-        smooth_zoom_check = QCheckBox("Use smooth scaling")
-        smooth_zoom_check.setChecked(getattr(self, 'preview_smooth_scaling', True))
-        smooth_zoom_check.setToolTip("Better quality but slower for large textures")
-        preview_zoom_layout.addWidget(smooth_zoom_check)
-
-        preview_zoom_group.setLayout(preview_zoom_layout)
-        preview_layout.addWidget(preview_zoom_group)
-
-        preview_layout.addStretch()
-        tabs.addTab(preview_tab, "Preview")
-
-        # === EXPORT TAB ===
-        export_tab = QWidget()
-        export_layout = QVBoxLayout(export_tab)
-
-        # Export format
-        format_group = QGroupBox("Default Export Format")
-        format_layout = QVBoxLayout()
-
-        format_combo = QComboBox()
-        format_combo.addItems(["PNG", "TGA", "BMP", "DDS"])
-        format_combo.setCurrentText(getattr(self, 'default_export_format', 'PNG'))
-        format_layout.addWidget(format_combo)
-
-        format_hint = QLabel("PNG recommended for best quality and compatibility")
-        format_hint.setStyleSheet("color: #888; font-style: italic;")
-        format_layout.addWidget(format_hint)
-
-        format_group.setLayout(format_layout)
-        export_layout.addWidget(format_group)
-
-        # Export options
-        export_options_group = QGroupBox("Export Options")
-        export_options_layout = QVBoxLayout()
-
-        preserve_alpha_check = QCheckBox("Preserve alpha channel when exporting")
-        preserve_alpha_check.setChecked(getattr(self, 'export_preserve_alpha', True))
-        export_options_layout.addWidget(preserve_alpha_check)
-
-        export_mipmaps_check = QCheckBox("Export mipmaps as separate files")
-        export_mipmaps_check.setChecked(getattr(self, 'export_mipmaps_separate', False))
-        export_mipmaps_check.setToolTip("Save each mipmap level as texture_name_mip0.png, etc.")
-        export_options_layout.addWidget(export_mipmaps_check)
-
-        create_subfolders_check = QCheckBox("Create subfolders when exporting all")
-        create_subfolders_check.setChecked(getattr(self, 'export_create_subfolders', False))
-        create_subfolders_check.setToolTip("Organize exports into folders by TXD name")
-        export_options_layout.addWidget(create_subfolders_check)
-
-        export_options_group.setLayout(export_options_layout)
-        export_layout.addWidget(export_options_group)
-
-        # Compatibility note
-        compat_label = QLabel(
-            "Note: TXD files use RenderWare format. Exported textures are converted to standard image formats."
-        )
-        compat_label.setWordWrap(True)
-        compat_label.setStyleSheet("padding: 10px; background-color: palette(mid); border-radius: 4px;")
-        export_layout.addWidget(compat_label)
-
-        export_layout.addStretch()
-        tabs.addTab(export_tab, "Export")
-
-        # === IMPORT TAB ===
-        import_tab = QWidget()
-        import_layout = QVBoxLayout(import_tab)
-
-        # Import behavior
-        import_behavior_group = QGroupBox("Import Behavior")
-        import_behavior_layout = QVBoxLayout()
-
-        auto_name_check = QCheckBox("Auto-name textures from filename")
-        auto_name_check.setChecked(getattr(self, 'import_auto_name', True))
-        auto_name_check.setToolTip("Use image filename as texture name")
-        import_behavior_layout.addWidget(auto_name_check)
-
-        replace_check = QCheckBox("Replace existing textures with same name")
-        replace_check.setChecked(getattr(self, 'import_replace_existing', False))
-        import_behavior_layout.addWidget(replace_check)
-
-        auto_format_check = QCheckBox("Automatically select best format")
-        auto_format_check.setChecked(getattr(self, 'import_auto_format', True))
-        auto_format_check.setToolTip("Choose DXT1/DXT5 based on alpha channel")
-        import_behavior_layout.addWidget(auto_format_check)
-
-        import_behavior_group.setLayout(import_behavior_layout)
-        import_layout.addWidget(import_behavior_group)
-
-        # Import format
-        import_format_group = QGroupBox("Default Import Format")
-        import_format_layout = QVBoxLayout()
-
-        import_format_combo = QComboBox()
-        import_format_combo.addItems(["DXT1", "DXT3", "DXT5", "ARGB8888", "RGB888"])
-        import_format_combo.setCurrentText(getattr(self, 'default_import_format', 'DXT1'))
-        import_format_layout.addWidget(import_format_combo)
-
-        format_note = QLabel("DXT1: No alpha, best compression\nDXT5: With alpha, good compression\nARGB8888: Uncompressed, best quality")
-        format_note.setStyleSheet("color: #888; font-style: italic;")
-        import_format_layout.addWidget(format_note)
-
-        import_format_group.setLayout(import_format_layout)
-        import_layout.addWidget(import_format_group)
-
-        import_layout.addStretch()
-        tabs.addTab(import_tab, "Import")
-
-        # === TEXTURE CONSTRAINTS TAB ===
-        constraints_tab = QWidget()
-        constraints_layout = QVBoxLayout(constraints_tab)
-
-        # Dimension constraints
-        dimension_group = QGroupBox("Dimension Constraints")
-        dimension_layout = QVBoxLayout()
-
-        dimension_check = QCheckBox("Enforce power-of-2 dimensions")
-        dimension_check.setChecked(getattr(self, 'dimension_limiting_enabled', True))
-        dimension_check.setToolTip("Enforce sizes like 256, 512, 1024, 2048")
-        dimension_layout.addWidget(dimension_check)
-
-        splash_check = QCheckBox("Allow splash screen dimensions")
-        splash_check.setChecked(getattr(self, 'splash_screen_mode', False))
-        splash_check.setToolTip("Allow non-power-of-2 sizes like 1280x720, 720x576, 640x480")
-        dimension_layout.addWidget(splash_check)
-
-        max_dim_layout = QHBoxLayout()
-        max_dim_layout.addWidget(QLabel("Maximum dimension:"))
-        max_dim_spin = QSpinBox()
-        max_dim_spin.setRange(256, 8192)
-        max_dim_spin.setValue(getattr(self, 'custom_max_dimension', 2048))
-        max_dim_spin.setSingleStep(256)
-        max_dim_spin.setToolTip("Maximum width/height for imported textures")
-        max_dim_layout.addWidget(max_dim_spin)
-        max_dim_layout.addStretch()
-        dimension_layout.addLayout(max_dim_layout)
-
-        dimension_group.setLayout(dimension_layout)
-        constraints_layout.addWidget(dimension_group)
-
-        # Texture naming
-        naming_group = QGroupBox("Texture Naming")
-        naming_layout = QVBoxLayout()
-
-        name_limit_check = QCheckBox("Enable name length limit")
-        name_limit_check.setChecked(getattr(self, 'name_limit_enabled', True))
-        name_limit_check.setToolTip("Enforce maximum texture name length")
-        naming_layout.addWidget(name_limit_check)
-
-        char_limit_layout = QHBoxLayout()
-        char_limit_layout.addWidget(QLabel("Maximum characters:"))
-        char_limit_spin = QSpinBox()
-        char_limit_spin.setRange(8, 64)
-        char_limit_spin.setValue(getattr(self, 'max_texture_name_length', 32))
-        char_limit_spin.setToolTip("RenderWare default is 32 characters")
-        char_limit_layout.addWidget(char_limit_spin)
-        char_limit_layout.addStretch()
-        naming_layout.addLayout(char_limit_layout)
-
-        naming_group.setLayout(naming_layout)
-        constraints_layout.addWidget(naming_group)
-
-        # Format support
-        format_support_group = QGroupBox("Format Support")
-        format_support_layout = QVBoxLayout()
-
-        iff_check = QCheckBox("Enable IFF (Amiga) format import")
-        iff_check.setChecked(getattr(self, 'iff_import_enabled', False))
-        iff_check.setToolTip("Support for Amiga IFF/ILBM image format")
-        format_support_layout.addWidget(iff_check)
-
-        format_support_group.setLayout(format_support_layout)
-        constraints_layout.addWidget(format_support_group)
-
-        constraints_layout.addStretch()
-        tabs.addTab(constraints_tab, "Constraints")
-
-        # === KEYBOARD SHORTCUTS TAB ===
-        hotkeys_tab = QWidget()
-        hotkeys_layout = QVBoxLayout(hotkeys_tab)
-
-        # Add scroll area for hotkeys
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-
-        # File Operations Group
-        file_group = QGroupBox("File Operations")
-        file_form = QFormLayout()
-
-        hotkey_edit_open = QKeySequenceEdit(self.hotkey_open.key() if hasattr(self, 'hotkey_open') else QKeySequence.StandardKey.Open)
-        file_form.addRow("Open TXD:", hotkey_edit_open)
-
-        hotkey_edit_save = QKeySequenceEdit(self.hotkey_save.key() if hasattr(self, 'hotkey_save') else QKeySequence.StandardKey.Save)
-        file_form.addRow("Save TXD:", hotkey_edit_save)
-
-        hotkey_edit_force_save = QKeySequenceEdit(self.hotkey_force_save.key() if hasattr(self, 'hotkey_force_save') else QKeySequence("Alt+Shift+S"))
-        force_save_layout = QHBoxLayout()
-        force_save_layout.addWidget(hotkey_edit_force_save)
-        force_save_hint = QLabel("(Force save even if unmodified)")
-        force_save_hint.setStyleSheet("color: #888; font-style: italic;")
-        force_save_layout.addWidget(force_save_hint)
-        file_form.addRow("Force Save:", force_save_layout)
-
-        hotkey_edit_save_as = QKeySequenceEdit(self.hotkey_save_as.key() if hasattr(self, 'hotkey_save_as') else QKeySequence.StandardKey.SaveAs)
-        file_form.addRow("Save As:", hotkey_edit_save_as)
-
-        hotkey_edit_close = QKeySequenceEdit(self.hotkey_close.key() if hasattr(self, 'hotkey_close') else QKeySequence.StandardKey.Close)
-        file_form.addRow("Close:", hotkey_edit_close)
-
-        file_group.setLayout(file_form)
-        scroll_layout.addWidget(file_group)
-
-        # Edit Operations Group
-        edit_group = QGroupBox("Edit Operations")
-        edit_form = QFormLayout()
-
-        hotkey_edit_undo = QKeySequenceEdit(self.hotkey_undo.key() if hasattr(self, 'hotkey_undo') else QKeySequence.StandardKey.Undo)
-        edit_form.addRow("Undo:", hotkey_edit_undo)
-
-        hotkey_edit_copy = QKeySequenceEdit(self.hotkey_copy.key() if hasattr(self, 'hotkey_copy') else QKeySequence.StandardKey.Copy)
-        edit_form.addRow("Copy Texture:", hotkey_edit_copy)
-
-        hotkey_edit_paste = QKeySequenceEdit(self.hotkey_paste.key() if hasattr(self, 'hotkey_paste') else QKeySequence.StandardKey.Paste)
-        edit_form.addRow("Paste Texture:", hotkey_edit_paste)
-
-        hotkey_edit_delete = QKeySequenceEdit(self.hotkey_delete.key() if hasattr(self, 'hotkey_delete') else QKeySequence.StandardKey.Delete)
-        edit_form.addRow("Delete:", hotkey_edit_delete)
-
-        hotkey_edit_duplicate = QKeySequenceEdit(self.hotkey_duplicate.key() if hasattr(self, 'hotkey_duplicate') else QKeySequence("Ctrl+D"))
-        edit_form.addRow("Duplicate:", hotkey_edit_duplicate)
-
-        hotkey_edit_rename = QKeySequenceEdit(self.hotkey_rename.key() if hasattr(self, 'hotkey_rename') else QKeySequence("F2"))
-        edit_form.addRow("Rename:", hotkey_edit_rename)
-
-        edit_group.setLayout(edit_form)
-        scroll_layout.addWidget(edit_group)
-
-        # Texture Operations Group
-        texture_group = QGroupBox("Texture Operations")
-        texture_form = QFormLayout()
-
-        hotkey_edit_import = QKeySequenceEdit(self.hotkey_import.key() if hasattr(self, 'hotkey_import') else QKeySequence("Ctrl+I"))
-        texture_form.addRow("Import Texture:", hotkey_edit_import)
-
-        hotkey_edit_export = QKeySequenceEdit(self.hotkey_export.key() if hasattr(self, 'hotkey_export') else QKeySequence("Ctrl+E"))
-        texture_form.addRow("Export Texture:", hotkey_edit_export)
-
-        hotkey_edit_export_all = QKeySequenceEdit(self.hotkey_export_all.key() if hasattr(self, 'hotkey_export_all') else QKeySequence("Ctrl+Shift+E"))
-        texture_form.addRow("Export All:", hotkey_edit_export_all)
-
-        texture_group.setLayout(texture_form)
-        scroll_layout.addWidget(texture_group)
-
-        # View Operations Group
-        view_group = QGroupBox("View Operations")
-        view_form = QFormLayout()
-
-        hotkey_edit_refresh = QKeySequenceEdit(self.hotkey_refresh.key() if hasattr(self, 'hotkey_refresh') else QKeySequence.StandardKey.Refresh)
-        view_form.addRow("Refresh:", hotkey_edit_refresh)
-
-        hotkey_edit_properties = QKeySequenceEdit(self.hotkey_properties.key() if hasattr(self, 'hotkey_properties') else QKeySequence("Alt+Return"))
-        view_form.addRow("Properties:", hotkey_edit_properties)
-
-        hotkey_edit_find = QKeySequenceEdit(self.hotkey_find.key() if hasattr(self, 'hotkey_find') else QKeySequence.StandardKey.Find)
-        view_form.addRow("Find/Search:", hotkey_edit_find)
-
-        hotkey_edit_help = QKeySequenceEdit(self.hotkey_help.key() if hasattr(self, 'hotkey_help') else QKeySequence.StandardKey.HelpContents)
-        view_form.addRow("Help:", hotkey_edit_help)
-
-        view_group.setLayout(view_form)
-        scroll_layout.addWidget(view_group)
-
-        scroll_layout.addStretch()
-
-        scroll.setWidget(scroll_widget)
-        hotkeys_layout.addWidget(scroll)
-
-        # Reset to defaults button
-        reset_layout = QHBoxLayout()
-        reset_layout.addStretch()
-        reset_hotkeys_btn = QPushButton("Reset to Plasma6 Defaults")
-
-        def reset_hotkeys():  #vers 1
-            reply = QMessageBox.question(dialog, "Reset Hotkeys",
-                "Reset all keyboard shortcuts to Plasma6 defaults?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-            if reply == QMessageBox.StandardButton.Yes:
-                hotkey_edit_open.setKeySequence(QKeySequence.StandardKey.Open)
-                hotkey_edit_save.setKeySequence(QKeySequence.StandardKey.Save)
-                hotkey_edit_force_save.setKeySequence(QKeySequence("Alt+Shift+S"))
-                hotkey_edit_save_as.setKeySequence(QKeySequence.StandardKey.SaveAs)
-                hotkey_edit_close.setKeySequence(QKeySequence.StandardKey.Close)
-                hotkey_edit_undo.setKeySequence(QKeySequence.StandardKey.Undo)
-                hotkey_edit_copy.setKeySequence(QKeySequence.StandardKey.Copy)
-                hotkey_edit_paste.setKeySequence(QKeySequence.StandardKey.Paste)
-                hotkey_edit_delete.setKeySequence(QKeySequence.StandardKey.Delete)
-                hotkey_edit_duplicate.setKeySequence(QKeySequence("Ctrl+D"))
-                hotkey_edit_rename.setKeySequence(QKeySequence("F2"))
-                hotkey_edit_import.setKeySequence(QKeySequence("Ctrl+I"))
-                hotkey_edit_export.setKeySequence(QKeySequence("Ctrl+E"))
-                hotkey_edit_export_all.setKeySequence(QKeySequence("Ctrl+Shift+E"))
-                hotkey_edit_refresh.setKeySequence(QKeySequence.StandardKey.Refresh)
-                hotkey_edit_properties.setKeySequence(QKeySequence("Alt+Return"))
-                hotkey_edit_find.setKeySequence(QKeySequence.StandardKey.Find)
-                hotkey_edit_help.setKeySequence(QKeySequence.StandardKey.HelpContents)
-
-        reset_hotkeys_btn.clicked.connect(reset_hotkeys)
-        reset_layout.addWidget(reset_hotkeys_btn)
-        hotkeys_layout.addLayout(reset_layout)
-
-        tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
-
-        # Add tabs widget to main layout
-        layout.addWidget(tabs)
-
-        # Dialog buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_btn)
-
-        def apply_settings(close_dialog=False):  #vers 2
-            """Apply all settings"""
-            # Apply display settings
-            self.thumbnail_size = thumb_size_spin.value()
-            self.table_row_height = row_height_spin.value()
-            self.show_grid_lines = show_grid_check.isChecked()
-
-            self.show_status_bar = show_status_bar_check.isChecked()
-            self.relay_status_to_img_factory = relay_status_check.isChecked()
-            if hasattr(self, 'status_frame'):
-                self.status_frame.setVisible(
-                    self.show_status_bar and self.standalone_mode)
-            self._push_status_to_img_factory()
-
-            # Apply preview settings
-            self.show_preview_default = show_preview_check.isChecked()
-            self.auto_refresh_preview = auto_refresh_check.isChecked()
-            self.preview_width = preview_width_spin.value()
-            self.preview_height = preview_height_spin.value()
-            self.preview_background = bg_combo.currentText()
-            self.preview_fit_to_window = fit_to_window_check.isChecked()
-            self.preview_smooth_scaling = smooth_zoom_check.isChecked()
-
-            # Apply export settings
-            self.default_export_format = format_combo.currentText()
-            self.export_preserve_alpha = preserve_alpha_check.isChecked()
-            self.export_mipmaps_separate = export_mipmaps_check.isChecked()
-            self.export_create_subfolders = create_subfolders_check.isChecked()
-
-            # Apply import settings
-            self.import_auto_name = auto_name_check.isChecked()
-            self.import_replace_existing = replace_check.isChecked()
-            self.import_auto_format = auto_format_check.isChecked()
-            self.default_import_format = import_format_combo.currentText()
-
-            # Apply constraint settings
-            self.dimension_limiting_enabled = dimension_check.isChecked()
-            self.splash_screen_mode = splash_check.isChecked()
-            self.custom_max_dimension = max_dim_spin.value()
-            self.name_limit_enabled = name_limit_check.isChecked()
-            self.max_texture_name_length = char_limit_spin.value()
-            self.iff_import_enabled = iff_check.isChecked()
-
-            # Apply hotkeys
-            if hasattr(self, 'hotkey_open'):
-                self.hotkey_open.setKey(hotkey_edit_open.keySequence())
-            if hasattr(self, 'hotkey_save'):
-                self.hotkey_save.setKey(hotkey_edit_save.keySequence())
-            if hasattr(self, 'hotkey_force_save'):
-                self.hotkey_force_save.setKey(hotkey_edit_force_save.keySequence())
-            if hasattr(self, 'hotkey_save_as'):
-                self.hotkey_save_as.setKey(hotkey_edit_save_as.keySequence())
-            if hasattr(self, 'hotkey_close'):
-                self.hotkey_close.setKey(hotkey_edit_close.keySequence())
-            if hasattr(self, 'hotkey_undo'):
-                self.hotkey_undo.setKey(hotkey_edit_undo.keySequence())
-            if hasattr(self, 'hotkey_copy'):
-                self.hotkey_copy.setKey(hotkey_edit_copy.keySequence())
-            if hasattr(self, 'hotkey_paste'):
-                self.hotkey_paste.setKey(hotkey_edit_paste.keySequence())
-            if hasattr(self, 'hotkey_delete'):
-                self.hotkey_delete.setKey(hotkey_edit_delete.keySequence())
-            if hasattr(self, 'hotkey_duplicate'):
-                self.hotkey_duplicate.setKey(hotkey_edit_duplicate.keySequence())
-            if hasattr(self, 'hotkey_rename'):
-                self.hotkey_rename.setKey(hotkey_edit_rename.keySequence())
-            if hasattr(self, 'hotkey_import'):
-                self.hotkey_import.setKey(hotkey_edit_import.keySequence())
-            if hasattr(self, 'hotkey_export'):
-                self.hotkey_export.setKey(hotkey_edit_export.keySequence())
-            if hasattr(self, 'hotkey_export_all'):
-                self.hotkey_export_all.setKey(hotkey_edit_export_all.keySequence())
-            if hasattr(self, 'hotkey_refresh'):
-                self.hotkey_refresh.setKey(hotkey_edit_refresh.keySequence())
-            if hasattr(self, 'hotkey_properties'):
-                self.hotkey_properties.setKey(hotkey_edit_properties.keySequence())
-            if hasattr(self, 'hotkey_find'):
-                self.hotkey_find.setKey(hotkey_edit_find.keySequence())
-            if hasattr(self, 'hotkey_help'):
-                self.hotkey_help.setKey(hotkey_edit_help.keySequence())
-
-            # Refresh UI with new settings
-            if hasattr(self, '_reload_texture_table'):
-                self._reload_texture_table()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Settings applied")
-
-            if close_dialog:
-                dialog.accept()
-
-        apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(lambda: apply_settings(close_dialog=False))
-        button_layout.addWidget(apply_btn)
-
-        ok_btn = QPushButton("OK")
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(lambda: apply_settings(close_dialog=True))
-        button_layout.addWidget(ok_btn)
-
-        layout.addLayout(button_layout)
-
-        dialog.exec()
-
-
-    def _show_settings_context_menu(self, pos): #vers 2
-        """Show context menu for Settings button"""
-        from PyQt6.QtWidgets import QMenu
-
-        menu = QMenu(self)
-
-        # Move window action
-        move_action = menu.addAction("Move Window")
-        move_action.triggered.connect(self._enable_move_mode)
-
-        # Maximize window action
-        max_action = menu.addAction("Maximize Window")
-        max_action.triggered.connect(self._toggle_maximize)
-
-        # Minimize action
-        min_action = menu.addAction("Minimize")
-        min_action.triggered.connect(self.showMinimized)
-
-        menu.addSeparator()
-
-        # Upscale Native action
-        upscale_action = menu.addAction("Upscale Native")
-        upscale_action.setCheckable(True)
-        upscale_action.setChecked(False)
-        upscale_action.triggered.connect(self._toggle_upscale_native)
-
-        # Shaders action
-        shaders_action = menu.addAction("Shaders")
-        shaders_action.triggered.connect(self._show_shaders_dialog)
-
-        menu.addSeparator()
-
-        # Icon display mode submenu — auto-compact handled by resizeEvent
-        display_menu = menu.addMenu("Button Display")
-
-        icons_text_action = display_menu.addAction("Icons & Text")
-        icons_text_action.setCheckable(True)
-        icons_text_action.setChecked(self.button_display_mode == 'both')
-        icons_text_action.triggered.connect(lambda: self._set_icon_display_mode('both'))
-
-        icons_only_action = display_menu.addAction("Icons Only")
-        icons_only_action.setCheckable(True)
-        icons_only_action.setChecked(self.button_display_mode == 'icons')
-        icons_only_action.triggered.connect(lambda: self._set_icon_display_mode('icons'))
-
-        text_only_action = display_menu.addAction("Text Only")
-        text_only_action.setCheckable(True)
-        text_only_action.setChecked(self.button_display_mode == 'text')
-        text_only_action.triggered.connect(lambda: self._set_icon_display_mode('text'))
-
-        # Show menu at button position
-        menu.exec(self.properties_btn.mapToGlobal(pos))
-
-
-
-    def _set_icon_display_mode(self, mode: str): #vers 1
-        """Set button display mode: both, icons or text."""
-        if mode != self.button_display_mode:
-            self.button_display_mode = mode
-            self._update_all_buttons()
-    def _enable_move_mode(self): #vers 2
-        """Enable move window mode using system move"""
-        # Use Qt's system move which works on Windows, Linux, etc.
-        if hasattr(self.windowHandle(), 'startSystemMove'):
-            self.windowHandle().startSystemMove()
-        else:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Move Window",
-                "Drag the titlebar to move the window")
-
-
-    def _toggle_upscale_native(self): #vers 1
-        """Toggle upscale native resolution"""
-        # Placeholder for upscale native functionality
-        print("Upscale Native toggled")
-
-
-    def _show_shaders_dialog(self): #vers 2
-        """Show viewport shader presets — applies display-only visual effects."""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QLabel, QPushButton, QButtonGroup, QRadioButton)
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Preview Shaders")
-        dlg.setFixedSize(300, 220)
-        lay = QVBoxLayout(dlg)
-        lay.addWidget(QLabel("<b>Display shader (preview only, does not modify texture)</b>"))
-
-        presets = [
-            ("None",       "normal"),
-            ("Greyscale",  "greyscale"),
-            ("Sepia",      "sepia"),
-            ("Invert",     "invert"),
-            ("Sharpen",    "sharpen"),
-        ]
-        grp = QButtonGroup(dlg)
-        current = getattr(self, '_preview_shader', 'normal')
-        for label, key in presets:
-            rb = QRadioButton(label)
-            rb.setChecked(key == current)
-            rb.toggled.connect(lambda checked, k=key: (
-                setattr(self, '_preview_shader', k) or (
-                    self._update_texture_info(self.selected_texture)
-                    if checked and self.selected_texture else None
-                )
-            ))
-            grp.addButton(rb)
-            lay.addWidget(rb)
-
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dlg.accept)
-        lay.addWidget(close_btn)
-        dlg.exec()
-
-
-
-    def _get_icon_color(self): #vers 3
-        """Get icon colour from current theme — returns text_primary.
-        Falls back to main_window app_settings if own settings not loaded."""
-        as_ = (self.app_settings
-               or getattr(getattr(self, 'main_window', None), 'app_settings', None))
-        if as_:
-            try:
-                colors = as_.get_theme_colors() or {}
-                return colors.get('text_primary', '#cccccc')
-            except Exception:
-                pass
-        return '#cccccc'
-
-    # STUB: dock_btn/tearoff_btn icons do not yet update on theme change
-    # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
-    # labels/combos, and any icons created via _svg_to_icon() rather than
-    # icon_factory. Address in a future pass.
-    def _refresh_icons(self): #vers 1
-        """Refresh all button icons after theme change."""
-        SVGIconFactory.clear_cache()
-        c = self._get_icon_color()
-        SVGIconFactory.set_theme_color(c)
-
-        _icon_map = [
-            # Title bar / toolbar
-            ('open_btn',            'open_icon'),
-            ('save_btn',            'save_icon'),
-            ('saveall_btn',         'saveas_icon'),
-            ('export_all_btn',      'package_icon'),
-            ('undo_btn',            'undo_icon'),
-            ('info_btn',            'info_icon'),
-            ('settings_btn',        'settings_icon'),
-            ('minimize_btn',        'minimize_icon'),
-            ('maximize_btn',        'maximize_icon'),
-            ('close_btn',           'close_icon'),
-            ('open_img_btn',        'folder_icon'),
-            ('txd_search_btn',      'search_icon'),
-            # Docked mode mini toolbar
-            ('open_txd_btn',        'open_icon'),
-            ('save_txd_btn',        'save_icon'),
-            # Left transform toolbar (icon grid)
-            ('flip_vert_btn',       'flip_vert_icon'),
-            ('flip_horz_btn',       'flip_horz_icon'),
-            ('rotate_cw_btn',       'rotate_cw_icon'),
-            ('rotate_ccw_btn',      'rotate_ccw_icon'),
-            ('copy_btn',            'copy_icon'),
-            ('paste_btn',           'paste_icon'),
-            ('create_texture_btn',  'add_icon'),
-            ('delete_texture_btn',  'delete_icon'),
-            ('duplicate_texture_btn','duplicate_icon'),
-            ('paint_btn',           'paint_icon'),
-            ('check_dff_btn',       'analyze_icon'),
-            ('build_from_dff_btn',  'build_icon'),
-            ('filters_btn',         'filter_icon'),
-            ('switch_btn',          'flip_vert_icon'),
-            ('invert_btn',          'build_icon'),
-            ('gen_alpha_btn',       'paint_icon'),
-            ('props_btn',           'properties_icon'),
-            # Info panel buttons
-            ('import_btn',          'import_icon'),
-            ('export_btn',          'export_icon'),
-            ('convert_btn',         'convert_icon'),
-            ('properties_btn',      'settings_icon'),
-            ('analyze_btn',         'analyze_icon'),
-            # Mipmap row
-            ('create_mipmaps_btn',  'add_icon'),
-            ('remove_mipmaps_btn',  'delete_icon'),
-            ('show_mipmaps_btn',    'view_icon'),
-            ('compress_btn',        'compress_icon'),
-            ('uncompress_btn',      'uncompress_icon'),
-            ('upscale_btn',         'upscale_icon'),
-            # Bumpmap row
-            ('import_bumpmap_btn',  'import_icon'),
-            ('export_bumpmap_btn',  'export_icon'),
-        ]
-        for attr, method in _icon_map:
-            btn = getattr(self, attr, None)
-            if btn is None:
-                continue
-            fn = getattr(self.icon_factory, method, None)
-            if fn is None:
-                continue
-            try:
-                btn.setIcon(fn(color=c))
-            except TypeError:
-                try:
-                    btn.setIcon(fn())
-                except Exception:
-                    pass
-
-        # Update middle btn row visibility (may have changed docked state)
-        if hasattr(self, '_middle_btn_row'):
-            self._middle_btn_row.setVisible(
-                self.is_docked and not self.standalone_mode)
-        self._apply_custom_icons()
-
-
-
-    #Keep function
-    def _apply_theme(self): #vers 5
-        """Apply global app theme — uses QApplication stylesheet set by app_settings."""
-        try:
-            mw = getattr(self, 'main_window', None)
-            app_settings = None
-            if hasattr(self, 'app_settings') and self.app_settings:
-                app_settings = self.app_settings
-            elif mw and hasattr(mw, 'app_settings'):
-                app_settings = mw.app_settings
-
-            if app_settings and hasattr(app_settings, 'get_stylesheet'):
-                # Apply to QApplication so all widgets inherit it
-                from PyQt6.QtWidgets import QApplication
-                ss = app_settings.get_stylesheet()
-                if ss:
-                    QApplication.instance().setStyleSheet(ss)
-            # Clear any widget-level override so we inherit from QApplication
-            self.setStyleSheet("")
-        except Exception as e:
-            print(f"Theme application error: {e}")
-
-
-    #Keep function
     def _apply_settings(self, dialog): #vers 6
         """Apply settings from dialog"""
         from PyQt6.QtGui import QFont
@@ -3775,12 +268,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 f"Export targets: Game={self.export_target_game}, Platform={self.export_target_platform}"
             )
 
-
-# - Marker 7
-
-
-
-    #Keep function
     def _create_mipmaps_dialog(self): #vers 1
         """Open dialog to create mipmaps with depth selection"""
         if not self.selected_texture:
@@ -3891,8 +378,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         dialog.exec()
 
-
-    #Keep function
     def _remove_mipmaps(self): #vers 1
         """Remove all mipmap levels except Level 0"""
         if not self.selected_texture:
@@ -3940,61 +425,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Removed mipmaps from: {self.selected_texture['name']}")
 
-
-    #Keep function
-    def _setup_status_indicators(self): #vers 5
-        """Setup status indicators with texture info and visible resize button"""
-        self.status_frame = QFrame()
-        self.status_frame.setFixedHeight(24)
-        self.status_layout = QHBoxLayout(self.status_frame)
-        self.status_layout.setContentsMargins(5, 0, 5, 0)
-
-        self.status_textures = QLabel("Textures: 0")
-        self.status_layout.addWidget(self.status_textures)
-
-        self.status_selected = QLabel("Selected: None")
-        self.status_layout.addWidget(self.status_selected)
-
-        self.status_size = QLabel("TXD Size: Unknown")
-        self.status_layout.addWidget(self.status_size)
-
-        self.status_layout.addStretch()
-
-        self.status_modified = QLabel("")
-        self.status_layout.addWidget(self.status_modified)
-
-        # NEW: Texture dimension info
-        self.info_size = QLabel("Size: -")
-        self.status_layout.addWidget(self.info_size)
-
-        # NEW: Texture format info
-        self.format_status_label = QLabel("Format: -")
-        self.status_layout.addWidget(self.format_status_label)
-
-        # Add visible resize button with icon
-        self.resize_grip_btn = QPushButton()
-        self.resize_grip_btn.setIcon(self.icon_factory._resize_icon(color=self._get_icon_color()))
-        self.resize_grip_btn.setIconSize(QSize(20, 20))
-        self.resize_grip_btn.setFixedSize(20, 20)
-        self.resize_grip_btn.setToolTip("Drag to resize window")
-        self.resize_grip_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: palette(mid);
-            }
-        """)
-        # Make it act like a resize grip
-        self.resize_grip_btn.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        self.status_layout.addWidget(self.resize_grip_btn)
-
-        return self.status_frame
-
-
-    #Keep function
     def _on_texture_table_double_click(self, item): #vers 1
         """Handle double-click on texture table - open mipmap manager"""
         try:
@@ -4021,8 +451,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Double-click error: {str(e)}")
 
-
-    #Keep function
     def _change_bit_depth(self): #vers 1
         """Change texture bit depth"""
         if not self.selected_texture:
@@ -4065,8 +493,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Bit depth changed: {current_depth}bit → {new_depth}bit")
 
-
-    #Keep function
     def _generate_bumpmap_from_texture(self): #vers 2
         """Generate bumpmap from texture with type selection"""
         if not self.selected_texture:
@@ -4278,8 +704,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Bumpmap generation error: {str(e)}")
 
-
-    #Keep function
     def _create_bumpmap_data(self, rgba_data, width, height, bumpmap_type, method, strength, smooth, invert): #vers 2
         """Create bumpmap data with type selection"""
         import struct
@@ -4360,8 +784,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.main_window.log_message(f"Bumpmap creation error: {str(e)}")
             return None
 
-
-    #Keep function
     def _generate_rgb_normal_map(self, grayscale, width, height, strength): #vers 2
         """Generate proper RGB normal map from height data"""
         normal_map = bytearray(width * height * 3)
@@ -4408,24 +830,17 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return normal_map
 
-
-    #Keep function
     def _normalize_vector(self, v): #vers 1
         """Normalize vector array"""
         norm = np.linalg.norm(v, axis=2, keepdims=True)
         norm[norm == 0] = 1.0
         return v / norm
 
-
-    #Keep function
     def _detect_y_flip(self, normal): #vers 1
         """Heuristic to detect if Y channel is flipped (DirectX vs OpenGL)"""
         pos_y_ratio = np.mean(normal[:, :, 1] > 0.5)
         return pos_y_ratio < 0.4
 
-
-
-    #Keep function
     def _normal_to_reflection(self, normal_map, view=(0, 0, 1), F0=0.04): #vers 1
         """
         Generate reflection vector map and Fresnel reflectivity from normal map
@@ -4455,8 +870,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return R_enc, F_img
 
-
-    #Keep function
     def _sobel_filter(self, data, width, height, strength): #vers 2
         """Apply Sobel edge detection filter"""
         result = bytearray(width * height)
@@ -4485,8 +898,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return result
 
-
-    #Keep function
     def _height_map(self, data, width, height, strength): #vers 2
         """Convert grayscale to height map"""
         result = bytearray(width * height)
@@ -4498,9 +909,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return result
 
-
-
-    #Keep function
     def _emboss_filter(self, data, width, height, strength): #vers 1
         """Apply emboss filter"""
         result = bytearray(width * height)
@@ -4524,8 +932,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return result
 
-
-    #Keep function
     def _apply_gaussian_blur(self, data, width, height, radius): #vers 1
         """Apply Gaussian blur for smoothing"""
         if radius == 0:
@@ -4565,8 +971,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return result
 
-
-    #Keep function
     def _preview_bumpmap_generation(self, rgba_data, width, height, bumpmap_type, method, strength, smooth, invert): #vers 2
         """Preview bumpmap generation in separate window"""
         try:
@@ -4642,8 +1046,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.warning(self, "Preview Error", f"Failed to preview:\n{str(e)}")
 
-
-    #Keep function
     def _delete_bumpmap(self): #vers 1
         """Delete bumpmap from selected texture"""
         if not self.selected_texture:
@@ -4685,8 +1087,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                     f"Deleted bumpmap from: {self.selected_texture.get('name', 'texture')}"
                 )
 
-
-    #Keep function
     def _has_bumpmap_data(self, texture): #vers 1
         """Check if texture has bumpmap data"""
         if not texture:
@@ -4704,9 +1104,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return False
 
-
-
-    #Keep function
     def _auto_generate_mipmaps_to_level(self, num_levels): #vers 2
         """Generate mipmaps down to specified level count"""
         if not self.selected_texture:
@@ -4813,100 +1210,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate mipmaps: {str(e)}")
 
-
-
-    #Keep function
-    def _update_editing_controls(self): #vers 2
-        """Update editing control states based on selection"""
-        has_selection = self.selected_texture is not None
-
-        # Basic controls
-        if hasattr(self, 'resize_btn'):
-            self.resize_btn.setEnabled(has_selection)
-        if hasattr(self, 'upscale_btn'):
-            self.upscale_btn.setEnabled(has_selection)
-        if hasattr(self, 'format_combo'):
-            self.format_combo.setEnabled(has_selection)
-
-        if has_selection:
-            # Compress button - always enabled (can compress or change DXT format)
-            if hasattr(self, 'compress_btn'):
-                self.compress_btn.setEnabled(True)
-
-            # Uncompress button - only enabled if currently DXT format
-            if hasattr(self, 'uncompress_btn'):
-                current_format = self.selected_texture.get('format', 'Unknown')
-                self.uncompress_btn.setEnabled('DXT' in current_format)
-        else:
-            # No selection - disable both
-            if hasattr(self, 'compress_btn'):
-                self.compress_btn.setEnabled(False)
-            if hasattr(self, 'uncompress_btn'):
-                self.uncompress_btn.setEnabled(False)
-
-
-
-    #Keep function
-    def _update_status_indicators(self): #vers 3
-        """Update status indicators"""
-        if hasattr(self, 'status_textures'):
-            self.status_textures.setText(f"Textures: {len(self.texture_list)}")
-        # Update middle panel header with texture count
-        hdr = getattr(self, '_textures_header', None)
-        if hdr:
-            n = len(self.texture_list)
-            hdr.setText(f"Textures  ({n})" if n else "Textures")
-
-        if hasattr(self, 'status_selected'):
-            if self.selected_texture:
-                name = self.selected_texture.get('name', 'Unknown')
-                self.status_selected.setText(f"Selected: {name}")
-            else:
-                self.status_selected.setText("Selected: None")
-
-        if hasattr(self, 'status_size'):
-            if self.current_txd_data:
-                size_kb = len(self.current_txd_data) / 1024
-                self.status_size.setText(f"TXD Size: {size_kb:.1f} KB")
-            else:
-                self.status_size.setText("TXD Size: Unknown")
-
-        if hasattr(self, 'status_modified'):
-            if self.windowTitle().endswith("*"):
-                self.status_modified.setText("MODIFIED")
-                self.status_modified.setStyleSheet("color: orange; font-weight: bold;")
-            else:
-                self.status_modified.setText("")
-                self.status_modified.setStyleSheet("")
-
-        self._push_status_to_img_factory()
-
-
-    #Keep function
-    def _push_status_to_img_factory(self): #vers 1
-        """Relay this workshop's status bar text to IMG Factory's own status
-        bar when docked. Controlled by the 'Relay status to IMG Factory'
-        setting - useful on its own, and doubly so when 'Show status bar'
-        is turned off, since the info still needs to surface somewhere."""
-        if self.standalone_mode:
-            return
-        if not getattr(self, 'relay_status_to_img_factory', True):
-            return
-        mw = getattr(self, 'main_window', None)
-        if not mw or not hasattr(mw, 'show_status'):
-            return
-        parts = []
-        for attr in ('status_textures', 'status_selected', 'status_size'):
-            lbl = getattr(self, attr, None)
-            if lbl:
-                parts.append(lbl.text())
-        if parts:
-            try:
-                mw.show_status(App_name + " - " + "  |  ".join(parts))
-            except Exception:
-                pass
-
-    #Keep function
     def _import_normal_texture(self): #vers 1
         """Import normal texture (RGB/RGBA)"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -4965,8 +1268,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Import Error", f"Failed to import: {str(e)}")
 
-
-    #Keep function
     def _import_alpha_texture(self): #vers 2
         """Import alpha channel - creates alpha if doesn't exist"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -5073,10 +1374,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Import Error", f"Failed to import alpha: {str(e)}")
 
-
-#------ TXD functions
-
-    #Keep function
     def _load_img_txd_list(self): #vers 2
         """Load TXD files from IMG archive"""
         try:
@@ -5108,7 +1405,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error loading TXD list: {str(e)}")
 
-    #Keep function
     def _create_blank_texture(self, width, height, with_alpha=False): #vers 3
         """Create blank RGBA texture data with optional alpha"""
         if with_alpha:
@@ -5125,7 +1421,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         header = struct.pack('<III', 0x16, 0, 0x1803FFFF)  # Type, Size, Version
         return header
 
-    #Keep function
     def _create_new_texture_entry(self): #vers 2
         """Create new blank texture with size dialog"""
         if not self.current_img and not self.current_txd_data:
@@ -5305,7 +1600,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             }
 
             # Add to texture list
-            self._save_undo_state("Create texture")
             self.texture_list.append(new_texture)
             self._add_texture_to_table(new_texture)
 
@@ -5320,8 +1614,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             QMessageBox.information(self, "Success",
                 f"Created new texture:\n{texture_name}\nSize: {width}×{height}")
 
-
-    #Keep function
     def _create_new_txd(self): #vers 1
         """Create a new empty TXD file"""
         name, ok = QInputDialog.getText(self, "New TXD", "Enter TXD filename (without .txd):")
@@ -5335,15 +1627,12 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             self.texture_list = []
             self.texture_table.setRowCount(0)
 
-            self.setWindowTitle(App_name + ": {name}")
-            if hasattr(self, 'save_txd_btn'):
-                self.save_txd_btn.setEnabled(True)
+            self.setWindowTitle(f"TXD Workshop: {name}")
+            self.save_txd_btn.setEnabled(True)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f" Created new TXD: {name}")
+                self.main_window.log_message(f"✅ Created new TXD: {name}")
 
-
-    #Keep function
     def _delete_texture(self): #vers 3
         """Delete texture with granular component selection"""
         if not self.selected_texture:
@@ -5506,7 +1795,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             return
 
         # Process deletion
-        self._save_undo_state("Delete texture")
         try:
             if delete_all_radio.isChecked():
                 # Delete entire texture
@@ -5584,17 +1872,13 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Delete Error", f"Failed to delete: {str(e)}")
 
-
-
-    def _mark_as_modified(self): #vers 2
+    def _mark_as_modified(self): #vers 1
         """Mark the TXD as modified and enable save button"""
-        if hasattr(self, 'save_txd_btn'):
-            self.save_txd_btn.setEnabled(True)
-            self.save_txd_btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;")
+        self.save_txd_btn.setEnabled(True)
+        self.save_txd_btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;")
         current_title = self.windowTitle()
         if not current_title.endswith("*"):
             self.setWindowTitle(current_title + "*")
-
 
     def _open_mipmap_manager(self): #vers 1
         """Open Mipmap Manager window for selected texture"""
@@ -5614,39 +1898,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"🔍 Opened Mipmap Manager for: {self.selected_texture['name']}")
 
-
-    def _connect_texture_table_signals(self): #vers 1
-        """Connect texture table signals for mipmap manager"""
-        # Double-click to open mipmap manager
-        self.texture_table.itemDoubleClicked.connect(self._on_texture_table_double_click)
-
-
-
-    def _set_transform_buttons_enabled(self, enabled: bool): #vers 1
-        """Enable/disable transform buttons in BOTH icon and text panels.
-        The text panel's _btn() calls overwrite self.flip_vert_btn etc, so when
-        the icon panel is visible (narrow mode) those self.X refs point to hidden
-        text-panel buttons. Fix: enable all QPushButtons in the icon panel too.
-        """
-        # Text panel buttons (via self.X refs)
-        transform_attrs = [
-            'copy_btn', 'delete_texture_btn', 'duplicate_texture_btn',
-            'filters_btn', 'paint_btn', 'props_btn',
-        ]
-        for attr in transform_attrs:
-            btn = getattr(self, attr, None)
-            if btn is not None:
-                btn.setEnabled(enabled)
-
-        # Icon panel buttons — find by walking the panel's children
-        icon_panel = getattr(self, '_transform_icon_panel_ref', None)
-        if icon_panel:
-            from PyQt6.QtWidgets import QPushButton
-            for btn in icon_panel.findChildren(QPushButton):
-                btn.setEnabled(enabled)
-
-
-    def _on_texture_selected(self): #vers 8
+    def _on_texture_selected(self): #vers 7
         """Handle texture selection"""
         try:
             row = self.texture_table.currentRow()
@@ -5654,14 +1906,50 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             # Invalid selection - disable everything
             if row < 0 or row >= len(self.texture_list):
                 self.selected_texture = None
+                self.export_btn.setEnabled(False)
+                self.switch_btn.setEnabled(False)
+                self.invert_btn.setEnabled(False)
+                self.gen_alpha_btn.setEnabled(False)
 
                 # Disable all optional buttons
+                if hasattr(self, 'switch_btn'):
+                    self.switch_btn.setEnabled(False)
+                if hasattr(self, 'gen_alpha_btn'):
+                    self.gen_alpha_btn.setEnabled(False)
                 if hasattr(self, 'props_btn'):
                     self.props_btn.setEnabled(False)
                 if hasattr(self, 'duplicate_texture_btn'):
                     self.duplicate_texture_btn.setEnabled(False)
                 if hasattr(self, 'delete_texture_btn'):
                     self.delete_texture_btn.setEnabled(False)
+                if hasattr(self, 'resize_btn'):
+                    self.resize_btn.setEnabled(False)
+                if hasattr(self, 'upscale_btn'):
+                    self.upscale_btn.setEnabled(False)
+                if hasattr(self, 'format_combo'):
+                    self.format_combo.setEnabled(False)
+                if hasattr(self, 'compress_btn'):
+                    self.compress_btn.setEnabled(False)
+                if hasattr(self, 'uncompress_btn'):
+                    self.uncompress_btn.setEnabled(False)
+                if hasattr(self, 'bitdepth_btn'):
+                    self.bitdepth_btn.setEnabled(False)
+
+                # Disable mipmap buttons
+                if hasattr(self, 'create_mipmaps_btn'):
+                    self.create_mipmaps_btn.setEnabled(False)
+                if hasattr(self, 'remove_mipmaps_btn'):
+                    self.remove_mipmaps_btn.setEnabled(False)
+                if hasattr(self, 'show_mipmaps_btn'):
+                    self.show_mipmaps_btn.setEnabled(False)
+
+                # Disable bumpmap buttons
+                if hasattr(self, 'view_bumpmap_btn'):
+                    self.view_bumpmap_btn.setEnabled(False)
+                if hasattr(self, 'export_bumpmap_btn'):
+                    self.export_bumpmap_btn.setEnabled(False)
+                if hasattr(self, 'import_bumpmap_btn'):
+                    self.import_bumpmap_btn.setEnabled(False)
 
                 # Disable all transform buttons in both panels
                 self._set_transform_buttons_enabled(False)
@@ -5670,6 +1958,26 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             # Valid selection - get texture data
             self.selected_texture = self.texture_list[row]
+
+            tex_name = self.selected_texture.get('name', '')
+            has_alpha = self.selected_texture.get('has_alpha', False)
+
+            # Restore saved view state for this texture, or default to Normal
+            saved_state = self.texture_view_states.get(tex_name, 0)
+            self._current_view_state = saved_state
+
+            # Update switch button text
+            state_labels = ["Normal", "Alpha", "Both", "Overlay"]
+            self.switch_btn.setText(state_labels[saved_state])
+            self.switch_btn.setEnabled(True)
+
+            # Enable [Inv] only if in Alpha view and has alpha
+            #self.invert_btn.setEnabled(saved_state == 1 and has_alpha)
+            self.invert_btn.setEnabled((saved_state == 1 or saved_state == 3) and has_alpha)
+
+
+            # Enable [+] button
+            self.gen_alpha_btn.setEnabled(True)
 
             # Check mipmap state
             mipmap_levels = self.selected_texture.get('mipmap_levels', [])
@@ -5691,6 +1999,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 )
 
             # Enable basic buttons
+            self.export_btn.setEnabled(True)
+
             if hasattr(self, 'props_btn'):
                 self.props_btn.setEnabled(True)
             if hasattr(self, 'info_btn'):
@@ -5699,6 +2009,67 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.duplicate_texture_btn.setEnabled(True)
             if hasattr(self, 'delete_texture_btn'):
                 self.delete_texture_btn.setEnabled(True)
+            if hasattr(self, 'resize_btn'):
+                self.resize_btn.setEnabled(True)
+            if hasattr(self, 'upscale_btn'):
+                self.upscale_btn.setEnabled(True)
+            if hasattr(self, 'format_combo'):
+                self.format_combo.setEnabled(True)
+                # Sync combo to current texture format
+                fmt = self.selected_texture.get('format', '')
+                fmt_map = {  # map stored format names to combo entries
+                    'ARGB8888': 'ARGB8888', 'RGB888': 'RGB888',
+                    'RGB565':   'RGB565',   'ARGB1555': 'ARGB1555',
+                    'ARGB4444': 'ARGB4444', 'RGB555':   'RGB565',
+                    'PAL8':     'ARGB8888', 'PAL4':     'ARGB8888',
+                    'LUM8':     'RGB565',   'A8L8':     'ARGB8888',
+                    'DXT1': 'DXT1', 'DXT2': 'DXT3', 'DXT3': 'DXT3',
+                    'DXT4': 'DXT5', 'DXT5': 'DXT5',
+                    # PS2 native formats — map to nearest PC equivalent for combo display
+                    'PSMT8':        'ARGB8888', 'PSMT4':        'ARGB8888',
+                    'PSMT8-PAL8':   'ARGB8888', 'PSMT4-PAL4':   'ARGB8888',
+                    'PSMCT32':      'ARGB8888', 'PSMCT16':      'ARGB1555',
+                    'PSMCT16S':     'ARGB1555',
+                }
+                combo_text = fmt_map.get(fmt, fmt)
+                idx = self.format_combo.findText(combo_text)
+                if idx >= 0:
+                    self.format_combo.blockSignals(True)
+                    self.format_combo.setCurrentIndex(idx)
+                    self.format_combo.blockSignals(False)
+            if hasattr(self, 'compress_btn'):
+                self.compress_btn.setEnabled(True)
+            if hasattr(self, 'uncompress_btn'):
+                self.uncompress_btn.setEnabled(True)
+            if hasattr(self, 'bitdepth_btn'):
+                self.bitdepth_btn.setEnabled(True)
+
+            if hasattr(self, 'switch_btn'):
+                has_alpha = self.selected_texture.get('has_alpha', False)
+                self.switch_btn.setEnabled(True)  # Always enabled now
+
+            # NEW: Always enable gen_alpha_btn when texture selected
+            if hasattr(self, 'gen_alpha_btn'):
+                self.gen_alpha_btn.setEnabled(True)
+
+            # Mipmap buttons
+            if hasattr(self, 'create_mipmaps_btn'):
+                self.create_mipmaps_btn.setEnabled(not has_mipmaps)
+            if hasattr(self, 'remove_mipmaps_btn'):
+                self.remove_mipmaps_btn.setEnabled(has_mipmaps)
+            if hasattr(self, 'show_mipmaps_btn'):
+                self.show_mipmaps_btn.setEnabled(has_mipmaps)
+
+            # Bumpmap buttons
+            if hasattr(self, 'view_bumpmap_btn'):
+                # ALWAYS enable Manage button so user can generate/import bumpmaps
+                self.view_bumpmap_btn.setEnabled(can_support_bumpmap)
+            if hasattr(self, 'export_bumpmap_btn'):
+                # Only enable export if bumpmap exists
+                self.export_bumpmap_btn.setEnabled(has_bumpmap)
+            if hasattr(self, 'import_bumpmap_btn'):
+                # Only enable import if version supports bumpmaps
+                self.import_bumpmap_btn.setEnabled(can_support_bumpmap)
 
             # Enable all transform buttons in BOTH icon and text panels
             self._set_transform_buttons_enabled(True)
@@ -5718,11 +2089,10 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 import traceback
                 self.main_window.log_message(traceback.format_exc())
 
-
-    def _reload_texture_table(self): #vers 5
+    def _reload_texture_table(self): #vers 4
         """Reload texture table — preserves row selection after reload."""
         # Remember which texture was selected by object identity
-        selected_name = (self.selected_texture.get('name')
+        selected_name = (self.selected_texture.get('name') 
                          if self.selected_texture else None)
         self.texture_table.setRowCount(0)
         for tex in self.texture_list:
@@ -5733,18 +2103,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 if tex.get('name') == selected_name:
                     self.texture_table.selectRow(row)
                     break
-        self._update_texture_panel_visibility()
-
-    def _update_texture_panel_visibility(self): #vers 1
-        """Show the texture list panel only while a TXD is actually
-        loaded (Sep 17 2026, per Keith: "any reason for it, maybe
-        hide it when not in use") - Asset Workshop's real job is the
-        checker + Master IDE, texture editing is secondary, so this
-        panel should stay out of the way until there's something in
-        it."""
-        if hasattr(self, '_middle_panel'):
-            self._middle_panel.setVisible(bool(self.texture_list))
-
 
     def _save_undo_state(self, action_name): #vers 2
         """
@@ -5812,10 +2170,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         if len(self.undo_stack) > 10:
             self.undo_stack.pop(0)
 
-        if hasattr(self, 'undo_btn'):
-            self.undo_btn.setEnabled(True)
-
-
     def _undo_last_action(self): #vers 2
         """Undo the last action from undo stack"""
         if not self.undo_stack:
@@ -5839,7 +2193,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         except Exception as e:
             QMessageBox.critical(self, "Undo Error", f"Failed to undo: {str(e)}")
-
 
     def _auto_generate_mipmaps(self): #vers 1
         """Auto-generate all mipmap levels from main texture"""
@@ -5946,44 +2299,100 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate mipmaps: {str(e)}")
 
+    def _generate_alpha_mask(self): #vers 2
+        """Generate alpha mask from texture luminosity"""
+        if not self.selected_texture:
+            QMessageBox.warning(self, "No Selection", "Please select a texture first")
+            return
 
-    def _show_texture_context_menu(self, position): #vers 2
-        """Show context menu for texture operations - simplified"""
+        # Check if already has alpha
+        if self.selected_texture.get('has_alpha', False):
+            reply = QMessageBox.question(self, "Replace Alpha?",
+                "This texture already has an alpha channel.\n\n"
+                "Replace existing alpha with luminosity-based mask?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        try:
+            rgba_data = self.selected_texture.get('rgba_data')
+            if not rgba_data:
+                QMessageBox.warning(self, "No Data", "Texture has no image data")
+                return
+
+            width = self.selected_texture.get('width', 0)
+            height = self.selected_texture.get('height', 0)
+
+            if width == 0 or height == 0:
+                QMessageBox.warning(self, "Invalid Size", "Texture has invalid dimensions")
+                return
+
+            # Save undo state
+            self._save_undo_state("Generate alpha mask from luminosity")
+
+            # Generate alpha from luminosity
+            new_rgba = bytearray(rgba_data)
+
+            for i in range(0, len(new_rgba), 4):
+                r = new_rgba[i]
+                g = new_rgba[i + 1]
+                b = new_rgba[i + 2]
+
+                # Calculate luminosity: 0.299*R + 0.587*G + 0.114*B
+                luminosity = int(0.299 * r + 0.587 * g + 0.114 * b)
+                new_rgba[i + 3] = luminosity
+
+            # Update texture
+            self.selected_texture['rgba_data'] = bytes(new_rgba)
+            self.selected_texture['has_alpha'] = True
+
+            # Add alpha name if not present
+            if 'alpha_name' not in self.selected_texture:
+                self.selected_texture['alpha_name'] = self.selected_texture['name'] + 'a'
+
+            # Update format to support alpha
+            current_format = self.selected_texture.get('format', 'DXT1')
+            if current_format in ['DXT1', 'RGB888', 'RGB565']:
+                if 'DXT' in current_format:
+                    self.selected_texture['format'] = 'DXT5'
+                    format_msg = " (format changed to DXT5)"
+                else:
+                    self.selected_texture['format'] = 'ARGB8888'
+                    format_msg = " (format changed to ARGB8888)"
+            else:
+                format_msg = ""
+
+            # Update display
+            self._update_texture_info(self.selected_texture)
+            self._update_table_display()
+            self._mark_as_modified()
+
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"✅ Generated alpha mask from luminosity{format_msg}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Generation Error", f"Failed to generate alpha mask:\n{str(e)}")
+
+    def _toggle_alpha_invert(self): #vers 2
+        """Toggle alpha channel color inversion - WORKS FOR ALPHA AND OVERLAY"""
         if not self.selected_texture:
             return
 
-        has_alpha = self.selected_texture.get('has_alpha', False)
+        # Allow invert in Alpha view (1) OR Overlay view (3)
+        if self._current_view_state not in [1, 3]:
+            return
 
-        menu = QMenu(self)
+        self._invert_alpha = not self._invert_alpha
+        self.invert_btn.setChecked(self._invert_alpha)
 
-        # Import submenu
-        import_menu = menu.addMenu(self.icon_factory.import_icon(color=self._get_icon_color()), "Import")
+        # Refresh display
+        self._update_texture_info(self.selected_texture)
 
-        import_normal_action = import_menu.addAction("Import Texture")
-        import_normal_action.triggered.connect(self._import_normal_texture)
-
-        if has_alpha:
-            import_alpha_action = import_menu.addAction("Import Alpha Channel")
-            import_alpha_action.triggered.connect(self._import_alpha_texture)
-
-        # Export submenu
-        export_menu = menu.addMenu(self.icon_factory.export_icon(color=self._get_icon_color()), "Export")
-
-        export_texture_action = export_menu.addAction("Export Texture")
-        export_texture_action.triggered.connect(self.export_selected_texture)
-
-        if has_alpha:
-            export_alpha_action = export_menu.addAction("Export Alpha Channel")
-            export_alpha_action.triggered.connect(self._export_alpha_only)
-
-        menu.addSeparator()
-
-        # Delete texture
-        delete_action = menu.addAction(self.icon_factory.trash_icon(color=self._get_icon_color()), "Delete Texture")
-        delete_action.triggered.connect(self._delete_texture)
-
-        menu.exec(self.texture_table.viewport().mapToGlobal(position))
-
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            status = "enabled" if self._invert_alpha else "disabled"
+            view_name = "Alpha" if self._current_view_state == 1 else "Overlay"
+            self.main_window.log_message(f"Alpha invert {status} ({view_name} view)")
 
     def load_from_img_archive(self, img_path): #vers 1
         """Load TXD list from IMG archive"""
@@ -5996,29 +2405,26 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.current_img.open()
 
             img_name = os.path.basename(img_path)
-            self.setWindowTitle(App_name + " : {img_name}")
+            self.setWindowTitle(f"TXD Workshop: {img_name}")
             self._load_img_txd_list()
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(App_name + " loaded: {img_name}")
+                self.main_window.log_message(f"✅ TXD Workshop loaded: {img_name}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load IMG: {str(e)}")
 
-    def _show_txd_info(self): #vers 5
-        """Show Workshop information dialog - About and capabilities.
-        Rewritten to describe what Asset Workshop actually does now
-        (Asset Checker + Master IDE), not the old full TXD editor
-        feature set most of which has since been removed."""
+    def _show_txd_info(self): #vers 4
+        """Show TXD Workshop information dialog - About and capabilities"""
         dialog = QDialog(self)
-        dialog.setWindowTitle("About " + App_name)
-        dialog.setMinimumWidth(500)
-        dialog.setMinimumHeight(400)
+        dialog.setWindowTitle("About TXD Workshop")
+        dialog.setMinimumWidth(600)
+        dialog.setMinimumHeight(500)
 
         layout = QVBoxLayout(dialog)
         layout.setSpacing(15)
 
         # Header
-        header = QLabel(App_name)
+        header = QLabel(f"TXD Workshop - {App_name}")
         header.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
@@ -6028,26 +2434,99 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         author_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(author_label)
 
+        # Version info
+        version_label = QLabel("Version: 1.5 - October 2025")
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version_label)
+
         layout.addWidget(QLabel(""))  # Spacer
 
         # Capabilities section
         capabilities = QTextEdit()
         capabilities.setReadOnly(True)
-        capabilities.setMaximumHeight(280)
+        capabilities.setMaximumHeight(350)
 
-        info_text = """<b>✓ Asset Checker:</b><br>
-- 4-Column view (ID / IDE / IMG / COL)<br>
-- Merged view and Cross-Reference table<br>
-- Export full report of missing/extra entries<br>
-- Add missing files externally (DFF/COL)<br><br>
+        info_text = """<b>TXD Workshop Capabilities:</b><br><br>
 
-<b>✓ Master IDE:</b><br>
-- Opens from the View dropdown or ribbon<br>
-- Merge, insert, add/remove IDs, reassign ID blocks<br><br>
+<b>✓ File Operations:</b><br>
+- Open TXD files (standalone or from IMG archives)<br>
+- Save TXD files back to IMG or as standalone<br>
+- Create new TXD files from scratch<br>
+- Multi-TXD management from IMG archives<br><br>
 
-<b>✓ Texture (via Tools menu):</b><br>
-- Import / Export / Rename / Duplicate / Delete<br>
-- Undo last change<br><br>
+<b>✓ Texture Viewing & Editing:</b><br>
+- View all textures with thumbnails<br>
+- Preview textures with zoom and pan controls<br>
+- Flip textures (horizontal/vertical)<br>
+- Rotate textures (90°, 180°, 270°)<br>
+- Resize textures with interpolation<br>
+- Rename textures and alpha channels<br>
+- View texture properties (size, format, compression)<br><br>
+
+<b>✓ Texture Management:</b><br>
+- Import textures (PNG, JPG, BMP, TGA, DDS)<br>
+- Import 8-bit indexed formats (PCX, GIF, IFF/Amiga)<br>
+- Export single or multiple textures<br>
+- Duplicate textures<br>
+- Delete textures<br>
+- Undo/Redo operations<br><br>
+
+<b>✓ Format Support:</b><br>
+- DXT1/DXT3/DXT5 compression<br>
+- Uncompressed ARGB8888, RGB888<br>
+- 16-bit and 32-bit formats<br>
+- Palette-based textures<br>
+- Platform-specific formats (PC, Xbox, PS2)<br><br>
+
+<b>✓ Advanced Features:</b><br>
+- Mipmap generation and editing<br>
+- Bumpmap support (generate from height/normal maps)<br>
+- Alpha channel extraction and editing<br>
+- Batch export operations<br>
+- Texture filtering and search<br>
+- External editor integration<br>
+- AI upscaling support (if configured)<br><br>
+
+<b>✓ Platform Detection:</b><br>
+- Automatic RenderWare version detection<br>
+- Platform identification (PC, Xbox, PS2, Android)<br>
+- Game detection (GTA III, VC, SA, Manhunt)<br>
+- Format capability validation<br><br>
+
+<b>✓ Import Format Support:</b><br>"""
+
+        # Add format support dynamically
+        formats_available = []
+
+        # Standard formats (always via PIL)
+        formats_available.append("- PNG, JPG, JPEG (all variants)")
+        formats_available.append("- BMP (8/16/24/32-bit)")
+        formats_available.append("- TGA/Targa (all variants)")
+        formats_available.append("- DDS (DirectDraw Surface)")
+
+        # Check indexed format support
+        try:
+            if self.iff_import_enabled:
+                formats_available.append("- IFF/ILBM (Amiga 8-bit)")
+        except:
+            pass
+
+        # Always available via indexed_color_import
+        formats_available.append("- PCX (ZSoft Paintbrush)")
+        formats_available.append("- GIF (with transparency)")
+        formats_available.append("- PNG (8-bit indexed mode)")
+
+        info_text += "<br>".join(formats_available)
+        info_text += "<br><br>"
+
+        # Settings info
+        info_text += """<b>✓ Customization:</b><br>
+- Configurable dimension limiting<br>
+- Adjustable texture name length (8-64 chars)<br>
+- Splash screen dimension support<br>
+- Button display modes (Icons/Text/Both)<br>
+- Font customization<br>
+- Preview zoom and pan offsets<br><br>
 
 <b>Keyboard Shortcuts:</b><br>
 - Ctrl+O: Open TXD<br>
@@ -6068,7 +2547,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         layout.addWidget(close_btn)
 
         dialog.exec()
-
 
     def _on_txd_selected(self, item): #vers 2
         """Handle TXD file selection"""
@@ -6091,25 +2569,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error selecting TXD: {str(e)}")
-
-
-    def _show_txd_search(self): #vers 1
-        """Toggle TXD search box visibility."""
-        if hasattr(self, 'txd_search_box'):
-            visible = not self.txd_search_box.isVisible()
-            self.txd_search_box.setVisible(visible)
-            if visible:
-                self.txd_search_box.setFocus()
-            else:
-                self.txd_search_box.clear()
-
-    def _filter_txd_list(self, text: str): #vers 1
-        """Filter TXD list by search text."""
-        if not hasattr(self, 'txd_list_widget'): return
-        for i in range(self.txd_list_widget.count()):
-            item = self.txd_list_widget.item(i)
-            item.setHidden(bool(text) and text.lower() not in item.text().lower())
-
 
     def _extract_txd_from_img(self, entry): #vers 2
         """Extract TXD data from IMG entry"""
@@ -6521,7 +2980,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             for row in range(self.texture_table.rowCount()):
                 self.texture_table.setRowHeight(row, 100)
             self.texture_table.setColumnWidth(0, 80)
-            self._update_texture_panel_visibility()
 
             # === COMPLETE ===
             log("")
@@ -6552,7 +3010,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             # Update window title and parent tab
             import re as _re
             clean_name = _re.sub(r'_[a-z0-9]{6,12}(?=\.txd$|$)', '', txd_name, flags=_re.IGNORECASE)
-            self.setWindowTitle(App_name + f": {clean_name} ({len(textures)} textures)")
+            self.setWindowTitle(f"TXD Workshop: {clean_name} ({len(textures)} textures)")
             if self.main_window and hasattr(self.main_window, 'main_tab_widget'):
                 tw = self.main_window.main_tab_widget
                 for i in range(tw.count()):
@@ -6577,8 +3035,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD load error: {str(e)}")
-
-
 
     def _upscale_texture_advanced(self): #vers 1
         """Advanced AI upscale with options dialog"""
@@ -6714,7 +3170,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         dialog.exec()
 
-
     def _upscale_texture(self): #vers 2
         """AI upscale selected texture with size management"""
         from PyQt6.QtWidgets import QInputDialog
@@ -6761,7 +3216,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         else:
             QMessageBox.critical(self, "Error", "AI upscale failed")
 
-
     def _perform_ai_upscale(self, factor): #vers 1
         """Perform AI upscaling on texture data"""
         try:
@@ -6778,7 +3232,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"AI upscale error: {str(e)}")
             return False
-
 
     def export_selected_texture(self): #vers 2
         """Export selected texture with channel options"""
@@ -6847,8 +3300,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
 
-
-    #    IFF ILBM writer (24-bit true colour)                             
     @staticmethod
     def _rgba_to_iff_ilbm(rgba: bytes, w: int, h: int) -> bytes: #vers 1
         """Write RGBA pixel data as 24-bit IFF ILBM (Amiga true colour).
@@ -6905,7 +3356,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 + _iff_chunk('BODY', bytes(body)))
         return b'FORM' + struct.pack('>I', len(ilbm)) + ilbm
 
-    # Keep
     def _save_texture_format(self, rgba: bytes, w: int, h: int,
                               path: str, fmt: str): #vers 1
         """Save RGBA pixel data to path in the requested format.
@@ -6955,8 +3405,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             ext = 'BMP' if fmt == 'BMP' else 'PNG'
             img.save(path, ext)
 
-
-    # Can be modified to export all Assets to a folder
     def export_all_textures(self): #vers 3
         """Export all textures from the current TXD in chosen format(s)."""
         if not self.texture_list:
@@ -7074,7 +3522,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         QMessageBox.information(self, "Export Complete", msg)
 
-
     def _extract_alpha_channel(self, rgba_data): #vers 1
         """Extract alpha channel as grayscale RGBA"""
         alpha_data = bytearray()
@@ -7083,13 +3530,11 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             alpha_data.extend([a, a, a, 255])
         return bytes(alpha_data)
 
-
     def _save_texture_png(self, rgba_data, width, height, file_path): #vers 1
         """Save RGBA data as PNG"""
         image = QImage(rgba_data, width, height, width*4, QImage.Format.Format_RGBA8888)
         if not image.save(file_path):
             raise Exception("Failed to save PNG")
-
 
     def _export_alpha_only(self): #vers 1
         """Export only alpha channel"""
@@ -7108,7 +3553,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 alpha_data = self._extract_alpha_channel(rgba_data)
                 self._save_texture_png(alpha_data, width, height, file_path)
                 QMessageBox.information(self, "Success", "Alpha channel exported!")
-
 
     def _change_format(self, format_name): #vers 2
         """Change texture format - only set has_alpha if alpha data exists"""
@@ -7159,7 +3603,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         if self.main_window and hasattr(self.main_window, 'log_message'):
             alpha_status = "with alpha" if self.selected_texture['has_alpha'] else "no alpha"
             self.main_window.log_message(f"Format changed: {old_format} -> {format_name} ({alpha_status})")
-
 
     def _compress_texture(self): #vers 3
         """Compress selected texture to DXT format"""
@@ -7270,7 +3713,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to compress: {str(e)}")
 
-
     def _uncompress_texture(self): #vers 3
         """Uncompress selected texture from DXT to ARGB8888"""
         if not self.selected_texture:
@@ -7319,8 +3761,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to uncompress: {str(e)}")
 
-
-
     def _calculate_new_txd_size(self): #vers 1
         """Calculate estimated new TXD size including actual texture data"""
         estimated_size = 1024  # Header overhead
@@ -7354,7 +3794,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             estimated_size += 200  # Header per texture
 
         return estimated_size
-
 
     def _rebuild_txd_data(self): #vers 4
         """Rebuild TXD data with modified texture names and properties"""
@@ -7444,8 +3883,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.main_window.log_message(f"Rebuild error: {str(e)}")
             return None
 
-
-
     def _get_format_description(self) -> str: #vers 1
         """Get human-readable format description for UI display"""
         desc_parts = []
@@ -7473,7 +3910,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 desc_parts.append(', '.join(features))
 
         return ' | '.join(desc_parts) if desc_parts else "Standard format"
-
 
     def _update_img_with_txd(self, modified_txd_data): #vers 4
         """Update IMG archive using IMG Factory's save system"""
@@ -7549,7 +3985,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.main_window.log_message(f"IMG update error: {str(e)}")
             return False
 
-
     def _resize_texture(self): #vers 1
         """Resize selected texture with size validation"""
         if not self.selected_texture:
@@ -7603,7 +4038,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"Resized texture to {w}x{h}")
 
-
     def _resize_texture_data(self, new_width, new_height): #vers 1
         """Resize the actual texture image data using QImage"""
         try:
@@ -7638,7 +4072,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Resize data error: {str(e)}")
             return False
-
 
     def _show_version_selector_dialog(self): #vers 1
         """Show RW version selector dialog for export"""
@@ -7800,7 +4233,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return None
 
-
     def _convert_format(self):  #vers 1
         """Convert texture format (e.g., DXT1, DXT5, RGBA)"""
         if not self.selected_texture:
@@ -7833,7 +4265,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not convert format: {str(e)}")
-
 
     def _strip_unsupported_features_for_version(self, game_idx): #vers 1
         """Remove unsupported features based on target game version"""
@@ -7871,10 +4302,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                     self.main_window.log_message(f"Removed {removed_mipmaps} mipmap levels (GTA III doesn't support mipmaps)")
                 if removed_bumpmaps > 0:
                     self.main_window.log_message(f"Removed {removed_bumpmaps} bumpmaps (GTA III doesn't support bumpmaps)")
-
-
-#------ Save functions
-
 
     def _save_as_txd_file(self): #vers 4
         """Save as standalone TXD file - respects save location setting"""
@@ -7949,15 +4376,13 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 f"TXD saved successfully!\n\n{file_path}")
 
             # Clear modified state
-            if hasattr(self, 'save_txd_btn'):
-                self.save_txd_btn.setEnabled(False)
-                self.save_txd_btn.setStyleSheet("")
+            self.save_txd_btn.setEnabled(False)
+            self.save_txd_btn.setStyleSheet("")
             title = self.windowTitle().replace("*", "")
             self.setWindowTitle(title)
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save TXD:\n\n{str(e)}")
-
 
     def _save_as_new_img(self, new_txd_data): #vers 1
         """Save as new IMG file when rebuild is needed"""
@@ -7991,11 +4416,9 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.main_window.log_message(f"Save as new error: {str(e)}")
             return False
 
-
     def _save_as_new_txd(self): #vers 1
         """Save As new TXD - Alias for context menu compatibility"""
         self._save_as_txd_file()
-
 
     def save_txd_file(self): #vers 6
         """Save TXD file with version selector"""
@@ -8008,8 +4431,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             # IMG-based TXD save with version selector
             return self._save_txd_to_img_with_version_selector()
 
-
-    # Update the main save_txd_file method to use version selector:
     def _save_txd_file(self): #vers 2
         """Save TXD file with detailed structural logging"""
         if not self.current_txd_path and not self.current_txd_name:
@@ -8348,9 +4769,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             self.current_txd_name = os.path.basename(file_path)
 
             # Clear modified flag
-            if hasattr(self, 'save_txd_btn'):
-                self.save_txd_btn.setEnabled(False)
-                self.save_txd_btn.setStyleSheet("")
+            self.save_txd_btn.setEnabled(False)
+            self.save_txd_btn.setStyleSheet("")
             title = self.windowTitle().replace("*", "")
             self.setWindowTitle(title)
 
@@ -8371,7 +4791,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD save error: {str(e)}")
-
 
     def _save_as_txd_file_with_version_selector(self): #vers 1
         """Save standalone TXD with version selector"""
@@ -8470,7 +4889,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save TXD:\n\n{str(e)}")
 
-
     def _save_txd_to_img_with_version_selector(self): #vers 1
         """Save TXD back to IMG with version selector"""
         from PyQt6.QtWidgets import QMessageBox
@@ -8548,7 +4966,41 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save to IMG:\n\n{str(e)}")
 
+    def _save_texture_name(self): #vers 1
+        """Save edited texture name"""
+        if not self.selected_texture:
+            return
 
+        new_name = self.info_name.text().strip()
+        if new_name and new_name != self.selected_texture.get('name', ''):
+            old_name = self.selected_texture.get('name', '')
+            self.selected_texture['name'] = new_name
+            self._save_undo_state(f"Rename texture: {old_name} → {new_name}")
+            self._reload_texture_table()
+            self._mark_as_modified()
+
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Renamed: {old_name} → {new_name}")
+
+        self.info_name.setReadOnly(True)
+
+    def _save_alpha_name(self): #vers 1
+        """Save edited alpha name"""
+        if not self.selected_texture or not self.selected_texture.get('has_alpha'):
+            return
+
+        new_alpha_name = self.info_alpha_name.text().strip()
+        if new_alpha_name and new_alpha_name != self.selected_texture.get('alpha_name', ''):
+            old_name = self.selected_texture.get('alpha_name', '')
+            self.selected_texture['alpha_name'] = new_alpha_name
+            self._save_undo_state(f"Rename alpha: {old_name} → {new_alpha_name}")
+            self._reload_texture_table()
+            self._mark_as_modified()
+
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Alpha renamed: {old_name} → {new_alpha_name}")
+
+        self.info_alpha_name.setReadOnly(True)
 
     def _force_save_txd(self): #vers 1
         """Force save TXD regardless of modified state (Alt+Shift+S)"""
@@ -8566,7 +5018,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         # Call save function
         self._save_txd_file()
-
 
     def _check_alpha_validity(self, texture): #vers 1
         """Check if normal and alpha channels contain the same image"""
@@ -8620,11 +5071,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         QMessageBox.information(self, "Alpha Validity Check", result_text)
 
-
-
-#------ Rebuild functions
-
-
     def _rebuild_txd_data_with_texture_progress(self, update_progress): #vers 1
         """Rebuild TXD data with per-texture progress updates"""
         try:
@@ -8674,53 +5120,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Rebuild error: {str(e)}")
             return None
-
-
-
-    def _update_table_display(self): #vers 2
-        """Update the middle panel table display after edits"""
-        if not self.selected_texture:
-            return
-
-        row = self.texture_table.currentRow()
-        if row < 0 or row >= len(self.texture_list):
-            return
-
-        tex = self.selected_texture
-
-        # Rebuild details text with compression status
-        details = f"Name: {tex['name']}\n"
-
-        # Add alpha name if texture has alpha
-        if tex.get('has_alpha', False):
-            alpha_name = tex.get('alpha_name', tex['name'] + 'a')
-            details += f"Alpha: {alpha_name}\n"
-
-        if tex['width'] > 0:
-            details += f"Size: {tex['width']}x{tex['height']}\n"
-
-        # Show format with compression status
-        fmt = tex['format']
-        if 'DXT' in fmt:
-            details += f"Format: {fmt} (Compressed)\n"
-        else:
-            details += f"Format: {fmt} (Uncompressed)\n"
-
-        details += f"Alpha: {'Yes' if tex.get('has_alpha', False) else 'No'}"
-
-        # Update text (col 1)
-        details_item = self.texture_table.item(row, 1)
-        if details_item:
-            details_item.setText(details)
-
-        # Also refresh thumbnail (col 0) so flip/rotate/filters show immediately
-        rgba = tex.get('rgba_data')
-        if rgba:
-            thumb = self._create_thumbnail(rgba, tex['width'], tex['height'])
-            thumb_item = self.texture_table.item(row, 0)
-            if thumb_item and thumb:
-                thumb_item.setIcon(QIcon(thumb))
-
 
     def _parse_single_texture(self, txd_data, offset, index, rw_version=0x1803FFFF): #vers 6
         """
@@ -9130,7 +5529,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         return tex
 
-
     def _decompress_texture(self, compressed_data, width, height, format_str): #vers 3
         """
         Decompress DXT texture data to RGBA using PIL (fast) with pure-Python fallback.
@@ -9169,7 +5567,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             return self._decompress_dxt3(compressed_data, width, height)
         else:
             return self._decompress_dxt5(compressed_data, width, height)
-
 
     def _decompress_dxt1(self, dxt_data, width, height): #vers 1
         """DXT1 decompression"""
@@ -9212,7 +5609,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except:
             return None
 
-
     def _decompress_dxt3(self, dxt_data, width, height): #vers 1
         """DXT3 decompression"""
         try:
@@ -9253,7 +5649,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             return bytes(rgba)
         except:
             return None
-
 
     def _decompress_dxt5(self, dxt_data, width, height): #vers 1
         """DXT5 decompression"""
@@ -9308,9 +5703,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except:
             return None
 
-
-
-    # Update _decompress_uncompressed method:
     def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888', depth=0, force_opaque=False, palette_is_bgra=True): #vers 7
         """Decompress all RenderWare uncompressed/palettized formats to RGBA"""
         try:
@@ -9429,7 +5821,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             return None
 
-
     def _create_thumbnail(self, rgba_data, width, height): #vers 2
         """Create thumbnail from RGBA data"""
         try:
@@ -9457,7 +5848,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 Qt.TransformationMode.SmoothTransformation)
         except:
             return None
-
 
     def _add_warning_badge(self, pixmap): #vers 1
         """Composite a small warning triangle onto bottom-left of thumbnail pixmap"""
@@ -9668,8 +6058,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         dialog.exec()
 
-
-
     def _open_paint_editor(self): #vers 4
         """Open DP5 Workshop paint editor for the selected texture."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
@@ -9685,7 +6073,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             h    = tex.get('height', 256)
             rgba = bytearray(tex['rgba_data'])
 
-            # Create DP5 as a modal dialog so "Workshop" waits for the edit
+            # Create DP5 as a modal dialog so TXD Workshop waits for the edit
             dlg = QDialog(self)
             dlg.setWindowTitle(f"DP5 Paint — {tex.get('name', 'texture')}")
             dlg.resize(1400, 820)
@@ -9857,211 +6245,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         dialog.exec()
 
-
-    def _update_texture_info(self, texture): #vers 10
-        """Update texture display with 4-state view support and checkerboard"""
-        if not texture:
-            if hasattr(self, 'info_name'):
-                self.info_name.setText("")
-            if hasattr(self, 'info_alpha_name'):
-                self.info_alpha_name.setText("")
-                self.info_alpha_name.setVisible(False)
-            if hasattr(self, '_info_alpha_name_action'):
-                self._info_alpha_name_action.setVisible(False)
-            if hasattr(self, 'alpha_label'):
-                self.alpha_label.setVisible(False)
-            if hasattr(self, '_alpha_label_action'):
-                self._alpha_label_action.setVisible(False)
-            if hasattr(self, 'preview_widget'):
-                self.preview_widget.setText("No texture selected")
-            return
-
-        # Set name
-        name = texture.get('name', 'Unknown')
-        if hasattr(self, 'info_name'):
-            self.info_name.setText(name)
-
-        # Set alpha name if has alpha
-        has_alpha = texture.get('has_alpha', False)
-        if has_alpha:
-            alpha_name = texture.get('alpha_name', name + 'a')
-            if hasattr(self, 'info_alpha_name'):
-                self.info_alpha_name.setText(alpha_name)
-                self.info_alpha_name.setVisible(True)
-            if hasattr(self, '_info_alpha_name_action'):
-                self._info_alpha_name_action.setVisible(True)
-            if hasattr(self, 'alpha_label'):
-                self.alpha_label.setVisible(True)
-            if hasattr(self, '_alpha_label_action'):
-                self._alpha_label_action.setVisible(True)
-        else:
-            if hasattr(self, 'info_alpha_name'):
-                self.info_alpha_name.setText("")
-                self.info_alpha_name.setVisible(False)
-            if hasattr(self, '_info_alpha_name_action'):
-                self._info_alpha_name_action.setVisible(False)
-            if hasattr(self, 'alpha_label'):
-                self.alpha_label.setVisible(False)
-            if hasattr(self, '_alpha_label_action'):
-                self._alpha_label_action.setVisible(False)
-
-        # Update size info WITH FILE SIZE
-        width = texture.get('width', 0)
-        height = texture.get('height', 0)
-        rgba_data = texture.get('rgba_data', b'')
-        file_size_kb = len(rgba_data) / 1024 if rgba_data else 0
-
-        if hasattr(self, 'info_size'):
-            self.info_size.setText(f"Size: {width}x{height}, {file_size_kb:.1f}KB")
-
-        # Update format
-        fmt = texture.get('format', 'Unknown')
-        if hasattr(self, 'format_status_label'):
-            self.format_status_label.setText(f"Format: {fmt}")
-
-        # Update bit depth label - derive from format, not raw header byte
-        fmt_depth = {
-            'ARGB8888': 32, 'RGB888': 24,
-            'RGB565': 16, 'ARGB1555': 16, 'ARGB4444': 16, 'RGB555': 16,
-            'DXT1': 4, 'DXT2': 8, 'DXT3': 8, 'DXT4': 8, 'DXT5': 8,
-            'PAL8': 8, 'PAL4': 4, 'LUM8': 8, 'A8L8': 16,
-        }
-        fmt_str = texture.get('format', '')
-        depth = fmt_depth.get(fmt_str, texture.get('depth', 32))
-        if hasattr(self, 'info_bitdepth'):
-            self.info_bitdepth.setText(f"[{depth}bit]")
-
-        # Get current view state
-        tex_name = texture.get('name', '')
-        view_state = self.texture_view_states.get(tex_name, 0)
-        self._current_view_state = view_state
-
-        # Update preview based on view state
-        if hasattr(self, 'preview_widget') and rgba_data:
-
-            if view_state == 0:  # Normal view
-                self._show_normal_view(rgba_data, width, height)
-
-            elif view_state == 1:  # Alpha mask view
-                if has_alpha:
-                    self._show_alpha_view(rgba_data, width, height)
-                else:
-                    self.preview_widget.setText("No alpha channel")
-
-            elif view_state == 2:  # Split view (side-by-side)
-                if has_alpha:
-                    self._show_split_view(rgba_data, width, height)
-                else:
-                    self.preview_widget.setText("No alpha channel")
-
-            elif view_state == 3:  # Overlay view
-                if has_alpha:
-                    self._show_overlay_view(rgba_data, width, height)
-                else:
-                    self.preview_widget.setText("No alpha channel")
-
-
-    def _show_normal_view(self, rgba_data, width, height): #vers 3
-        """Display normal texture - background handled by ZoomablePreview paintEvent"""
-        self._preview_buffer = bytes(rgba_data)
-        image = QImage(self._preview_buffer, width, height, width * 4, QImage.Format.Format_RGBA8888)
-        pixmap = QPixmap.fromImage(image)
-        self.preview_widget.set_pixmap(pixmap)
-
-
-    def _show_alpha_view(self, rgba_data, width, height): #vers 2
-        """Display alpha channel as grayscale with optional invert"""
-        alpha_data = self._extract_alpha_channel(rgba_data)
-
-        # Apply invert if enabled
-        if self._invert_alpha:
-            alpha_data = self._invert_grayscale(alpha_data)
-
-        self._preview_buffer = bytes(alpha_data)  # keep ref to prevent GC
-        image = QImage(self._preview_buffer, width, height, width * 4, QImage.Format.Format_RGBA8888)
-        pixmap = QPixmap.fromImage(image)
-        self.preview_widget.setPixmap(pixmap)
-
-
-    def _show_split_view(self, rgba_data, width, height): #vers 1
-        """Display normal and alpha side-by-side"""
-        combined_width = width * 2
-        combined_image = QImage(combined_width, height, QImage.Format.Format_RGBA8888)
-        combined_image.fill(Qt.GlobalColor.black)
-
-        painter = QPainter(combined_image)
-
-        # Left: Normal
-        normal_img = QImage(rgba_data, width, height, width * 4, QImage.Format.Format_RGBA8888)
-        if self._show_checkerboard:
-            normal_img = self._add_checkerboard_background(normal_img)
-        painter.drawImage(0, 0, normal_img)
-
-        # Right: Alpha mask
-        alpha_data = self._extract_alpha_channel(rgba_data)
-        alpha_img = QImage(alpha_data, width, height, width * 4, QImage.Format.Format_RGBA8888)
-        painter.drawImage(width, 0, alpha_img)
-
-        painter.end()
-
-        pixmap = QPixmap.fromImage(combined_image)
-        self.preview_widget.setPixmap(pixmap)
-
-
-    def _show_overlay_view(self, rgba_data, width, height): #vers 2
-        """Display normal over alpha with adjustable opacity - SUPPORTS INVERT"""
-        # Create base alpha visualization
-        alpha_data = self._extract_alpha_channel(rgba_data)
-
-        # MODIFIED: Apply invert if enabled
-        if self._invert_alpha:
-            alpha_data = self._invert_grayscale(alpha_data)
-
-        base_img = QImage(alpha_data, width, height, width * 4, QImage.Format.Format_RGBA8888)
-
-        # Create normal image with adjusted opacity
-        normal_img = QImage(rgba_data, width, height, width * 4, QImage.Format.Format_RGBA8888)
-
-        # Composite images
-        result = QImage(width, height, QImage.Format.Format_ARGB32)
-        result.fill(Qt.GlobalColor.transparent)
-
-        painter = QPainter(result)
-        painter.drawImage(0, 0, base_img)
-        painter.setOpacity(self._overlay_opacity / 100.0)
-        painter.drawImage(0, 0, normal_img)
-        painter.end()
-
-        if self._show_checkerboard:
-            result = self._add_checkerboard_background(result)
-
-        pixmap = QPixmap.fromImage(result)
-        self.preview_widget.setPixmap(pixmap)
-
-
-    def _add_checkerboard_background(self, image): #vers 1
-        """Add checkerboard pattern behind transparent areas"""
-        result = QImage(image.size(), QImage.Format.Format_ARGB32)
-
-        painter = QPainter(result)
-
-        # Draw checkerboard
-        size = self._checkerboard_size
-        color1 = self._get_ui_color('border')
-        color2 = self._get_ui_color('viewport_text')
-
-        for y in range(0, image.height(), size):
-            for x in range(0, image.width(), size):
-                color = color1 if ((x // size) + (y // size)) % 2 == 0 else color2
-                painter.fillRect(x, y, size, size, color)
-
-        # Draw image on top
-        painter.drawImage(0, 0, image)
-        painter.end()
-
-        return result
-
-
     def _invert_grayscale(self, grayscale_data): #vers 1
         """Invert grayscale RGBA data"""
         inverted = bytearray(grayscale_data)
@@ -10070,27 +6253,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             inverted[i + 1] = 255 - inverted[i + 1]
             inverted[i + 2] = 255 - inverted[i + 2]
         return bytes(inverted)
-
-
-    def _toggle_checkerboard(self): #vers 2
-        """Toggle checkerboard background display"""
-        self._show_checkerboard = not self._show_checkerboard
-
-        # Sync to preview widget background mode
-        if hasattr(self, 'preview_widget'):
-            if self._show_checkerboard:
-                self.preview_widget.set_checkerboard_background()
-            else:
-                self.preview_widget.set_background_color(self.preview_widget.bg_color)
-
-        # Refresh current texture
-        if self.selected_texture:
-            self._update_texture_info(self.selected_texture)
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            status = "enabled" if self._show_checkerboard else "disabled"
-            self.main_window.log_message(f"Checkerboard background {status}")
-
 
     def _view_bumpmap(self): #vers 4
         """Open Bumpmap Manager window - ALWAYS opens manager regardless of bumpmap state"""
@@ -10115,7 +6277,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             self.main_window.log_message(
                 f"🗺️ Opened Bumpmap Manager: {self.selected_texture['name']} ({status})"
             )
-
 
     def _export_bumpmap(self): #vers 1
         """Export bumpmap as separate image file"""
@@ -10154,7 +6315,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
-
 
     def _import_bumpmap(self): #vers 1
         """Import bumpmap from image file"""
@@ -10211,7 +6371,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Import failed: {str(e)}")
 
-
     def _encode_bumpmap(self, image: QImage) -> bytes: #vers 1
         """Encode image as grayscale height map at texture size."""
         width = self.selected_texture.get('width', image.width())
@@ -10261,27 +6420,119 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.main_window.log_message(f"Bumpmap decode error: {str(e)}")
             return QImage()
 
-
-
-    #    TXD method aliases and stubs (Build 131)                      
     def _export_all_textures(self, *a, **kw): return self.export_all_textures(*a, **kw)  #vers 1
+
     def _export_selected_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)  #vers 1
+
     def _open_txd_file(self, *a, **kw): return self.open_txd_file(*a, **kw)  #vers 3
+
     def copy_texture(self, *a, **kw): return self._copy_texture(*a, **kw)  #vers 1
+
     def delete_texture(self, *a, **kw): return self._delete_texture(*a, **kw)  #vers 1
+
     def duplicate_texture(self, *a, **kw): return self._duplicate_texture(*a, **kw)  #vers 1
+
     def export_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)  #vers 1
+
     def import_normal_texture(self, *a, **kw): return self._import_textures(*a, **kw)  #vers 1
+
     def import_textures(self, *a, **kw): return self._import_textures(*a, **kw)  #vers 1
+
     def paste_texture(self, *a, **kw): return self._paste_texture(*a, **kw)  #vers 1
+
     def refresh(self, *a, **kw): return self._reload_texture_table(*a, **kw)  #vers 1
+
     def reload_texture_table(self, *a, **kw): return self._reload_texture_table(*a, **kw)  #vers 1
+
     def save_as_txd_file(self, *a, **kw): return self._save_as_txd_file(*a, **kw)  #vers 1
+
     def undo_last_action(self, *a, **kw): return self._undo_last_action(*a, **kw)  #vers 1
+
     def _show_detailed_info(self, *a, **kw): pass  #vers 1
+
     def _show_texture_info(self, *a, **kw): pass  #vers 1
-    def show_help(self, *a, **kw): pass  #vers 1
-    def show_settings_dialog(self, *a, **kw): pass  #vers 1
+
+    def _flip_vertical(self): #vers 3
+        """Flip texture vertically using PIL (fast)."""
+        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
+            QMessageBox.warning(self, "No Selection", "Please select a texture first")
+            return
+        try:
+            from PIL import Image
+            tex = self.selected_texture
+            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+            flipped = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            self._save_undo_state("Flip vertical")
+            tex['rgba_data'] = flipped.tobytes()
+            self._update_texture_info(tex)
+            self._update_table_display()
+            self._mark_as_modified()
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message("Flipped vertically")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to flip: {str(e)}")
+
+    def _flip_horizontal(self): #vers 2
+        """Flip texture horizontally using PIL (fast)."""
+        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
+            QMessageBox.warning(self, "No Selection", "Please select a texture first")
+            return
+        try:
+            from PIL import Image
+            tex = self.selected_texture
+            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+            flipped = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            self._save_undo_state("Flip horizontal")
+            tex['rgba_data'] = flipped.tobytes()
+            self._update_texture_info(tex)
+            self._update_table_display()
+            self._mark_as_modified()
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message("Flipped horizontally")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to flip: {str(e)}")
+
+    def _rotate_clockwise(self): #vers 2
+        """Rotate texture 90° CW using PIL (fast)."""
+        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
+            QMessageBox.warning(self, "No Selection", "Please select a texture first")
+            return
+        try:
+            from PIL import Image
+            tex = self.selected_texture
+            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+            rotated = img.transpose(Image.Transpose.ROTATE_270)  # 270 CCW = 90 CW
+            self._save_undo_state("Rotate 90° CW")
+            tex['rgba_data'] = rotated.tobytes()
+            tex['width'], tex['height'] = rotated.width, rotated.height
+            self._update_texture_info(tex)
+            self._update_table_display()
+            self._mark_as_modified()
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Rotated 90° CW → {rotated.width}x{rotated.height}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to rotate: {str(e)}")
+
+    def _rotate_counterclockwise(self): #vers 2
+        """Rotate texture 90° CCW using PIL (fast)."""
+        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
+            QMessageBox.warning(self, "No Selection", "Please select a texture first")
+            return
+        try:
+            from PIL import Image
+            tex = self.selected_texture
+            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+            rotated = img.transpose(Image.Transpose.ROTATE_90)  # 90 CCW
+            self._save_undo_state("Rotate 90° CCW")
+            tex['rgba_data'] = rotated.tobytes()
+            tex['width'], tex['height'] = rotated.width, rotated.height
+            self._update_texture_info(tex)
+            self._update_table_display()
+            self._mark_as_modified()
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Rotated 90° CCW → {rotated.width}x{rotated.height}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to rotate: {str(e)}")
 
     def _edit_texture_external(self): #vers 2
         """Export texture as PNG to temp file and open in system default image editor."""
@@ -10318,14 +6569,32 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not open external editor:\n{e}")
 
+    def _refresh_main_window(self): #vers 1
+        """Refresh the main window to show changes"""
+        try:
+            if self.main_window:
+                # Try to refresh the main table
+                if hasattr(self.main_window, 'refresh_table'):
+                    self.main_window.refresh_table()
+                elif hasattr(self.main_window, 'reload_current_file'):
+                    self.main_window.reload_current_file()
+                elif hasattr(self.main_window, 'update_display'):
+                    self.main_window.update_display()
 
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Refresh error: {str(e)}")
 
-    def _rename_texture_shortcut(self): #vers 2
+    def _rename_texture_shortcut(self): #vers 1
         """Rename selected texture via F2 shortcut"""
         if not self.selected_texture:
             return
-        self._rename_texture(alpha=False)
 
+        # Focus the name input field and enable editing
+        if hasattr(self, 'info_name'):
+            self.info_name.setReadOnly(False)
+            self.info_name.selectAll()
+            self.info_name.setFocus()
 
     def _rename_texture(self, alpha=False): #vers 2
         """Rename texture or alpha name and mark as modified"""
@@ -10345,10 +6614,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             alpha_name = self.selected_texture.get('alpha_name', current_name + 'a')
             new_name, ok = QInputDialog.getText(self, "Rename Alpha", "Enter alpha name:", text=alpha_name)
             if ok and new_name and new_name != alpha_name:
-                self._save_undo_state("Rename alpha")
                 self.selected_texture['alpha_name'] = new_name
-                if hasattr(self, 'info_alpha_name'):
-                    self.info_alpha_name.setText(f"Alpha: {new_name}")
+                self.info_alpha_name.setText(f"Alpha: {new_name}")
                 self._update_table_display()
                 self._mark_as_modified()  # Mark as modified
                 if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -10356,16 +6623,12 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         else:
             new_name, ok = QInputDialog.getText(self, "Rename Texture", "Enter texture name:", text=current_name)
             if ok and new_name and new_name != current_name:
-                self._save_undo_state("Rename texture")
                 self.selected_texture['name'] = new_name
-                if hasattr(self, 'info_name'):
-                    self.info_name.setText(f"Name: {new_name}")
+                self.info_name.setText(f"Name: {new_name}")
                 self._update_table_display()
                 self._mark_as_modified()  # Mark as modified
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Texture renamed: {current_name} -> {new_name}")
-
-
 
     def _requires_img_rebuild(self, new_txd_data): #vers 1
         """Check if IMG needs full rebuild due to size changes"""
@@ -10374,8 +6637,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         size_ratio = len(new_txd_data) / len(self.current_txd_data)
         return size_ratio > 2.0  # Rebuild if more than 2x size increase
-
-
 
     def _rebuild_img_with_new_txd(self, new_txd_data): #vers 1
         """Rebuild entire IMG file to accommodate large TXD"""
@@ -10405,7 +6666,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.main_window.log_message(f"IMG rebuild error: {str(e)}")
             return False
 
-
     def open_img_archive(self): #vers 1
         """Open IMG archive and load TXD file list"""
         try:
@@ -10414,8 +6674,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self.load_from_img_archive(file_path)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open IMG: {str(e)}")
-
-
 
     def open_txd_file(self, file_path=None): #vers 3
         """Open standalone TXD file with version detection"""
@@ -10450,7 +6708,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                                 "to load the full texture database."
                             )
                     except Exception as _e:
-                        print(f"[" + App_name + "] Mobile DB error: {_e}")
+                        print(f"[TXDWorkshop] Mobile DB error: {_e}")
                     return
 
                 # Route mobile texture DB files (.txt / .dat)
@@ -10501,17 +6759,13 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 self._load_txd_textures(txd_data, os.path.basename(file_path))
 
                 # Update window title with version info
-                self.setWindowTitle(App_name +
-                    f": {os.path.basename(file_path)} "
+                self.setWindowTitle(
+                    f"TXD Workshop: {os.path.basename(file_path)} "
                     f"[{self.txd_version_str}]"
                 )
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open TXD: {str(e)}")
-
-
-
-    #    Texture Tools                                                          
 
     def _get_current_rgba(self):  #vers 1
         """Return (rgba, w, h, name) for the selected texture, or (None,0,0,'')."""
@@ -10576,46 +6830,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         dlg = SnowDialog(rgba, w, h, name, self)
         dlg.applied.connect(self._set_current_rgba)
         dlg.exec()
-
-    def _set_tiled_preview(self, n: int): #vers 1
-        """Switch preview tiling: 1x1, 2x2, 3x3."""
-        # Update cycle button label/tooltip
-        self._tile_n = n
-        if hasattr(self, '_tile_btn'):
-            self._tile_btn.setToolTip(
-                f"{n}×{n} tiled preview — click to cycle")
-        # Update preview widget if it supports tiling
-        if hasattr(self, 'preview_widget') and hasattr(self.preview_widget, 'set_tile'):
-            self.preview_widget.set_tile(n)
-        else:
-            # Fallback: re-render with tiling via PIL
-            rgba, w, h, _ = self._get_current_rgba()
-            if rgba and n > 1:
-                try:
-                    from PIL import Image
-                    img = Image.frombytes('RGBA', (w, h), rgba)
-                    tiled = Image.new('RGBA', (w * n, h * n))
-                    for y in range(n):
-                        for x in range(n):
-                            tiled.paste(img, (x * w, y * h))
-                    from PyQt6.QtGui import QImage, QPixmap
-                    td = tiled.tobytes()
-                    qi = QImage(td, tiled.width, tiled.height,
-                                tiled.width * 4, QImage.Format.Format_RGBA8888)
-                    pm = QPixmap.fromImage(qi)
-                    if hasattr(self, 'preview_widget'):
-                        self.preview_widget.setPixmap(pm.scaled(
-                            self.preview_widget.size(),
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation))
-                except Exception as e:
-                    if hasattr(self, 'status_label'):
-                        self.status_label.setText(f"Tiled preview error: {e}")
-            elif n == 1:
-                t = getattr(self, 'selected_texture', None)
-                if t:
-                    try: self._update_texture_info(t)
-                    except Exception: pass
 
     def _open_alpha_coverage(self): #vers 1
         """Scale alpha for mipmap coverage (foliage, fences, decals)."""
@@ -10743,7 +6957,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if hasattr(self, 'texture_table') and self.texture_table.rowCount():
                 self.texture_table.selectRow(0)
                 self._on_texture_selected()
-            self.setWindowTitle(App_name + f": {name} [GTA {rd.game}]")
+            self.setWindowTitle(f"TXD Workshop: {name} [GTA {rd.game}]")
 
             # Status bar hint that this is read-only
             self._set_status(
@@ -10787,18 +7001,17 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             self.current_txd_path = file_path
             self.current_txd_name = name
-            self.setWindowTitle(App_name + f": {name} [XTX — VCS PS2 Palettized {w}×{h}]")
+            self.setWindowTitle(f"TXD Workshop: {name} [XTX — VCS PS2 Palettized {w}×{h}]")
             self._log(f"Opened XTX: {name} ({w}x{h}, 256-colour indexed)")
 
         except Exception as e:
             QMessageBox.critical(self, "XTX Error", f"Failed to open XTX:\n{str(e)}")
 
-
     def _log(self, msg: str):  #vers 1
-        """Safe logging — uses print() since Workshop has no log_message."""
-        print(f"[" + App_name + "] {msg}")
+        """Safe logging — uses print() since TXDWorkshop has no log_message."""
+        print(f"[TXDWorkshop] {msg}")
 
-    def _open_chk_file(self, file_path: str): #vers 3
+    def _open_chk_file(self, file_path: str): #vers 1
         """Open a GTA III PS2 CHK splash texture file."""
         try:
             from apps.methods.chk_parser import load_chk
@@ -10809,7 +7022,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 return
 
             name = tex['name']
-            self.setWindowTitle(App_name + f": {name}.CHK [{tex['width']}×{tex['height']}]")
+            self.setWindowTitle(f"TXD Workshop: {name}.CHK [{tex['width']}×{tex['height']}]")
             self._set_status(f"Opened CHK: {name}  "
                              f"{tex['width']}×{tex['height']}  8bpp palettised")
 
@@ -10820,7 +7033,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             self._add_texture_to_table(tex)
             self.selected_texture = tex
-            self._update_texture_panel_visibility()
 
             # Selecting the row drives the normal preview/info path
             if hasattr(self, 'texture_table') and self.texture_table.rowCount():
@@ -10829,7 +7041,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         except Exception as e:
             import traceback; traceback.print_exc()
-            print(f"[{App_name}] CHK error: {e}")
+            print(f"[TXDWorkshop] CHK error: {e}")
 
     def _open_mobile_texture_db(self, file_path: str): #vers 1
         """Open a mobile texture database (.txt+.toc+.dat+.tmb quad-file set).
@@ -10860,8 +7072,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             self.current_txd_path = file_path
             self.current_txd_name = os.path.basename(file_path)
             platform_str = "iOS (PVRTC)" if db.is_ios else "Android (ETC1)"
-            self.setWindowTitle(App_name +
-                f": {db.name} [{platform_str} — {len(real_textures)} textures]")
+            self.setWindowTitle(
+                f"TXD Workshop: {db.name} [{platform_str} — {len(real_textures)} textures]")
 
             self._display_mobile_textures(db)
 
@@ -10916,11 +7128,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         if hasattr(self, 'texture_table') and self.texture_list:
             self.texture_table.selectRow(0)
-        self._update_texture_panel_visibility()
 
         self._log(f"Mobile DB: {db.name}.{db.platform} — {len(real_textures)} textures loaded")
-
-
 
     def _open_ps2_txd(self, file_path: str): #vers 2
         """Open a GTA PS2 TXD (all games/regions — device_id 0 or 6).
@@ -10985,12 +7194,11 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             # Select first texture
             if hasattr(self, 'texture_table') and self.texture_list:
                 self.texture_table.selectRow(0)
-            self._update_texture_panel_visibility()
 
             dev = textures[0].get('device_id', 0) if textures else 0
             game_hint = 'SA' if dev == 6 else 'LC/VC'
-            self.setWindowTitle(App_name +
-                f": {name} [PS2/{game_hint} — {len(textures)} textures]")
+            self.setWindowTitle(
+                f"TXD Workshop: {name} [PS2/{game_hint} — {len(textures)} textures]")
             self._log(f"Opened PS2 TXD: {name} — {len(textures)} textures "
                       f"(device_id={dev}, {game_hint})")
 
@@ -10998,7 +7206,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "PS2 TXD Error",
                 f"Failed to open PS2 TXD:\n{e}")
-
 
     def _display_xtx_texture(self, name: str, pixmap, info: dict): #vers 1
         """Show an XTX texture in the workshop preview area."""
@@ -11042,7 +7249,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         except Exception as e:
             self._log(f"XTX display error: {e}")
-
 
     def _validate_texture_dimensions(self, width, height): #vers 1
         """Validate texture dimensions — warn on non-power-of-2 but don't block."""
@@ -11177,8 +7383,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(msg)
 
-
-
     def _load_texture_with_pil(self, file_path): #vers 2
         """Load texture using PIL as fallback"""
         try:
@@ -11221,42 +7425,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"PIL import error: {str(e)}")
             return None
-
-
-    def _ensure_depends_structure(self): #vers 1
-        """Ensure depends/ folder exists in standalone mode with required files"""
-        if not self.standalone_mode:
-            return
-
-        script_dir = Path(__file__).parent.resolve()
-        depends_dir = script_dir / "depends"
-
-        # Create depends folder if it doesn't exist
-        if not depends_dir.exists():
-            depends_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Created depends directory: {depends_dir}")
-
-        # Check for required import modules
-        required_modules = [
-            'iff_import.py',
-            'indexed_color_import.py',
-            'txd_versions.py'
-        ]
-
-        missing = []
-        for module in required_modules:
-            module_path = depends_dir / module
-            if not module_path.exists():
-                missing.append(module)
-
-        if missing:
-            print(f"Warning: Missing modules in depends/: {', '.join(missing)}")
-            print(f"Copy these from apps.methods. to: {depends_dir}")
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f" Missing import modules: {', '.join(missing)}")
-
-
 
     def show_properties(self): #vers 5
         """Show TXD properties or detailed texture information"""
@@ -11359,8 +7527,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not show properties: {str(e)}")
 
-
-
     def _apply_texture_filters(self): #vers 1
         """Apply texture filters to table"""
         if not hasattr(self, 'texture_table') or not self.texture_list:
@@ -11404,18 +7570,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
                 self.texture_table.setRowHidden(row, not show_row)
 
-
-#------ Search functions
-
-
-    def _focus_search(self): #vers 1
-        """Focus search input via Ctrl+F"""
-        if hasattr(self, 'search_input'):
-            self.search_input.setFocus()
-            self.search_input.selectAll()
-
-
-
     def _perform_texture_search(self, search_text): #vers 1
         """Perform texture search"""
         if not hasattr(self, 'texture_table') or not self.texture_list:
@@ -11432,7 +7586,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 show_row = not search_text or search_text in texture_name
                 self.texture_table.setRowHidden(row, not show_row)
 
-
     def _clear_texture_search(self): #vers 1
         """Clear texture search"""
         if hasattr(self, 'search_input'):
@@ -11442,10 +7595,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         if hasattr(self, 'texture_table'):
             for row in range(self.texture_table.rowCount()):
                 self.texture_table.setRowHidden(row, False)
-
-
-#------ Tramsform functions
-
 
     def _duplicate_texture(self): #vers 4
         """Duplicate selected texture - FIXED: Only copy alpha if it exists"""
@@ -11494,7 +7643,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 new_texture['fresnel_map'] = self.selected_texture['fresnel_map']
 
             # Add to texture list
-            self._save_undo_state("Duplicate texture")
             self.texture_list.append(new_texture)
 
             # Reload table
@@ -11509,7 +7657,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         except Exception as e:
             QMessageBox.critical(self, "Duplicate Error", f"Failed to duplicate texture: {str(e)}")
-
 
     def _copy_texture(self): #vers 2
         """Copy texture to clipboard - FIXED: Preserves binary data"""
@@ -11558,7 +7705,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Copy Error", f"Failed to copy texture: {str(e)}")
 
-
     def _paste_texture(self): #vers 3
         """Paste copied texture data - FIXED: Preserves binary data"""
         if not hasattr(self, 'clipboard_texture') or not self.clipboard_texture:
@@ -11602,45 +7748,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         except Exception as e:
             QMessageBox.critical(self, "Paste Error", f"Failed to paste texture: {str(e)}")
-
-
-
-#------ Tabbing Functions
-
-
-    def _close_txd_tab(self, index): #vers 1
-        """Close TXD tab"""
-        if self.txd_tabs.count() <= 1:
-            QMessageBox.warning(self, "Cannot Close", "Cannot close the last tab")
-            return
-
-        # Check if modified
-        # Check modified flag if present
-        tab_widget = self.txd_tabs.widget(index)
-        if tab_widget and getattr(tab_widget, 'is_modified', False):
-            from PyQt6.QtWidgets import QMessageBox
-            r = QMessageBox.question(self, 'Unsaved Changes',
-                'This tab has unsaved changes. Close anyway?')
-            if r != QMessageBox.StandardButton.Yes:
-                return
-
-        self.txd_tabs.removeTab(index)
-
-
-    def _switch_txd_tab(self, index): #vers 1
-        """Switch to different TXD tab"""
-        if index < 0:
-            return
-
-        tab_name = self.txd_tabs.tabText(index)
-        tab_widget = self.txd_tabs.widget(index)
-        if tab_widget and hasattr(tab_widget, 'refresh'):
-            tab_widget.refresh()
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Switched to tab: {tab_name}")
-
-
 
     def _texture_statistics(self): #vers 1
         """Show texture statistics"""
@@ -11694,7 +7801,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             stats += f"{size_cat}: {count} ({percentage:.1f}%)\n"
 
         QMessageBox.information(self, "TXD Statistics", stats)
-
 
     def _check_txd_vs_dff(self): #vers 3
         """Check TXD texture names against DFF model - ENHANCED"""
@@ -11757,7 +7863,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Check Error", f"Failed to check DFF:\n\n{str(e)}")
 
-
     def _parse_dff_materials(self, dff_path): #vers 1
         """Parse DFF file and extract material/texture names"""
         import struct
@@ -11809,7 +7914,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"DFF parse error: {str(e)}")
             return []
-
 
     def _build_txd_from_dff(self): #vers 2
         """Build TXD structure from DFF material names with version/platform selection"""
@@ -11923,13 +8027,12 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
-                    f"Built TXD with {len(materials)} textures "
+                    f"✅ Built TXD with {len(materials)} textures "
                     f"({game}, {platform})"
                 )
 
         except Exception as e:
             QMessageBox.critical(self, "Build Error", f"Failed to build TXD:\n\n{str(e)}")
-
 
     def _batch_import_from_folder(self, folder): #vers 1
         """Batch import textures from folder matching material names"""
@@ -11988,7 +8091,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"✅ Imported {imported}/{len(self.texture_list)} textures")
-
 
     def _add_texture_to_table(self, texture): #vers 3
         """Add texture to table with file size and warning icon"""
@@ -12071,7 +8173,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self.texture_table.setRowHeight(row, 100)
         self.texture_table.setColumnWidth(0, 80)
 
-
     def _quick_alpha_check(self, texture): #vers 1
         """Quick check if alpha might be same as RGB (for warning icon)"""
         if not texture.get('has_alpha', False):
@@ -12099,14 +8200,11 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         # If more than 90% match, flag as suspicious
         return (matches / samples) > 0.9
 
-
     def _load_settings(self): #vers 2
         """Load settings from config file"""
         import json
 
-        settings_file = os.path.join(
-            os.path.dirname(__file__), _App_name + '_settings.json'
-        )
+        settings_file = get_user_config_dir() / 'txd_workshop_settings.json'
 
         try:
             if os.path.exists(settings_file):
@@ -12117,14 +8215,11 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         except Exception as e:
             print(f"Failed to load settings: {e}")
 
-
     def _save_settings(self): #vers 2
         """Save settings to config file"""
         import json
 
-        settings_file = os.path.join(
-            os.path.dirname(__file__), _App_name + '_settings.json'
-        )
+        settings_file = get_user_config_dir() / 'txd_workshop_settings.json'
 
         try:
             settings = {
@@ -12136,651 +8231,3 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 json.dump(settings, indent=2, fp=f)
         except Exception as e:
             print(f"Failed to save settings: {e}")
-
-
-    def keyPressEvent(self, event): #vers 1
-        """Handle keyboard shortcuts"""
-        from PyQt6.QtCore import Qt
-
-        # D key - Dock/Undock toggle
-        if event.key() == Qt.Key.Key_D and not event.modifiers():
-            self.toggle_dock_mode()
-            event.accept()
-            return
-
-        # T key - Tear out (same as undock)
-        if event.key() == Qt.Key.Key_T and not event.modifiers():
-            if self.is_docked:
-                self._undock_from_main()
-            event.accept()
-            return
-
-        super().keyPressEvent(event)
-
-
-    def _setup_hotkeys(self): #vers 3
-        """Setup Plasma6-style keyboard shortcuts for TXD Workshop - checks for existing methods"""
-        from PyQt6.QtGui import QShortcut, QKeySequence
-        from PyQt6.QtCore import Qt
-
-        # === FILE OPERATIONS ===
-
-        # Open TXD (Ctrl+O)
-        self.hotkey_open = QShortcut(QKeySequence.StandardKey.Open, self)
-        if hasattr(self, 'open_txd_file'):
-            self.hotkey_open.activated.connect(self.open_txd_file)
-        elif hasattr(self, '_open_txd_file'):
-            self.hotkey_open.activated.connect(self._open_txd_file)
-
-        # Save TXD (Ctrl+S)
-        self.hotkey_save = QShortcut(QKeySequence.StandardKey.Save, self)
-        if hasattr(self, '_save_txd_file'):
-            self.hotkey_save.activated.connect(self._save_txd_file)
-        elif hasattr(self, 'save_txd_file'):
-            self.hotkey_save.activated.connect(self.save_txd_file)
-
-        # Force Save TXD (Alt+Shift+S)
-        self.hotkey_force_save = QShortcut(QKeySequence("Alt+Shift+S"), self)
-        if not hasattr(self, '_force_save_txd'):
-            # Create force save method inline if it doesn't exist
-            def force_save():  #vers 1
-                if not self.texture_list:
-                    from PyQt6.QtWidgets import QMessageBox
-                    QMessageBox.warning(self, "No Textures", "No textures to save")
-                    return
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("Force save triggered (Alt+Shift+S)")
-                # Call save regardless of modified state
-                if hasattr(self, '_save_txd_file'):
-                    self._save_txd_file()
-                elif hasattr(self, 'save_txd_file'):
-                    self.save_txd_file()
-            self.hotkey_force_save.activated.connect(force_save)
-        else:
-            self.hotkey_force_save.activated.connect(self._force_save_txd)
-
-        # Save As (Ctrl+Shift+S)
-        self.hotkey_save_as = QShortcut(QKeySequence.StandardKey.SaveAs, self)
-        if hasattr(self, '_save_as_txd_file'):
-            self.hotkey_save_as.activated.connect(self._save_as_txd_file)
-        elif hasattr(self, 'save_as_txd_file'):
-            self.hotkey_save_as.activated.connect(self.save_as_txd_file)
-        elif hasattr(self, '_save_txd_file'):
-            self.hotkey_save_as.activated.connect(self._save_txd_file)
-
-        # Close (Ctrl+W)
-        self.hotkey_close = QShortcut(QKeySequence.StandardKey.Close, self)
-        self.hotkey_close.activated.connect(self.close)
-
-        # === EDIT OPERATIONS ===
-
-        # Undo (Ctrl+Z)
-        self.hotkey_undo = QShortcut(QKeySequence.StandardKey.Undo, self)
-        if hasattr(self, '_undo_last_action'):
-            self.hotkey_undo.activated.connect(self._undo_last_action)
-        elif hasattr(self, 'undo_last_action'):
-            self.hotkey_undo.activated.connect(self.undo_last_action)
-        # else: not implemented yet, no connection
-
-        # Copy (Ctrl+C)
-        self.hotkey_copy = QShortcut(QKeySequence.StandardKey.Copy, self)
-        if hasattr(self, '_copy_texture'):
-            self.hotkey_copy.activated.connect(self._copy_texture)
-        elif hasattr(self, 'copy_texture'):
-            self.hotkey_copy.activated.connect(self.copy_texture)
-
-        # Paste (Ctrl+V)
-        self.hotkey_paste = QShortcut(QKeySequence.StandardKey.Paste, self)
-        if hasattr(self, '_paste_texture'):
-            self.hotkey_paste.activated.connect(self._paste_texture)
-        elif hasattr(self, 'paste_texture'):
-            self.hotkey_paste.activated.connect(self.paste_texture)
-
-        # Delete (Delete)
-        self.hotkey_delete = QShortcut(QKeySequence.StandardKey.Delete, self)
-        if hasattr(self, '_delete_texture'):
-            self.hotkey_delete.activated.connect(self._delete_texture)
-        elif hasattr(self, 'delete_texture'):
-            self.hotkey_delete.activated.connect(self.delete_texture)
-
-        # Duplicate (Ctrl+D)
-        self.hotkey_duplicate = QShortcut(QKeySequence("Ctrl+D"), self)
-        if hasattr(self, '_duplicate_texture'):
-            self.hotkey_duplicate.activated.connect(self._duplicate_texture)
-        elif hasattr(self, 'duplicate_texture'):
-            self.hotkey_duplicate.activated.connect(self.duplicate_texture)
-
-        # Rename (F2)
-        self.hotkey_rename = QShortcut(QKeySequence("F2"), self)
-        if not hasattr(self, '_rename_texture_shortcut'):
-            # Create rename shortcut method inline
-            def rename_shortcut():  #vers 1
-                if not self.selected_texture:
-                    return
-                # Focus the name input field if it exists
-                if hasattr(self, 'info_name'):
-                    self.info_name.setReadOnly(False)
-                    self.info_name.selectAll()
-                    self.info_name.setFocus()
-            self.hotkey_rename.activated.connect(rename_shortcut)
-        else:
-            self.hotkey_rename.activated.connect(self._rename_texture_shortcut)
-
-        # === TEXTURE OPERATIONS ===
-
-        # Import Texture (Ctrl+I)
-        self.hotkey_import = QShortcut(QKeySequence("Ctrl+I"), self)
-        if hasattr(self, '_import_normal_texture'):
-            self.hotkey_import.activated.connect(self._import_normal_texture)
-        elif hasattr(self, 'import_normal_texture'):
-            self.hotkey_import.activated.connect(self.import_normal_texture)
-        elif hasattr(self, 'import_textures'):
-            self.hotkey_import.activated.connect(self.import_textures)
-
-        # Export Texture (Ctrl+E)
-        self.hotkey_export = QShortcut(QKeySequence("Ctrl+E"), self)
-        if hasattr(self, 'export_selected_texture'):
-            self.hotkey_export.activated.connect(self.export_selected_texture)
-        elif hasattr(self, '_export_selected_texture'):
-            self.hotkey_export.activated.connect(self._export_selected_texture)
-        elif hasattr(self, 'export_texture'):
-            self.hotkey_export.activated.connect(self.export_texture)
-
-        # Export All (Ctrl+Shift+E)
-        self.hotkey_export_all = QShortcut(QKeySequence("Ctrl+Shift+E"), self)
-        if hasattr(self, 'export_all_textures'):
-            self.hotkey_export_all.activated.connect(self.export_all_textures)
-        elif hasattr(self, '_export_all_textures'):
-            self.hotkey_export_all.activated.connect(self._export_all_textures)
-
-        # === VIEW OPERATIONS ===
-
-        # Refresh (F5)
-        self.hotkey_refresh = QShortcut(QKeySequence.StandardKey.Refresh, self)
-        if hasattr(self, '_reload_texture_table'):
-            self.hotkey_refresh.activated.connect(self._reload_texture_table)
-        elif hasattr(self, 'reload_texture_table'):
-            self.hotkey_refresh.activated.connect(self.reload_texture_table)
-        elif hasattr(self, 'refresh'):
-            self.hotkey_refresh.activated.connect(self.refresh)
-
-        # Properties (Alt+Enter)
-        self.hotkey_properties = QShortcut(QKeySequence("Alt+Return"), self)
-        if hasattr(self, '_show_detailed_info'):
-            self.hotkey_properties.activated.connect(self._show_detailed_info)
-        elif hasattr(self, '_show_texture_info'):
-            self.hotkey_properties.activated.connect(self._show_texture_info)
-
-        # Settings (Ctrl+,)
-        self.hotkey_settings = QShortcut(QKeySequence.StandardKey.Preferences, self)
-        if hasattr(self, '_show_settings_dialog'):
-            self.hotkey_settings.activated.connect(self._show_settings_dialog)
-        elif hasattr(self, 'show_settings_dialog'):
-            self.hotkey_settings.activated.connect(self.show_settings_dialog)
-        elif hasattr(self, '_show_settings_hotkeys'):
-            self.hotkey_settings.activated.connect(self._show_settings_hotkeys)
-
-        # === NAVIGATION ===
-
-        # Select All (Ctrl+A) - reserved for future
-        self.hotkey_select_all = QShortcut(QKeySequence.StandardKey.SelectAll, self)
-        # Not connected - reserved for future multi-select
-
-        # Find (Ctrl+F)
-        self.hotkey_find = QShortcut(QKeySequence.StandardKey.Find, self)
-        if not hasattr(self, '_focus_search'):
-            # Create focus search method inline
-            def focus_search():  #vers 1
-                if hasattr(self, 'search_input'):
-                    self.search_input.setFocus()
-                    self.search_input.selectAll()
-            self.hotkey_find.activated.connect(focus_search)
-        else:
-            self.hotkey_find.activated.connect(self._focus_search)
-
-        # === HELP ===
-
-        # Help (F1)
-        self.hotkey_help = QShortcut(QKeySequence.StandardKey.HelpContents, self)
-
-        if hasattr(self, 'show_help'):
-            self.hotkey_help.activated.connect(self.show_help)
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message("Hotkeys initialized (Plasma6 standard)")
-
-
-    def _reset_hotkeys_to_defaults(self, parent_dialog): #vers 1
-        """Reset all hotkeys to Plasma6 defaults"""
-        from PyQt6.QtWidgets import QMessageBox
-        from PyQt6.QtGui import QKeySequence
-
-        reply = QMessageBox.question(parent_dialog, "Reset Hotkeys",
-            "Reset all keyboard shortcuts to Plasma6 defaults?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
-            # Reset to defaults
-            self.hotkey_edit_open.setKeySequence(QKeySequence.StandardKey.Open)
-            self.hotkey_edit_save.setKeySequence(QKeySequence.StandardKey.Save)
-            self.hotkey_edit_force_save.setKeySequence(QKeySequence("Alt+Shift+S"))
-            self.hotkey_edit_save_as.setKeySequence(QKeySequence.StandardKey.SaveAs)
-            self.hotkey_edit_close.setKeySequence(QKeySequence.StandardKey.Close)
-            self.hotkey_edit_undo.setKeySequence(QKeySequence.StandardKey.Undo)
-            self.hotkey_edit_copy.setKeySequence(QKeySequence.StandardKey.Copy)
-            self.hotkey_edit_paste.setKeySequence(QKeySequence.StandardKey.Paste)
-            self.hotkey_edit_delete.setKeySequence(QKeySequence.StandardKey.Delete)
-            self.hotkey_edit_duplicate.setKeySequence(QKeySequence("Ctrl+D"))
-            self.hotkey_edit_rename.setKeySequence(QKeySequence("F2"))
-            self.hotkey_edit_import.setKeySequence(QKeySequence("Ctrl+I"))
-            self.hotkey_edit_export.setKeySequence(QKeySequence("Ctrl+E"))
-            self.hotkey_edit_export_all.setKeySequence(QKeySequence("Ctrl+Shift+E"))
-            self.hotkey_edit_refresh.setKeySequence(QKeySequence.StandardKey.Refresh)
-            self.hotkey_edit_properties.setKeySequence(QKeySequence("Alt+Return"))
-            self.hotkey_edit_find.setKeySequence(QKeySequence.StandardKey.Find)
-            self.hotkey_edit_help.setKeySequence(QKeySequence.StandardKey.HelpContents)
-
-
-    def _apply_hotkey_settings(self, dialog, close=False): #vers 1
-        """Apply hotkey changes"""
-        # Update all hotkeys with new sequences
-        self.hotkey_open.setKey(self.hotkey_edit_open.keySequence())
-        self.hotkey_save.setKey(self.hotkey_edit_save.keySequence())
-        self.hotkey_force_save.setKey(self.hotkey_edit_force_save.keySequence())
-        self.hotkey_save_as.setKey(self.hotkey_edit_save_as.keySequence())
-        self.hotkey_close.setKey(self.hotkey_edit_close.keySequence())
-        self.hotkey_undo.setKey(self.hotkey_edit_undo.keySequence())
-        self.hotkey_copy.setKey(self.hotkey_edit_copy.keySequence())
-        self.hotkey_paste.setKey(self.hotkey_edit_paste.keySequence())
-        self.hotkey_delete.setKey(self.hotkey_edit_delete.keySequence())
-        self.hotkey_duplicate.setKey(self.hotkey_edit_duplicate.keySequence())
-        self.hotkey_rename.setKey(self.hotkey_edit_rename.keySequence())
-        self.hotkey_import.setKey(self.hotkey_edit_import.keySequence())
-        self.hotkey_export.setKey(self.hotkey_edit_export.keySequence())
-        self.hotkey_export_all.setKey(self.hotkey_edit_export_all.keySequence())
-        self.hotkey_refresh.setKey(self.hotkey_edit_refresh.keySequence())
-        self.hotkey_properties.setKey(self.hotkey_edit_properties.keySequence())
-        self.hotkey_find.setKey(self.hotkey_edit_find.keySequence())
-        self.hotkey_help.setKey(self.hotkey_edit_help.keySequence())
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message("Hotkeys updated")
-
-        # Save hotkeys to app_settings if available
-        try:
-            if hasattr(self, 'app_settings') and self.app_settings:
-                self.app_settings.set('hotkeys', getattr(self, '_hotkey_map', {}))
-        except Exception:
-            pass
-
-        if close:
-            dialog.accept()
-
-
-    def _show_settings_hotkeys(self): #vers 1
-        """Show settings dialog with hotkey customization"""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
-                                    QWidget, QLabel, QLineEdit, QPushButton,
-                                    QGroupBox, QFormLayout, QKeySequenceEdit)
-        from PyQt6.QtCore import Qt
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle(App_name +" Settings")
-        dialog.setMinimumWidth(600)
-        dialog.setMinimumHeight(500)
-
-        layout = QVBoxLayout(dialog)
-
-        # Create tabs
-        tabs = QTabWidget()
-
-        # === HOTKEYS TAB ===
-        hotkeys_tab = QWidget()
-        hotkeys_layout = QVBoxLayout(hotkeys_tab)
-
-        # File Operations Group
-        file_group = QGroupBox("File Operations")
-        file_form = QFormLayout()
-
-        self.hotkey_edit_open = QKeySequenceEdit(self.hotkey_open.key())
-        file_form.addRow("Open TXD:", self.hotkey_edit_open)
-
-        self.hotkey_edit_save = QKeySequenceEdit(self.hotkey_save.key())
-        file_form.addRow("Save TXD:", self.hotkey_edit_save)
-
-        self.hotkey_edit_force_save = QKeySequenceEdit(self.hotkey_force_save.key())
-        force_save_layout = QHBoxLayout()
-        force_save_layout.addWidget(self.hotkey_edit_force_save)
-        force_save_hint = QLabel("(Force save even if unmodified)")
-        force_save_hint.setStyleSheet("color: #888; font-style: italic;")
-        force_save_layout.addWidget(force_save_hint)
-        file_form.addRow("Force Save:", force_save_layout)
-
-        self.hotkey_edit_save_as = QKeySequenceEdit(self.hotkey_save_as.key())
-        file_form.addRow("Save As:", self.hotkey_edit_save_as)
-
-        self.hotkey_edit_close = QKeySequenceEdit(self.hotkey_close.key())
-        file_form.addRow("Close:", self.hotkey_edit_close)
-
-        file_group.setLayout(file_form)
-        hotkeys_layout.addWidget(file_group)
-
-        # Edit Operations Group
-        edit_group = QGroupBox("Edit Operations")
-        edit_form = QFormLayout()
-
-        self.hotkey_edit_undo = QKeySequenceEdit(self.hotkey_undo.key())
-        edit_form.addRow("Undo:", self.hotkey_edit_undo)
-
-        self.hotkey_edit_copy = QKeySequenceEdit(self.hotkey_copy.key())
-        edit_form.addRow("Copy Texture:", self.hotkey_edit_copy)
-
-        self.hotkey_edit_paste = QKeySequenceEdit(self.hotkey_paste.key())
-        edit_form.addRow("Paste Texture:", self.hotkey_edit_paste)
-
-        self.hotkey_edit_delete = QKeySequenceEdit(self.hotkey_delete.key())
-        edit_form.addRow("Delete:", self.hotkey_edit_delete)
-
-        self.hotkey_edit_duplicate = QKeySequenceEdit(self.hotkey_duplicate.key())
-        edit_form.addRow("Duplicate:", self.hotkey_edit_duplicate)
-
-        self.hotkey_edit_rename = QKeySequenceEdit(self.hotkey_rename.key())
-        edit_form.addRow("Rename:", self.hotkey_edit_rename)
-
-        edit_group.setLayout(edit_form)
-        hotkeys_layout.addWidget(edit_group)
-
-        # Texture Operations Group
-        texture_group = QGroupBox("Texture Operations")
-        texture_form = QFormLayout()
-
-        self.hotkey_edit_import = QKeySequenceEdit(self.hotkey_import.key())
-        texture_form.addRow("Import Texture:", self.hotkey_edit_import)
-
-        self.hotkey_edit_export = QKeySequenceEdit(self.hotkey_export.key())
-        texture_form.addRow("Export Texture:", self.hotkey_edit_export)
-
-        self.hotkey_edit_export_all = QKeySequenceEdit(self.hotkey_export_all.key())
-        texture_form.addRow("Export All:", self.hotkey_edit_export_all)
-
-        texture_group.setLayout(texture_form)
-        hotkeys_layout.addWidget(texture_group)
-
-        # View Operations Group
-        view_group = QGroupBox("View Operations")
-        view_form = QFormLayout()
-
-        self.hotkey_edit_refresh = QKeySequenceEdit(self.hotkey_refresh.key())
-        view_form.addRow("Refresh:", self.hotkey_edit_refresh)
-
-        self.hotkey_edit_properties = QKeySequenceEdit(self.hotkey_properties.key())
-        view_form.addRow("Properties:", self.hotkey_edit_properties)
-
-        self.hotkey_edit_find = QKeySequenceEdit(self.hotkey_find.key())
-        view_form.addRow("Find/Search:", self.hotkey_edit_find)
-
-        self.hotkey_edit_help = QKeySequenceEdit(self.hotkey_help.key())
-        view_form.addRow("Help:", self.hotkey_edit_help)
-
-        view_group.setLayout(view_form)
-        hotkeys_layout.addWidget(view_group)
-
-        hotkeys_layout.addStretch()
-
-        # Reset to defaults button
-        reset_hotkeys_btn = QPushButton("Reset to Plasma6 Defaults")
-        reset_hotkeys_btn.clicked.connect(lambda: self._reset_hotkeys_to_defaults(dialog))
-        hotkeys_layout.addWidget(reset_hotkeys_btn)
-
-        tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
-
-        # === GENERAL TAB (for future settings) ===
-        general_tab = QWidget()
-        general_layout = QVBoxLayout(general_tab)
-
-        placeholder_label = QLabel("Additional settings will appear here in future versions.")
-        placeholder_label.setStyleSheet("color: #888; font-style: italic; padding: 20px;")
-        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        general_layout.addWidget(placeholder_label)
-        general_layout.addStretch()
-
-        tabs.addTab(general_tab, "General")
-
-        layout.addWidget(tabs)
-
-        # Dialog buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_btn)
-
-        apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(lambda: self._apply_hotkey_settings(dialog))
-        button_layout.addWidget(apply_btn)
-
-        ok_btn = QPushButton("OK")
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(lambda: self._apply_hotkey_settings(dialog, close=True))
-        button_layout.addWidget(ok_btn)
-
-        layout.addLayout(button_layout)
-
-        dialog.exec()
-
-
-# - class SvgIcons: #vers 1 - Once functions are updated this class will be moved to the bottom
-    """SVG icon data to QIcon with theme color support"""
-
-    # CONTEXT MENU ICONS
-
-
-
-    # WINDOW CONTROL ICONS
-
-
-
-# Footer functions
-
-
-
-# --- External AI upscaler integration helper ---
-import subprocess
-import tempfile
-import shutil
-import sys
-from apps.methods.img_factory_settings import get_user_config_dir
-
-
-
-def open_txd_workshop(main_window, img_path=None): #vers 5
-    """Open Workshop - embedded in tab if main_window has tab widget, standalone otherwise"""
-    try:
-        from PyQt6.QtWidgets import QVBoxLayout, QWidget
-
-        # Standalone mode - no main window or no tab widget
-        if not main_window or not hasattr(main_window, 'main_tab_widget'):
-            workshop = AssetWorkshop(None, main_window)
-            workshop.setWindowFlags(Qt.WindowType.Window)
-            if img_path:
-                if img_path.lower().endswith('.txd'):
-                    workshop.open_txd_file(img_path)
-                else:
-                    workshop.load_from_img_archive(img_path)
-            elif main_window:
-                # No explicit file - load from current IMG if available, so
-                # opening "Workshop" with an IMG already open picks it up
-                # automatically, same as when a path is given explicitly.
-                img = getattr(main_window, 'current_img', None)
-                if img:
-                    fp = getattr(img, 'file_path', '') or ''
-                    if fp and os.path.isfile(fp):
-                        workshop.load_from_img_archive(fp)
-            workshop.resize(1200, 800)
-            workshop.show()
-            return workshop
-
-        # Embedded mode - add as tab
-        import os
-        tab_container = QWidget()
-        tab_layout = QVBoxLayout(tab_container)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-
-        workshop = AssetWorkshop(tab_container, main_window)
-        workshop.setWindowFlags(Qt.WindowType.Widget)
-        tab_layout.addWidget(workshop)
-
-        if img_path:
-            if img_path.lower().endswith('.txd'):
-                workshop.open_txd_file(img_path)
-            else:
-                workshop.load_from_img_archive(img_path)
-        elif main_window:
-            # No explicit file - load from current IMG if available
-            img = getattr(main_window, 'current_img', None)
-            if img:
-                fp = getattr(img, 'file_path', '') or ''
-                if fp and os.path.isfile(fp):
-                    workshop.load_from_img_archive(fp)
-
-        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else App_name
-        # Strip GTA streaming suffix (e.g. barracks_hli9ksta -> barracks)
-        import re as _re
-        tab_label = _re.sub(r'_[a-z0-9]{6,12}$', '', tab_label)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_txd_file_icon
-            icon = get_txd_file_icon()
-            idx = main_window.main_tab_widget.addTab(tab_container, icon, tab_label)
-        except Exception:
-            idx = main_window.main_tab_widget.addTab(tab_container, tab_label)
-        main_window.main_tab_widget.setCurrentIndex(idx)
-        if hasattr(main_window, '_ensure_tab_area_visible'):
-            main_window._ensure_tab_area_visible()
-
-        workshop.show()
-        return workshop
-
-    except Exception as e:
-        if main_window:
-            QMessageBox.critical(main_window, "Error", f"Failed to open " + App_name + ": {str(e)}")
-        else:
-            print(f"Failed to open: " + App_name + " {str(e)}")
-        return None
-
-
-def open_asset_workshop(main_window, clicked_path: str = None, dat_path: str = None,
-                         game: str = None) -> AssetWorkshop: #vers 1
-    """Real entry point used by Dat_Browser/directory_tree_browser/
-    imgfactory.py - opens Asset Workshop's Asset Check tab against
-    either sibling files of clicked_path, or a whole game via
-    dat_path. Dual-mode: embeds as a tab if main_window has one,
-    standalone floating window otherwise."""
-    if clicked_path:
-        img_path, col_path, ide_path = find_sibling_asset_files(clicked_path)
-        ext = os.path.splitext(clicked_path)[1].lower()
-        if ext == '.img':
-            img_path = clicked_path
-        elif ext == '.col':
-            col_path = clicked_path
-        elif ext == '.ide':
-            ide_path = clicked_path
-        result = check_assets(img_path=img_path, col_path=col_path, ide_path=ide_path, game=game)
-        tab_label = os.path.splitext(os.path.basename(clicked_path))[0]
-    elif dat_path:
-        img_path, col_path, ide_paths, game = find_game_asset_files(dat_path)
-        if not img_path and not col_path and not ide_paths:
-            QMessageBox.warning(main_window, App_name,
-                f"Could not find any real IMG/COL/IDE files from:\n{dat_path}")
-            return None
-        result = check_assets(img_path=img_path, col_path=col_path, ide_path=ide_paths, game=game)
-        tab_label = os.path.splitext(os.path.basename(dat_path))[0]
-    else:
-        result = check_assets()
-        tab_label = App_name
-
-    try:
-        if not main_window or not hasattr(main_window, 'main_tab_widget'):
-            workshop = AssetWorkshop(None, main_window)
-            workshop.load_result(result)
-            workshop.setWindowFlags(Qt.WindowType.Window)
-            workshop.setWindowTitle(App_name)
-            workshop.resize(1200, 800)
-            workshop.show()
-            return workshop
-
-        tab_container = QWidget()
-        tab_layout = QVBoxLayout(tab_container)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-
-        workshop = AssetWorkshop(tab_container, main_window)
-        workshop.setWindowFlags(Qt.WindowType.Widget)
-        tab_layout.addWidget(workshop)
-        workshop.load_result(result)
-
-        try:
-            from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
-            icon = get_asset_checker_icon()
-            idx = main_window.main_tab_widget.addTab(tab_container, icon, f"Assets: {tab_label}")
-        except Exception:
-            idx = main_window.main_tab_widget.addTab(tab_container, f"Assets: {tab_label}")
-        main_window.main_tab_widget.setCurrentIndex(idx)
-        if hasattr(main_window, '_ensure_tab_area_visible'):
-            main_window._ensure_tab_area_visible()
-
-        _register_asset_workshop_taskbar(tab_container, main_window)
-        workshop.show()
-        return workshop
-    except Exception as e:
-        if main_window and hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Error opening " + App_name + f": {e}")
-        return None
-
-
-def _register_asset_workshop_taskbar(widget, main_window): #vers 1
-    """Register or activate the Asset Workshop button in the real
-    tool taskbar."""
-    try:
-        tb = getattr(main_window, 'tool_taskbar', None)
-        if not tb:
-            return
-        if 'asset_workshop' not in tb._tools:
-            from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
-            icon = get_asset_checker_icon(16)
-            tb.register('asset_workshop', 'Assets', icon, widget, App_name)
-        else:
-            tb._tools['asset_workshop']['target'] = widget
-        if hasattr(tb, '_set_exclusive_active'):
-            tb._set_exclusive_active('asset_workshop')
-    except Exception:
-        pass
-
-
-if __name__ == "__main__":
-    import sys
-    import traceback
-
-    print("Starting " + App_name)
-
-    try:
-        app = QApplication(sys.argv)
-        print("QApplication created")
-
-        workshop = AssetWorkshop()
-        print(App_name + " instance created")
-
-        workshop.load_result(check_assets())
-
-        workshop.setWindowTitle(App_name + " - Standalone")
-        workshop.resize(1200, 800)
-        workshop.show()
-        print("Window shown, entering event loop")
-        print(f"Window visible: {workshop.isVisible()}")
-        print(f"Window geometry: {workshop.geometry()}")
-
-        sys.exit(app.exec())
-
-    except Exception as e:
-        img_debugger.error(f"{e}")
-        traceback.print_exc()
-        sys.exit(1)

@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 199
+#this belongs in root /ChangeLog.md - Version: 200
+
+## Sep 30 2026 - TXD Workshop split, shared ribbon/texture code, Build 431.105
+- TXD Workshop split: depends/txd_win_func, txd_ui_func, txd_logic_func mixins; main keeps init, settings, docking, help, theme, tabs.
+- New methods/ribbon_dialog.py: one Ribbon Manager + custom icons for COL, TXD, Model, Map, Asset (5 copies removed).
+- New methods/txd_dialogs.py, txd_dxt_encode.py: bumpmap/mipmap/properties/preview windows and DXT encoders shared by TXD and Asset.
+- TXD/Asset _create_*_icon wrappers replaced by SVGIconFactory icons; dead _ensure_depends_structure, _call_external_upscaler removed.
+- TXD settings json moved to user config dir; Asset Integrity Check no longer crashes with nothing loaded.
 
 ## Sep 30 2026 - COL custom ribbon icons, Build 431.105
 - Ribbon Manager: Set Icon / Reset Icon per action from root icons/ folder; saved in col_workshop.json, kept on theme change, included in presets.
