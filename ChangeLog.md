@@ -6,6 +6,7 @@
 - Face groups read/write/generate/show; lighting generator and light view; VC to SA materials.
 - Duplicate check, batch conversion; CST/3DS/X/DFF import, CST2 export, attach COL to DFF (new methods/col_exchange.py).
 - CE II toolbar images in icons/ for the Ribbon Manager.
+- CE II tools split into toolbars: Select, Mesh, Face Groups, Lighting, Convert, Exchange.
 
 ## Sep 30 2026 - COL vertex editing
 - Vertex mode: click, Ctrl+click, drag box select; gizmo move/rotate/scale on selected vertices; controller too.
