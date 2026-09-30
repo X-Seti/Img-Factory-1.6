@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 2
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 7
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -9,8 +9,6 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 # _add_checkerboard_background
 # _apply_button_font
 # _apply_button_mode_to_button
-# _apply_fonts_to_widgets
-# _apply_hotkey_settings
 # _apply_icon_scale
 # _apply_infobar_font
 # _apply_panel_font
@@ -22,7 +20,6 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 # _create_left_panel
 # _create_middle_panel
 # _create_right_panel
-# _create_status_bar
 # _create_toolbar
 # _enable_name_edit
 # _filter_txd_list
@@ -35,12 +32,9 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 # _pan_preview
 # _pick_background_color
 # _push_status_to_img_factory
-# _rebuild_toolbars
 # _refresh_icons
-# _reset_hotkeys_to_defaults
 # _restore_toolbar_state
 # _save_toolbar_state
-# _set_checkerboard_bg
 # _set_icon_display_mode
 # _set_selection_buttons_enabled
 # _set_status
@@ -53,23 +47,22 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 # _show_normal_view
 # _show_overlay_view
 # _show_split_view
-# _show_texture_context_menu
 # _show_txd_search
 # switch_texture_view
 # _toggle_checkerboard
 # _toolbar_context_menu
 # _update_all_buttons
-# _update_editing_controls
 # _update_status_indicators
 # _update_table_display
 # _update_texture_info
 
-from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QFont, QIcon, QImage, QPainter, QPixmap
-from PyQt6.QtWidgets import QAbstractItemView, QColorDialog, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMenu, QMessageBox, QPushButton, QSplitter, QTabWidget, QTableWidget, QVBoxLayout, QWidget
+from PyQt6.QtCore import QSize, Qt, QTimer
+from PyQt6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPixmap
+from PyQt6.QtWidgets import QAbstractItemView, QColorDialog, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMenu, QMessageBox, QPushButton, QTabWidget, QTableWidget, QVBoxLayout, QWidget
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.txd_dialogs import ZoomablePreview
+from apps.methods.grip_splitter import GripSplitter
 
 App_name = "Txd Workshop"
 App_build = "39"
@@ -116,9 +109,9 @@ class TXDUIMixin: #vers 1
         tools.addAction("Seamless Tool…",       self._open_seamless_tool)
         tools.addAction("Snow Effect…",         self._open_snow_tool)
         tools.addSeparator()
-        tools.addAction("Tiled Preview 1×1",    lambda: self._set_tiled_preview(1))
-        tools.addAction("Tiled Preview 2×2",    lambda: self._set_tiled_preview(2))
-        tools.addAction("Tiled Preview 3×3",    lambda: self._set_tiled_preview(3))
+        tools.addAction("Tiled Preview 1x1",    lambda: self._set_tiled_preview(1))
+        tools.addAction("Tiled Preview 2x2",    lambda: self._set_tiled_preview(2))
+        tools.addAction("Tiled Preview 3x3",    lambda: self._set_tiled_preview(3))
         tools.addSeparator()
         tools.addAction("Alpha Coverage…",      self._open_alpha_coverage)
 
@@ -126,7 +119,7 @@ class TXDUIMixin: #vers 1
         vm = parent_menu.addMenu("View")
         vm.addAction("TXD Info",             self._show_txd_info)
 
-    def setup_ui(self): #vers 9
+    def setup_ui(self): #vers 10
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -152,7 +145,7 @@ class TXDUIMixin: #vers 1
 
 
         # Main splitter
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        main_splitter = GripSplitter(Qt.Orientation.Horizontal)
 
         # Create all panels first
         left_panel = self._create_left_panel()
@@ -178,6 +171,7 @@ class TXDUIMixin: #vers 1
         self._main_splitter = main_splitter
         self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
         main_layout.addWidget(main_splitter)
+        QTimer.singleShot(0, self._restore_splitter_sizes)
 
         # Apply themed icons now UI is fully built
         self._refresh_icons()
@@ -196,37 +190,6 @@ class TXDUIMixin: #vers 1
             if not self.standalone_mode or not getattr(self, 'show_status_bar', True):
                 status_frame.setVisible(False)
             main_layout.addWidget(status_frame)
-
-    def _create_status_bar(self): #vers 6
-        """Create bottom status bar - single line compact"""
-        from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel
-
-        status_bar = QFrame()
-        status_bar.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
-        status_bar.setFixedHeight(22)
-
-        layout = QHBoxLayout(status_bar)
-        layout.setContentsMargins(5, 0, 5, 0)
-        layout.setSpacing(15)
-
-        # Left: Ready
-        self.status_label = QLabel("Ready")
-        layout.addWidget(self.status_label)
-
-        # TXD info
-        self.status_txd_info = QLabel("TXD: None")
-        layout.addWidget(self.status_txd_info)
-
-        layout.addStretch()
-
-        # Right: Size and Format
-        self.info_size = QLabel("Size: -")
-        layout.addWidget(self.info_size)
-
-        self.format_status_label = QLabel("Format: -")
-        layout.addWidget(self.format_status_label)
-
-        return status_bar
 
     def _initialize_features(self): #vers 3
         """Initialize all features after UI setup"""
@@ -526,7 +489,7 @@ class TXDUIMixin: #vers 1
 
         return panel
 
-    def _create_middle_panel(self): #vers 5
+    def _create_middle_panel(self): #vers 7
         """Create middle panel - Texture list with mini toolbar shown in docked mode."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -586,6 +549,8 @@ class TXDUIMixin: #vers 1
 
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)
+        self._middle_compact_btns = [(self.open_txd_btn, "Open"), (self.save_txd_btn, "Save"),
+                                     (self.export_all_btn, "Extract")]
 
         # Only show mini toolbar when docked (standalone toolbar already has these)
         self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
@@ -602,10 +567,6 @@ class TXDUIMixin: #vers 1
         self.texture_table.setAlternatingRowColors(True)
         self.texture_table.itemSelectionChanged.connect(self._on_texture_selected)
         self.texture_table.setIconSize(QSize(64, 64))
-        self.texture_table.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        self.texture_table.customContextMenuRequested.connect(
-            self._show_texture_context_menu)
         layout.addWidget(self.texture_table)
 
         return panel
@@ -660,7 +621,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 4
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 5
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -795,9 +756,9 @@ class TXDUIMixin: #vers 1
         _act(tb_fx, "Checkerboard", self.icon_factory.checkerboard_icon,
              lambda: pw.set_checkerboard_background())
         _act(tb_fx, "Black Background", self.icon_factory.settings_icon,
-             lambda: pw.set_background_color(self._get_ui_color('viewport_bg')))
+             lambda: pw.set_background_color(QColor(0, 0, 0)))
         _act(tb_fx, "White Background", self.icon_factory.settings_icon,
-             lambda: pw.set_background_color(self._get_ui_color('viewport_bg')))
+             lambda: pw.set_background_color(QColor(255, 255, 255)))
 
         #    Ribbon 4: Name                                                 
         # Replaces the old info_group QGroupBox (name/alpha fields + format/
@@ -947,21 +908,6 @@ class TXDUIMixin: #vers 1
                      for tb in self._inner_mw.findChildren(_QTB)])
         menu.exec(toolbar.mapToGlobal(pos))
 
-    def _rebuild_toolbars(self): #vers 1
-        """Remove all existing toolbars and rebuild them."""
-        mw = getattr(self, '_inner_mw', None)
-        if mw is None:
-            return
-        from PyQt6.QtWidgets import QToolBar
-        for tb in list(mw.findChildren(QToolBar)):
-            mw.removeToolBar(tb)
-            tb.deleteLater()
-        self._ribbon_actions = []
-        icon_color = self._get_icon_color()
-        self._build_toolbars(mw, icon_color)
-        self._apply_custom_icons()
-        self._set_status("Toolbars rebuilt")
-
     def _apply_icon_scale(self, px: int): #vers 2
         """Apply icon size to all toolbars live and persist it."""
         mw = getattr(self, '_inner_mw', None)
@@ -1069,26 +1015,12 @@ class TXDUIMixin: #vers 1
         if color.isValid():
             self.preview_widget.set_background_color(color)
 
-    def _set_checkerboard_bg(self): #vers 1
-        """Set checkerboard background"""
-        # Create checkerboard pattern
-        self.preview_widget.setStyleSheet("""
-            border: 1px solid palette(mid);
-            background-image:
-                linear-gradient(45deg, #333 25%, transparent 25%),
-                linear-gradient(-45deg, #333 25%, transparent 25%),
-                linear-gradient(45deg, transparent 75%, #333 75%),
-                linear-gradient(-45deg, transparent 75%, #333 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-        """)
-
     def _apply_title_font(self): #vers 1
         """Apply title font to title bar labels"""
         if hasattr(self, 'title_font'):
             # Find all title labels
             for label in self.findChildren(QLabel):
-                if label.objectName() == "title_label" or "🗺️" in label.text():
+                if label.objectName() == "title_label":
                     label.setFont(self.title_font)
 
     def _apply_panel_font(self): #vers 1
@@ -1239,37 +1171,6 @@ class TXDUIMixin: #vers 1
                 self.is_docked and not self.standalone_mode)
         self._apply_custom_icons()
 
-    def _apply_fonts_to_widgets(self): #vers 1
-        """Apply fonts from AppSettings to all widgets"""
-        if not hasattr(self, 'default_font'):
-            return
-
-        print("\n=== Applying Fonts ===")
-        print(f"Default font: {self.default_font.family()} {self.default_font.pointSize()}pt")
-        print(f"Title font: {self.title_font.family()} {self.title_font.pointSize()}pt")
-        print(f"Panel font: {self.panel_font.family()} {self.panel_font.pointSize()}pt")
-        print(f"Button font: {self.button_font.family()} {self.button_font.pointSize()}pt")
-
-        # Apply default font to main window
-        self.setFont(self.default_font)
-
-        # Apply title font to titlebar
-        if hasattr(self, 'title_label'):
-            self.title_label.setFont(self.title_font)
-
-        # Apply panel font to lists
-        if hasattr(self, 'platform_list'):
-            self.platform_list.setFont(self.panel_font)
-        if hasattr(self, 'game_list'):
-            self.game_list.setFont(self.panel_font)
-
-        # Apply button font to all buttons
-        for btn in self.findChildren(QPushButton):
-            btn.setFont(self.button_font)
-
-        print("Fonts applied to widgets")
-        print("======================\n")
-
     def _apply_theme(self): #vers 5
         """Apply global app theme — uses QApplication stylesheet set by app_settings."""
         try:
@@ -1341,34 +1242,6 @@ class TXDUIMixin: #vers 1
         self.status_layout.addWidget(self.resize_grip_btn)
 
         return self.status_frame
-
-    def _update_editing_controls(self): #vers 2
-        """Update editing control states based on selection"""
-        has_selection = self.selected_texture is not None
-
-        # Basic controls
-        if hasattr(self, 'resize_btn'):
-            self.resize_btn.setEnabled(has_selection)
-        if hasattr(self, 'upscale_btn'):
-            self.upscale_btn.setEnabled(has_selection)
-        if hasattr(self, 'format_combo'):
-            self.format_combo.setEnabled(has_selection)
-
-        if has_selection:
-            # Compress button - always enabled (can compress or change DXT format)
-            if hasattr(self, 'compress_btn'):
-                self.compress_btn.setEnabled(True)
-
-            # Uncompress button - only enabled if currently DXT format
-            if hasattr(self, 'uncompress_btn'):
-                current_format = self.selected_texture.get('format', 'Unknown')
-                self.uncompress_btn.setEnabled('DXT' in current_format)
-        else:
-            # No selection - disable both
-            if hasattr(self, 'compress_btn'):
-                self.compress_btn.setEnabled(False)
-            if hasattr(self, 'uncompress_btn'):
-                self.uncompress_btn.setEnabled(False)
 
     def _update_status_indicators(self): #vers 3
         """Update status indicators"""
@@ -1498,7 +1371,7 @@ class TXDUIMixin: #vers 1
             QMessageBox.information(self, "No Alpha Channel",
                 "This texture has no alpha channel.\n\n"
                 "Use the [+] button to generate an alpha mask,\n"
-                "or Import → Import Alpha Channel to add one.")
+                "or Import -> Import Alpha Channel to add one.")
             next_state = 0
 
         # Save state for this texture
@@ -1525,43 +1398,6 @@ class TXDUIMixin: #vers 1
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"Switched to {view_names[next_state]}")
-
-    def _show_texture_context_menu(self, position): #vers 2
-        """Show context menu for texture operations - simplified"""
-        if not self.selected_texture:
-            return
-
-        has_alpha = self.selected_texture.get('has_alpha', False)
-
-        menu = QMenu(self)
-
-        # Import submenu
-        import_menu = menu.addMenu(self.icon_factory.import_icon(color=self._get_icon_color()), "Import")
-
-        import_normal_action = import_menu.addAction("Import Texture")
-        import_normal_action.triggered.connect(self._import_normal_texture)
-
-        if has_alpha:
-            import_alpha_action = import_menu.addAction("Import Alpha Channel")
-            import_alpha_action.triggered.connect(self._import_alpha_texture)
-
-        # Export submenu
-        export_menu = menu.addMenu(self.icon_factory.export_icon(color=self._get_icon_color()), "Export")
-
-        export_texture_action = export_menu.addAction("Export Texture")
-        export_texture_action.triggered.connect(self.export_selected_texture)
-
-        if has_alpha:
-            export_alpha_action = export_menu.addAction("Export Alpha Channel")
-            export_alpha_action.triggered.connect(self._export_alpha_only)
-
-        menu.addSeparator()
-
-        # Delete texture
-        delete_action = menu.addAction(self.icon_factory.trash_icon(color=self._get_icon_color()), "Delete Texture")
-        delete_action.triggered.connect(self._delete_texture)
-
-        menu.exec(self.texture_table.viewport().mapToGlobal(position))
 
     def _show_txd_search(self): #vers 1
         """Toggle TXD search box visibility."""
@@ -1842,7 +1678,7 @@ class TXDUIMixin: #vers 1
         self._tile_n = n
         if hasattr(self, '_tile_btn'):
             self._tile_btn.setToolTip(
-                f"{n}×{n} tiled preview — click to cycle")
+                f"{n}x{n} tiled preview — click to cycle")
         # Update preview widget if it supports tiling
         if hasattr(self, 'preview_widget') and hasattr(self.preview_widget, 'set_tile'):
             self.preview_widget.set_tile(n)
@@ -1901,258 +1737,39 @@ class TXDUIMixin: #vers 1
 
         super().keyPressEvent(event)
 
-    def _setup_hotkeys(self): #vers 3
-        """Setup Plasma6-style keyboard shortcuts for TXD Workshop - checks for existing methods"""
+    def _setup_hotkeys(self): #vers 4
+        """Plasma6-style keyboard shortcuts, wired to TXD methods."""
         from PyQt6.QtGui import QShortcut, QKeySequence
-        from PyQt6.QtCore import Qt
 
-        # === FILE OPERATIONS ===
+        def _key(attr, seq, slot): #vers 1
+            sc = QShortcut(QKeySequence(seq), self)
+            sc.activated.connect(slot)
+            setattr(self, attr, sc)
 
-        # Open TXD (Ctrl+O)
-        self.hotkey_open = QShortcut(QKeySequence.StandardKey.Open, self)
-        if hasattr(self, 'open_txd_file'):
-            self.hotkey_open.activated.connect(self.open_txd_file)
-        elif hasattr(self, '_open_txd_file'):
-            self.hotkey_open.activated.connect(self._open_txd_file)
-
-        # Save TXD (Ctrl+S)
-        self.hotkey_save = QShortcut(QKeySequence.StandardKey.Save, self)
-        if hasattr(self, '_save_txd_file'):
-            self.hotkey_save.activated.connect(self._save_txd_file)
-        elif hasattr(self, 'save_txd_file'):
-            self.hotkey_save.activated.connect(self.save_txd_file)
-
-        # Force Save TXD (Alt+Shift+S)
-        self.hotkey_force_save = QShortcut(QKeySequence("Alt+Shift+S"), self)
-        if not hasattr(self, '_force_save_txd'):
-            # Create force save method inline if it doesn't exist
-            def force_save():  #vers 1
-                if not self.texture_list:
-                    from PyQt6.QtWidgets import QMessageBox
-                    QMessageBox.warning(self, "No Textures", "No textures to save")
-                    return
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("Force save triggered (Alt+Shift+S)")
-                # Call save regardless of modified state
-                if hasattr(self, '_save_txd_file'):
-                    self._save_txd_file()
-                elif hasattr(self, 'save_txd_file'):
-                    self.save_txd_file()
-            self.hotkey_force_save.activated.connect(force_save)
-        else:
-            self.hotkey_force_save.activated.connect(self._force_save_txd)
-
-        # Save As (Ctrl+Shift+S)
-        self.hotkey_save_as = QShortcut(QKeySequence.StandardKey.SaveAs, self)
-        if hasattr(self, '_save_as_txd_file'):
-            self.hotkey_save_as.activated.connect(self._save_as_txd_file)
-        elif hasattr(self, 'save_as_txd_file'):
-            self.hotkey_save_as.activated.connect(self.save_as_txd_file)
-        elif hasattr(self, '_save_txd_file'):
-            self.hotkey_save_as.activated.connect(self._save_txd_file)
-
-        # Close (Ctrl+W)
-        self.hotkey_close = QShortcut(QKeySequence.StandardKey.Close, self)
-        self.hotkey_close.activated.connect(self.close)
-
-        # === EDIT OPERATIONS ===
-
-        # Undo (Ctrl+Z)
-        self.hotkey_undo = QShortcut(QKeySequence.StandardKey.Undo, self)
-        if hasattr(self, '_undo_last_action'):
-            self.hotkey_undo.activated.connect(self._undo_last_action)
-        elif hasattr(self, 'undo_last_action'):
-            self.hotkey_undo.activated.connect(self.undo_last_action)
-        # else: not implemented yet, no connection
-
-        # Copy (Ctrl+C)
-        self.hotkey_copy = QShortcut(QKeySequence.StandardKey.Copy, self)
-        if hasattr(self, '_copy_texture'):
-            self.hotkey_copy.activated.connect(self._copy_texture)
-        elif hasattr(self, 'copy_texture'):
-            self.hotkey_copy.activated.connect(self.copy_texture)
-
-        # Paste (Ctrl+V)
-        self.hotkey_paste = QShortcut(QKeySequence.StandardKey.Paste, self)
-        if hasattr(self, '_paste_texture'):
-            self.hotkey_paste.activated.connect(self._paste_texture)
-        elif hasattr(self, 'paste_texture'):
-            self.hotkey_paste.activated.connect(self.paste_texture)
-
-        # Delete (Delete)
-        self.hotkey_delete = QShortcut(QKeySequence.StandardKey.Delete, self)
-        if hasattr(self, '_delete_texture'):
-            self.hotkey_delete.activated.connect(self._delete_texture)
-        elif hasattr(self, 'delete_texture'):
-            self.hotkey_delete.activated.connect(self.delete_texture)
-
-        # Duplicate (Ctrl+D)
-        self.hotkey_duplicate = QShortcut(QKeySequence("Ctrl+D"), self)
-        if hasattr(self, '_duplicate_texture'):
-            self.hotkey_duplicate.activated.connect(self._duplicate_texture)
-        elif hasattr(self, 'duplicate_texture'):
-            self.hotkey_duplicate.activated.connect(self.duplicate_texture)
-
-        # Rename (F2)
-        self.hotkey_rename = QShortcut(QKeySequence("F2"), self)
-        if not hasattr(self, '_rename_texture_shortcut'):
-            # Create rename shortcut method inline
-            def rename_shortcut():  #vers 1
-                if not self.selected_texture:
-                    return
-                # Focus the name input field if it exists
-                if hasattr(self, 'info_name'):
-                    self.info_name.setReadOnly(False)
-                    self.info_name.selectAll()
-                    self.info_name.setFocus()
-            self.hotkey_rename.activated.connect(rename_shortcut)
-        else:
-            self.hotkey_rename.activated.connect(self._rename_texture_shortcut)
-
-        # === TEXTURE OPERATIONS ===
-
-        # Import Texture (Ctrl+I)
-        self.hotkey_import = QShortcut(QKeySequence("Ctrl+I"), self)
-        if hasattr(self, '_import_normal_texture'):
-            self.hotkey_import.activated.connect(self._import_normal_texture)
-        elif hasattr(self, 'import_normal_texture'):
-            self.hotkey_import.activated.connect(self.import_normal_texture)
-        elif hasattr(self, 'import_textures'):
-            self.hotkey_import.activated.connect(self.import_textures)
-
-        # Export Texture (Ctrl+E)
-        self.hotkey_export = QShortcut(QKeySequence("Ctrl+E"), self)
-        if hasattr(self, 'export_selected_texture'):
-            self.hotkey_export.activated.connect(self.export_selected_texture)
-        elif hasattr(self, '_export_selected_texture'):
-            self.hotkey_export.activated.connect(self._export_selected_texture)
-        elif hasattr(self, 'export_texture'):
-            self.hotkey_export.activated.connect(self.export_texture)
-
-        # Export All (Ctrl+Shift+E)
-        self.hotkey_export_all = QShortcut(QKeySequence("Ctrl+Shift+E"), self)
-        if hasattr(self, 'export_all_textures'):
-            self.hotkey_export_all.activated.connect(self.export_all_textures)
-        elif hasattr(self, '_export_all_textures'):
-            self.hotkey_export_all.activated.connect(self._export_all_textures)
-
-        # === VIEW OPERATIONS ===
-
-        # Refresh (F5)
-        self.hotkey_refresh = QShortcut(QKeySequence.StandardKey.Refresh, self)
-        if hasattr(self, '_reload_texture_table'):
-            self.hotkey_refresh.activated.connect(self._reload_texture_table)
-        elif hasattr(self, 'reload_texture_table'):
-            self.hotkey_refresh.activated.connect(self.reload_texture_table)
-        elif hasattr(self, 'refresh'):
-            self.hotkey_refresh.activated.connect(self.refresh)
-
-        # Properties (Alt+Enter)
-        self.hotkey_properties = QShortcut(QKeySequence("Alt+Return"), self)
-        if hasattr(self, '_show_detailed_info'):
-            self.hotkey_properties.activated.connect(self._show_detailed_info)
-        elif hasattr(self, '_show_texture_info'):
-            self.hotkey_properties.activated.connect(self._show_texture_info)
-
-        # Settings (Ctrl+,)
-        self.hotkey_settings = QShortcut(QKeySequence.StandardKey.Preferences, self)
-        if hasattr(self, '_show_settings_dialog'):
-            self.hotkey_settings.activated.connect(self._show_settings_dialog)
-        elif hasattr(self, 'show_settings_dialog'):
-            self.hotkey_settings.activated.connect(self.show_settings_dialog)
-        elif hasattr(self, '_show_settings_hotkeys'):
-            self.hotkey_settings.activated.connect(self._show_settings_hotkeys)
-
-        # === NAVIGATION ===
-
-        # Select All (Ctrl+A) - reserved for future
-        self.hotkey_select_all = QShortcut(QKeySequence.StandardKey.SelectAll, self)
-        # Not connected - reserved for future multi-select
-
-        # Find (Ctrl+F)
-        self.hotkey_find = QShortcut(QKeySequence.StandardKey.Find, self)
-        if not hasattr(self, '_focus_search'):
-            # Create focus search method inline
-            def focus_search():  #vers 1
-                if hasattr(self, 'search_input'):
-                    self.search_input.setFocus()
-                    self.search_input.selectAll()
-            self.hotkey_find.activated.connect(focus_search)
-        else:
-            self.hotkey_find.activated.connect(self._focus_search)
-
-        # === HELP ===
-
-        # Help (F1)
-        self.hotkey_help = QShortcut(QKeySequence.StandardKey.HelpContents, self)
-
-        if hasattr(self, 'show_help'):
-            self.hotkey_help.activated.connect(self.show_help)
+        # File
+        _key('hotkey_open',       QKeySequence.StandardKey.Open,    self.open_txd_file)
+        _key('hotkey_save',       QKeySequence.StandardKey.Save,    self._save_txd_file)
+        _key('hotkey_force_save', "Alt+Shift+S",                    self._force_save_txd)
+        _key('hotkey_save_as',    QKeySequence.StandardKey.SaveAs,  self._save_as_txd_file)
+        _key('hotkey_close',      QKeySequence.StandardKey.Close,   self.close)
+        # Edit
+        _key('hotkey_undo',       QKeySequence.StandardKey.Undo,    self._undo_last_action)
+        _key('hotkey_copy',       QKeySequence.StandardKey.Copy,    self._copy_texture)
+        _key('hotkey_paste',      QKeySequence.StandardKey.Paste,   self._paste_texture)
+        _key('hotkey_delete',     QKeySequence.StandardKey.Delete,  self._delete_texture)
+        _key('hotkey_duplicate',  "Ctrl+D",                         self._duplicate_texture)
+        _key('hotkey_rename',     "F2",                             self._rename_texture_shortcut)
+        # Texture
+        _key('hotkey_import',     "Ctrl+I",                         self._import_normal_texture)
+        _key('hotkey_export',     "Ctrl+E",                         self.export_selected_texture)
+        _key('hotkey_export_all', "Ctrl+Shift+E",                   self.export_all_textures)
+        # View
+        _key('hotkey_refresh',    QKeySequence.StandardKey.Refresh, self._reload_texture_table)
+        _key('hotkey_properties', "Alt+Return",                     self.show_properties)
+        _key('hotkey_settings',   QKeySequence.StandardKey.Preferences, self._show_settings_dialog)
+        _key('hotkey_find',       QKeySequence.StandardKey.Find,    self._focus_search)
+        # Help
+        _key('hotkey_help',       QKeySequence.StandardKey.HelpContents, self._show_txd_info)
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message("Hotkeys initialized (Plasma6 standard)")
-
-    def _reset_hotkeys_to_defaults(self, parent_dialog): #vers 1
-        """Reset all hotkeys to Plasma6 defaults"""
-        from PyQt6.QtWidgets import QMessageBox
-        from PyQt6.QtGui import QKeySequence
-
-        reply = QMessageBox.question(parent_dialog, "Reset Hotkeys",
-            "Reset all keyboard shortcuts to Plasma6 defaults?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
-            # Reset to defaults
-            self.hotkey_edit_open.setKeySequence(QKeySequence.StandardKey.Open)
-            self.hotkey_edit_save.setKeySequence(QKeySequence.StandardKey.Save)
-            self.hotkey_edit_force_save.setKeySequence(QKeySequence("Alt+Shift+S"))
-            self.hotkey_edit_save_as.setKeySequence(QKeySequence.StandardKey.SaveAs)
-            self.hotkey_edit_close.setKeySequence(QKeySequence.StandardKey.Close)
-            self.hotkey_edit_undo.setKeySequence(QKeySequence.StandardKey.Undo)
-            self.hotkey_edit_copy.setKeySequence(QKeySequence.StandardKey.Copy)
-            self.hotkey_edit_paste.setKeySequence(QKeySequence.StandardKey.Paste)
-            self.hotkey_edit_delete.setKeySequence(QKeySequence.StandardKey.Delete)
-            self.hotkey_edit_duplicate.setKeySequence(QKeySequence("Ctrl+D"))
-            self.hotkey_edit_rename.setKeySequence(QKeySequence("F2"))
-            self.hotkey_edit_import.setKeySequence(QKeySequence("Ctrl+I"))
-            self.hotkey_edit_export.setKeySequence(QKeySequence("Ctrl+E"))
-            self.hotkey_edit_export_all.setKeySequence(QKeySequence("Ctrl+Shift+E"))
-            self.hotkey_edit_refresh.setKeySequence(QKeySequence.StandardKey.Refresh)
-            self.hotkey_edit_properties.setKeySequence(QKeySequence("Alt+Return"))
-            self.hotkey_edit_find.setKeySequence(QKeySequence.StandardKey.Find)
-            self.hotkey_edit_help.setKeySequence(QKeySequence.StandardKey.HelpContents)
-
-    def _apply_hotkey_settings(self, dialog, close=False): #vers 1
-        """Apply hotkey changes"""
-        # Update all hotkeys with new sequences
-        self.hotkey_open.setKey(self.hotkey_edit_open.keySequence())
-        self.hotkey_save.setKey(self.hotkey_edit_save.keySequence())
-        self.hotkey_force_save.setKey(self.hotkey_edit_force_save.keySequence())
-        self.hotkey_save_as.setKey(self.hotkey_edit_save_as.keySequence())
-        self.hotkey_close.setKey(self.hotkey_edit_close.keySequence())
-        self.hotkey_undo.setKey(self.hotkey_edit_undo.keySequence())
-        self.hotkey_copy.setKey(self.hotkey_edit_copy.keySequence())
-        self.hotkey_paste.setKey(self.hotkey_edit_paste.keySequence())
-        self.hotkey_delete.setKey(self.hotkey_edit_delete.keySequence())
-        self.hotkey_duplicate.setKey(self.hotkey_edit_duplicate.keySequence())
-        self.hotkey_rename.setKey(self.hotkey_edit_rename.keySequence())
-        self.hotkey_import.setKey(self.hotkey_edit_import.keySequence())
-        self.hotkey_export.setKey(self.hotkey_edit_export.keySequence())
-        self.hotkey_export_all.setKey(self.hotkey_edit_export_all.keySequence())
-        self.hotkey_refresh.setKey(self.hotkey_edit_refresh.keySequence())
-        self.hotkey_properties.setKey(self.hotkey_edit_properties.keySequence())
-        self.hotkey_find.setKey(self.hotkey_edit_find.keySequence())
-        self.hotkey_help.setKey(self.hotkey_edit_help.keySequence())
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message("Hotkeys updated")
-
-        # Save hotkeys to app_settings if available
-        try:
-            if hasattr(self, 'app_settings') and self.app_settings:
-                self.app_settings.set('hotkeys', getattr(self, '_hotkey_map', {}))
-        except Exception:
-            pass
-
-        if close:
-            dialog.accept()

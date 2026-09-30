@@ -1,5 +1,5 @@
 # X-Seti - October14 2025 - IMG Factory 1.5 - TXD Workshop Context Menu
-# This belongs in gui/ txd_context_menu.py - Version: 2
+# This belongs in gui/ txd_context_menu.py - Version: 3
 """
 TXD Workshop Context Menu System
 Right-click menu for TXD Workshop - works in both docked and standalone modes
@@ -19,7 +19,7 @@ from PyQt6.QtCore import Qt
 # setup_txd_context_menu
 
 
-def create_txd_context_menu(workshop, position): #vers 2
+def create_txd_context_menu(workshop, position): #vers 3
     """
     Create comprehensive context menu for TXD Workshop
     Works in both docked (IMG Factory) and standalone modes
@@ -48,7 +48,7 @@ def create_txd_context_menu(workshop, position): #vers 2
     save_action.setEnabled(has_textures)
 
     save_as_action = file_menu.addAction("Save TXD As...")
-    save_as_action.triggered.connect(workshop._save_as_new_txd)
+    save_as_action.triggered.connect(workshop._save_as_txd_file)
     save_as_action.setEnabled(has_textures)
 
     # TEXTURE OPERATIONS
@@ -94,7 +94,7 @@ def create_txd_context_menu(workshop, position): #vers 2
     resize_action.setEnabled(has_selection)
 
     upscale_action = edit_menu.addAction("Upscale Texture")
-    upscale_action.triggered.connect(workshop._upscale_texture_advanced)
+    upscale_action.triggered.connect(workshop._upscale_texture)
     upscale_action.setEnabled(has_selection)
 
     edit_menu.addSeparator()
@@ -160,7 +160,7 @@ def create_txd_context_menu(workshop, position): #vers 2
     format_menu = menu.addMenu("Format")
 
     convert_format_action = format_menu.addAction("Convert Format...")
-    convert_format_action.triggered.connect(workshop._convert_format)
+    convert_format_action.triggered.connect(workshop._convert_texture)
     convert_format_action.setEnabled(has_selection)
 
     compress_action = format_menu.addAction("Compress Texture")

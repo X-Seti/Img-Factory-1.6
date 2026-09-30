@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 201
+#this belongs in root /ChangeLog.md - Version: 202
+
+## Sep 30 2026 - TXD audit: dead code, bugs, COL features, Build 431.105
+- Removed 45 dead TXD methods/aliases/stubs; hotkeys wired directly; Help F1 opens TXD info.
+- Fixed: double right-click menu, Convert/Upscale/Save As menu items, settings never saved, Auto-Generate mipmaps hang (TXD, Asset), Black/White background.
+- Emoji, ticks, arrows removed; mipmap/bumpmap buttons use SVG icons.
+- TXD gets COL features: grip splitter with saved sizes, compact mini toolbar, Windows frame fix, xcb block, drag and drop (.txd/.img/images).
+- Splitter save/restore shared: SplitterSizesMixin in methods/grip_splitter.py (COL and TXD).
 
 ## Sep 30 2026 - TXD App_name tidy, Build 431.105
 - TXD titles/messages use App_name (one definition, txd_ui_func); build 39; empty section markers removed; error message f-strings mended.

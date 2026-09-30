@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 39
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 42
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -7,12 +7,17 @@ TXD Workshop - main window: init, settings, docking, help, theme, tabs.
 Everything else lives in depends/ mixins.
 """
 
+import os
 import sys
 from pathlib import Path
+# Force X11/GLX backend for NVIDIA on Wayland (Linux only)
+if sys.platform.startswith('linux'):
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
+    os.environ['QSG_RHI_BACKEND'] = 'opengl'
+    os.environ['LIBGL_ALWAYS_SOFTWARE'] = '0'  # Use hardware acceleration
 _root = Path(__file__).resolve().parents[3]
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
-import os
 from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QWidget
 from apps.components.Txd_Editor.depends.txd_logic_func import TXDLogicMixin
@@ -24,6 +29,7 @@ from apps.gui.txd_context_menu import setup_txd_context_menu
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.grip_splitter import SplitterSizesMixin
 
 ##Methods list -
 # open_txd_workshop
@@ -34,18 +40,12 @@ from apps.methods.ribbon_dialog import RibbonIconsMixin
 # __init__
 # _launch_theme_settings
 # _ribbon_config_path
-# _scan_available_locales
-# _show_amiga_locale_error
-# show_help
 # _show_settings_dialog
-# show_settings_dialog
-# _show_settings_hotkeys
 # _show_shaders_dialog
 # _show_workshop_settings
 # _switch_txd_tab
 # toggle_dock_mode
 # _toggle_tearoff
-# _toggle_upscale_native
 # _undock_from_main
 # _update_dock_button_visibility
 
@@ -54,10 +54,11 @@ from apps.methods.ribbon_dialog import RibbonIconsMixin
 # TXDUIMixin - txd_ui_func.py
 # TXDLogicMixin - txd_logic_func.py
 # RibbonIconsMixin - methods/ribbon_dialog.py
+# SplitterSizesMixin - methods/grip_splitter.py
 # Shared windows - methods/txd_dialogs.py, DXT encoders - methods/txd_dxt_encode.py
 
 
-class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 6
+class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, SplitterSizesMixin, ToolMenuMixin, QWidget): #vers 7
     """TXD Workshop - Main texture editing window"""
 
     workshop_closed = pyqtSignal()
@@ -69,9 +70,10 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
     # to restore it. History: 1 = Transform/Nav/Effects only,
     # 2 = added merged Name/Format + Mipmaps, 3 = split Name/Format apart.
     _RIBBON_LAYOUT_VERSION = 3
+    _SPLITTER_LIST_PX = 250     # texture list minimum width
 
 
-    def __init__(self, parent=None, main_window=None): #vers 10
+    def __init__(self, parent=None, main_window=None): #vers 12
         """Initialize TXD Workshop"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
@@ -101,6 +103,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         self.current_txd_path = None
         self.save_to_source_location = True
         self.last_save_directory = None
+        self._load_settings()
         self.texture_view_states = {}
         self._current_view_state = 0
 
@@ -201,6 +204,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
 
         # Setup UI FIRST
         self.setup_ui()
+        self.setAcceptDrops(True)       # .txd / .img / images dropped here
 
         # THEN setup context menu
         setup_txd_context_menu(self)
@@ -433,7 +437,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         export_layout.addWidget(export_options_group)
 
         # Target game/platform
-        target_group = QGroupBox("🎮 Export Target")
+        target_group = QGroupBox("Export Target")
         target_layout = QFormLayout()
 
         game_combo = QComboBox()
@@ -690,118 +694,6 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         layout.addLayout(btn_layout)
 
         # Show dialog
-        dialog.exec()
-
-
-    def _scan_available_locales(self): #vers 2
-        """Scan locale folder and return list of available languages"""
-        import os
-        import configparser
-
-        locales = []
-        locale_path = os.path.join(os.path.dirname(__file__), 'locale')
-
-        if not os.path.exists(locale_path):
-            # Easter egg: Amiga Workbench 3.1 style error
-            self._show_amiga_locale_error()
-            # Return default English
-            return [("English", "en", None)]
-
-        try:
-            for filename in os.listdir(locale_path):
-                if filename.endswith('.lang'):
-                    filepath = os.path.join(locale_path, filename)
-
-                    try:
-                        config = configparser.ConfigParser()
-                        config.read(filepath, encoding='utf-8')
-
-                        if 'Metadata' in config:
-                            lang_name = config['Metadata'].get('LanguageName', 'Unknown')
-                            lang_code = config['Metadata'].get('LanguageCode', 'unknown')
-                            locales.append((lang_name, lang_code, filepath))
-
-                    except Exception as e:
-                        if self.main_window and hasattr(self.main_window, 'log_message'):
-                            self.main_window.log_message(f"Failed to load locale {filename}: {e}")
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Locale scan error: {e}")
-
-        locales.sort(key=lambda x: x[0])
-
-        if not locales:
-            locales = [("English", "en", None)]
-
-        return locales
-
-
-    def _show_amiga_locale_error(self): #vers 1
-        """Show Amiga Workbench 3.1 style error dialog"""
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtGui import QFont
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Workbench Request")
-        dialog.setFixedSize(450, 150)
-
-        # Amiga Workbench styling
-        dialog.setStyleSheet("""
-            QDialog {
-                background-color: palette(placeholderText);
-                border: 2px solid palette(buttonText);
-            }
-            QLabel {
-                color: palette(windowText);
-                background-color: palette(placeholderText);
-            }
-            QPushButton {
-                background-color: palette(midlight);
-                color: palette(windowText);
-                border: 2px outset palette(buttonText);
-                padding: 5px 15px;
-                min-width: 80px;
-            }
-            QPushButton:pressed {
-                border: 2px inset palette(mid);
-            }
-        """)
-
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        # Amiga Topaz font style
-        amiga_font = QFont("Courier", 10, QFont.Weight.Normal)
-
-        # Error message
-        message = QLabel("Workbench 3.1 installer\n\nPlease insert Local disk in any drive")
-        message.setFont(amiga_font)
-        message.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(message)
-
-        layout.addStretch()
-
-        # Button layout
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        # Retry and Cancel buttons (Amiga style)
-        retry_btn = QPushButton("Retry")
-        retry_btn.setFont(amiga_font)
-        retry_btn.clicked.connect(dialog.accept)
-        button_layout.addWidget(retry_btn)
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFont(amiga_font)
-        cancel_btn.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_btn)
-
-        button_layout.addStretch()
-        layout.addLayout(button_layout)
-
         dialog.exec()
 
 
@@ -1543,12 +1435,6 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         dialog.exec()
 
 
-    def _toggle_upscale_native(self): #vers 1
-        """Toggle upscale native resolution"""
-        # Placeholder for upscale native functionality
-        print("Upscale Native toggled")
-
-
     def _show_shaders_dialog(self): #vers 2
         """Show viewport shader presets — applies display-only visual effects."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
@@ -1593,9 +1479,6 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
     # icon_factory. Address in a future pass.
 
 
-    #    TXD method aliases and stubs (Build 131)                      
-    def show_help(self, *a, **kw): pass  #vers 1
-    def show_settings_dialog(self, *a, **kw): pass  #vers 1
 
 
     def _close_txd_tab(self, index): #vers 1
@@ -1629,159 +1512,6 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"Switched to tab: {tab_name}")
-
-
-    def _show_settings_hotkeys(self): #vers 1
-        """Show settings dialog with hotkey customization"""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
-                                    QWidget, QLabel, QLineEdit, QPushButton,
-                                    QGroupBox, QFormLayout, QKeySequenceEdit)
-        from PyQt6.QtCore import Qt
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle(App_name + " Settings")
-        dialog.setMinimumWidth(600)
-        dialog.setMinimumHeight(500)
-
-        layout = QVBoxLayout(dialog)
-
-        # Create tabs
-        tabs = QTabWidget()
-
-        # === HOTKEYS TAB ===
-        hotkeys_tab = QWidget()
-        hotkeys_layout = QVBoxLayout(hotkeys_tab)
-
-        # File Operations Group
-        file_group = QGroupBox("File Operations")
-        file_form = QFormLayout()
-
-        self.hotkey_edit_open = QKeySequenceEdit(self.hotkey_open.key())
-        file_form.addRow("Open TXD:", self.hotkey_edit_open)
-
-        self.hotkey_edit_save = QKeySequenceEdit(self.hotkey_save.key())
-        file_form.addRow("Save TXD:", self.hotkey_edit_save)
-
-        self.hotkey_edit_force_save = QKeySequenceEdit(self.hotkey_force_save.key())
-        force_save_layout = QHBoxLayout()
-        force_save_layout.addWidget(self.hotkey_edit_force_save)
-        force_save_hint = QLabel("(Force save even if unmodified)")
-        force_save_hint.setStyleSheet("color: #888; font-style: italic;")
-        force_save_layout.addWidget(force_save_hint)
-        file_form.addRow("Force Save:", force_save_layout)
-
-        self.hotkey_edit_save_as = QKeySequenceEdit(self.hotkey_save_as.key())
-        file_form.addRow("Save As:", self.hotkey_edit_save_as)
-
-        self.hotkey_edit_close = QKeySequenceEdit(self.hotkey_close.key())
-        file_form.addRow("Close:", self.hotkey_edit_close)
-
-        file_group.setLayout(file_form)
-        hotkeys_layout.addWidget(file_group)
-
-        # Edit Operations Group
-        edit_group = QGroupBox("Edit Operations")
-        edit_form = QFormLayout()
-
-        self.hotkey_edit_undo = QKeySequenceEdit(self.hotkey_undo.key())
-        edit_form.addRow("Undo:", self.hotkey_edit_undo)
-
-        self.hotkey_edit_copy = QKeySequenceEdit(self.hotkey_copy.key())
-        edit_form.addRow("Copy Texture:", self.hotkey_edit_copy)
-
-        self.hotkey_edit_paste = QKeySequenceEdit(self.hotkey_paste.key())
-        edit_form.addRow("Paste Texture:", self.hotkey_edit_paste)
-
-        self.hotkey_edit_delete = QKeySequenceEdit(self.hotkey_delete.key())
-        edit_form.addRow("Delete:", self.hotkey_edit_delete)
-
-        self.hotkey_edit_duplicate = QKeySequenceEdit(self.hotkey_duplicate.key())
-        edit_form.addRow("Duplicate:", self.hotkey_edit_duplicate)
-
-        self.hotkey_edit_rename = QKeySequenceEdit(self.hotkey_rename.key())
-        edit_form.addRow("Rename:", self.hotkey_edit_rename)
-
-        edit_group.setLayout(edit_form)
-        hotkeys_layout.addWidget(edit_group)
-
-        # Texture Operations Group
-        texture_group = QGroupBox("Texture Operations")
-        texture_form = QFormLayout()
-
-        self.hotkey_edit_import = QKeySequenceEdit(self.hotkey_import.key())
-        texture_form.addRow("Import Texture:", self.hotkey_edit_import)
-
-        self.hotkey_edit_export = QKeySequenceEdit(self.hotkey_export.key())
-        texture_form.addRow("Export Texture:", self.hotkey_edit_export)
-
-        self.hotkey_edit_export_all = QKeySequenceEdit(self.hotkey_export_all.key())
-        texture_form.addRow("Export All:", self.hotkey_edit_export_all)
-
-        texture_group.setLayout(texture_form)
-        hotkeys_layout.addWidget(texture_group)
-
-        # View Operations Group
-        view_group = QGroupBox("View Operations")
-        view_form = QFormLayout()
-
-        self.hotkey_edit_refresh = QKeySequenceEdit(self.hotkey_refresh.key())
-        view_form.addRow("Refresh:", self.hotkey_edit_refresh)
-
-        self.hotkey_edit_properties = QKeySequenceEdit(self.hotkey_properties.key())
-        view_form.addRow("Properties:", self.hotkey_edit_properties)
-
-        self.hotkey_edit_find = QKeySequenceEdit(self.hotkey_find.key())
-        view_form.addRow("Find/Search:", self.hotkey_edit_find)
-
-        self.hotkey_edit_help = QKeySequenceEdit(self.hotkey_help.key())
-        view_form.addRow("Help:", self.hotkey_edit_help)
-
-        view_group.setLayout(view_form)
-        hotkeys_layout.addWidget(view_group)
-
-        hotkeys_layout.addStretch()
-
-        # Reset to defaults button
-        reset_hotkeys_btn = QPushButton("Reset to Plasma6 Defaults")
-        reset_hotkeys_btn.clicked.connect(lambda: self._reset_hotkeys_to_defaults(dialog))
-        hotkeys_layout.addWidget(reset_hotkeys_btn)
-
-        tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
-
-        # === GENERAL TAB (for future settings) ===
-        general_tab = QWidget()
-        general_layout = QVBoxLayout(general_tab)
-
-        placeholder_label = QLabel("Additional settings will appear here in future versions.")
-        placeholder_label.setStyleSheet("color: #888; font-style: italic; padding: 20px;")
-        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        general_layout.addWidget(placeholder_label)
-        general_layout.addStretch()
-
-        tabs.addTab(general_tab, "General")
-
-        layout.addWidget(tabs)
-
-        # Dialog buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_btn)
-
-        apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(lambda: self._apply_hotkey_settings(dialog))
-        button_layout.addWidget(apply_btn)
-
-        ok_btn = QPushButton("OK")
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(lambda: self._apply_hotkey_settings(dialog, close=True))
-        button_layout.addWidget(ok_btn)
-
-        layout.addLayout(button_layout)
-
-        dialog.exec()
 
 
 

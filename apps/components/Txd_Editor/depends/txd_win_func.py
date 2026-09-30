@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_win_func.py - Version: 1
+#this belongs in apps/components/Txd_Editor/depends/txd_win_func.py - Version: 4
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop window
 
 """
@@ -6,13 +6,10 @@ TXD Workshop window - frameless drag/resize, window flags, window menus.
 """
 
 ##class TXDWindowMixin: -
-# _apply_always_on_top
-# _apply_window_flags
+# _apply_left_compact
 # _enable_move_mode
 # _get_resize_corner
-# _get_resize_direction
 # _handle_corner_resize
-# _handle_resize
 # _is_on_draggable_area
 # mouseDoubleClickEvent
 # mouseMoveEvent
@@ -22,7 +19,7 @@ TXD Workshop window - frameless drag/resize, window flags, window menus.
 # paintEvent
 # resizeEvent
 # _show_settings_context_menu
-# _show_window_context_menu
+# showEvent
 # _toggle_maximize
 # _update_cursor
 # _update_transform_text_panel_visibility
@@ -32,56 +29,6 @@ from PyQt6.QtWidgets import QPushButton
 
 class TXDWindowMixin: #vers 1
     """window methods for TXDWorkshop."""
-
-    def _apply_window_flags(self): #vers 1
-        """Apply window flags based on settings"""
-        # Save current geometry
-        current_geometry = self.geometry()
-        was_visible = self.isVisible()
-
-        if self.use_system_titlebar:
-            # Use system window with title bar
-            self.setWindowFlags(
-                Qt.WindowType.Window |
-                Qt.WindowType.WindowMinimizeButtonHint |
-                Qt.WindowType.WindowMaximizeButtonHint |
-                Qt.WindowType.WindowCloseButtonHint
-            )
-        else:
-            # Use custom frameless window
-            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-
-        # Restore geometry and visibility
-        self.setGeometry(current_geometry)
-
-        if was_visible:
-            self.show()
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            mode = "System title bar" if self.use_system_titlebar else "Custom frameless"
-            self.main_window.log_message(f"Window mode: {mode}")
-
-    def _apply_always_on_top(self): #vers 1
-        """Apply always on top window flag"""
-        current_flags = self.windowFlags()
-
-        if self.window_always_on_top:
-            new_flags = current_flags | Qt.WindowType.WindowStaysOnTopHint
-        else:
-            new_flags = current_flags & ~Qt.WindowType.WindowStaysOnTopHint
-
-        if new_flags != current_flags:
-            # Save state
-            current_geometry = self.geometry()
-            was_visible = self.isVisible()
-
-            # Apply new flags
-            self.setWindowFlags(new_flags)
-
-            # Restore state
-            self.setGeometry(current_geometry)
-            if was_visible:
-                self.show()
 
     def _is_on_draggable_area(self, pos): #vers 4
         """Check if position is on draggable toolbar area (stretch space, not buttons)"""
@@ -339,35 +286,6 @@ class TXDWindowMixin: #vers 1
             if new_width >= min_width and new_height >= min_height:
                 self.resize(new_width, new_height)
 
-    def _get_resize_direction(self, pos): #vers 1
-        """Determine resize direction based on mouse position"""
-        rect = self.rect()
-        margin = self.resize_margin
-
-        left = pos.x() < margin
-        right = pos.x() > rect.width() - margin
-        top = pos.y() < margin
-        bottom = pos.y() > rect.height() - margin
-
-        if left and top:
-            return "top-left"
-        elif right and top:
-            return "top-right"
-        elif left and bottom:
-            return "bottom-left"
-        elif right and bottom:
-            return "bottom-right"
-        elif left:
-            return "left"
-        elif right:
-            return "right"
-        elif top:
-            return "top"
-        elif bottom:
-            return "bottom"
-
-        return None
-
     def _update_cursor(self, direction): #vers 1
         """Update cursor based on resize direction"""
         if direction == "top" or direction == "bottom":
@@ -381,50 +299,34 @@ class TXDWindowMixin: #vers 1
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
-    def _handle_resize(self, global_pos): #vers 1
-        """Handle window resizing"""
-        if not self.resize_direction or not self.drag_position:
-            return
-
-        delta = global_pos - self.drag_position
-        geometry = self.frameGeometry()
-
-        min_width = 800
-        min_height = 600
-
-        # Handle horizontal resizing
-        if "left" in self.resize_direction:
-            new_width = geometry.width() - delta.x()
-            if new_width >= min_width:
-                geometry.setLeft(geometry.left() + delta.x())
-        elif "right" in self.resize_direction:
-            new_width = geometry.width() + delta.x()
-            if new_width >= min_width:
-                geometry.setRight(geometry.right() + delta.x())
-
-        # Handle vertical resizing
-        if "top" in self.resize_direction:
-            new_height = geometry.height() - delta.y()
-            if new_height >= min_height:
-                geometry.setTop(geometry.top() + delta.y())
-        elif "bottom" in self.resize_direction:
-            new_height = geometry.height() + delta.y()
-            if new_height >= min_height:
-                geometry.setBottom(geometry.bottom() + delta.y())
-
-        self.setGeometry(geometry)
-        self.drag_position = global_pos
-
-    def resizeEvent(self, event): #vers 2
+    def resizeEvent(self, event): #vers 3
         """Keep resize grip in corner; auto-collapse text panel when narrow."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
+        self._apply_left_compact()
 
-    def _on_splitter_moved(self, pos, index): #vers 3
-        """Main splitter dragged - refresh ribbon text mode."""
+    def _on_splitter_moved(self, pos, index): #vers 4
+        """Main splitter dragged: save sizes, ribbon text mode, compact buttons."""
+        self._queue_splitter_save()
         self._update_transform_text_panel_visibility()
+        self._apply_left_compact()
+
+    def _apply_left_compact(self): #vers 1
+        """Texture pane mini toolbar goes icon-only when narrow."""
+        from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+        row = getattr(self, '_middle_btn_row', None)
+        if row is None:
+            return
+        apply_compact_buttons(self._middle_compact_btns, row.width())
+
+    def showEvent(self, event): #vers 1
+        """Standalone frameless window: fix Windows 11 border on show."""
+        super().showEvent(event)
+        if self.standalone_mode:
+            from apps.methods.imgfactory_ui_settings import apply_windows_frame
+            apply_windows_frame(self)
 
     def _update_transform_text_panel_visibility(self): #vers 6
         """Apply the icon/text/both display mode to the ribbon toolbars via
@@ -469,7 +371,7 @@ class TXDWindowMixin: #vers 1
         else:
             self.showMaximized()
 
-    def _show_settings_context_menu(self, pos): #vers 2
+    def _show_settings_context_menu(self, pos): #vers 3
         """Show context menu for Settings button"""
         from PyQt6.QtWidgets import QMenu
 
@@ -488,12 +390,6 @@ class TXDWindowMixin: #vers 1
         min_action.triggered.connect(self.showMinimized)
 
         menu.addSeparator()
-
-        # Upscale Native action
-        upscale_action = menu.addAction("Upscale Native")
-        upscale_action.setCheckable(True)
-        upscale_action.setChecked(False)
-        upscale_action.triggered.connect(self._toggle_upscale_native)
 
         # Shaders action
         shaders_action = menu.addAction("Shaders")
@@ -531,32 +427,3 @@ class TXDWindowMixin: #vers 1
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.information(self, "Move Window",
                 "Drag the titlebar to move the window")
-
-    def _show_window_context_menu(self, pos): #vers 2
-        """Show context menu for titlebar right-click"""
-        from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self)
-
-        # Move window action
-        move_action = menu.addAction("Move Window")
-        move_action.triggered.connect(self._enable_move_mode)
-
-        # Maximize/Restore action
-        if self.isMaximized():
-            max_action = menu.addAction("Restore Window")
-        else:
-            max_action = menu.addAction("Maximize Window")
-        max_action.triggered.connect(self._toggle_maximize)
-
-        # Minimize action
-        min_action = menu.addAction("Minimize")
-        min_action.triggered.connect(self.showMinimized)
-
-        menu.addSeparator()
-
-        # Close action
-        close_action = menu.addAction("Close")
-        close_action.triggered.connect(self.close)
-
-        # Show menu at global position
-        menu.exec(self.mapToGlobal(pos))

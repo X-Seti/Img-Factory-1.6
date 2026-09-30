@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_dialogs.py - Version: 1
+#this belongs in apps/methods/txd_dialogs.py - Version: 3
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD dialogs
 
 """
@@ -20,7 +20,6 @@ Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, p
 # mouseReleaseEvent
 # paintEvent
 # pan
-# reset_background_to_theme
 # reset_view
 # set_background_color
 # set_checkerboard_background
@@ -51,9 +50,6 @@ Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, p
 # _apply_changes
 # _auto_generate_mipmaps
 # _clear_all_levels
-# _compress_to_dxt1
-# _compress_to_dxt3
-# _compress_to_dxt5
 # _create_action_section
 # _create_bottom_bar
 # _create_info_section
@@ -73,7 +69,6 @@ Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, p
 # mouseMoveEvent
 # mousePressEvent
 # mouseReleaseEvent
-# _recompress_modified_levels
 # setup_ui
 
 ##class BumpmapManagerWindow: -
@@ -81,7 +76,6 @@ Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, p
 # _apply_changes
 # closeEvent
 # _convert_numpy_to_qimage
-# _create_button_bar
 # _create_left_panel
 # _create_menu_bar
 # _create_middle_panel
@@ -91,7 +85,6 @@ Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, p
 # _delete_bumpmap
 # _export_bumpmap
 # _export_reflection_maps
-# _generate_all_maps_from_texture
 # _generate_bumpmap
 # _generate_reflection_from_normal
 # _generate_reflection_maps
@@ -109,6 +102,8 @@ from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QCursor, QFont, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QComboBox, QDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QTabWidget, QTextEdit, QVBoxLayout, QWidget
 from apps.methods.txd_dxt_encode import _encode_dxt1, _encode_dxt5
+
+from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 __all__ = ['TexturePreviewWidget', 'ZoomablePreview', 'TexturePropertiesDialog', 'MipmapManagerWindow', 'BumpmapManagerWindow']
 
@@ -328,12 +323,6 @@ class ZoomablePreview(QLabel): #vers 2
         """Set solid background color (None = auto from palette)"""
         self.background_mode = 'solid'
         self.bg_color = color
-        self.update()
-
-    def reset_background_to_theme(self): #vers 1
-        """Reset background to follow the current theme palette."""
-        self.bg_color = None
-        self.background_mode = 'solid'
         self.update()
 
 
@@ -791,7 +780,7 @@ class TexturePropertiesDialog(QDialog): #vers 1
                 self.parent_workshop._reload_texture_table()
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("✅ Properties updated")
+                self.main_window.log_message("Properties updated")
 
 
     def _ok_clicked(self): #vers 1
@@ -860,10 +849,10 @@ class TexturePropertiesDialog(QDialog): #vers 1
                 current_w = max(1, current_w // 2)
                 current_h = max(1, current_h // 2)
                 if shown < 4 or i == num_levels - 1:  # Show first 3 and last
-                    preview_text += f" → {current_w}x{current_h}"
+                    preview_text += f" -> {current_w}x{current_h}"
                     shown += 1
                 elif shown == 4:
-                    preview_text += " → ..."
+                    preview_text += " -> ..."
                     shown += 1
 
             self.mipmap_preview.setText(preview_text)
@@ -871,7 +860,7 @@ class TexturePropertiesDialog(QDialog): #vers 1
         self.mipmap_slider.valueChanged.connect(update_preview)
         update_preview(self.mipmap_slider.value())
 
-        slider_layout.addWidget(QLabel("More Levels ←  →  Fewer Levels"))
+        slider_layout.addWidget(QLabel("More Levels <-  ->  Fewer Levels"))
         slider_layout.addWidget(self.mipmap_slider)
         slider_layout.addWidget(self.mipmap_preview)
 
@@ -1071,7 +1060,8 @@ class MipmapManagerWindow(QWidget): #vers 2
         layout.addStretch()
 
         # Drag handle
-        drag_btn = QPushButton("☰")
+        drag_btn = QPushButton()
+        drag_btn.setIcon(SVGIconFactory.hamburger_menu_icon())
         drag_btn.setFixedSize(30, 30)
         drag_btn.setStyleSheet("""
             QPushButton {
@@ -1118,22 +1108,26 @@ class MipmapManagerWindow(QWidget): #vers 2
         layout.setSpacing(10)
 
         # Left side - Action buttons
-        autogen_btn = QPushButton("🔄 Auto-Generate")
+        autogen_btn = QPushButton("Auto-Generate")
+        autogen_btn.setIcon(SVGIconFactory.reset_icon())
         autogen_btn.setToolTip("Generate all mipmap levels")
         autogen_btn.clicked.connect(self._auto_generate_mipmaps)
         layout.addWidget(autogen_btn)
 
-        export_all_btn = QPushButton("📤 Export All")
+        export_all_btn = QPushButton("Export All")
+        export_all_btn.setIcon(SVGIconFactory.export_icon())
         export_all_btn.setToolTip("Export all levels as PNG")
         export_all_btn.clicked.connect(self._export_all_levels)
         layout.addWidget(export_all_btn)
 
-        import_all_btn = QPushButton("📥 Import All")
+        import_all_btn = QPushButton("Import All")
+        import_all_btn.setIcon(SVGIconFactory.import_icon())
         import_all_btn.setToolTip("Import levels from PNG files")
         import_all_btn.clicked.connect(self._import_all_levels)
         layout.addWidget(import_all_btn)
 
-        clear_btn = QPushButton("🗑️ Clear All")
+        clear_btn = QPushButton("Clear All")
+        clear_btn.setIcon(SVGIconFactory.trash_icon())
         clear_btn.setToolTip("Remove all mipmap levels except Level 0")
         clear_btn.clicked.connect(self._clear_all_levels)
         layout.addWidget(clear_btn)
@@ -1141,7 +1135,8 @@ class MipmapManagerWindow(QWidget): #vers 2
         layout.addStretch()
 
         # Right side - Apply/Close buttons
-        apply_btn = QPushButton("✅ Apply Changes")
+        apply_btn = QPushButton("Apply Changes")
+        apply_btn.setIcon(SVGIconFactory.check_icon())
         apply_btn.setStyleSheet("""
             QPushButton {
                 background: palette(highlight);
@@ -1232,9 +1227,9 @@ class MipmapManagerWindow(QWidget): #vers 2
                     )
                     preview.setPixmap(scaled_pixmap)
             except:
-                preview.setText("🖼️")
+                preview.setText("No preview")
         else:
-            preview.setText("🖼️")
+            preview.setText("No preview")
 
         return preview
 
@@ -1314,7 +1309,7 @@ class MipmapManagerWindow(QWidget): #vers 2
 
         # Status stat
         is_modified = level_data.get('level', 0) in self.modified_levels
-        status_text = "⚠ Modified" if is_modified else "✓ Valid"
+        status_text = "Modified" if is_modified else "Valid"
         status_color = "#ff9800" if is_modified else "#4caf50"
         status_stat = self._create_stat_box("Status:", status_text, status_color)
         grid_layout.addWidget(status_stat)
@@ -1357,7 +1352,8 @@ class MipmapManagerWindow(QWidget): #vers 2
         level_num = level_data.get('level', 0)
 
         # Export button
-        export_btn = QPushButton("📤 Export")
+        export_btn = QPushButton("Export")
+        export_btn.setIcon(SVGIconFactory.export_icon())
         export_btn.setStyleSheet("""
             QPushButton {
                 background: #2e5d2e;
@@ -1375,7 +1371,8 @@ class MipmapManagerWindow(QWidget): #vers 2
         layout.addWidget(export_btn)
 
         # Import button
-        import_btn = QPushButton("📥 Import")
+        import_btn = QPushButton("Import")
+        import_btn.setIcon(SVGIconFactory.import_icon())
         import_btn.setStyleSheet("""
             QPushButton {
                 background: #5d3d2e;
@@ -1394,7 +1391,8 @@ class MipmapManagerWindow(QWidget): #vers 2
 
         # Delete button (not for level 0) or Edit button (for level 0)
         if level_num == 0:
-            edit_btn = QPushButton("✏️ Edit")
+            edit_btn = QPushButton("Edit")
+            edit_btn.setIcon(SVGIconFactory.edit_icon())
             edit_btn.setStyleSheet("""
                 QPushButton {
                     background: palette(mid);
@@ -1411,7 +1409,8 @@ class MipmapManagerWindow(QWidget): #vers 2
             edit_btn.clicked.connect(self._edit_main_texture)
             layout.addWidget(edit_btn)
         else:
-            delete_btn = QPushButton("🗑️ Delete")
+            delete_btn = QPushButton("Delete")
+            delete_btn.setIcon(SVGIconFactory.trash_icon())
             delete_btn.setStyleSheet("""
                 QPushButton {
                     background: #5d2e2e;
@@ -1617,13 +1616,13 @@ class MipmapManagerWindow(QWidget): #vers 2
     def _export_level(self, level_num): #vers 1
         """Export single mipmap level"""
         if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"📤 Exporting Level {level_num}...")
+            self.main_window.log_message(f"Exporting Level {level_num}...")
 
 
     def _import_level(self, level_num): #vers 1
         """Import single mipmap level"""
         if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"📥 Importing Level {level_num}...")
+            self.main_window.log_message(f"Importing Level {level_num}...")
         self.modified_levels[level_num] = True
 
 
@@ -1683,111 +1682,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         self.close()
 
 
-    def _recompress_modified_levels(self): #vers 1
-        """Recompress modified mipmap levels to DXT format"""
-        try:
-            format_type = self.texture_data['format']
-
-            for level_num, level_data in self.modified_levels.items():
-                rgba_data = level_data.get('rgba_data')
-                if not rgba_data:
-                    continue
-
-                width = level_data['width']
-                height = level_data['height']
-
-                # Compress based on format
-                if 'DXT1' in format_type:
-                    compressed_data = self._compress_to_dxt1(rgba_data, width, height)
-                elif 'DXT3' in format_type:
-                    compressed_data = self._compress_to_dxt3(rgba_data, width, height)
-                elif 'DXT5' in format_type:
-                    compressed_data = self._compress_to_dxt5(rgba_data, width, height)
-                else:
-                    compressed_data = rgba_data  # Uncompressed
-
-                if compressed_data:
-                    level_data['compressed_data'] = compressed_data
-                    level_data['compressed_size'] = len(compressed_data)
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Recompressed {len(self.modified_levels)} modified levels")
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Recompression warning: {str(e)}")
-
-
     # --- DXT1 and DXT5 encoders (pure Python) ---
-
-    def _compress_to_dxt1(self, rgba_data, width, height): #vers 2
-        """Compress RGBA data to DXT1 format"""
-        try:
-            # Use helper function
-            return _encode_dxt1(rgba_data, width, height)
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"DXT1 compression error: {str(e)}")
-            return None
-
-
-    def _compress_to_dxt3(self, rgba_data, width, height): #vers 2
-        """Compress RGBA data to DXT3 format"""
-        try:
-            # DXT3 uses DXT1 color + explicit alpha
-            import struct
-
-            blocks_x = (width + 3) // 4
-            blocks_y = (height + 3) // 4
-            dxt3_data = bytearray()
-
-            for by in range(blocks_y):
-                for bx in range(blocks_x):
-                    # Extract 4x4 block
-                    block_alpha = bytearray()
-
-                    for py in range(4):
-                        for px in range(4):
-                            x = bx * 4 + px
-                            y = by * 4 + py
-
-                            if x < width and y < height:
-                                idx = (y * width + x) * 4
-                                alpha = rgba_data[idx + 3]
-                            else:
-                                alpha = 255
-
-                            block_alpha.append(alpha)
-
-                    # Encode explicit alpha (4-bit per pixel)
-                    alpha_block = 0
-                    for i in range(16):
-                        alpha_4bit = block_alpha[i] >> 4  # Convert 8-bit to 4-bit
-                        alpha_block |= (alpha_4bit << (i * 4))
-
-                    # Pack alpha block (8 bytes)
-                    dxt3_data.extend(struct.pack('<Q', alpha_block))
-
-                    # Add DXT1 color block (would need to encode, using placeholder)
-                    dxt3_data.extend(b'\x00' * 8)  # Placeholder for color block
-
-            return bytes(dxt3_data)
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"DXT3 compression error: {str(e)}")
-            return None
-
-
-    def _compress_to_dxt5(self, rgba_data, width, height): #vers 2
-        """Compress RGBA data to DXT5 format"""
-        try:
-            # Use helper function
-            return _encode_dxt5(rgba_data, width, height)
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"DXT5 compression error: {str(e)}")
-            return None
 
 
 class BumpmapManagerWindow(QWidget): #vers 1
@@ -1877,7 +1772,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         main_layout.addWidget(content)
 
         # REMOVE THIS SECTION - No bottom button bar needed
-        # button_bar = self._create_button_bar()
         # main_layout.addWidget(button_bar)
 
         # Set dark theme
@@ -1969,7 +1863,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         # Size
         width = self.texture_data.get('width', 0)
         height = self.texture_data.get('height', 0)
-        size_label = QLabel(f"Size: {width} × {height}")
+        size_label = QLabel(f"Size: {width} x {height}")
         size_label.setStyleSheet("font-size: 14pt; line-height: 1.4;")
         info_layout.addWidget(size_label)
 
@@ -2150,7 +2044,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         if has_bumpmap:
             self._update_bumpmap_preview()
         else:
-            self.bumpmap_preview.setText("No bumpmap data\n\nPress F9 or use Edit → Generate Bumpmap")
+            self.bumpmap_preview.setText("No bumpmap data\n\nPress F9 or use Edit -> Generate Bumpmap")
 
         layout.addWidget(self.bumpmap_preview)
 
@@ -2178,7 +2072,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         layout.addWidget(menu_bar)
 
         # Title in center
-        title_label = QLabel(f"🗺️ {self.texture_data.get('name', 'Unknown')}")
+        title_label = QLabel(f"{self.texture_data.get('name', 'Unknown')}")
         title_label.setObjectName("title_label")
         title_label.setFont(self.panel_font)
         title_label.setStyleSheet("color: palette(mid); font-weight: bold;")
@@ -2335,43 +2229,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         return menu_bar
 
 
-    def _create_button_bar(self): #vers 1
-        """Create bottom button bar"""
-        from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton
-
-        button_bar = QWidget()
-        button_bar.setFixedHeight(50)
-        button_bar.setStyleSheet("border-top: 1px solid palette(mid);")
-
-        layout = QHBoxLayout(button_bar)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        layout.addStretch()
-
-        # Apply button
-        apply_btn = QPushButton("Apply Changes")
-        apply_btn.setStyleSheet("""
-            QPushButton {
-                background-color: palette(highlight);
-                border: 1px solid palette(highlight);
-                padding: 8px 20px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: palette(highlight);
-            }
-        """)
-        apply_btn.clicked.connect(self._apply_changes)
-        layout.addWidget(apply_btn)
-
-        # Close button
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.close)
-        layout.addWidget(close_btn)
-
-        return button_bar
-
-
     def _apply_changes(self): #vers 3
         """Apply changes and ensure parent workshop is fully updated"""
         if not self.modified:
@@ -2427,7 +2284,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
 
             # Log message
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("✅ Bumpmap changes applied")
+                self.main_window.log_message("Bumpmap changes applied")
 
             # Reset modified flag
             self.modified = False
@@ -2557,7 +2414,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
                 self.texture_data['raster_format_flags'] &= ~0x10
 
             # Update preview
-            self.bumpmap_preview.setText("No bumpmap data\n\nPress F9 or use Edit → Generate Bumpmap")
+            self.bumpmap_preview.setText("No bumpmap data\n\nPress F9 or use Edit -> Generate Bumpmap")
             self.modified = True
 
             # Mark parent as modified
@@ -2984,45 +2841,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
             return None
 
 
-    def _generate_all_maps_from_texture(self, rgba_data, width, height, F0=0.04): #vers 2
-        """
-        Generate complete set of maps from texture:
-        """
-        try:
-            # Convert RGBA to grayscale for height map
-            grayscale = bytearray(width * height)
-            for i in range(0, len(rgba_data), 4):
-                r, g, b = rgba_data[i:i+3]
-                gray = int(0.299 * r + 0.587 * g + 0.114 * b)
-                grayscale[i // 4] = gray
-
-            # Generate normal map from grayscale
-            normal_map = self.parent_workshop._generate_rgb_normal_map(grayscale, width, height, strength=1.0)
-
-            # Generate bump map (height map)
-            bump_map = self.parent_workshop._sobel_filter(grayscale, width, height, strength=1.0)
-
-            # Generate reflection and Fresnel from normal map
-            reflection_fresnel = self._generate_reflection_from_normal(
-                normal_map, width, height, auto_flip=True, F0=F0
-            )
-
-            if reflection_fresnel:
-                return {
-                    'bump_map': bytes(bump_map),
-                    'normal_map': normal_map,
-                    'reflection_map': reflection_fresnel['reflection_map'],
-                    'fresnel_map': reflection_fresnel['fresnel_map']
-                }
-            else:
-                return None
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Map generation error: {str(e)}")
-            return None
-
-
     def _convert_numpy_to_qimage(self, numpy_array, width, height, is_grayscale=False): #vers 1
         """Convert numpy array to QImage for preview"""
         try:
@@ -3054,7 +2872,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
 
             # Log message
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("✅ Bumpmap changes applied")
+                self.main_window.log_message("Bumpmap changes applied")
 
             # Reset modified flag
             self.modified = False

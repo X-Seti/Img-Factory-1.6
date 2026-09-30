@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 11
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 12
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -36,7 +36,6 @@ from apps.methods.txd_versions import ( detect_txd_version, get_platform_name, g
 from apps.methods.txd_versions import (detect_txd_version, get_version_string, get_platform_name, get_platform_capabilities, TXDPlatform, TXDVersion)
 
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
-from apps.gui.txd_context_menu import setup_txd_context_menu
 from apps.methods.asset_checker import check_assets, find_sibling_asset_files, find_game_asset_files
 
 
@@ -248,7 +247,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self.setup_ui()
 
         # THEN setup context menu
-        setup_txd_context_menu(self)
 
         # Setup hotkeys
         self._setup_hotkeys()
@@ -5841,7 +5839,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             QMessageBox.critical(self, "Undo Error", f"Failed to undo: {str(e)}")
 
 
-    def _auto_generate_mipmaps(self): #vers 1
+    def _auto_generate_mipmaps(self): #vers 2
         """Auto-generate all mipmap levels from main texture"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
@@ -5923,11 +5921,11 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                     'compressed_size': len(rgba_data)
                 }
                 self.selected_texture['mipmap_levels'].append(mipmap_level)
-
-                # Next levelhas_bumpmap
+                level_num += 1
+                if current_width == 1 and current_height == 1:
+                    break
                 current_width = max(1, current_width // 2)
                 current_height = max(1, current_height // 2)
-                level_num += 1
 
             # Update mipmap count
             self.selected_texture['mipmaps'] = len(self.selected_texture['mipmap_levels'])
@@ -5941,7 +5939,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             QMessageBox.information(self, "Success",
                 f"Generated {level_num} mipmap levels\n"
-                f"From {width}x{height} down to {current_width*2}x{current_height*2}")
+                f"From {width}x{height} down to {current_width}x{current_height}")
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate mipmaps: {str(e)}")
@@ -5983,7 +5981,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         delete_action.triggered.connect(self._delete_texture)
 
         menu.exec(self.texture_table.viewport().mapToGlobal(position))
-
 
     def load_from_img_archive(self, img_path): #vers 1
         """Load TXD list from IMG archive"""
@@ -6577,142 +6574,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD load error: {str(e)}")
-
-
-
-    def _upscale_texture_advanced(self): #vers 1
-        """Advanced AI upscale with options dialog"""
-        if not self.selected_texture:
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSlider, QCheckBox, QPushButton
-
-        # Create dialog
-        dialog = QDialog(self)
-        dialog.setWindowTitle("AI Upscale Options")
-        dialog.setModal(True)
-        dialog.resize(450, 400)
-
-        layout = QVBoxLayout(dialog)
-
-        # Current texture info
-        width = self.selected_texture.get('width', 0)
-        height = self.selected_texture.get('height', 0)
-
-        header = QLabel(f"Current Size: {width}x{height}")
-        header.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        layout.addWidget(header)
-
-        # Scale factor
-        scale_layout = QHBoxLayout()
-        scale_layout.addWidget(QLabel("Scale Factor:"))
-        scale_combo = QComboBox()
-        scale_combo.addItems(["2x", "3x", "4x", "6x", "8x"])
-        scale_combo.setCurrentIndex(0)
-        scale_layout.addWidget(scale_combo)
-        layout.addLayout(scale_layout)
-
-        # Preview size label
-        preview_label = QLabel(f"Result: {width*2}x{height*2}")
-        preview_label.setStyleSheet("color: palette(windowText); font-weight: bold; padding: 5px;")
-
-        def update_preview(index):  #vers 1
-            factor = [2, 3, 4, 6, 8][index]
-            new_w = width * factor
-            new_h = height * factor
-            size_mb = (new_w * new_h * 4) / (1024 * 1024)
-            preview_label.setText(f"Result: {new_w}x{new_h} (~{size_mb:.1f} MB)")
-
-        scale_combo.currentIndexChanged.connect(update_preview)
-        layout.addWidget(preview_label)
-
-        layout.addSpacing(10)
-
-        # Method
-        method_layout = QHBoxLayout()
-        method_layout.addWidget(QLabel("Method:"))
-        method_combo = QComboBox()
-        method_combo.addItems(["Smooth (Bilinear)", "Sharp (Bicubic)", "Lanczos", "Nearest Neighbor"])
-        method_combo.setCurrentIndex(1)
-        method_layout.addWidget(method_combo)
-        layout.addLayout(method_layout)
-
-        # Sharpness slider
-        sharp_layout = QVBoxLayout()
-        sharp_layout.addWidget(QLabel("Sharpness:"))
-        sharp_slider = QSlider(Qt.Orientation.Horizontal)
-        sharp_slider.setMinimum(0)
-        sharp_slider.setMaximum(100)
-        sharp_slider.setValue(50)
-        sharp_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        sharp_slider.setTickInterval(25)
-        sharp_layout.addWidget(sharp_slider)
-
-        sharp_value_label = QLabel("50%")
-        sharp_value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sharp_slider.valueChanged.connect(lambda v: sharp_value_label.setText(f"{v}%"))
-        sharp_layout.addWidget(sharp_value_label)
-        layout.addLayout(sharp_layout)
-
-        layout.addSpacing(10)
-
-        # Options
-        denoise_check = QCheckBox("Denoise (reduce noise)")
-        denoise_check.setChecked(False)
-        layout.addWidget(denoise_check)
-
-        enhance_check = QCheckBox("Enhance edges")
-        enhance_check.setChecked(True)
-        layout.addWidget(enhance_check)
-
-        preserve_alpha_check = QCheckBox("Preserve alpha channel")
-        preserve_alpha_check.setChecked(True)
-        layout.addWidget(preserve_alpha_check)
-
-        layout.addSpacing(10)
-
-        # Warning for large sizes
-        warning_label = QLabel("⚠️ Large upscales may take time and increase file size significantly")
-        warning_label.setStyleSheet("color: palette(windowText); font-size: 11px; padding: 5px;")
-        warning_label.setWordWrap(True)
-        layout.addWidget(warning_label)
-
-        layout.addStretch()
-
-        # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        def do_upscale():  #vers 1
-            factor = [2, 3, 4, 6, 8][scale_combo.currentIndex()]
-            method = method_combo.currentIndex()
-            sharpness = sharp_slider.value()
-            denoise = denoise_check.isChecked()
-            enhance = enhance_check.isChecked()
-            preserve_alpha = preserve_alpha_check.isChecked()
-
-            dialog.accept()
-
-            # Apply upscale (placeholder for now)
-            QMessageBox.information(self, "Upscaling",
-                f"Upscaling {factor}x with method {method_combo.currentText()}\n"
-                f"Sharpness: {sharpness}%\n"
-                f"Denoise: {denoise}\n"
-                f"Enhance: {enhance}\n\n"
-                f"Advanced upscaling will be implemented soon!")
-
-        upscale_btn = QPushButton("Upscale")
-        upscale_btn.clicked.connect(do_upscale)
-        button_layout.addWidget(upscale_btn)
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_btn)
-
-        layout.addLayout(button_layout)
-
-        dialog.exec()
 
 
     def _upscale_texture(self): #vers 2
@@ -7801,40 +7662,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         return None
 
 
-    def _convert_format(self):  #vers 1
-        """Convert texture format (e.g., DXT1, DXT5, RGBA)"""
-        if not self.selected_texture:
-            QMessageBox.warning(self, "No Selection", "Please select a texture first")
-            return
-
-        try:
-            # Get available formats
-            formats = ["DXT1", "DXT5", "RGBA8888", "RGB888", "RGBA4444", "RGB565"]
-
-            # Show format selection dialog
-            current_format = self.selected_texture.get('format', 'Unknown')
-            format_choice, ok = QInputDialog.getItem(
-                self,
-                "Convert Format",
-                f"Current format: {current_format}\n\nSelect target format:",
-                formats,
-                0,
-                False
-            )
-
-            if ok and format_choice:
-                # TODO: implement actual DXT/format conversion
-                QMessageBox.information(
-                    self,
-                    "Format Conversion",
-                    f"Converting {current_format} → {format_choice} not yet available.\n"
-                    "Export the texture, convert externally, then re-import."
-                )
-
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Could not convert format: {str(e)}")
-
-
     def _strip_unsupported_features_for_version(self, game_idx): #vers 1
         """Remove unsupported features based on target game version"""
         if game_idx == 1:  # GTA III
@@ -7990,11 +7817,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Save as new error: {str(e)}")
             return False
-
-
-    def _save_as_new_txd(self): #vers 1
-        """Save As new TXD - Alias for context menu compatibility"""
-        self._save_as_txd_file()
 
 
     def save_txd_file(self): #vers 6

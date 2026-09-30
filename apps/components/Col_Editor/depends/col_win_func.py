@@ -1,9 +1,8 @@
-#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 10
+#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 11
 # X-Seti - Sept 2026 - IMG Factory 1.6 - COL Workshop window functions
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QPushButton
-from apps.methods.img_factory_settings import get_user_config_dir
 
 ##class COLWindowMixin: -
 # _apply_button_mode_to_button
@@ -23,11 +22,8 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # _on_splitter_moved
 # paintEvent
 # resizeEvent
-# _restore_splitter_sizes
-# _save_splitter_sizes
 # _set_icon_display_mode
 # showEvent
-# _splitter_key
 # _toggle_maximize
 # _update_all_buttons
 # _update_cursor
@@ -365,13 +361,9 @@ class COLWindowMixin: #vers 1
                 btn.setMaximumWidth(16777215)
 
 
-    def _on_splitter_moved(self, pos, index): #vers 5
+    def _on_splitter_moved(self, pos, index): #vers 6
         """Main splitter dragged: save sizes, update compact buttons."""
-        if not hasattr(self, '_splitter_save_timer'):
-            self._splitter_save_timer = QTimer(self)
-            self._splitter_save_timer.setSingleShot(True)
-            self._splitter_save_timer.timeout.connect(self._save_splitter_sizes)
-        self._splitter_save_timer.start(500)
+        self._queue_splitter_save()
         self._apply_left_compact()
         try:
             from apps.methods.imgfactory_ui_settings import apply_compact_buttons
@@ -382,44 +374,6 @@ class COLWindowMixin: #vers 1
                 apply_compact_buttons(btns, w, compact_threshold=320)
         except Exception:
             pass
-
-    def _splitter_key(self): #vers 1
-        """Config key; docked and standalone have different panel counts."""
-        return f"splitter_sizes_{self._main_splitter.count()}"
-
-    def _restore_splitter_sizes(self): #vers 3
-        """Restore saved splitter sizes; default list panel 220px."""
-        import json
-        from pathlib import Path
-        sp = getattr(self, '_main_splitter', None)
-        if sp is None:
-            return
-        path = get_user_config_dir() / 'col_workshop.json'
-        try:
-            sizes = json.loads(path.read_text()).get(self._splitter_key())
-        except (OSError, ValueError):
-            sizes = None
-        if not sizes or len(sizes) != sp.count():
-            total = max(sp.width(), 800)
-            sizes = [220, total - 220] if sp.count() == 2 else [180, 220, total - 400]
-        sp.setSizes(sizes)
-        QTimer.singleShot(0, self._apply_left_compact)
-
-    def _save_splitter_sizes(self): #vers 2
-        """Save main splitter sizes to col_workshop.json."""
-        import json
-        from pathlib import Path
-        sp = getattr(self, '_main_splitter', None)
-        if sp is None:
-            return
-        path = get_user_config_dir() / 'col_workshop.json'
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, ValueError):
-            data = {}
-        data[self._splitter_key()] = sp.sizes()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2))
 
     def resizeEvent(self, event): #vers 7
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
