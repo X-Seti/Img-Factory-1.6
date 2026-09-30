@@ -1381,7 +1381,7 @@ class COL3DViewport(QWidget): #vers 2
         menu.addSeparator()
         for label, icon, fn in [
                 ("Select All",              get_select_all_icon,        ws._edit_verts_all),
-                ("Select None",             IF.close_icon,              ws._edit_verts_none),
+                ("Select None",             IF.select_none_icon,              ws._edit_verts_none),
                 ("Invert Selection",        get_select_inverse_icon,    ws._edit_verts_invert),
                 (None, None, None),
                 ("Set Position...",         IF.vertex_position_icon,             ws._edit_vertex_position),
@@ -1470,10 +1470,10 @@ class COL3DViewport(QWidget): #vers 2
             for label, icon, fn in [
                     ("Detach",               SVGIconFactory.detach_faces_icon,   ws._edit_detach),
                     ("To New Model...",      SVGIconFactory.new_icon,            ws._edit_selection_to_model),
-                    ("Save as COL...",       SVGIconFactory.export_icon,         ws._edit_selection_to_file),
+                    ("Save as COL...",       SVGIconFactory.save_selection_icon,         ws._edit_selection_to_file),
                     ("Delete",               SVGIconFactory.delete_face_icon,    ws._edit_delete_faces),
                     ("Fill Hole",            SVGIconFactory.fill_icon,           ws._edit_fill_hole),
-                    ("To Box",               SVGIconFactory.mesh_icon,           ws._edit_faces_to_box),
+                    ("To Box",               SVGIconFactory.faces_to_box_icon,           ws._edit_faces_to_box),
                     ("To Sphere",            SVGIconFactory.shading_sphere_icon, ws._edit_faces_to_sphere),
                     ("Scale...",             SVGIconFactory.bounds_icon,         ws._edit_scale_dialog),
                     ("Optimise Mesh...",     SVGIconFactory.filter_icon,         ws._edit_optimise)]:

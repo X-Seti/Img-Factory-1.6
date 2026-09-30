@@ -1272,7 +1272,7 @@ class COLSetupUIMixin: #vers 1
         self.format_combo.setMaximumWidth(100)
         tb_format.addWidget(self.format_combo)
         tb_format.addSeparator()
-        _act(tb_format, "Cycle Render Mode", self.icon_factory.flip_vert_icon,
+        _act(tb_format, "Cycle Render Mode", self.icon_factory.render_mode_icon,
              self.switch_surface_view,  enabled=False, attr='switch_btn')
         _act(tb_format, "Convert Format",    self.icon_factory.convert_icon,
              self._convert_surface,     enabled=False, attr='convert_btn')
@@ -1309,7 +1309,7 @@ class COLSetupUIMixin: #vers 1
             (None, None, None, None, None),
             ("Detach Selected Faces",      IF.detach_faces_icon,        self._edit_detach,             'detach_btn',      False),
             ("Selection to New Model",     IF.new_icon,                self._edit_selection_to_model, 'sel_model_btn',   False),
-            ("Save Selection as COL...",   IF.export_icon,             self._edit_selection_to_file,  'sel_file_btn',    False),
+            ("Save Selection as COL...",   IF.save_selection_icon,             self._edit_selection_to_file,  'sel_file_btn',    False),
             ("Delete Selected Faces",      IF.delete_face_icon,             self._edit_delete_faces,       'del_faces_btn',   False),
             ("Weld Selected Vertices",     IF.converge_to_center_icon, self._edit_weld,               'weld_btn',        False),
             ("Vertex Position...",         IF.vertex_position_icon,             self._edit_vertex_position,    'vert_pos_btn',    False),
@@ -1320,12 +1320,12 @@ class COLSetupUIMixin: #vers 1
             ("Fill Hole",                  IF.fill_icon,               self._edit_fill_hole,          'fill_hole_btn',   False),
             ("Optimise Mesh...",           IF.filter_icon,             self._edit_optimise,           'optimise_btn',    False),
             (None, None, None, None, None),
-            ("Box to Mesh",                IF.box_icon,                self._edit_box_to_mesh,        'box_mesh_btn',    False),
-            ("Sphere to Mesh",             IF.sphere_icon,             self._edit_sphere_to_mesh,     'sphere_mesh_btn', False),
-            ("Faces to Box",               IF.mesh_icon,               self._edit_faces_to_box,       'faces_box_btn',   False),
+            ("Box to Mesh",                IF.box_to_mesh_icon,                self._edit_box_to_mesh,        'box_mesh_btn',    False),
+            ("Sphere to Mesh",             IF.sphere_to_mesh_icon,             self._edit_sphere_to_mesh,     'sphere_mesh_btn', False),
+            ("Faces to Box",               IF.faces_to_box_icon,               self._edit_faces_to_box,       'faces_box_btn',   False),
             ("Faces to Sphere",            IF.shading_sphere_icon,     self._edit_faces_to_sphere,    'faces_sphere_btn', False),
             (None, None, None, None, None),
-            ("Merge COL Files...",         IF.import_icon,             self._merge_col_files,         'merge_btn',       False)]:
+            ("Merge COL Files...",         IF.merge_files_icon,             self._merge_col_files,         'merge_btn',       False)]:
             if name is None:
                 tb_edit.addSeparator()
                 continue
