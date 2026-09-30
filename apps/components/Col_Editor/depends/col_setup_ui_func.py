@@ -1293,7 +1293,7 @@ class COLSetupUIMixin: #vers 1
         tb_shadow.addWidget(self.info_format)
         _act(tb_shadow, "View Shadow Mesh",   self.icon_factory.view_icon,
              self._show_shadow_mesh,    enabled=False, attr='show_shadow_btn')
-        _act(tb_shadow, "Create Shadow Mesh", self.icon_factory.add_icon,
+        _act(tb_shadow, "Create Shadow Mesh", self.icon_factory.create_shadow_icon,
              self.shadow_dialog,        enabled=False, attr='create_shadow_btn')
         _act(tb_shadow, "Remove Shadow Mesh", self.icon_factory.remove_shadow_icon,
              self._remove_shadow,       enabled=False, attr='remove_shadow_btn')
