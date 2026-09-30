@@ -1016,9 +1016,11 @@ class TXDUIMixin: #vers 1
         if hasattr(self, 'preview_widget') and self.preview_widget:
             self.preview_widget.pan(dx, dy)
 
-    def _pick_background_color(self): #vers 1
+    def _pick_background_color(self): #vers 2
         """Open color picker for background"""
-        color = QColorDialog.getColor(self.preview_widget.bg_color, self, "Pick Background Color")
+        pw = self.preview_widget
+        start = pw.bg_color if pw.bg_color is not None else pw._get_ui_color('viewport_bg')
+        color = QColorDialog.getColor(start, self, "Pick Background Color")
         if color.isValid():
             self.preview_widget.set_background_color(color)
 
