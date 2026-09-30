@@ -1387,7 +1387,7 @@ class COL3DViewport(QWidget): #vers 2
                 ("Set Position...",         IF.bounds_icon,             ws._edit_vertex_position),
                 ("Create Face",             IF.create_face_icon,        ws._edit_add_face),
                 ("Weld",                    IF.converge_to_center_icon, ws._edit_weld),
-                ("Delete  [Del]",           IF.delete_icon,             ws._edit_delete_vertices),
+                ("Delete  [Del]",           IF.delete_vertex_icon,             ws._edit_delete_vertices),
                 ("Mirror...",               IF.flip_horz_icon,          ws._edit_mirror),
                 ("Select Faces Inside",     IF.poly_select_icon,        ws._edit_verts_to_faces)]:
             if label is None:

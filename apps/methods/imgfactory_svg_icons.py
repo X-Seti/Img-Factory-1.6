@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 23
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 24
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -31,6 +31,7 @@ from PyQt6.QtCore import Qt
 # create_face_icon
 # database_icon
 # delete_icon
+# delete_vertex_icon
 # edit_icon
 # export_icon
 # file_icon
@@ -3463,6 +3464,19 @@ class SVGIconFactory: #vers 8
             <polygon points="12,4 20,19 4,19" fill="none" stroke="currentColor"
                      stroke-width="1.5" stroke-dasharray="2 2" stroke-linecap="round"/>
             <circle cx="12" cy="4" r="2.6" fill="#e03030"/>
+            <circle cx="20" cy="19" r="2.6" fill="#e03030"/>
+            <circle cx="4" cy="19" r="2.6" fill="#e03030"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def delete_vertex_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Delete vertex - three vertices, top one hollow and crossed out"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="12,6.5 20,19 4,19" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-dasharray="2 2" stroke-linecap="round"/>
+            <circle cx="12" cy="6.5" r="3.2" fill="none" stroke="#e03030" stroke-width="1.5"/>
+            <line x1="8" y1="2.5" x2="16" y2="10.5" stroke="#e03030" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="16" y1="2.5" x2="8" y2="10.5" stroke="#e03030" stroke-width="1.8" stroke-linecap="round"/>
             <circle cx="20" cy="19" r="2.6" fill="#e03030"/>
             <circle cx="4" cy="19" r="2.6" fill="#e03030"/>
         </svg>''', size, color)
