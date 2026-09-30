@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_dialogs.py - Version: 3
+#this belongs in apps/methods/txd_dialogs.py - Version: 4
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD dialogs
 
 """
@@ -1726,7 +1726,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         self.setMouseTracking(True)
 
 
-    def setup_ui(self): #vers 7
+    def setup_ui(self): #vers 8
         """Setup modern UI - Now includes reflection maps"""
         from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                     QPushButton, QGroupBox, QSplitter, QFrame)
@@ -1747,7 +1747,8 @@ class BumpmapManagerWindow(QWidget): #vers 1
         content_layout.setSpacing(5)
 
         # Create splitter for panels
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        from apps.methods.grip_splitter import GripSplitter
+        splitter = GripSplitter(Qt.Orientation.Horizontal)
 
         # Left: Texture info and preview
         left_panel = self._create_left_panel()

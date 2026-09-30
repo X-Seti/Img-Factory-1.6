@@ -5620,7 +5620,7 @@ class TXDLogicMixin: #vers 1
 
         dialog.exec()
 
-    def _open_paint_editor(self): #vers 4
+    def _open_paint_editor(self): #vers 5
         """Open DP5 Workshop paint editor for the selected texture."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
             QMessageBox.warning(self, "No Texture",
@@ -5645,15 +5645,9 @@ class TXDLogicMixin: #vers 1
             workshop = DP5Workshop(dlg, None)
             workshop.setWindowFlags(Qt.WindowType.Widget)
 
-            # Pre-load the texture into the canvas
-            workshop._canvas_width  = w
-            workshop._canvas_height = h
-            if workshop.dp5_canvas:
-                workshop.dp5_canvas.tex_w = w
-                workshop.dp5_canvas.tex_h = h
-                workshop.dp5_canvas.rgba  = rgba
-                workshop.dp5_canvas.update()
-                workshop._set_zoom(max(0.05, min(4, 512 / max(w, h, 1))))
+            # Load the texture through DP5's own loader (size, palette, bitmap list)
+            workshop._load_rgba(rgba, w, h, tex.get('name', 'texture'))
+            workshop._set_zoom(max(0.05, min(4, 512 / max(w, h, 1))))
 
             lay.addWidget(workshop)
 

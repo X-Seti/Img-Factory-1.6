@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 7
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 8
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -24,6 +24,8 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 # _enable_name_edit
 # _filter_txd_list
 # _focus_search
+# _gamepad_saved
+# _gamepad_step
 # _get_icon_color
 # get_menu_title
 # _get_ui_color
@@ -50,6 +52,7 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 # _show_txd_search
 # switch_texture_view
 # _toggle_checkerboard
+# _toggle_gamepad
 # _toolbar_context_menu
 # _update_all_buttons
 # _update_status_indicators
@@ -621,7 +624,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 5
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 6
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -741,6 +744,10 @@ class TXDUIMixin: #vers 1
              self._pick_background_color)
         _act(tb_nav, "Resize Texture",  self.icon_factory._resize_icon,
              self._resize_texture, attr='resize_texture_btn')
+        tb_nav.addSeparator()
+        _act(tb_nav, "Game Controller (PS5)", self.icon_factory.controller_icon,
+             self._toggle_gamepad, checkable=True, attr='gamepad_btn')
+        self.gamepad_btn.setChecked(self._gamepad_saved())
 
         #    Ribbon 3: Effects                                              
         tb_fx = _tb("Effects", Qt.ToolBarArea.RightToolBarArea)
@@ -1350,6 +1357,76 @@ class TXDUIMixin: #vers 1
             btn = getattr(self, attr, None)
             if btn is not None:
                 btn.setEnabled(enabled)
+
+    def _gamepad_saved(self): #vers 1
+        """Saved controller on/off from txd_workshop.json."""
+        import json
+        try:
+            return bool(json.loads(self._ribbon_config_path().read_text()).get('gamepad_enabled'))
+        except (OSError, ValueError):
+            return False
+
+    def _toggle_gamepad(self, on): #vers 1
+        """Start or stop the PS5 / game controller; remembered in txd_workshop.json."""
+        import json
+        pad = getattr(self, '_gamepad', None)
+        if on and pad is None:
+            from apps.methods.gamepad_input import GamepadPoller
+            pad = GamepadPoller(self)
+            pad.connected.connect(lambda n: self._set_status(
+                f"Controller connected: {n}" if n else "Controller disconnected"))
+            try:
+                pad.start()
+            except ImportError:
+                QMessageBox.warning(self, "Game Controller",
+                                    "Controller support needs pygame 2:\n\npip install pygame")
+                self.gamepad_btn.setChecked(False)
+                return
+            pad.state.connect(self._gamepad_step)
+            self._gamepad = pad
+            self._pad_zoom_t = 0.0
+            self._set_status("Controller on: left stick pan, L2/R2 zoom, D-pad texture")
+        elif not on and pad is not None:
+            pad.stop()
+            self._gamepad = None
+        path = self._ribbon_config_path()
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            data = {}
+        data['gamepad_enabled'] = bool(on and getattr(self, '_gamepad', None) is not None)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2))
+
+    def _gamepad_step(self, st): #vers 1
+        """Controller: pan, zoom, pick texture, reset, flip, rotate, view mode, tabs."""
+        pw = self.preview_widget
+        dt = st['dt']
+        if st['lx'] or st['ly']:
+            pw.pan(int(-st['lx'] * 600 * dt), int(-st['ly'] * 600 * dt))
+        zoom = st['rt'] - st['lt'] - st['ry']
+        self._pad_zoom_t = getattr(self, '_pad_zoom_t', 0.0) + dt
+        if abs(zoom) > 0.2 and self._pad_zoom_t >= 0.15:
+            self._pad_zoom_t = 0.0
+            pw.zoom_in() if zoom > 0 else pw.zoom_out()
+        pressed = st['pressed']
+        rows = self.texture_table.rowCount()
+        if rows and ('up' in pressed or 'down' in pressed):
+            row = self.texture_table.currentRow()
+            row = (row + (1 if 'down' in pressed else -1)) % rows if row >= 0 else 0
+            self.texture_table.selectRow(row)
+        if 'a' in pressed and rows:
+            self.texture_table.selectRow(max(0, self.texture_table.currentRow()))
+        if 'b' in pressed:
+            pw.reset_view()
+        if self.selected_texture:
+            if 'x' in pressed:
+                self._flip_horizontal()
+            if 'y' in pressed:
+                self.switch_texture_view()
+        if ('l1' in pressed or 'r1' in pressed) and self.txd_tabs.count() > 1:
+            step = 1 if 'r1' in pressed else -1
+            self.txd_tabs.setCurrentIndex((self.txd_tabs.currentIndex() + step) % self.txd_tabs.count())
 
     def switch_texture_view(self): #vers 5
         """Cycle through view modes with [Inv] enabled for Alpha AND Overlay"""

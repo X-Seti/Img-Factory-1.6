@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 95
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 96
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -6199,6 +6199,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # with any other, or collapsed via double-clicking its title bar.
         from PyQt6.QtWidgets import QDockWidget, QMainWindow
         outer_mw = QMainWindow()
+        from apps.methods.grip_splitter import GripDockSeparators
+        self._grip_docks = GripDockSeparators(outer_mw)    # ribbon grip on dock separators
         outer_mw.setWindowFlags(Qt.WindowType.Widget)
         outer_mw.setDockOptions(
             QMainWindow.DockOption.AllowNestedDocks |
@@ -7414,7 +7416,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    def _open_ribbon_manager(self): #vers 2
+    def _open_ribbon_manager(self): #vers 3
         """Ribbon Manager dialog - two-pane layout matching Model
         Workshop's richer style: left pane lists ribbons (with an icon
         preview of their first tool), right pane shows the selected
@@ -7474,7 +7476,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         size_row.addWidget(size_label)
         outer.addLayout(size_row)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        from apps.methods.grip_splitter import GripSplitter
+        splitter = GripSplitter(Qt.Orientation.Horizontal)
         outer.addWidget(splitter, 1)
 
         left = QWidget()

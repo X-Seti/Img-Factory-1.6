@@ -1,4 +1,4 @@
-#this belongs in apps/methods/grip_splitter.py - Version: 2
+#this belongs in apps/methods/grip_splitter.py - Version: 3
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - Grip Splitter
 
 """
@@ -12,6 +12,11 @@ plus saved splitter sizes for workshops.
 # __init__
 # createHandle
 
+##class GripDockSeparators: -
+# eventFilter
+# _hook
+# __init__
+
 ##class GripSplitterHandle: -
 # paintEvent
 # sizeHint
@@ -24,9 +29,51 @@ plus saved splitter sizes for workshops.
 
 import json
 
-from PyQt6.QtCore import Qt, QSize, QTimer
+from PyQt6.QtCore import QEvent, QObject, Qt, QSize, QTimer
 from PyQt6.QtGui import QPainter
-from PyQt6.QtWidgets import QSplitter, QSplitterHandle, QStyle, QStyleOption
+from PyQt6.QtWidgets import QSplitter, QSplitterHandle, QStyle, QStyleOption, QWidget
+
+
+class GripDockSeparators(QObject): #vers 1
+    """Paint the ribbon grip on a QMainWindow's dock separators."""
+
+    _SEP = 'qt_qmainwindow_extended_splitter'
+
+    def __init__(self, main_window): #vers 1
+        super().__init__(main_window)
+        self._mw = main_window
+        main_window.setStyleSheet(main_window.styleSheet() +
+                                  " QMainWindow::separator { width: 8px; height: 8px; }")
+        main_window.installEventFilter(self)
+        for child in main_window.children():
+            self._hook(child)
+
+    def _hook(self, w): #vers 1
+        """Watch paint events of one separator widget."""
+        if isinstance(w, QWidget) and w.objectName() == self._SEP:
+            w.removeEventFilter(self)
+            w.installEventFilter(self)
+
+    def eventFilter(self, obj, event): #vers 1
+        """Hook new separators; draw the grip on separator paint."""
+        if obj is self._mw:
+            if event.type() == QEvent.Type.ChildPolished:
+                self._hook(event.child())
+            return False
+        if event.type() == QEvent.Type.Paint:
+            opt = QStyleOption()
+            opt.initFrom(obj)
+            r = obj.rect()
+            if r.height() > r.width():      # vertical bar between left/right docks
+                opt.rect = r.adjusted(0, r.height() // 2 - 20, 0, -(r.height() // 2 - 20))
+            else:
+                opt.rect = r.adjusted(r.width() // 2 - 20, 0, -(r.width() // 2 - 20), 0)
+                opt.state |= QStyle.StateFlag.State_Horizontal
+            p = QPainter(obj)
+            obj.style().drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorToolBarHandle, opt, p, obj)
+            p.end()
+            return True
+        return False
 
 
 class GripSplitterHandle(QSplitterHandle): #vers 1

@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 202
+#this belongs in root /ChangeLog.md - Version: 203
+
+## Sep 30 2026 - TXD controller, grip splitters, DP5 docks, Build 431.105
+- TXD game controller (Navigation ribbon toggle, saved): left stick pan, L2/R2 zoom, D-pad texture, Circle reset, Square flip, Triangle view, L1/R1 tab.
+- TXD Paint loads texture via DP5 _load_rgba (size, palette, bitmap list).
+- Grip splitters: bumpmap window, DP5 ribbon manager, SVG icon browser; DP5 dock separators show the grip (GripDockSeparators).
 
 ## Sep 30 2026 - TXD audit: dead code, bugs, COL features, Build 431.105
 - Removed 45 dead TXD methods/aliases/stubs; hotkeys wired directly; Help F1 opens TXD info.

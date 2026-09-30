@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/svg_icon_browser.py - Version: 6
+#this belongs in apps/components/DP5_Workshop/svg_icon_browser.py - Version: 7
 # X-Seti - April26 2026 - IMG Factory 1.6 - SVG Icon Browser Panel
 """
 SVG Icon Browser — floating panel integrated with DP5 canvas.
@@ -678,7 +678,8 @@ class SVGIconBrowser(QWidget):
             hdr.setWordWrap(True)
             root.addWidget(hdr)
 
-            splitter = QSplitter(Qt.Orientation.Horizontal)
+            from apps.methods.grip_splitter import GripSplitter
+            splitter = GripSplitter(Qt.Orientation.Horizontal)
 
             # Left — old method (read-only, highlighted)
             left = QWidget()
