@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 200
+#this belongs in root /ChangeLog.md - Version: 201
+
+## Sep 30 2026 - TXD App_name tidy, Build 431.105
+- TXD titles/messages use App_name (one definition, txd_ui_func); build 39; empty section markers removed; error message f-strings mended.
 
 ## Sep 30 2026 - TXD Workshop split, shared ribbon/texture code, Build 431.105
 - TXD Workshop split: depends/txd_win_func, txd_ui_func, txd_logic_func mixins; main keeps init, settings, docking, help, theme, tabs.

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 1
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 2
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -72,7 +72,7 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.txd_dialogs import ZoomablePreview
 
 App_name = "Txd Workshop"
-App_build = "13"
+App_build = "39"
 DEBUG_STANDALONE = False
 
 

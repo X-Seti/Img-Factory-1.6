@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 38
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 39
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -174,7 +174,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         self.overlay_table = None
         self.overlay_tab_index = -1
 
-        self.setWindowTitle("TXD Workshop: No File")
+        self.setWindowTitle(App_name +": No File")
         self.resize(1400, 800)
         self.use_system_titlebar = False
         self.window_always_on_top = False
@@ -218,12 +218,6 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
             print(App_name + " initialized")
 
 
-    #    ToolMenuMixin implementation                                      
-
-
-# - Panel Creation
-
-
 # - Settings Reusable
 
     def _show_workshop_settings(self): #vers 5
@@ -236,7 +230,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         from PyQt6.QtGui import QFont
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("TXD Workshop Settings")
+        dialog.setWindowTitle(App_name +" Settings")
         dialog.setMinimumWidth(650)
         dialog.setMinimumHeight(550)
 
@@ -903,30 +897,9 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
             self.show()
 
 
-# - Window functionality
-
-
-# - From the fixed gui - move, drag
-
-
-    # mousePressEvent with this logic:
-
-
-# - Marker 3
-
-
-# - Panel Setup
-
-
     def _ribbon_config_path(self): #vers 1
         """Ribbon layout, presets and custom icons file."""
         return get_user_config_dir() / 'txd_workshop.json'
-
-
-# - Rest of the logic for the panels
-
-
-# - Marker 5
 
 
     def _toggle_tearoff(self): #vers 2
@@ -947,9 +920,6 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
             img_debugger.error(f"Error toggling tear-off: {str(e)}")
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Tear-off Error", f"Could not toggle tear-off state:\n{str(e)}")
-
-
-# - Marker 6
 
 
     def _launch_theme_settings(self): #vers 2
@@ -996,7 +966,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         from PyQt6.QtGui import QKeySequence
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("TXD Workshop Settings")
+        dialog.setWindowTitle(App_name + " Settings")
         dialog.setMinimumWidth(700)
         dialog.setMinimumHeight(600)
 
@@ -1051,7 +1021,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         status_group = QGroupBox("Status Bar")
         status_layout = QVBoxLayout()
 
-        show_status_bar_check = QCheckBox("Show TXD Workshop status bar")
+        show_status_bar_check = QCheckBox("Show " + App_name + " status bar")
         show_status_bar_check.setChecked(getattr(self, 'show_status_bar', True))
         show_status_bar_check.setToolTip(
             "The bottom row showing texture count, selection, and size")
@@ -1623,45 +1593,9 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
     # icon_factory. Address in a future pass.
 
 
-# - Marker 7
-
-
-#------ TXD functions
-
-
-    #    IFF ILBM writer (24-bit true colour)                             
-
-
-#------ Save functions
-
-
-    # Update the main save_txd_file method to use version selector:
-
-
-#------ Rebuild functions
-
-
-    # Update _decompress_uncompressed method:
-
-
-    #Left side vertical panel
-
-
     #    TXD method aliases and stubs (Build 131)                      
     def show_help(self, *a, **kw): pass  #vers 1
     def show_settings_dialog(self, *a, **kw): pass  #vers 1
-
-
-    #    Texture Tools                                                          
-
-
-#------ Search functions
-
-
-#------ Tramsform functions
-
-
-#------ Tabbing Functions
 
 
     def _close_txd_tab(self, index): #vers 1
@@ -1705,7 +1639,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
         from PyQt6.QtCore import Qt
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("TXD Workshop Settings")
+        dialog.setWindowTitle(App_name + " Settings")
         dialog.setMinimumWidth(600)
         dialog.setMinimumHeight(500)
 
@@ -1852,7 +1786,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, T
 
 
 
-def open_txd_workshop(main_window, img_path=None): #vers 5
+def open_txd_workshop(main_window, img_path=None): #vers 6
     """Open TXD Workshop - embedded in tab if main_window has tab widget, standalone otherwise"""
     try:
         from PyQt6.QtWidgets import QVBoxLayout, QWidget
@@ -1902,7 +1836,7 @@ def open_txd_workshop(main_window, img_path=None): #vers 5
                 if fp and os.path.isfile(fp):
                     workshop.load_from_img_archive(fp)
 
-        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "TXD Workshop"
+        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else App_name
         # Strip GTA streaming suffix (e.g. barracks_hli9ksta -> barracks)
         import re as _re
         tab_label = _re.sub(r'_[a-z0-9]{6,12}$', '', tab_label)
@@ -1921,9 +1855,9 @@ def open_txd_workshop(main_window, img_path=None): #vers 5
 
     except Exception as e:
         if main_window:
-            QMessageBox.critical(main_window, "Error", f"Failed to open TXD Workshop: {str(e)}")
+            QMessageBox.critical(main_window, "Error", f"Failed to open {App_name}: {str(e)}")
         else:
-            print(f"Failed to open TXD Workshop: {str(e)}")
+            print(f"Failed to open {App_name}: {str(e)}")
         return None
 
 
@@ -1932,16 +1866,16 @@ if __name__ == "__main__":
     import sys
     import traceback
 
-    print("Starting TXD Workshop...")
+    print("Starting " + App_name + "...")
 
     try:
         app = QApplication(sys.argv)
         print("QApplication created")
 
         workshop = TXDWorkshop()
-        print("TXDWorkshop instance created")
+        print(App_name + " instance created")
 
-        workshop.setWindowTitle("TXD Workshop - Standalone")
+        workshop.setWindowTitle(App_name + " - Standalone")
         workshop.resize(1200, 800)
         workshop.show()
         print("Window shown, entering event loop")
