@@ -1471,7 +1471,7 @@ class COL3DViewport(QWidget): #vers 2
                     ("Detach",               SVGIconFactory.poly_select_icon,    ws._edit_detach),
                     ("To New Model...",      SVGIconFactory.new_icon,            ws._edit_selection_to_model),
                     ("Save as COL...",       SVGIconFactory.export_icon,         ws._edit_selection_to_file),
-                    ("Delete",               SVGIconFactory.delete_icon,         ws._edit_delete_faces),
+                    ("Delete",               SVGIconFactory.delete_face_icon,    ws._edit_delete_faces),
                     ("Fill Hole",            SVGIconFactory.fill_icon,           ws._edit_fill_hole),
                     ("To Box",               SVGIconFactory.mesh_icon,           ws._edit_faces_to_box),
                     ("To Sphere",            SVGIconFactory.shading_sphere_icon, ws._edit_faces_to_sphere),

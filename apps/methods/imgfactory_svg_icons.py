@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 24
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 25
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -30,6 +30,7 @@ from PyQt6.QtCore import Qt
 # copy_icon
 # create_face_icon
 # database_icon
+# delete_face_icon
 # delete_icon
 # delete_vertex_icon
 # edit_icon
@@ -3466,6 +3467,17 @@ class SVGIconFactory: #vers 8
             <circle cx="12" cy="4" r="2.6" fill="#e03030"/>
             <circle cx="20" cy="19" r="2.6" fill="#e03030"/>
             <circle cx="4" cy="19" r="2.6" fill="#e03030"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def delete_face_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Delete face - two solid triangles, the third hollow"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="1,19 6.2,6.2 10.6,19" fill="currentColor" opacity="0.85"/>
+            <polygon points="8,5 17,5 12.5,16.5" fill="currentColor" opacity="0.85"/>
+            <line x1="7" y1="5.6" x2="11.6" y2="18" stroke="#e03030" stroke-width="1.2"/>
+            <polygon points="13.5,19 18.2,7.5 23,19" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-linejoin="round"/>
         </svg>''', size, color)
 
     @staticmethod

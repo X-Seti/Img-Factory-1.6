@@ -1310,7 +1310,7 @@ class COLSetupUIMixin: #vers 1
             ("Detach Selected Faces",      IF.poly_select_icon,        self._edit_detach,             'detach_btn',      False),
             ("Selection to New Model",     IF.new_icon,                self._edit_selection_to_model, 'sel_model_btn',   False),
             ("Save Selection as COL...",   IF.export_icon,             self._edit_selection_to_file,  'sel_file_btn',    False),
-            ("Delete Selected Faces",      IF.delete_icon,             self._edit_delete_faces,       'del_faces_btn',   False),
+            ("Delete Selected Faces",      IF.delete_face_icon,             self._edit_delete_faces,       'del_faces_btn',   False),
             ("Weld Selected Vertices",     IF.converge_to_center_icon, self._edit_weld,               'weld_btn',        False),
             ("Vertex Position...",         IF.bounds_icon,             self._edit_vertex_position,    'vert_pos_btn',    False),
             ("Create Face from 3 Vertices", IF.create_face_icon,               self._edit_add_face,           'add_face_btn',    False),
