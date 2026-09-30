@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 32
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 33
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -67,6 +67,7 @@ from PyQt6.QtCore import Qt
 # saveas_icon
 # screenshot_icon
 # search_icon
+# select_inside_icon
 # split_faces_icon
 # svg_edit_icon
 # settings_icon
@@ -3566,6 +3567,17 @@ class SVGIconFactory: #vers 8
             <path d="M11.4,6.5 L8.5,6.5 C6,6 3,5 1.5,2 C2,5.5 4,8 6.5,8.8 L2.5,10.2 L6.2,11.5 C7,14 7.5,16 7.8,18.5 C8,20.8 10,21.8 11.4,21.8 Z" transform="matrix(-1,0,0,1,24,0)" fill="#e03030"/>
             <line x1="12" y1="1" x2="12" y2="23" stroke="currentColor" stroke-width="0.8"
                   stroke-dasharray="1.5 1.2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def select_inside_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Select faces inside - triangles in a dotted box, one red"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="21" height="21" rx="1.5" fill="none" stroke="currentColor"
+                  stroke-width="1.4" stroke-dasharray="2.2 1.8"/>
+            <polygon points="7,5 11,12 3,12" fill="currentColor" opacity="0.8"/>
+            <polygon points="17,5 21,12 13,12" fill="currentColor" opacity="0.8"/>
+            <polygon points="12,12.5 16.5,20 7.5,20" fill="#e03030"/>
         </svg>''', size, color)
 
     @staticmethod

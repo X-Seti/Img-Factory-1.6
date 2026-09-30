@@ -1389,7 +1389,7 @@ class COL3DViewport(QWidget): #vers 2
                 ("Weld",                    IF.converge_to_center_icon, ws._edit_weld),
                 ("Delete  [Del]",           IF.delete_vertex_icon,             ws._edit_delete_vertices),
                 ("Mirror...",               IF.mirror_icon,             ws._edit_mirror),
-                ("Select Faces Inside",     IF.poly_select_icon,        ws._edit_verts_to_faces)]:
+                ("Select Faces Inside",     IF.select_inside_icon,        ws._edit_verts_to_faces)]:
             if label is None:
                 menu.addSeparator(); continue
             menu.addAction(icon(20, ic), label, fn)
