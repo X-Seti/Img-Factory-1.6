@@ -1384,7 +1384,7 @@ class COL3DViewport(QWidget): #vers 2
                 ("Select None",             IF.close_icon,              ws._edit_verts_none),
                 ("Invert Selection",        get_select_inverse_icon,    ws._edit_verts_invert),
                 (None, None, None),
-                ("Set Position...",         IF.bounds_icon,             ws._edit_vertex_position),
+                ("Set Position...",         IF.vertex_position_icon,             ws._edit_vertex_position),
                 ("Create Face",             IF.create_face_icon,        ws._edit_add_face),
                 ("Weld",                    IF.converge_to_center_icon, ws._edit_weld),
                 ("Delete  [Del]",           IF.delete_vertex_icon,             ws._edit_delete_vertices),

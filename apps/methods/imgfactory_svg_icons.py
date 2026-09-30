@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 28
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 29
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -74,6 +74,7 @@ from PyQt6.QtCore import Qt
 # uncompress_icon
 # undo_icon
 # redo_icon
+# vertex_position_icon
 # view_icon
 # volume_down_icon
 # volume_up_icon
@@ -3513,6 +3514,23 @@ class SVGIconFactory: #vers 8
             <line x1="16" y1="2.5" x2="8" y2="10.5" stroke="#e03030" stroke-width="1.8" stroke-linecap="round"/>
             <circle cx="20" cy="19" r="2.6" fill="#e03030"/>
             <circle cx="4" cy="19" r="2.6" fill="#e03030"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def vertex_position_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Vertex position - three vertices, one with X/Y/Z move arrows"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="10,11 20,20 4,20" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-dasharray="2 2" stroke-linecap="round"/>
+            <line x1="10" y1="11" x2="10" y2="1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            <polygon points="10,1.5 11.2,3.8 8.8,3.8" fill="currentColor"/>
+            <line x1="10" y1="11" x2="19.5" y2="11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            <polygon points="19.5,11 17.2,12.2 17.2,9.8" fill="currentColor"/>
+            <line x1="10" y1="11" x2="3" y2="4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            <polygon points="3,4 5.5,4.7 3.7,6.5" fill="currentColor"/>
+            <circle cx="10" cy="11" r="2.6" fill="#e03030"/>
+            <circle cx="20" cy="20" r="2.6" fill="#e03030"/>
+            <circle cx="4" cy="20" r="2.6" fill="#e03030"/>
         </svg>''', size, color)
 
     @staticmethod
