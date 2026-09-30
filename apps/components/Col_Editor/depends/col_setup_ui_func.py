@@ -1316,7 +1316,7 @@ class COLSetupUIMixin: #vers 1
             ("Create Face from 3 Vertices", IF.create_face_icon,               self._edit_add_face,           'add_face_btn',    False),
             ("Delete Selected Vertices",   IF.delete_vertex_icon,             self._edit_delete_vertices,    'del_verts_btn',   False),
             ("Split Selected Faces",       IF.split_faces_icon,        self._edit_split_faces,        'split_faces_btn', False),
-            ("Mirror...",                  IF.flip_horz_icon,          self._edit_mirror,             'mirror_btn',      False),
+            ("Mirror...",                  IF.mirror_icon,             self._edit_mirror,             'mirror_btn',      False),
             ("Fill Hole",                  IF.fill_icon,               self._edit_fill_hole,          'fill_hole_btn',   False),
             ("Optimise Mesh...",           IF.filter_icon,             self._edit_optimise,           'optimise_btn',    False),
             (None, None, None, None, None),
