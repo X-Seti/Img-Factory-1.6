@@ -820,7 +820,7 @@ class COLSetupUIMixin: #vers 1
         br = QHBoxLayout()
         self._surf_list_btns = []
         for lbl, tip, icon, fn in [("Add", "Add surface", self.icon_factory.add_surface_icon, self._surf_add),
-                                   ("Del", "Delete surface", self.icon_factory.delete_icon, self._surf_delete),
+                                   ("Del", "Delete surface", self.icon_factory.delete_surface_icon, self._surf_delete),
                                    ("Dup", "Duplicate surface", self.icon_factory.duplicate_icon, self._surf_dup)]:
             b = QPushButton(lbl); b.setIcon(icon(color=ic)); b.setToolTip(tip)
             b.setFixedHeight(26); b.clicked.connect(fn); br.addWidget(b)

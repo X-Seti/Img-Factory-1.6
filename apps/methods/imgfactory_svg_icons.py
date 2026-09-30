@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 36
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 37
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -35,6 +35,7 @@ from PyQt6.QtCore import Qt
 # database_icon
 # delete_face_icon
 # delete_icon
+# delete_surface_icon
 # delete_vertex_icon
 # detach_faces_icon
 # edit_icon
@@ -3508,6 +3509,19 @@ class SVGIconFactory: #vers 8
             <line x1="17.8" y1="5" x2="12.9" y2="18.5" stroke="#e03030" stroke-width="1.2"/>
             <polygon points="13.5,19 18.2,7.5 23,19" fill="none" stroke="currentColor"
                      stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def delete_surface_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Delete surface - eraser over a dotted green stroke"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="21" height="21" rx="1.5" fill="none" stroke="currentColor"
+                  stroke-width="1.2" stroke-dasharray="2.2 1.8" opacity="0.8"/>
+            <line x1="2" y1="19" x2="22" y2="19" stroke="#30b040" stroke-width="3" stroke-dasharray="2 1.6"/>
+            <g transform="rotate(40 12 17)">
+                <rect x="9" y="3" width="6" height="9" rx="1" fill="#e03030"/>
+                <rect x="9" y="11.5" width="6" height="5.5" rx="1" fill="currentColor" opacity="0.9"/>
+            </g>
         </svg>''', size, color)
 
     @staticmethod
