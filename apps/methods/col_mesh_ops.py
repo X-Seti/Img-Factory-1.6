@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_mesh_ops.py - Version: 2
+#this belongs in apps/methods/col_mesh_ops.py - Version: 3
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Mesh Operations
 
 """
@@ -18,25 +18,31 @@ Face selections are sets of face indices; vertex selections sets of vertex indic
 # _dominant_material
 # _new_face
 # _rot
+# _target_verts
+# add_face
 # box_to_mesh
 # clean_mesh
 # compact_vertices
 # decimate
 # delete_faces
+# delete_vertices
 # detach_faces
 # extract_faces
 # faces_to_box
 # faces_to_sphere
+# faces_of_vertices
 # fill_holes
 # icosphere
 # merge_coplanar
 # merge_models
+# mirror
 # recalc_bounds
 # rotate
 # scale
 # selection_centre
 # selection_vertices
 # sphere_to_mesh
+# split_faces
 # translate
 # weld_vertices
 
@@ -68,11 +74,20 @@ def _all_points(model): #vers 1
     return pts
 
 
-def selection_centre(model, face_ids=None): #vers 1
-    """Centre of the selected faces' vertices, else of the whole model."""
+def _target_verts(model, face_ids, vert_ids): #vers 1
+    """Vertex ids to edit: vert_ids, else faces' vertices, else None (whole model)."""
+    if vert_ids:
+        return {i for i in vert_ids if 0 <= i < len(model.vertices)}
     if face_ids:
-        vs = [model.vertices[i] for i in selection_vertices(model, face_ids)
-              if i < len(model.vertices)]
+        return selection_vertices(model, face_ids)
+    return None
+
+
+def selection_centre(model, face_ids=None, vert_ids=None): #vers 2
+    """Centre of the selected faces/vertices, else of the whole model."""
+    ids = _target_verts(model, face_ids, vert_ids)
+    if ids:
+        vs = [model.vertices[i] for i in ids if i < len(model.vertices)]
         pts = [(v.x, v.y, v.z) for v in vs]
     else:
         pts = _all_points(model)
@@ -82,10 +97,11 @@ def selection_centre(model, face_ids=None): #vers 1
     return (sum(p[0] for p in pts) / n, sum(p[1] for p in pts) / n, sum(p[2] for p in pts) / n)
 
 
-def translate(model, face_ids, dx, dy, dz): #vers 1
-    """Move selected faces' vertices, or the whole model when nothing is selected."""
-    if face_ids:
-        for i in selection_vertices(model, face_ids):
+def translate(model, face_ids, dx, dy, dz, vert_ids=None): #vers 2
+    """Move selected faces/vertices, or the whole model when nothing is selected."""
+    ids = _target_verts(model, face_ids, vert_ids)
+    if ids is not None:
+        for i in ids:
             v = model.vertices[i]
             v.x += dx; v.y += dy; v.z += dz
         return
@@ -110,16 +126,16 @@ def _rot(x, y, z, axis, c, s, pivot):
     return x + px, y + py, z + pz
 
 
-def rotate(model, face_ids, axis, degrees, pivot): #vers 1
+def rotate(model, face_ids, axis, degrees, pivot, vert_ids=None): #vers 2
     """Rotate selected faces (or whole model) about pivot on axis 'X'/'Y'/'Z'.
     Boxes stay axis-aligned: their rotated corners are re-boxed."""
     r = math.radians(degrees)
     c, s = math.cos(r), math.sin(r)
-    ids = selection_vertices(model, face_ids) if face_ids else range(len(model.vertices))
-    for i in ids:
+    ids = _target_verts(model, face_ids, vert_ids)
+    for i in (range(len(model.vertices)) if ids is None else ids):
         v = model.vertices[i]
         v.x, v.y, v.z = _rot(v.x, v.y, v.z, axis, c, s, pivot)
-    if face_ids:
+    if ids is not None:
         return
     for v in model.shadow_vertices:
         v.x, v.y, v.z = _rot(v.x, v.y, v.z, axis, c, s, pivot)
@@ -132,7 +148,7 @@ def rotate(model, face_ids, axis, degrees, pivot): #vers 1
         b.max = Vector3(*(max(p[k] for p in corners) for k in range(3)))
 
 
-def scale(model, face_ids, sx, sy, sz, pivot): #vers 1
+def scale(model, face_ids, sx, sy, sz, pivot, vert_ids=None): #vers 2
     """Scale selected faces (or whole model) about pivot; sphere radius uses the mean factor."""
     px, py, pz = pivot
 
@@ -141,10 +157,10 @@ def scale(model, face_ids, sx, sy, sz, pivot): #vers 1
         p.y = py + (p.y - py) * sy
         p.z = pz + (p.z - pz) * sz
 
-    ids = selection_vertices(model, face_ids) if face_ids else range(len(model.vertices))
-    for i in ids:
+    ids = _target_verts(model, face_ids, vert_ids)
+    for i in (range(len(model.vertices)) if ids is None else ids):
         sc(model.vertices[i])
-    if face_ids:
+    if ids is not None:
         return
     for v in model.shadow_vertices:
         sc(v)
@@ -158,6 +174,61 @@ def scale(model, face_ids, sx, sy, sz, pivot): #vers 1
         hi = Vector3(max(b.min.x, b.max.x), max(b.min.y, b.max.y), max(b.min.z, b.max.z))
         b.min, b.max = lo, hi
 
+
+def delete_vertices(model, vert_ids): #vers 1
+    """Remove vertices and every face using them; returns faces removed."""
+    gone = set(vert_ids)
+    before = len(model.faces)
+    model.faces = [f for f in model.faces if not ({f.a, f.b, f.c} & gone)]
+    compact_vertices(model)
+    return before - len(model.faces)
+
+
+def faces_of_vertices(model, vert_ids): #vers 1
+    """Face ids whose three vertices are all in vert_ids."""
+    vs = set(vert_ids)
+    return {i for i, f in enumerate(model.faces) if {f.a, f.b, f.c} <= vs}
+
+
+def add_face(model, a, b, c): #vers 1
+    """New face a-b-c using the nearest face's surface; returns its id or None."""
+    if len({a, b, c}) < 3 or any(not 0 <= i < len(model.vertices) for i in (a, b, c)):
+        return None
+    near = [f for f in model.faces if {f.a, f.b, f.c} & {a, b, c}] or model.faces
+    if near:
+        model.faces.append(_new_face(a, b, c, _dominant_material(near)))
+    else:
+        model.faces.append(COLFace(a, b, c, 0, 0, 0, 0))
+    return len(model.faces) - 1
+
+
+def mirror(model, face_ids, axes, pivot, vert_ids=None): #vers 1
+    """Mirror selection (or whole model) on axes e.g. 'X', 'XY'; faces re-wound."""
+    sx, sy, sz = [(-1.0 if a in axes else 1.0) for a in 'XYZ']
+    scale(model, face_ids, sx, sy, sz, pivot, vert_ids)
+    if sx * sy * sz < 0:
+        ids = _target_verts(model, face_ids, vert_ids)
+        for f in model.faces:
+            if ids is None or {f.a, f.b, f.c} <= ids:
+                f.b, f.c = f.c, f.b
+
+
+def split_faces(model, face_ids): #vers 1
+    """Add a centre vertex to each face, making three faces; returns new vertex ids."""
+    out = []
+    for fi in sorted(face_ids, reverse=True):
+        if not 0 <= fi < len(model.faces):
+            continue
+        f = model.faces[fi]
+        vs = [model.vertices[i] for i in (f.a, f.b, f.c)]
+        model.vertices.append(COLVertex(sum(v.x for v in vs) / 3, sum(v.y for v in vs) / 3,
+                                        sum(v.z for v in vs) / 3))
+        n = len(model.vertices) - 1
+        a, b, c = f.a, f.b, f.c
+        f.c = n
+        model.faces += [_new_face(b, c, n, f), _new_face(c, a, n, f)]
+        out.append(n)
+    return out
 
 def recalc_bounds(model): #vers 1
     """Rebuild bounds min/max/centre/radius from vertices, spheres and boxes."""

@@ -1,30 +1,41 @@
-#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 2
+#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 3
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Workshop edit tools
 
 """
 COL Workshop edit tools - viewport selection edits: detach, extract, delete,
-weld, fill hole, box/sphere/mesh conversion, optimise, scale, centre, merge files.
+weld, fill hole, box/sphere/mesh conversion, optimise, scale, centre, merge files,
+vertex tools: select, position, create face, split, delete, mirror.
 Geometry maths lives in apps/methods/col_mesh_ops.py.
 """
 
 ##class COLEditMixin: -
 # _ask_copy_or_move
+# _edit_add_face
 # _edit_box_to_mesh
 # _edit_centre_origin
 # _edit_delete_faces
+# _edit_delete_vertices
 # _edit_detach
 # _edit_faces_to_box
 # _edit_faces_to_sphere
 # _edit_fill_hole
 # _edit_gamepad_saved
+# _edit_mirror
 # _edit_optimise
 # _edit_scale_dialog
 # _edit_selection
 # _edit_selection_to_file
 # _edit_selection_to_model
 # _edit_sphere_to_mesh
+# _edit_split_faces
 # _edit_toggle_gamepad
 # _edit_toggle_vertex_mode
+# _edit_vertex_position
+# _edit_verts_all
+# _edit_verts_invert
+# _edit_verts_none
+# _edit_verts_to_faces
+# _vertex_selection
 # _edit_weld
 # _merge_col_files
 # _mesh_edited
@@ -61,13 +72,15 @@ class COLEditMixin: #vers 1
             self.save_btn.setEnabled(True)
         self._set_status(f"{msg} - not saved yet")
 
-    def _edit_selection(self, need_faces=True): #vers 1
-        """(model, index, selected face ids) or None after telling the user why."""
+    def _edit_selection(self, need_faces=True): #vers 2
+        """(model, index, face ids) or None; vertex mode uses faces inside selection."""
         model = self._get_selected_model()
         if model is None:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
             return None
-        faces = set(self.preview_widget._selected_faces)
+        pw = self.preview_widget
+        faces = (ops.faces_of_vertices(model, pw._selected_verts) if pw._select_mode == 'vertex'
+                 else set(pw._selected_faces))
         if need_faces and not faces:
             QMessageBox.information(self, "No Faces Selected",
                                     "Click faces in the viewport first (Ctrl+click adds).")
@@ -96,9 +109,9 @@ class COLEditMixin: #vers 1
         return labels.index(choice) - 1
 
     def _edit_toggle_vertex_mode(self, checked): #vers 1
-        """Viewport vertex selection mode (for weld) on/off."""
+        """Viewport vertex selection mode on/off."""
         self.preview_widget.set_select_mode('vertex' if checked else 'face')
-        self._set_status("Vertex select: click vertices, Ctrl+click adds" if checked
+        self._set_status("Vertex select: click, Ctrl+click adds, drag box selects" if checked
                          else "Face select")
 
     def _edit_detach(self): #vers 1
@@ -239,13 +252,14 @@ class COLEditMixin: #vers 1
         ops.recalc_bounds(model)
         self._mesh_edited(model, f"{len(faces)} face(s) replaced by a sphere")
 
-    def _edit_scale_dialog(self): #vers 1
+    def _edit_scale_dialog(self): #vers 2
         """Scale the selected faces, or the whole model, by X/Y/Z factors."""
         sel = self._edit_selection(need_faces=False)
         if not sel: return
-        model, idx, faces = sel
+        model, idx, _ = sel
+        faces, vs = self.preview_widget._edit_sets()
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Scale {'selected faces' if faces else model.name}")
+        dlg.setWindowTitle(f"Scale {'selection' if faces or vs else model.name}")
         form = QFormLayout(dlg)
         uni = QCheckBox("Uniform")
         uni.setChecked(True)
@@ -272,10 +286,10 @@ class COLEditMixin: #vers 1
             return
         sx, sy, sz = (sp.value() for sp in spins)
         self._push_undo(idx, "Scale")
-        ops.scale(model, faces, sx, sy, sz, ops.selection_centre(model, faces))
+        ops.scale(model, faces, sx, sy, sz, ops.selection_centre(model, faces, vs), vs)
         ops.recalc_bounds(model)
-        self._mesh_edited(model, f"Scaled {'selection' if faces else model.name} by {sx:g}, {sy:g}, {sz:g}",
-                          reselect=not faces)
+        self._mesh_edited(model, f"Scaled {'selection' if faces or vs else model.name} by {sx:g}, {sy:g}, {sz:g}",
+                          reselect=not (faces or vs))
 
     def _edit_centre_origin(self): #vers 1
         """Move the whole model so its bounds centre is at 0,0,0."""
@@ -288,6 +302,137 @@ class COLEditMixin: #vers 1
         ops.translate(model, set(), -c.x, -c.y, -c.z)
         ops.recalc_bounds(model)
         self._mesh_edited(model, f"Centred {model.name} (moved {-c.x:.2f}, {-c.y:.2f}, {-c.z:.2f})")
+
+    def _vertex_selection(self, least=1): #vers 1
+        """(model, index, vertex ids) in vertex mode, else None after a message."""
+        sel = self._edit_selection(need_faces=False)
+        if not sel: return None
+        vs = set(self.preview_widget._selected_verts)
+        if self.preview_widget._select_mode != 'vertex' or len(vs) < least:
+            QMessageBox.information(self, "Vertices",
+                                    f"Turn on Vertex Select Mode and pick {least} or more vertices.")
+            return None
+        return sel[0], sel[1], vs
+
+    def _edit_verts_all(self): #vers 1
+        """Select every vertex of the current model."""
+        pw = self.preview_widget
+        if pw._model is None: return
+        pw._selected_verts = set(range(len(pw._model.vertices)))
+        pw.update()
+
+    def _edit_verts_none(self): #vers 1
+        """Clear the vertex selection."""
+        self.preview_widget._selected_verts = set()
+        self.preview_widget.update()
+
+    def _edit_verts_invert(self): #vers 1
+        """Invert the vertex selection."""
+        pw = self.preview_widget
+        if pw._model is None: return
+        pw._selected_verts = set(range(len(pw._model.vertices))) - pw._selected_verts
+        pw.update()
+
+    def _edit_verts_to_faces(self): #vers 1
+        """Switch to face mode selecting faces inside the vertex selection."""
+        sel = self._vertex_selection()
+        if not sel: return
+        model, _, vs = sel
+        faces = ops.faces_of_vertices(model, vs)
+        self.vertex_mode_btn.setChecked(False)
+        self.preview_widget._selected_faces = faces
+        self.preview_widget.update()
+        self._set_status(f"{len(faces)} face(s) selected")
+
+    def _edit_vertex_position(self): #vers 1
+        """Type X/Y/Z for one vertex, or move a selection (absolute centre or relative)."""
+        sel = self._vertex_selection()
+        if not sel: return
+        model, idx, vs = sel
+        cx, cy, cz = ops.selection_centre(model, vert_ids=vs)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Position of {len(vs)} vertex(es)")
+        form = QFormLayout(dlg)
+        rel = QCheckBox("Relative (move by)")
+        spins = []
+        for axis, val in zip("XYZ", (cx, cy, cz)):
+            sp = QDoubleSpinBox()
+            sp.setRange(-100000.0, 100000.0); sp.setDecimals(4); sp.setSingleStep(0.1); sp.setValue(val)
+            form.addRow(f"{axis}:", sp)
+            spins.append(sp)
+        rel.toggled.connect(lambda on: [sp.setValue(0.0 if on else v)
+                                        for sp, v in zip(spins, (cx, cy, cz))])
+        form.addRow(rel)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        x, y, z = (sp.value() for sp in spins)
+        dx, dy, dz = (x, y, z) if rel.isChecked() else (x - cx, y - cy, z - cz)
+        self._push_undo(idx, "Vertex position")
+        ops.translate(model, set(), dx, dy, dz, vert_ids=vs)
+        ops.recalc_bounds(model)
+        self._mesh_edited(model, f"Moved {len(vs)} vertex(es) by {dx:.3f}, {dy:.3f}, {dz:.3f}", reselect=False)
+
+    def _edit_add_face(self): #vers 1
+        """New face from exactly three selected vertices."""
+        sel = self._vertex_selection(3)
+        if not sel: return
+        model, idx, vs = sel
+        if len(vs) != 3:
+            QMessageBox.information(self, "Create Face", "Select exactly 3 vertices.")
+            return
+        self._push_undo(idx, "Create face")
+        fi = ops.add_face(model, *sorted(vs))
+        self._mesh_edited(model, f"Created face {fi}", reselect=False)
+
+    def _edit_split_faces(self): #vers 1
+        """Add a centre vertex to each selected face (face becomes three)."""
+        sel = self._edit_selection()
+        if not sel: return
+        model, idx, faces = sel
+        self._push_undo(idx, "Split faces")
+        new = ops.split_faces(model, faces)
+        self.preview_widget._selected_faces = set()
+        self._mesh_edited(model, f"Split {len(faces)} face(s), {len(new)} vertex(es) added", reselect=False)
+
+    def _edit_delete_vertices(self): #vers 1
+        """Delete selected vertices and the faces using them."""
+        sel = self._vertex_selection()
+        if not sel: return
+        model, idx, vs = sel
+        self._push_undo(idx, "Delete vertices")
+        gone = ops.delete_vertices(model, vs)
+        ops.recalc_bounds(model)
+        self.preview_widget._selected_verts = set()
+        self._mesh_edited(model, f"Deleted {len(vs)} vertex(es), {gone} face(s) removed", reselect=False)
+
+    def _edit_mirror(self): #vers 1
+        """Mirror the selection (or whole model) on chosen axes."""
+        sel = self._edit_selection(need_faces=False)
+        if not sel: return
+        model, idx, _ = sel
+        faces, vs = self.preview_widget._edit_sets()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Mirror {'selection' if faces or vs else model.name}")
+        form = QFormLayout(dlg)
+        boxes = [QCheckBox(f"{a} axis") for a in "XYZ"]
+        boxes[0].setChecked(True)
+        for b in boxes:
+            form.addRow(b)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        axes = ''.join(a for a, b in zip("XYZ", boxes) if b.isChecked())
+        if not axes: return
+        self._push_undo(idx, "Mirror")
+        ops.mirror(model, faces, axes, ops.selection_centre(model, faces, vs), vs)
+        ops.recalc_bounds(model)
+        self._mesh_edited(model, f"Mirrored {'selection' if faces or vs else model.name} on {axes}",
+                          reselect=not (faces or vs))
 
     def _edit_gamepad_saved(self): #vers 1
         """Saved controller on/off from col_workshop.json."""
