@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 34
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 35
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -13,6 +13,7 @@ from PyQt6.QtCore import Qt
 
 ##Methods list -
 # add_icon
+# add_surface_icon
 # arrow_down_icon
 # arrow_left_icon
 # arrow_right_icon
@@ -3590,6 +3591,21 @@ class SVGIconFactory: #vers 8
             <polygon points="7,5 11,12 3,12" fill="currentColor" opacity="0.8"/>
             <polygon points="17,5 21,12 13,12" fill="currentColor" opacity="0.8"/>
             <polygon points="12,12.5 16.5,20 7.5,20" fill="#e03030"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def add_surface_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Add surface - red brush painting a green stroke in a dotted box"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="21" height="21" rx="1.5" fill="none" stroke="currentColor"
+                  stroke-width="1.2" stroke-dasharray="2.2 1.8" opacity="0.8"/>
+            <path d="M4.5,18.5 C7,14.5 9,19 11.5,15.5 C12.5,14 13,13.5 13.8,13" fill="none"
+                  stroke="#30b040" stroke-width="2.4" stroke-linecap="round"/>
+            <g transform="rotate(45 16.5 10)">
+                <rect x="15.2" y="1.5" width="2.6" height="8" rx="1.2" fill="#e03030"/>
+                <rect x="14.8" y="9.3" width="3.4" height="1.8" fill="#e03030" opacity="0.7"/>
+                <path d="M14.8,11.1 L18.2,11.1 L17.6,14.5 C17.2,15.6 15.8,15.6 15.4,14.5 Z" fill="#e03030"/>
+            </g>
         </svg>''', size, color)
 
     @staticmethod
