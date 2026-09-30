@@ -1307,7 +1307,7 @@ class COLSetupUIMixin: #vers 1
             ("Scale...",                   IF.bounds_icon,             self._edit_scale_dialog,       'scale_btn',       False),
             ("Centre to Origin",           IF.snap_to_center_icon,     self._edit_centre_origin,      'centre_btn',      False),
             (None, None, None, None, None),
-            ("Detach Selected Faces",      IF.poly_select_icon,        self._edit_detach,             'detach_btn',      False),
+            ("Detach Selected Faces",      IF.detach_faces_icon,        self._edit_detach,             'detach_btn',      False),
             ("Selection to New Model",     IF.new_icon,                self._edit_selection_to_model, 'sel_model_btn',   False),
             ("Save Selection as COL...",   IF.export_icon,             self._edit_selection_to_file,  'sel_file_btn',    False),
             ("Delete Selected Faces",      IF.delete_face_icon,             self._edit_delete_faces,       'del_faces_btn',   False),

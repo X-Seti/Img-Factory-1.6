@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 30
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 31
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -34,6 +34,7 @@ from PyQt6.QtCore import Qt
 # delete_face_icon
 # delete_icon
 # delete_vertex_icon
+# detach_faces_icon
 # edit_icon
 # export_icon
 # file_icon
@@ -3544,6 +3545,16 @@ class SVGIconFactory: #vers 8
             <polygon points="16.5,13.4 20.3,20.5 12.7,20.5" fill="currentColor" opacity="0.85"/>
             <polygon points="8.2,13.0 15.8,13.0 12.0,20.1" fill="currentColor" opacity="0.6"/>
             </g>
+        </svg>''', size, color)
+
+    @staticmethod
+    def detach_faces_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Detach faces - red triangle sliding off another, arrow right"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="8,4 15,18 1,18" fill="currentColor" opacity="0.8"/>
+            <polygon points="13,7 19,18.5 7,18.5" fill="#e03030" opacity="0.9"/>
+            <line x1="15" y1="4.5" x2="21" y2="4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <polygon points="23,4.5 19.8,2.4 19.8,6.6" fill="currentColor"/>
         </svg>''', size, color)
 
     @staticmethod

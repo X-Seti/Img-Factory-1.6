@@ -1468,7 +1468,7 @@ class COL3DViewport(QWidget): #vers 2
             menu.addSeparator()
             edit_menu = menu.addMenu(f"Edit {len(self._selected_faces)} selected face(s)")
             for label, icon, fn in [
-                    ("Detach",               SVGIconFactory.poly_select_icon,    ws._edit_detach),
+                    ("Detach",               SVGIconFactory.detach_faces_icon,   ws._edit_detach),
                     ("To New Model...",      SVGIconFactory.new_icon,            ws._edit_selection_to_model),
                     ("Save as COL...",       SVGIconFactory.export_icon,         ws._edit_selection_to_file),
                     ("Delete",               SVGIconFactory.delete_face_icon,    ws._edit_delete_faces),
