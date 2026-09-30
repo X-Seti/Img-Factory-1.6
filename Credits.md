@@ -1,4 +1,4 @@
-#this belongs in root /Credits.md - Version: 1
+#this belongs in root /Credits.md - Version: 2
 # X-Seti - October22 2025 - IMG Factory 1.5 Credits
 
 # IMG Factory 1.5 - Credits
@@ -161,7 +161,7 @@ For issues, feature requests, or contributions:
 
 Special recognition to:
 - The GTA modding community for continued support
-- Steve M. for original COL Editor II research
+- Steve M. for original COL Editor II research; icons/ceii_*.png are its toolbar images (optional ribbon icons)
 - All users providing feedback and testing
 - Contributors to GTA file format documentation
 

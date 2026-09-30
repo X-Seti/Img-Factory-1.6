@@ -1335,6 +1335,42 @@ class COLSetupUIMixin: #vers 1
              checkable=True, attr='gamepad_btn')
         self.gamepad_btn.setChecked(self._edit_gamepad_saved())
 
+        # Mesh tools (CE II set): hide, lock, material select, LOD, shadow copy, clears, bounds
+        tb_mesh = _tb("Mesh", Qt.ToolBarArea.TopToolBarArea)
+        for name, icon, cb, attr, chk in [
+            ("Hide Selected Faces",        IF.hide_faces_icon,         self._edit_hide_selected,      'hide_faces_btn',  False),
+            ("Unhide All Faces",           IF.unhide_faces_icon,       self._edit_unhide_all,         'unhide_btn',      False),
+            ("Selection Lock [Space]",     IF.selection_lock_icon,     self._edit_toggle_lock,        'lock_sel_btn',    True),
+            ("Select by Material",         IF.select_material_icon,    self._edit_select_material,    'sel_mat_btn',     False),
+            ("Circle Region Select",       IF.region_circle_icon,      self._edit_region_circle,      'region_circle_btn', True),
+            ("Window Face Select",         IF.region_window_icon,      self._edit_region_window,      'region_window_btn', True),
+            (None, None, None, None, None),
+            ("Copy as LOD",                IF.copy_lod_icon,           self._edit_copy_as_lod,        'copy_lod_btn',    False),
+            ("Mesh from Shadow",           IF.mesh_from_shadow_icon,   self._edit_mesh_from_shadow,   'mesh_shadow_btn', False),
+            ("Clear Mesh/Spheres/Boxes...", IF.clear_parts_icon,       self._edit_clear_parts,        'clear_parts_btn', False),
+            ("Delete Isolated Vertices",   IF.isolated_verts_icon,     self._edit_delete_isolated,    'isolated_btn',    False),
+            ("Optimum Bounds",             IF.optimum_bounds_icon,     self._edit_optimum_bounds,     'opt_bounds_btn',  False),
+            (None, None, None, None, None),
+            ("Generate Face Groups...",    IF.face_groups_icon,        self._edit_face_groups,        'face_groups_btn', False),
+            ("Clear Face Groups",          IF.clear_face_groups_icon,  self._edit_clear_face_groups,  'clear_fg_btn',    False),
+            ("Show Face Groups",           IF.show_face_groups_icon,   self._edit_show_face_groups,   'show_fg_btn',     True),
+            ("Generate Lighting...",       IF.lighting_icon,           self._edit_lighting,           'lighting_btn',    False),
+            ("Light View",                 IF.light_view_icon,         self._edit_light_view,         'light_view_btn',  True),
+            ("VC to SA Materials",         IF.vc_to_sa_icon,           self._edit_vc_to_sa,           'vc_sa_btn',       False),
+            (None, None, None, None, None),
+            ("Duplicate Check",            IF.duplicate_check_icon,    self._edit_duplicate_check,    'dup_check_btn',   False),
+            ("Batch Conversion...",        IF.batch_convert_icon,      self._edit_batch_convert,      'batch_btn',       False),
+            (None, None, None, None, None),
+            ("Import CST/3DS/X/DFF...",    IF.import_exchange_icon,    self._edit_import_exchange,    'import_ex_btn',   False),
+            ("Export CST...",              IF.export_cst_icon,         self._edit_export_cst,         'export_cst_btn',  False),
+            ("Attach to DFF...",           IF.attach_dff_icon,         self._edit_attach_to_dff,      'attach_dff_btn',  False)]:
+            if name is None:
+                tb_mesh.addSeparator()
+                continue
+            _act(tb_mesh, name, icon, cb, checkable=chk, enabled=False, attr=attr)
+        self.batch_btn.setEnabled(True)        # works without an open file
+        self._tb_mesh = tb_mesh
+
         # Store toolbar refs
         self._tb_transform = tb_xform
         self._tb_nav       = tb_nav
@@ -1936,7 +1972,7 @@ class COLSetupUIMixin: #vers 1
         self.info_name.selectAll()
         self.info_name.setFocus()
 
-    def _set_col_buttons_enabled(self, enabled: bool): #vers 3
+    def _set_col_buttons_enabled(self, enabled: bool): #vers 4
         """Enable/disable all transform buttons in BOTH icon and text panels.
         The text panel overwrites self.X refs, so when the icon panel is visible
         (narrow mode) those refs point to hidden buttons. Walk the icon panel too.
@@ -1950,6 +1986,11 @@ class COLSetupUIMixin: #vers 1
             'vertex_mode_btn', 'scale_gizmo_btn', 'scale_btn', 'centre_btn', 'detach_btn',
             'sel_model_btn', 'sel_file_btn', 'del_faces_btn', 'weld_btn', 'fill_hole_btn',
             'box_mesh_btn', 'sphere_mesh_btn', 'faces_box_btn', 'faces_sphere_btn', 'merge_btn', 'optimise_btn',
+            'vert_pos_btn', 'add_face_btn', 'del_verts_btn', 'split_faces_btn', 'mirror_btn',
+            'hide_faces_btn', 'unhide_btn', 'lock_sel_btn', 'sel_mat_btn', 'copy_lod_btn', 'mesh_shadow_btn',
+            'clear_parts_btn', 'isolated_btn', 'opt_bounds_btn', 'face_groups_btn', 'clear_fg_btn',
+            'show_fg_btn', 'lighting_btn', 'light_view_btn', 'vc_sa_btn', 'region_circle_btn',
+            'region_window_btn', 'dup_check_btn', 'import_ex_btn', 'export_cst_btn', 'attach_dff_btn',
         ]
         for attr in col_btn_attrs:
             btn = getattr(self, attr, None)

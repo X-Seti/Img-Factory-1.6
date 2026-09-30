@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_mesh_ops.py - Version: 3
+#this belongs in apps/methods/col_mesh_ops.py - Version: 5
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Mesh Operations
 
 """
@@ -7,43 +7,52 @@ Face selections are sets of face indices; vertex selections sets of vertex indic
 """
 
 ##Methods list -
-# _all_points
-# _cross
-# _dot
-# _ear_clip
-# _mat
-# _normal
-# _sub
-# _v
-# _dominant_material
-# _new_face
-# _rot
-# _target_verts
 # add_face
+# _all_points
 # box_to_mesh
 # clean_mesh
+# clear_parts
 # compact_vertices
+# convert_materials
+# copy_as_lod
+# _cross
 # decimate
 # delete_faces
+# delete_isolated_vertices
 # delete_vertices
 # detach_faces
+# _dominant_material
+# _dot
+# _ear_clip
 # extract_faces
+# face_group_bounds
+# faces_by_material
+# faces_of_vertices
 # faces_to_box
 # faces_to_sphere
-# faces_of_vertices
 # fill_holes
+# generate_face_groups
+# generate_lighting
 # icosphere
+# _mat
 # merge_coplanar
 # merge_models
 # mirror
+# _new_face
+# _normal
+# optimum_bounds
 # recalc_bounds
+# _rot
 # rotate
 # scale
 # selection_centre
 # selection_vertices
 # sphere_to_mesh
 # split_faces
+# _sub
+# _target_verts
 # translate
+# _v
 # weld_vertices
 
 import copy
@@ -229,6 +238,149 @@ def split_faces(model, face_ids): #vers 1
         model.faces += [_new_face(b, c, n, f), _new_face(c, a, n, f)]
         out.append(n)
     return out
+
+def faces_by_material(model, mat_ids): #vers 1
+    """Face ids whose material is in mat_ids."""
+    want = {int(m) for m in mat_ids}
+    return {i for i, f in enumerate(model.faces) if _mat(f) in want}
+
+
+def delete_isolated_vertices(model): #vers 1
+    """Drop vertices no face uses; returns how many were removed."""
+    before = len(model.vertices)
+    compact_vertices(model)
+    return before - len(model.vertices)
+
+
+def clear_parts(model, mesh=False, spheres=False, boxes=False, shadow=False): #vers 1
+    """Empty the chosen parts of a model."""
+    if mesh:
+        model.vertices, model.faces = [], []
+    if spheres:
+        model.spheres = []
+    if boxes:
+        model.boxes = []
+    if shadow:
+        model.shadow_vertices, model.shadow_faces = [], []
+
+
+def copy_as_lod(model): #vers 2
+    """Deep copy named as its LOD (first 3 chars become 'LOD')."""
+    new = copy.deepcopy(model)
+    for attr in ('_orig_record', '_orig_fp', '_orig_shadow_fp', '_orphans_after'):
+        new.__dict__.pop(attr, None)
+    name = ('LOD' + model.name[3:])[:22]
+    new.name = name
+    if hasattr(new, 'header') and hasattr(new.header, 'name'):
+        new.header.name = name
+    return new
+
+
+def optimum_bounds(model): #vers 1
+    """Tight bounds: exact box, near-minimal sphere (Ritter plus refinement)."""
+    recalc_bounds(model)
+    pts = [(v.x, v.y, v.z) for v in model.vertices]
+    for b in model.boxes:
+        pts += [(x, y, z) for x in (b.min.x, b.max.x) for y in (b.min.y, b.max.y)
+                for z in (b.min.z, b.max.z)]
+    for s in model.spheres:
+        r = float(s.radius)
+        c = (s.center.x, s.center.y, s.center.z)
+        pts += [(c[0] + dx * r, c[1] + dy * r, c[2] + dz * r)
+                for dx, dy, dz in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))]
+    if len(pts) < 2:
+        return
+    p0 = pts[0]
+    p1 = max(pts, key=lambda q: math.dist(p0, q))
+    p2 = max(pts, key=lambda q: math.dist(p1, q))
+    c = [(p1[k] + p2[k]) / 2 for k in range(3)]
+    r = math.dist(p1, p2) / 2
+    for _ in range(2):
+        for q in pts:
+            d = math.dist(c, q)
+            if d > r:
+                nr = (r + d) / 2
+                c = [c[k] + (q[k] - c[k]) * (nr - r) / d for k in range(3)]
+                r = nr
+    for s in model.spheres:
+        r = max(r, math.dist(c, tuple(s.center)) + float(s.radius))
+    model.bounds.center = Vector3(*c)
+    model.bounds.radius = r
+
+def generate_face_groups(model, per_group=50): #vers 1
+    """Sort faces spatially and split into groups of at most per_group faces."""
+    faces, verts = model.faces, model.vertices
+    if len(faces) <= per_group:
+        model.face_groups = []
+        return 0
+
+    def centre(f):  #vers 1
+        vs = [verts[i] for i in (f.a, f.b, f.c)]
+        return (sum(v.x for v in vs) / 3, sum(v.y for v in vs) / 3, sum(v.z for v in vs) / 3)
+
+    cen = {id(f): centre(f) for f in faces}
+    out = []
+
+    def split(fs):  #vers 1
+        if len(fs) <= per_group:
+            out.append(fs)
+            return
+        pts = [cen[id(f)] for f in fs]
+        ax = max(range(3), key=lambda k: max(p[k] for p in pts) - min(p[k] for p in pts))
+        fs = sorted(fs, key=lambda f: cen[id(f)][ax])
+        half = len(fs) // 2
+        split(fs[:half]); split(fs[half:])
+
+    split(list(faces))
+    model.faces = [f for grp in out for f in grp]
+    model.face_groups, start = [], 0
+    for grp in out:
+        model.face_groups.append([start, start + len(grp) - 1])
+        start += len(grp)
+    return len(model.face_groups)
+
+
+def face_group_bounds(model): #vers 1
+    """[(min xyz, max xyz)] per face group, from current vertices."""
+    out, n = [], len(model.vertices)
+    for st, en in model.face_groups:
+        ids = {i for f in model.faces[st:en + 1] for i in (f.a, f.b, f.c) if 0 <= i < n}
+        if not ids:
+            continue
+        pts = [(model.vertices[i].x, model.vertices[i].y, model.vertices[i].z) for i in ids]
+        out.append((tuple(min(p[k] for p in pts) for k in range(3)),
+                    tuple(max(p[k] for p in pts) for k in range(3))))
+    return out
+
+
+def generate_lighting(model, intensity=1.0, azimuth=45.0, altitude=45.0, ambient=0.3,
+                      directional=True, night=0.5): #vers 1
+    """Face light byte: day in low nibble, night in high nibble (0-15 each)."""
+    az, al = math.radians(azimuth), math.radians(altitude)
+    ld = (math.cos(al) * math.cos(az), math.cos(al) * math.sin(az), math.sin(al))
+    for f in model.faces:
+        if directional:
+            n, _ = _normal(model, f)
+            lit = max(0.0, _dot(n, ld))
+        else:
+            lit = 1.0
+        day = max(0, min(15, round(15 * min(1.0, ambient + intensity * lit * (1.0 - ambient)))))
+        nig = max(0, min(15, round(day * night)))
+        f.light = day | (nig << 4)
+
+
+def convert_materials(model, from_game, to_game): #vers 1
+    """Map face/sphere/box surfaces between games; returns items changed."""
+    from apps.methods.col_materials import convert_material_id, convert_piece_flag
+    n = 0
+    for it in list(model.faces) + list(model.spheres) + list(model.boxes):
+        old = int(it.material_id)
+        new = convert_material_id(old, from_game, to_game)
+        if new != old:
+            it.material = new; n += 1
+        if hasattr(it, 'flag'):
+            it.flag = convert_piece_flag(int(it.flag or 0), from_game, to_game)
+    return n
 
 def recalc_bounds(model): #vers 1
     """Rebuild bounds min/max/centre/radius from vertices, spheres and boxes."""

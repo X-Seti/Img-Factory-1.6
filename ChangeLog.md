@@ -1,4 +1,11 @@
-#this belongs in root /ChangeLog.md - Version: 206
+#this belongs in root /ChangeLog.md - Version: 207
+
+## Oct 01 2026 - COL Workshop: CE II features (Mesh ribbon)
+- Hide/unhide faces, selection lock (Space), select by material, Shift+drag region select (rectangle/circle, crossing/window).
+- Copy as LOD, mesh from shadow, clear parts, delete isolated vertices, optimum bounds.
+- Face groups read/write/generate/show; lighting generator and light view; VC to SA materials.
+- Duplicate check, batch conversion; CST/3DS/X/DFF import, CST2 export, attach COL to DFF (new methods/col_exchange.py).
+- CE II toolbar images in icons/ for the Ribbon Manager.
 
 ## Sep 30 2026 - COL vertex editing
 - Vertex mode: click, Ctrl+click, drag box select; gizmo move/rotate/scale on selected vertices; controller too.

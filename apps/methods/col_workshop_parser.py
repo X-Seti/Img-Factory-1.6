@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_workshop_parser.py - Version: 12
+#this belongs in apps/methods/col_workshop_parser.py - Version: 13
 # X-Seti - May08 2026 - Col Workshop - COL Binary Parser
 """
 COL Binary Parser - Handles parsing binary COL data
@@ -400,6 +400,15 @@ class COLParser: #vers 1
                         n_sv = max(max(f.a, f.b, f.c) for f in shadow_faces) + 1
                         shadow_vertices, _ = self.parse_vertices(
                             data, data_at(shadow_verts_off), n_sv, version)
+                face_groups = []
+                if (flags & 0x08) and faces and faces_off:
+                    cpos = data_at(faces_off) - 4
+                    n_fg = struct.unpack_from('<I', data, cpos)[0]
+                    if 0 < n_fg <= len(faces):
+                        gpos = cpos - 28 * n_fg
+                        for g in range(n_fg):
+                            st, en = struct.unpack_from('<HH', data, gpos + 28 * g + 24)
+                            face_groups.append([st, en])
                 lines_raw = b''
                 if num_lines_byte and lines_off:
                     nxt = [o for o in (spheres_off, boxes_off, verts_off, faces_off,
@@ -434,6 +443,7 @@ class COLParser: #vers 1
                 model.shadow_faces = shadow_faces
                 model.lines_raw = lines_raw
                 model.lines_count = num_lines_byte
+                model.face_groups = face_groups
 
             # Always advance by header-declared size (DragonFF: pos + file_size + 8).
             # For COL2/3 the data blocks are read by jumping with data_at(), not
@@ -589,10 +599,37 @@ class COLWriter: #vers 1
         return bytes(buf)
 
     @classmethod
-    def _write_col23_body(cls, model, ver) -> bytes: #vers 4
+    def _face_group_block(cls, model, verts, faces) -> bytes: #vers 1
+        """Face groups (bounds rebuilt from faces) plus count, or b'' when none/invalid."""
+        import struct
+        groups = [g for g in (getattr(model, 'face_groups', None) or [])]
+        n = len(faces)
+        if not groups or not n:
+            return b''
+        spans = sorted((int(g[0]), int(g[1])) for g in groups)
+        nxt = 0
+        for st, en in spans:
+            if st != nxt or en < st:
+                return b''
+            nxt = en + 1
+        if nxt != n:
+            return b''
+        out = bytearray()
+        nv = len(verts)
+        for st, en in spans:
+            ids = {i for f in faces[st:en + 1] for i in (f.a, f.b, f.c) if 0 <= i < nv}
+            pts = [(verts[i].x, verts[i].y, verts[i].z) for i in ids] or [(0.0, 0.0, 0.0)]
+            lo = [min(p[k] for p in pts) for k in range(3)]
+            hi = [max(p[k] for p in pts) for k in range(3)]
+            out += struct.pack('<ffffffHH', *lo, *hi, st, en)
+        out += struct.pack('<I', len(spans))
+        return bytes(out)
+
+    @classmethod
+    def _write_col23_body(cls, model, ver) -> bytes: #vers 5
         """COL2/3/4 body after bounds: offset header then data blocks.
         Offsets are from the fourcc, pointing 4 bytes before each block.
-        Keeps flags, suspension lines and COL3 shadow mesh; face groups dropped."""
+        Keeps flags, suspension lines, face groups and COL3 shadow mesh."""
         import struct
         spheres = model.spheres  or []
         boxes   = model.boxes    or []
@@ -644,10 +681,14 @@ class COLWriter: #vers 1
         off_box = _add(bytes(box))
         off_lin = _add(lines)
         off_vtx = _add(_verts(verts))
+        groups = cls._face_group_block(model, verts, faces)
+        if groups:
+            _add(groups)
         off_fac = _add(_faces(faces))
         off_svt = _add(_verts(s_verts))
         off_sfc = _add(_faces(s_faces))
-        flags = int(getattr(model, 'flags', 0) or 0) & ~0x08          # face groups not written
+        flags = int(getattr(model, 'flags', 0) or 0) & ~0x08
+        flags = (flags | 0x08) if groups else flags
         flags = (flags | 0x02) if (spheres or boxes or faces) else (flags & ~0x02)
         flags = (flags | 0x10) if s_faces else (flags & ~0x10)
         n_lines = int(getattr(model, 'lines_count', 0) or 0) if lines else 0

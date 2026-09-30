@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 9
+#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 10
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop 3D viewport
 
 """
@@ -32,7 +32,7 @@ COL 3D Viewport - QPainter preview of collision models.
 # pan
 # _pick_face
 # _pick_vertex
-# _select_verts_in_box
+# _select_in_region
 # _proj
 # reset_view
 # resizeEvent
@@ -110,6 +110,12 @@ class COL3DViewport(QWidget): #vers 2
         self._select_mode  = 'face'       # 'face' | 'vertex'
         self._selected_verts = set()
         self._box_sel      = None         # (start, end, add) vertex box select
+        self._hidden_faces = set()        # faces not drawn or picked
+        self._sel_lock     = False        # clicks keep the current selection
+        self._show_face_groups = False    # draw COL2/3 face group boxes
+        self._light_view   = False        # colour faces by day light (0-15)
+        self._region_circle   = False     # region select: circle, else rectangle
+        self._region_crossing = True      # faces: any corner inside, else all
         # game controller (methods/gamepad_input.GamepadPoller)
         self._gamepad      = None
         self._pad_grab     = False
@@ -129,10 +135,11 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    public API                                                         
-    def set_current_model(self, model, index=0):  #vers 2
+    def set_current_model(self, model, index=0):  #vers 3
         self._model = model
         self._selected_faces = set()
         self._selected_verts = set()
+        self._hidden_faces = set()
         # Reset view so the new model is centred and visible
         self._pan_x = 0.0
         self._pan_y = 0.0
@@ -345,7 +352,7 @@ class COL3DViewport(QWidget): #vers 2
         self.update()
 
 
-    def _pick_face(self, mx, my):  #vers 2
+    def _pick_face(self, mx, my):  #vers 3
         """Return (face_index, face) whose projected triangle contains the click,
         topmost (drawn last) first, or (None, None)."""
         model = self._model
@@ -366,6 +373,7 @@ class COL3DViewport(QWidget): #vers 2
 
         n = len(verts)
         for i in range(len(faces) - 1, -1, -1):   # faces are painted in order
+            if i in self._hidden_faces: continue
             face = faces[i]
             a, b, c = getattr(face, 'a', -1), getattr(face, 'b', -1), getattr(face, 'c', -1)
             if not (0 <= a < n and 0 <= b < n and 0 <= c < n): continue
@@ -379,7 +387,7 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    mouse                                                             
-    def mousePressEvent(self, event):  #vers 4
+    def mousePressEvent(self, event):  #vers 5
         mx, my = event.position().x(), event.position().y()
         W, H = self.width(), self.height()
         if event.button() == Qt.MouseButton.LeftButton:
@@ -493,6 +501,10 @@ class COL3DViewport(QWidget): #vers 2
             if axis:
                 self._start_gizmo_drag(axis, event.position())
                 return
+            if self._sel_lock and not self._paint_mode:
+                self._left_drag = event.position()
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                return
 
             if self._select_mode == 'vertex':
                 vi = self._pick_vertex(mx, my)
@@ -526,6 +538,10 @@ class COL3DViewport(QWidget): #vers 2
                 self.update()
                 return
 
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier and not self._paint_mode:
+                ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+                self._box_sel = (event.position(), event.position(), ctrl)
+                return
             self._left_drag = event.position()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
         elif event.button() == Qt.MouseButton.RightButton:
@@ -534,15 +550,17 @@ class COL3DViewport(QWidget): #vers 2
             if self._select_mode == 'vertex':
                 vi = self._pick_vertex(mx2, my2)
                 if vi is not None:
-                    if vi not in self._selected_verts:
+                    if vi not in self._selected_verts and not self._sel_lock:
                         self._selected_verts = {vi}
                     self.update()
                     self._show_vertex_context_menu(event.globalPosition().toPoint())
                     return
             fi2, face2 = self._pick_face(mx2, my2)
             if fi2 is not None and face2 is not None:
-                # Select the face
-                if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                # Select the face (not while selection is locked)
+                if self._sel_lock:
+                    pass
+                elif not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
                     if fi2 not in self._selected_faces:
                         self._selected_faces = {fi2}
                 else:
@@ -637,7 +655,7 @@ class COL3DViewport(QWidget): #vers 2
         if event.button() == Qt.MouseButton.LeftButton:
             self._left_drag = None
             if self._box_sel:
-                self._select_verts_in_box()
+                self._select_in_region()
             if self._gizmo_drag:
                 self._end_gizmo_drag()
             self._drag_selecting = False
@@ -691,18 +709,36 @@ class COL3DViewport(QWidget): #vers 2
         return best
 
 
-    def _select_verts_in_box(self):  #vers 1
-        """Select vertices inside the drag box; a click clears unless Ctrl."""
+    def _select_in_region(self):  #vers 1
+        """Select vertices, or faces (crossing/window), inside the drag rectangle or circle."""
+        import math
         a, b, add = self._box_sel
         self._box_sel = None
-        x0, x1 = sorted((a.x(), b.x())); y0, y1 = sorted((a.y(), b.y()))
-        hit = set()
-        if x1 - x0 > 3 or y1 - y0 > 3:
-            for i, v in enumerate(getattr(self._model, 'vertices', []) if self._model else []):
-                sx, sy = self._to_screen(v.x, v.y, v.z)
-                if x0 <= sx <= x1 and y0 <= sy <= y1:
-                    hit.add(i)
-        self._selected_verts = (self._selected_verts | hit) if add else hit
+        model = self._model
+        if not model or (abs(b.x() - a.x()) <= 3 and abs(b.y() - a.y()) <= 3):
+            if not add:
+                if self._select_mode == 'vertex': self._selected_verts = set()
+                else: self._selected_faces = set()
+            self.update()
+            return
+        if self._region_circle:
+            rad = math.hypot(b.x() - a.x(), b.y() - a.y())
+            inside = lambda x, y: math.hypot(x - a.x(), y - a.y()) <= rad
+        else:
+            x0, x1 = sorted((a.x(), b.x())); y0, y1 = sorted((a.y(), b.y()))
+            inside = lambda x, y: x0 <= x <= x1 and y0 <= y <= y1
+        verts = getattr(model, 'vertices', [])
+        vin = [inside(*self._to_screen(v.x, v.y, v.z)) for v in verts]
+        if self._select_mode == 'vertex':
+            hit = {i for i, ok in enumerate(vin) if ok}
+            self._selected_verts = (self._selected_verts | hit) if add else hit
+        else:
+            test = any if self._region_crossing else all
+            n = len(vin)
+            hit = {i for i, f in enumerate(getattr(model, 'faces', []))
+                   if i not in self._hidden_faces and all(0 <= k < n for k in (f.a, f.b, f.c))
+                   and test(vin[k] for k in (f.a, f.b, f.c))}
+            self._selected_faces = (self._selected_faces | hit) if add else hit
         self.update()
 
 
@@ -849,7 +885,7 @@ class COL3DViewport(QWidget): #vers 2
         self.update()
 
 
-    def keyPressEvent(self, event):  #vers 3
+    def keyPressEvent(self, event):  #vers 4
         if event.key() == Qt.Key.Key_Escape:
             if self._paint_mode:
                 self.set_paint_mode(False)
@@ -868,6 +904,8 @@ class COL3DViewport(QWidget): #vers 2
         elif event.key() == Qt.Key.Key_S: self._set_gizmo('scale')
         elif event.key() == Qt.Key.Key_F: self.fit_to_window()
         elif event.key() == Qt.Key.Key_V: self._cycle_render_style()
+        elif event.key() == Qt.Key.Key_Space and hasattr(self._find_workshop(), 'lock_sel_btn'):
+            self._find_workshop().lock_sel_btn.toggle()
         elif event.key() == Qt.Key.Key_Delete and self._find_workshop():
             ws = self._find_workshop()
             if self._select_mode == 'vertex': ws._edit_delete_vertices()
@@ -1003,6 +1041,7 @@ class COL3DViewport(QWidget): #vers 2
         rs = self._render_style  # 'wireframe' | 'semi' | 'solid'
         if self._show_mesh and verts and faces:
             for face_idx, face in enumerate(faces):
+                if face_idx in self._hidden_faces: continue
                 idx = getattr(face,'vertex_indices',None)
                 if idx is None:
                     fa = getattr(face,'a',None)
@@ -1013,7 +1052,11 @@ class COL3DViewport(QWidget): #vers 2
                 except (IndexError,AttributeError): continue
                 _mat = getattr(face,'material',0)
                 _mat_id = getattr(_mat,'material_id',_mat) if not isinstance(_mat,int) else _mat
-                mc = mat_col(_mat_id)
+                if self._light_view:
+                    lv = (int(getattr(face, 'light', 0) or 0) & 0x0F) * 17
+                    mc = QColor(lv, lv, max(40, lv))
+                else:
+                    mc = mat_col(_mat_id)
                 is_selected = (face_idx in self._selected_faces)
                 if is_selected:
                     p.setBrush(QBrush(QColor(255, 200, 50, 200)))
@@ -1029,6 +1072,16 @@ class COL3DViewport(QWidget): #vers 2
                     p.setBrush(Qt.BrushStyle.NoBrush)
                     p.setPen(QPen(QColor(100,180,100),1))
                 p.drawPolygon(QPolygonF(pts))
+
+        #    Face group boxes (COL2/3)
+        if self._show_face_groups and getattr(model, 'face_groups', None):
+            from apps.methods.col_mesh_ops import face_group_bounds
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(QColor(60, 200, 230, 200), 1, Qt.PenStyle.DotLine))
+            for lo, hi in face_group_bounds(model):
+                cs = [to_screen(*g3((x, y, z))) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+                for i0, i1 in ((0,1),(2,3),(4,5),(6,7),(0,2),(1,3),(4,6),(5,7),(0,4),(1,5),(2,6),(3,7)):
+                    p.drawLine(QPointF(*cs[i0]), QPointF(*cs[i1]))
 
         #    Shadow mesh overlay (COL3) - magenta, dashed
         s_verts = getattr(model, 'shadow_vertices', None) or []
@@ -1140,10 +1193,17 @@ class COL3DViewport(QWidget): #vers 2
                 p.setBrush(QBrush(QColor(255, 210, 60) if on else QColor(200, 200, 210, 170)))
                 r0 = 4 if on else 2.5
                 p.drawEllipse(QPointF(sx, sy), r0, r0)
-            if self._box_sel:
-                a, b, _ = self._box_sel
-                p.setBrush(QBrush(QColor(255, 210, 60, 40)))
-                p.setPen(QPen(QColor(255, 210, 60), 1, Qt.PenStyle.DashLine))
+
+        #    Region select outline (rectangle or circle)
+        if self._box_sel:
+            import math
+            a, b, _ = self._box_sel
+            p.setBrush(QBrush(QColor(255, 210, 60, 40)))
+            p.setPen(QPen(QColor(255, 210, 60), 1, Qt.PenStyle.DashLine))
+            if self._region_circle:
+                r0 = math.hypot(b.x() - a.x(), b.y() - a.y())
+                p.drawEllipse(a, r0, r0)
+            else:
                 p.drawRect(QRectF(a, b).normalized())
 
         #    Gizmo at selection centre (whole model when nothing selected)

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_workshop_classes.py - Version: 3
+#this belongs in apps/methods/col_workshop_classes.py - Version: 4
 # X-Seti - September28 2026 - IMG Factory 1.6 - COL Data Classes
 
 """
@@ -220,7 +220,7 @@ class COLFace: #vers 2
 
 
 @dataclass
-class COLModel: #vers 3
+class COLModel: #vers 4
     """Complete COL model structure; name/version/model_id live in header."""
     header: COLHeader
     bounds: COLBounds
@@ -233,6 +233,7 @@ class COLModel: #vers 3
     lines_raw: bytes = b''      # COL2+ suspension lines, kept as read
     lines_count: int = 0
     flags: int = 0              # COL2+ header flags
+    face_groups: list = field(default_factory=list)   # COL2+ [start, end] face ranges
 
     @property
     def name(self) -> str:
