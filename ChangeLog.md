@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 198
+#this belongs in root /ChangeLog.md - Version: 199
+
+## Sep 30 2026 - COL custom ribbon icons, Build 431.105
+- Ribbon Manager: Set Icon / Reset Icon per action from root icons/ folder; saved in col_workshop.json, kept on theme change, included in presets.
 
 ## Sep 30 2026 - COL mesh optimise, Build 431.105
 - Optimise Mesh (Edit ribbon, face menu): Clean (lossless), Merge flat areas, Decimate (lossy); selected or all models, undo. SA test: 6613 to 4233 faces.

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 8
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 9
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -7,6 +7,7 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 
 ##class COLSetupUIMixin: -
 # _apply_button_font
+# _apply_custom_icons
 # _apply_hotkey_settings
 # _apply_icon_scale
 # _apply_infobar_font
@@ -23,15 +24,18 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 # _create_status_bar
 # _create_surface_tab
 # _create_toolbar
+# _custom_icons
 # _enable_name_edit
 # _get_icon_color
 # get_menu_title
 # _get_ui_color
+# _icons_dir
 # _on_theme_changed
 # open_ribbon_manager
 # _refresh_icons
 # _reset_hotkeys_to_defaults
 # _restore_toolbar_state
+# _save_custom_icons
 # _save_toolbar_state
 # _set_col_buttons_enabled
 # _set_status
@@ -76,8 +80,13 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 # _save_preset
 
 
+import json
+import shutil
+import sys
+from pathlib import Path
+
 from PyQt6.QtCore import QSize, QTimer, Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMainWindow, QMenu, QPushButton, QStyledItemDelegate, QTabWidget, QTableWidget, QVBoxLayout, QWidget
 from apps.components.Col_Editor.depends.col_viewport import COL3DViewport
 from apps.methods.grip_splitter import GripSplitter
@@ -266,7 +275,9 @@ class RibbonManagerDialog(QDialog): #vers 1
     # RibbonManagerDialog._move_action
     # RibbonManagerDialog._create_toolbar
     # RibbonManagerDialog._delete_toolbar
+    # RibbonManagerDialog._reset_icon
     # RibbonManagerDialog._save_preset
+    # RibbonManagerDialog._set_icon
     # RibbonManagerDialog._load_preset
     # RibbonManagerDialog._on_accept
     # RibbonManagerDialog._on_cancel
@@ -286,7 +297,7 @@ class RibbonManagerDialog(QDialog): #vers 1
             self._cancel_state = self._mw.saveState()
 
 
-    def _build_ui(self): #vers 5
+    def _build_ui(self): #vers 6
         from PyQt6.QtWidgets import (QSplitter, QListWidget, QListWidgetItem,
             QDialogButtonBox, QAbstractItemView, QSlider)
         outer = QVBoxLayout(self)
@@ -369,6 +380,19 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._move_btn.clicked.connect(self._move_action)
         move_row.addWidget(self._move_btn)
         rl.addLayout(move_row)
+
+        # Icon row - community images from icons/
+        icon_row = QHBoxLayout()
+        self._set_icon_btn = QPushButton("Set Icon...")
+        self._set_icon_btn.setToolTip("Use an image from the icons folder")
+        self._set_icon_btn.clicked.connect(self._set_icon)
+        self._reset_icon_btn = QPushButton("Reset Icon")
+        self._reset_icon_btn.setToolTip("Restore the built-in SVG icon")
+        self._reset_icon_btn.clicked.connect(self._reset_icon)
+        icon_row.addWidget(self._set_icon_btn)
+        icon_row.addWidget(self._reset_icon_btn)
+        icon_row.addStretch()
+        rl.addLayout(icon_row)
         splitter.addWidget(right)
         splitter.setSizes([200, 440])
 
@@ -512,7 +536,39 @@ class RibbonManagerDialog(QDialog): #vers 1
         self._act_list.clear()
 
 
-    def _save_preset(self): #vers 2
+    def _set_icon(self): #vers 1
+        """Pick an image for the selected action; copied into icons/."""
+        from PyQt6.QtWidgets import QFileDialog
+        item = self._act_list.currentItem()
+        act = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if not act or act.isSeparator():
+            return
+        folder = self._ws._icons_dir()
+        src, _ = QFileDialog.getOpenFileName(self, f"Icon for {act.text()}", str(folder),
+                                             "Images (*.png *.jpg *.jpeg *.svg)")
+        if not src:
+            return
+        src = Path(src)
+        if src.parent.resolve() != folder.resolve():
+            folder.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, folder / src.name)
+        icons = self._ws._custom_icons()
+        icons[act.text()] = src.name
+        self._ws._save_custom_icons(icons)
+        item.setIcon(act.icon())
+
+    def _reset_icon(self): #vers 1
+        """Restore the built-in SVG icon on the selected action."""
+        item = self._act_list.currentItem()
+        act = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if not act or act.isSeparator():
+            return
+        icons = self._ws._custom_icons()
+        icons.pop(act.text(), None)
+        self._ws._save_custom_icons(icons)
+        item.setIcon(act.icon())
+
+    def _save_preset(self): #vers 3
         """Save current toolbar layout as a named preset."""
         from PyQt6.QtWidgets import QInputDialog
         import json
@@ -528,12 +584,13 @@ class RibbonManagerDialog(QDialog): #vers 1
         except Exception:
             data = {}
         presets = data.setdefault('toolbar_presets', {})
-        presets[name.strip()] = self._mw.saveState().toHex().data().decode()
+        presets[name.strip()] = {'state': self._mw.saveState().toHex().data().decode(),
+                                 'icons': self._ws._custom_icons()}
         path.write_text(json.dumps(data, indent=2))
         self._ws._set_status(f"Preset '{name.strip()}' saved")
 
 
-    def _load_preset(self): #vers 2
+    def _load_preset(self): #vers 3
         """Load a named preset."""
         from PyQt6.QtWidgets import QInputDialog
         from PyQt6.QtCore import QByteArray
@@ -556,7 +613,12 @@ class RibbonManagerDialog(QDialog): #vers 1
             list(presets.keys()), editable=False)
         if not ok:
             return
-        self._mw.restoreState(QByteArray.fromHex(presets[name].encode()))
+        preset = presets[name]
+        if isinstance(preset, str):         # presets saved before icons were added
+            preset = {'state': preset}
+        self._mw.restoreState(QByteArray.fromHex(preset['state'].encode()))
+        if 'icons' in preset:
+            self._ws._save_custom_icons(preset['icons'])
         self._refresh_toolbar_list()
         self._ws._set_status(f"Preset '{name}' loaded")
 
@@ -742,7 +804,7 @@ class COLSetupUIMixin: #vers 1
 
         return status_bar
 
-    def _refresh_icons(self): #vers 2
+    def _refresh_icons(self): #vers 3
         """Refresh all button icons after theme change — picks up current text_primary colour."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -866,6 +928,51 @@ class COLSetupUIMixin: #vers 1
         if hasattr(self, '_middle_btn_row'):
             self._middle_btn_row.setVisible(
                 self.is_docked and not self.standalone_mode)
+        self._apply_custom_icons()
+
+    def _icons_dir(self) -> Path: #vers 1
+        """Community icons folder: beside the exe, else the repo root."""
+        if getattr(sys, 'frozen', False):
+            return Path(sys.executable).parent / 'icons'
+        return Path(__file__).resolve().parents[4] / 'icons'
+
+    def _custom_icons(self) -> dict: #vers 1
+        """Ribbon action name to image file name in icons/."""
+        try:
+            data = json.loads((get_user_config_dir() / 'col_workshop.json').read_text())
+        except (OSError, ValueError):
+            return {}
+        return dict(data.get('custom_icons', {}))
+
+    def _save_custom_icons(self, icons: dict): #vers 1
+        """Store the icon choices and reapply every ribbon icon."""
+        path = get_user_config_dir() / 'col_workshop.json'
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            data = {}
+        data['custom_icons'] = icons
+        path.write_text(json.dumps(data, indent=2))
+        c = self._get_icon_color()
+        for e in getattr(self, '_ribbon_actions', []):
+            e['action'].setIcon(e['icon_fn'](color=c))
+        self._apply_custom_icons()
+
+    def _apply_custom_icons(self): #vers 1
+        """Set chosen icons/ images on ribbon actions; report missing files."""
+        icons = self._custom_icons()
+        folder = self._icons_dir()
+        missing = []
+        for e in getattr(self, '_ribbon_actions', []):
+            fname = icons.get(e['name'])
+            if not fname:
+                continue
+            if (folder / fname).is_file():
+                e['action'].setIcon(QIcon(str(folder / fname)))
+            else:
+                missing.append(fname)
+        if missing:
+            self._set_status(f"Missing icons: {', '.join(missing)}")
 
     def _create_toolbar(self): #vers 13
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
@@ -1403,7 +1510,7 @@ class COLSetupUIMixin: #vers 1
         middle_tabs.currentChanged.connect(lambda *_: QTimer.singleShot(0, self._apply_left_compact))
         return middle_tabs
 
-    def _create_right_panel(self): #vers 16
+    def _create_right_panel(self): #vers 17
         """Right panel using QMainWindow + QToolBar for native docking.
         Same system as Model Workshop (Build 388+) - QMainWindow handles
         toolbar placement, row stacking, floating, and save/restore
@@ -1447,6 +1554,7 @@ class COLSetupUIMixin: #vers 1
 
         # Build all toolbars and add to the inner QMainWindow
         self._build_toolbars(inner_mw, icon_color)
+        self._apply_custom_icons()
 
         outer_layout.addWidget(inner_mw, stretch=1)
 
