@@ -3535,13 +3535,15 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def split_faces_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+    def split_faces_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 2
         """Split faces - four triangles, top one pulled apart"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <g transform="rotate(90 12 12)">
             <polygon points="12.0,2.4 15.8,9.5 8.2,9.5" fill="#e03030"/>
             <polygon points="7.5,13.4 11.3,20.5 3.7,20.5" fill="currentColor" opacity="0.85"/>
             <polygon points="16.5,13.4 20.3,20.5 12.7,20.5" fill="currentColor" opacity="0.85"/>
             <polygon points="8.2,13.0 15.8,13.0 12.0,20.1" fill="currentColor" opacity="0.6"/>
+            </g>
         </svg>''', size, color)
 
     @staticmethod
