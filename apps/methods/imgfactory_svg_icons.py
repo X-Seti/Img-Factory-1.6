@@ -3570,13 +3570,13 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
-    def select_inside_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 2
+    def select_inside_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 3
         """Select faces inside - triangles in a dotted box, one red"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <rect x="1.5" y="1.5" width="21" height="21" rx="1.5" fill="none" stroke="currentColor"
                   stroke-width="1.4" stroke-dasharray="2.2 1.8"/>
             <polygon points="3.5,17 7.5,7 11.5,17" fill="currentColor" opacity="0.8"/>
-            <polygon points="8.6,7 15.4,7 12,15.6" fill="#e03030"/>
+            <polygon points="8.6,5.75 15.4,5.75 12,14.35" fill="#e03030"/>
             <polygon points="12.5,17 16.5,7 20.5,17" fill="currentColor" opacity="0.8"/>
         </svg>''', size, color)
 
