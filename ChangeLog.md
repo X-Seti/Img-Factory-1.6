@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 197
+#this belongs in root /ChangeLog.md - Version: 198
+
+## Sep 30 2026 - COL mesh optimise, Build 431.105
+- Optimise Mesh (Edit ribbon, face menu): Clean (lossless), Merge flat areas, Decimate (lossy); selected or all models, undo. SA test: 6613 to 4233 faces.
+- Default last_img_output_path blanked (was /home/x2).
 
 ## Sep 30 2026 - COL PS5 controller, Build 431.105
 - COL viewport game controller (Edit ribbon toggle, saved): Map Workshop layout; Cross select/grab, left stick moves selection, right stick orbit, L2/R2 zoom, Triangle mode, L1/R1 axis.

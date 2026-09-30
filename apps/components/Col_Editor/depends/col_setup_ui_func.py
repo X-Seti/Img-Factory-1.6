@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 7
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 8
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -1459,7 +1459,7 @@ class COLSetupUIMixin: #vers 1
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 6
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 7
         """Build all QToolBar instances using QAction (Model Workshop pattern,
         Build 388+). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_preview_controls panels."""
@@ -1648,6 +1648,7 @@ class COLSetupUIMixin: #vers 1
             ("Delete Selected Faces",      IF.delete_icon,             self._edit_delete_faces,       'del_faces_btn',   False),
             ("Weld Selected Vertices",     IF.converge_to_center_icon, self._edit_weld,               'weld_btn',        False),
             ("Fill Hole",                  IF.fill_icon,               self._edit_fill_hole,          'fill_hole_btn',   False),
+            ("Optimise Mesh...",           IF.filter_icon,             self._edit_optimise,           'optimise_btn',    False),
             (None, None, None, None, None),
             ("Box to Mesh",                IF.box_icon,                self._edit_box_to_mesh,        'box_mesh_btn',    False),
             ("Sphere to Mesh",             IF.sphere_icon,             self._edit_sphere_to_mesh,     'sphere_mesh_btn', False),
@@ -2270,7 +2271,7 @@ class COLSetupUIMixin: #vers 1
         self.info_name.selectAll()
         self.info_name.setFocus()
 
-    def _set_col_buttons_enabled(self, enabled: bool): #vers 2
+    def _set_col_buttons_enabled(self, enabled: bool): #vers 3
         """Enable/disable all transform buttons in BOTH icon and text panels.
         The text panel overwrites self.X refs, so when the icon panel is visible
         (narrow mode) those refs point to hidden buttons. Walk the icon panel too.
@@ -2283,7 +2284,7 @@ class COLSetupUIMixin: #vers 1
             'compress_btn', 'uncompress_btn', 'switch_btn', 'convert_btn',
             'vertex_mode_btn', 'scale_gizmo_btn', 'scale_btn', 'centre_btn', 'detach_btn',
             'sel_model_btn', 'sel_file_btn', 'del_faces_btn', 'weld_btn', 'fill_hole_btn',
-            'box_mesh_btn', 'sphere_mesh_btn', 'faces_box_btn', 'faces_sphere_btn', 'merge_btn',
+            'box_mesh_btn', 'sphere_mesh_btn', 'faces_box_btn', 'faces_sphere_btn', 'merge_btn', 'optimise_btn',
         ]
         for attr in col_btn_attrs:
             btn = getattr(self, attr, None)

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_mesh_ops.py - Version: 1
+#this belongs in apps/methods/col_mesh_ops.py - Version: 2
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Mesh Operations
 
 """
@@ -8,11 +8,20 @@ Face selections are sets of face indices; vertex selections sets of vertex indic
 
 ##Methods list -
 # _all_points
+# _cross
+# _dot
+# _ear_clip
+# _mat
+# _normal
+# _sub
+# _v
 # _dominant_material
 # _new_face
 # _rot
 # box_to_mesh
+# clean_mesh
 # compact_vertices
+# decimate
 # delete_faces
 # detach_faces
 # extract_faces
@@ -20,6 +29,7 @@ Face selections are sets of face indices; vertex selections sets of vertex indic
 # faces_to_sphere
 # fill_holes
 # icosphere
+# merge_coplanar
 # merge_models
 # recalc_bounds
 # rotate
@@ -393,7 +403,276 @@ def merge_models(target, source): #vers 1
     recalc_bounds(target)
 
 
+
+#    Optimise (Sep 30 2026)
+
+def _mat(f):
+    return int(getattr(f.material, 'material_id', f.material))
+
+
+def _v(model, i):
+    v = model.vertices[i]
+    return (v.x, v.y, v.z)
+
+
+def _sub(a, b): return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _cross(a, b): return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def _dot(a, b): return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _normal(model, f): #vers 1
+    """Unit normal and doubled area of a face."""
+    n = _cross(_sub(_v(model, f.b), _v(model, f.a)), _sub(_v(model, f.c), _v(model, f.a)))
+    L = math.sqrt(_dot(n, n))
+    return ((n[0] / L, n[1] / L, n[2] / L) if L > 0 else (0.0, 0.0, 0.0)), L
+
+
+def clean_mesh(model, tol=0.001): #vers 1
+    """Lossless clean: weld vertices within tol, drop zero-area, repeated and
+    duplicate faces, drop unused vertices. Returns (verts_removed, faces_removed)."""
+    nv0, nf0 = len(model.vertices), len(model.faces)
+    grid, remap, keep = {}, {}, []
+    for i, v in enumerate(model.vertices):
+        key = (round(v.x / tol), round(v.y / tol), round(v.z / tol))
+        if key in grid:
+            remap[i] = grid[key]
+        else:
+            grid[key] = remap[i] = len(keep)
+            keep.append(v)
+    model.vertices = keep
+    seen, faces = set(), []
+    for f in model.faces:
+        f.a, f.b, f.c = remap[f.a], remap[f.b], remap[f.c]
+        if len({f.a, f.b, f.c}) < 3 or _normal(model, f)[1] <= 1e-9:
+            continue
+        k = frozenset((f.a, f.b, f.c))
+        if k in seen:
+            continue
+        seen.add(k)
+        faces.append(f)
+    model.faces = faces
+    compact_vertices(model)
+    return nv0 - len(model.vertices), nf0 - len(model.faces)
+
+
+def _ear_clip(pts2): #vers 1
+    """Triangulate a simple 2D polygon (counter-clockwise list); index triples or None."""
+    idx = list(range(len(pts2)))
+    tris, guard = [], 0
+
+    def area2(a, b, c):
+        return (pts2[b][0] - pts2[a][0]) * (pts2[c][1] - pts2[a][1]) - (pts2[b][1] - pts2[a][1]) * (pts2[c][0] - pts2[a][0])
+
+    def inside(p, a, b, c):
+        return area2(a, b, p) >= 0 and area2(b, c, p) >= 0 and area2(c, a, p) >= 0
+    while len(idx) > 3 and guard < 10000:
+        guard += 1
+        for k in range(len(idx)):
+            a, b, c = idx[k - 1], idx[k], idx[(k + 1) % len(idx)]
+            if area2(a, b, c) <= 1e-12:
+                continue
+            if any(inside(p, a, b, c) for p in idx if p not in (a, b, c)
+                   and pts2[p] not in (pts2[a], pts2[b], pts2[c])):
+                continue
+            tris.append((a, b, c))
+            idx.pop(k)
+            break
+        else:
+            return None
+    if len(idx) == 3:
+        tris.append(tuple(idx))
+    return tris
+
+
+def merge_coplanar(model, angle_deg=0.5): #vers 1
+    """Merge neighbouring same-material faces lying in one plane and re-triangulate
+    each flat area from its outline (shape unchanged). Returns faces removed."""
+    faces = model.faces
+    cos_tol = math.cos(math.radians(angle_deg))
+    normals = [_normal(model, f)[0] for f in faces]
+    edge_faces = defaultdict(list)
+    for fi, f in enumerate(faces):
+        for a, b in ((f.a, f.b), (f.b, f.c), (f.c, f.a)):
+            edge_faces[(min(a, b), max(a, b))].append(fi)
+    group = [-1] * len(faces)
+    groups = []
+    for start in range(len(faces)):
+        if group[start] >= 0:
+            continue
+        g, stack = [], [start]
+        group[start] = len(groups)
+        n0, m0 = normals[start], _mat(faces[start])
+        d0 = _dot(n0, _v(model, faces[start].a))
+        while stack:
+            fi = stack.pop(); g.append(fi); f = faces[fi]
+            for a, b in ((f.a, f.b), (f.b, f.c), (f.c, f.a)):
+                for nb in edge_faces[(min(a, b), max(a, b))]:
+                    if group[nb] >= 0 or _mat(faces[nb]) != m0:
+                        continue
+                    if _dot(normals[nb], n0) < cos_tol:
+                        continue
+                    if any(abs(_dot(n0, _v(model, i)) - d0) > 0.01 for i in (faces[nb].a, faces[nb].b, faces[nb].c)):
+                        continue
+                    group[nb] = len(groups); stack.append(nb)
+        groups.append(g)
+    new_faces, removed = [], 0
+    for g in groups:
+        if len(g) < 2:
+            new_faces += [faces[i] for i in g]
+            continue
+        # outline: directed edges used once inside the group
+        cnt = Counter()
+        directed = {}
+        for fi in g:
+            f = faces[fi]
+            for a, b in ((f.a, f.b), (f.b, f.c), (f.c, f.a)):
+                cnt[(min(a, b), max(a, b))] += 1
+                directed[(a, b)] = fi
+        nxt = {}
+        simple = True
+        for (a, b) in directed:
+            if cnt[(min(a, b), max(a, b))] == 1:
+                if a in nxt: simple = False
+                nxt[a] = b
+        if not simple or not nxt:
+            new_faces += [faces[i] for i in g]; continue
+        start = next(iter(nxt)); loop, cur = [start], nxt[start]
+        while cur != start and len(loop) <= len(nxt):
+            loop.append(cur); cur = nxt.get(cur)
+            if cur is None: break
+        if cur != start or len(loop) != len(nxt) or len(loop) - 2 >= len(g):
+            new_faces += [faces[i] for i in g]; continue         # holes / no gain
+        n0 = normals[g[0]]
+        ax = (1, 0, 0) if abs(n0[0]) < 0.9 else (0, 1, 0)
+        u = _cross(n0, ax); L = math.sqrt(_dot(u, u)); u = (u[0] / L, u[1] / L, u[2] / L)
+        w = _cross(n0, u)
+        pts2 = [(_dot(_v(model, i), u), _dot(_v(model, i), w)) for i in loop]
+        tris = _ear_clip(pts2)
+        if tris is None or len(tris) >= len(g):
+            new_faces += [faces[i] for i in g]; continue
+        like = faces[g[0]]
+        for a, b, c in tris:
+            nf = _new_face(loop[a], loop[b], loop[c], like)
+            if _dot(_normal(model, nf)[0], n0) < 0:
+                nf.b, nf.c = nf.c, nf.b
+            new_faces.append(nf)
+        removed += len(g) - len(tris)
+    model.faces = new_faces
+    compact_vertices(model)
+    return removed
+
+
+def decimate(model, ratio=0.5): #vers 1
+    """Lossy: collapse the cheapest edges (quadric error) until faces <= ratio x original.
+    Material borders and open edges stay fixed; collapses that flip faces are skipped.
+    Returns faces removed."""
+    import heapq
+    faces = [[f.a, f.b, f.c] for f in model.faces]
+    mats = [_mat(f) for f in model.faces]
+    pos = [list(_v(model, i)) for i in range(len(model.vertices))]
+    target = max(4, int(len(faces) * ratio))
+    Q = [[0.0] * 10 for _ in pos]
+
+    def plane(fi):
+        a, b, c = (pos[i] for i in faces[fi])
+        n = _cross(_sub(b, a), _sub(c, a)); L = math.sqrt(_dot(n, n)) or 1.0
+        n = (n[0] / L, n[1] / L, n[2] / L)
+        return n + (-_dot(n, a),)
+    for fi in range(len(faces)):
+        a, b, c, d = plane(fi)
+        k = (a*a, a*b, a*c, a*d, b*b, b*c, b*d, c*c, c*d, d*d)
+        for v in faces[fi]:
+            Q[v] = [x + y for x, y in zip(Q[v], k)]
+
+    def err(q, p):
+        x, y, z = p
+        return (q[0]*x*x + 2*q[1]*x*y + 2*q[2]*x*z + 2*q[3]*x + q[4]*y*y + 2*q[5]*y*z
+                + 2*q[6]*y + q[7]*z*z + 2*q[8]*z + q[9])
+    vfaces = defaultdict(set)
+    ecount, emats = Counter(), defaultdict(set)
+    for fi, f in enumerate(faces):
+        for v in f: vfaces[v].add(fi)
+        for a, b in ((f[0], f[1]), (f[1], f[2]), (f[2], f[0])):
+            e = (min(a, b), max(a, b)); ecount[e] += 1; emats[e].add(mats[fi])
+    locked = set()
+    for e, n in ecount.items():
+        if n != 2 or len(emats[e]) > 1:
+            locked.update(e)
+    alive = [True] * len(faces)
+    live = len(faces)
+    heap = []
+    for (a, b) in ecount:
+        if a in locked and b in locked: continue
+        q = [x + y for x, y in zip(Q[a], Q[b])]
+        p = pos[b] if a in locked else pos[a] if b in locked else [(pos[a][k] + pos[b][k]) / 2 for k in range(3)]
+        heapq.heappush(heap, (err(q, p), a, b))
+    merged = list(range(len(pos)))
+
+    def root(v):
+        while merged[v] != v:
+            merged[v] = merged[merged[v]]; v = merged[v]
+        return v
+    while live > target and heap:
+        _, a, b = heapq.heappop(heap)
+        a, b = root(a), root(b)
+        if a == b or (a in locked and b in locked): continue
+        keep, drop = (b, a) if a not in locked and b in locked else (a, b)
+        if keep in locked:
+            newp = pos[keep][:]
+        elif drop in locked:
+            keep, drop = drop, keep; newp = pos[keep][:]
+        else:
+            newp = [(pos[a][k] + pos[b][k]) / 2 for k in range(3)]
+        # reject collapses that flip a surviving face
+        flip = False
+        for fi in vfaces[drop] | vfaces[keep]:
+            if not alive[fi]: continue
+            f = [root(v) for v in faces[fi]]
+            if keep in f and drop in f: continue
+            old = [pos[v] for v in f]
+            new = [newp if v in (keep, drop) else pos[v] for v in f]
+            n1 = _cross(_sub(old[1], old[0]), _sub(old[2], old[0]))
+            n2 = _cross(_sub(new[1], new[0]), _sub(new[2], new[0]))
+            if _dot(n1, n2) <= 0:
+                flip = True; break
+        if flip: continue
+        merged[drop] = keep
+        pos[keep] = newp
+        Q[keep] = [x + y for x, y in zip(Q[keep], Q[drop])]
+        for fi in vfaces[drop]:
+            if not alive[fi]: continue
+            f = [root(v) for v in faces[fi]]
+            if len(set(f)) < 3:
+                alive[fi] = False; live -= 1
+        vfaces[keep] |= vfaces[drop]
+        for fi in vfaces[keep]:
+            if not alive[fi]: continue
+            for v in faces[fi]:
+                v = root(v)
+                if v != keep and not (v in locked and keep in locked):
+                    q = [x + y for x, y in zip(Q[keep], Q[v])]
+                    p = pos[v] if keep not in locked and v in locked else pos[keep] if keep in locked else [(pos[keep][k] + pos[v][k]) / 2 for k in range(3)]
+                    heapq.heappush(heap, (err(q, p), keep, v))
+    before = len(model.faces)
+    out = []
+    for fi, f in enumerate(model.faces):
+        if not alive[fi]: continue
+        f.a, f.b, f.c = (root(v) for v in faces[fi])
+        if len({f.a, f.b, f.c}) == 3:
+            out.append(f)
+    for i, p in enumerate(pos):
+        model.vertices[i].x, model.vertices[i].y, model.vertices[i].z = p
+    model.faces = out
+    compact_vertices(model)
+    return before - len(model.faces)
+
+
 __all__ = ['box_to_mesh', 'compact_vertices', 'delete_faces', 'detach_faces', 'extract_faces',
            'faces_to_box', 'faces_to_sphere', 'fill_holes', 'icosphere', 'merge_models',
            'recalc_bounds', 'rotate', 'scale', 'selection_centre', 'selection_vertices',
-           'sphere_to_mesh', 'translate', 'weld_vertices']
+           'sphere_to_mesh', 'translate', 'weld_vertices',
+           'clean_mesh', 'merge_coplanar', 'decimate']

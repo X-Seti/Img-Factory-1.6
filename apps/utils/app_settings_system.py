@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 78
+#This goes in root/apps/utils/app_settings_system.py - version 79
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -2433,7 +2433,7 @@ class AppSettings:
         return self.default_settings.copy()
 
 
-    def _load_all_themes(self): #vers 2
+    def _load_all_themes(self): #vers 3
         """Load all theme files from apps.themes.directory - Windows compatible"""
         themes = {}
         try:
@@ -2523,7 +2523,7 @@ class AppSettings:
             "show_emoji_in_buttons": False,
             # Path remembering settings (from your existing file)
             "remember_img_output_path": True,
-            "last_img_output_path": "/home/x2",
+            "last_img_output_path": "",
             "remember_import_path": True,
             "last_import_path": "",
             "remember_export_path": True,
@@ -2575,7 +2575,7 @@ class AppSettings:
 
             # NEW: Path remembering settings (from your updated file)
             "remember_img_output_path": True,
-            "last_img_output_path": "/home/x2",
+            "last_img_output_path": "",
             "remember_import_path": True,
             "last_import_path": "",
             "remember_export_path": True,

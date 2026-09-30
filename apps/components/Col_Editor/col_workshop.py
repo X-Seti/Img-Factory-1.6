@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 124
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 125
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -95,7 +95,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # to restore it. History: 1 = Transform/Navigation/Render ribbons,
     # 2 = added Name/Format/Shadow Mesh ribbons (replacing the old
     # dual text/icon bottom info panel).
-    _RIBBON_LAYOUT_VERSION = 3
+    _RIBBON_LAYOUT_VERSION = 4
 
     def __init__(self, parent=None, main_window=None): #vers 12
         """initialize_features"""

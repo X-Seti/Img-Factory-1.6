@@ -1,9 +1,9 @@
-#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 1
+#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 2
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Workshop edit tools
 
 """
 COL Workshop edit tools - viewport selection edits: detach, extract, delete,
-weld, fill hole, box/sphere/mesh conversion, scale, centre, merge files.
+weld, fill hole, box/sphere/mesh conversion, optimise, scale, centre, merge files.
 Geometry maths lives in apps/methods/col_mesh_ops.py.
 """
 
@@ -17,6 +17,7 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _edit_faces_to_sphere
 # _edit_fill_hole
 # _edit_gamepad_saved
+# _edit_optimise
 # _edit_scale_dialog
 # _edit_selection
 # _edit_selection_to_file
@@ -32,7 +33,8 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 import os
 
 from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
-                             QFileDialog, QFormLayout, QInputDialog, QMessageBox)
+                             QFileDialog, QFormLayout, QInputDialog, QMessageBox,
+                             QRadioButton, QSpinBox)
 
 from apps.methods import col_mesh_ops as ops
 
@@ -328,6 +330,54 @@ class COLEditMixin: #vers 1
             data = {}
         data['gamepad_enabled'] = bool(on and self._gamepad is not None)
         path.write_text(json.dumps(data, indent=2))
+
+    def _edit_optimise(self): #vers 1
+        """Reduce face count: clean (lossless), merge flat areas, decimate (lossy)."""
+        sel = self._edit_selection(need_faces=False)
+        if not sel: return
+        model, idx, _ = sel
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Optimise Mesh")
+        form = QFormLayout(dlg)
+        clean = QCheckBox("Clean (lossless): weld duplicates, drop zero-area / duplicate faces")
+        clean.setChecked(True)
+        tol = QDoubleSpinBox(); tol.setDecimals(4); tol.setRange(0.0001, 0.1); tol.setValue(0.001)
+        merge = QCheckBox("Merge flat areas (lossless): same material, same plane")
+        merge.setChecked(True)
+        ang = QDoubleSpinBox(); ang.setRange(0.1, 10.0); ang.setValue(0.5); ang.setSuffix(" deg")
+        dec = QCheckBox("Decimate (lossy): collapse edges, material borders kept")
+        pct = QSpinBox(); pct.setRange(5, 95); pct.setValue(50); pct.setSuffix(" % of faces")
+        pct.setEnabled(False); dec.toggled.connect(pct.setEnabled)
+        one = QRadioButton(f"Selected model ({model.name})"); one.setChecked(True)
+        every = QRadioButton(f"All {len(self.current_col_file.models)} models in file")
+        for w in (clean, merge, dec):
+            w.setToolTip(w.text())
+        form.addRow(clean); form.addRow("Weld tolerance:", tol)
+        form.addRow(merge); form.addRow("Flat angle:", ang)
+        form.addRow(dec); form.addRow("Keep:", pct)
+        form.addRow(one); form.addRow(every)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        models = list(self.current_col_file.models) if every.isChecked() else [model]
+        before = after = 0
+        for m in models:
+            if not m.faces:
+                continue
+            self._push_undo(self.current_col_file.models.index(m), "Optimise mesh")
+            before += len(m.faces)
+            if clean.isChecked():
+                ops.clean_mesh(m, tol.value())
+            if merge.isChecked():
+                ops.merge_coplanar(m, ang.value())
+            if dec.isChecked():
+                ops.decimate(m, pct.value() / 100.0)
+            ops.recalc_bounds(m)
+            after += len(m.faces)
+        cut = (before - after) * 100.0 / before if before else 0.0
+        self._mesh_edited(model, f"Optimised {len(models)} model(s): {before} -> {after} faces (-{cut:.0f}%)")
 
     def _merge_col_files(self): #vers 1
         """Pick COL files; all their models are added to the open file."""

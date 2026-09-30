@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 7
+#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 8
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop 3D viewport
 
 """
@@ -1314,7 +1314,7 @@ class COL3DViewport(QWidget): #vers 2
         p.drawText(W-68,H-4,f"grid {step:.3g}")
 
 
-    def _show_face_context_menu(self, global_pos, face_index, face): #vers 4
+    def _show_face_context_menu(self, global_pos, face_index, face): #vers 5
         """Right-click context menu for a picked face — material operations."""
         from PyQt6.QtWidgets import QMenu  # QAction imported at module level
         from PyQt6.QtGui import QColor, QPixmap, QIcon
@@ -1393,7 +1393,8 @@ class COL3DViewport(QWidget): #vers 2
                     ("Fill Hole",            SVGIconFactory.fill_icon,           ws._edit_fill_hole),
                     ("To Box",               SVGIconFactory.mesh_icon,           ws._edit_faces_to_box),
                     ("To Sphere",            SVGIconFactory.shading_sphere_icon, ws._edit_faces_to_sphere),
-                    ("Scale...",             SVGIconFactory.bounds_icon,         ws._edit_scale_dialog)]:
+                    ("Scale...",             SVGIconFactory.bounds_icon,         ws._edit_scale_dialog),
+                    ("Optimise Mesh...",     SVGIconFactory.filter_icon,         ws._edit_optimise)]:
                 edit_menu.addAction(icon(20, ic), label, fn)
 
         #    Execute                                                       
