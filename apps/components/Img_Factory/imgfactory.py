@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 104
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 105
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -4215,7 +4215,7 @@ class IMGFactory(QMainWindow):
 
 
     # COL and editor functions
-    def _open_col_entry_smart(self, col_name: str, table_row: int = -1): #vers 1
+    def _open_col_entry_smart(self, col_name: str, table_row: int = -1): #vers 2
         """Open a COL entry from the IMG file list.
         Tries COL Workshop first; falls back to inline COL viewer if not installed."""
         import os
@@ -4296,7 +4296,7 @@ class IMGFactory(QMainWindow):
                     str(len(getattr(m,'boxes',[]))),
                     str(len(getattr(m,'vertices',[]))),
                     str(len(getattr(m,'faces',[]))),
-                    str(len(getattr(m,'shadow_verts',[]))),
+                    str(len(getattr(m,'shadow_vertices',[]))),
                     str(len(getattr(m,'shadow_faces',[]))),
                 ]
                 for j, val in enumerate(row_data):

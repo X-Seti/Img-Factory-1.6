@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_splice.py - Version: 3
+#this belongs in apps/methods/col_splice.py - Version: 4
 # X-Seti - September 21 2026 - IMG Factory 1.6 - COL save by splicing original records
 
 """col_splice.py - Save a COL file without re-encoding what was not edited.
@@ -10,6 +10,7 @@ Here every model keeps its ORIGINAL record bytes; a model is only re-written
 guessed - when a changed model cannot be written."""
 
 ##Methods list -
+# _shadow_fp
 # split_records
 # fingerprint
 # tag_models
@@ -68,7 +69,7 @@ def fingerprint(model) -> int:
         return 0
 
 
-def tag_models(models: list, raw) -> Optional[dict]:
+def tag_models(models: list, raw) -> Optional[dict]: #vers 2
     """After loading: pair every parsed model with its original record (matched in
     order by model name), remember a fingerprint of its data, and keep every record
     the loader did not turn into a model (they are written back untouched, in place).
@@ -86,10 +87,16 @@ def tag_models(models: list, raw) -> Optional[dict]:
         for k in range(cur, j):                    # records the loader skipped
             (head if last_model is None else last_model._orphans_after).append(recs[k])
         m._orig_record, m._orig_fp, m._orphans_after = recs[j], fingerprint(m), []
+        m._orig_shadow_fp = _shadow_fp(m)
         last_model, cur = m, j + 1
     for k in range(cur, len(recs)):
         (head if last_model is None else last_model._orphans_after).append(recs[k])
     return {"head": head, "tail": tail}
+
+
+def _shadow_fp(m) -> int:
+    """Fingerprint of a model's shadow mesh (not patched in place)."""
+    return hash(_dump((getattr(m, "shadow_vertices", None), getattr(m, "shadow_faces", None))))
 
 
 def _ver(rec: bytes) -> int:
@@ -126,7 +133,7 @@ def _layout(rec: bytes):
             at(v_o) if n_v else 0, at(f_o) if n_f and f_o else 0, n_s, n_b, n_v, n_f)
 
 
-def patch_record(rec: bytes, m) -> bytes: #vers 3
+def patch_record(rec: bytes, m) -> bytes: #vers 4
     """The ORIGINAL record with the edited values of model m written back in place
     (bounds, sphere/box/vertex/face values). Everything the editor does not model -
     COL2/3 flags, suspension lines, face groups, planes, shadow mesh - stays exactly
@@ -139,6 +146,8 @@ def patch_record(rec: bytes, m) -> bytes: #vers 3
     verts, faces = list(getattr(m, "vertices", None) or []), list(getattr(m, "faces", None) or [])
     if (len(spheres), len(boxes), len(verts), len(faces)) != (n_s, n_b, n_v, n_f):
         raise ValueError("the number of spheres / boxes / vertices / faces was changed")
+    if getattr(m, "_orig_shadow_fp", None) != _shadow_fp(m):
+        raise ValueError("the shadow mesh was changed")
     out = bytearray(rec)
 
     def put(fmt, off, *vals):
@@ -196,7 +205,7 @@ def write_new_record(m) -> bytes: #vers 2
     return COLWriter.write_model(m)
 
 
-def model_record(m, writer, name: str = "model") -> bytes: #vers 2
+def model_record(m, writer, name: str = "model") -> bytes: #vers 3
     """One model's record: original, patched original, or freshly written."""
     rec: Optional[bytes] = getattr(m, "_orig_record", None)
     ver = getattr(getattr(m, "header", None), "version", None)
@@ -207,8 +216,8 @@ def model_record(m, writer, name: str = "model") -> bytes: #vers 2
     if rec is not None:                            # edited: patch the original record in place
         try:
             return patch_record(rec, m)
-        except Exception as e:
-            raise ValueError(f"'{name}' was edited but cannot be saved safely: {e}")
+        except ValueError:
+            rec = None                             # counts / shadow changed: write fresh
     try:                                           # new model: write a fresh record
         return writer.write_model(m)
     except Exception as e:

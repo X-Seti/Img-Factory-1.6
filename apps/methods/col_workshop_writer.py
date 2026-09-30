@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_workshop_writer.py - Version: 1
+#this belongs in apps/methods/col_workshop_writer.py - Version: 2
 # X-Seti - March 2026 - IMG Factory 1.6 - COL Binary Writer
 # Based on DragonFF col.py __write_col/__write_col_new (Parik, GPL-2.0+)
 """
@@ -114,7 +114,7 @@ def _write_col_new(model: COLModel) -> bytes:
     boxes    = getattr(model, 'boxes',    [])
     verts    = getattr(model, 'vertices', [])
     faces    = getattr(model, 'faces',    [])
-    shadow_v = getattr(model, 'shadow_verts', [])
+    shadow_v = getattr(model, 'shadow_vertices', [])
     shadow_f = getattr(model, 'shadow_faces', [])
 
     flags  = 0

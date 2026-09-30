@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_workshop_parser.py - Version: 11
+#this belongs in apps/methods/col_workshop_parser.py - Version: 12
 # X-Seti - May08 2026 - Col Workshop - COL Binary Parser
 """
 COL Binary Parser - Handles parsing binary COL data
@@ -262,7 +262,7 @@ class COLParser: #vers 1
         return faces, offset
     
 
-    def parse_model(self, data: bytes, offset: int = 0) -> Tuple[Optional[COLModel], int]: #vers 4
+    def parse_model(self, data: bytes, offset: int = 0) -> Tuple[Optional[COLModel], int]: #vers 5
         """Parse complete COL model (COL1/2/3/4).
 
         COL1 layout (VERIFIED from special.col RE, March 2026):
@@ -391,6 +391,22 @@ class COLParser: #vers 1
                         vertices, _ = self.parse_vertices(
                             data, data_at(verts_off), num_vertices, version)
 
+                #    Shadow mesh (COL3+) and suspension lines, kept for saving
+                shadow_faces, shadow_vertices = [], []
+                if shadow_face_count and shadow_faces_off:
+                    shadow_faces, _ = self.parse_faces(
+                        data, data_at(shadow_faces_off), shadow_face_count, version)
+                    if shadow_verts_off and shadow_faces:
+                        n_sv = max(max(f.a, f.b, f.c) for f in shadow_faces) + 1
+                        shadow_vertices, _ = self.parse_vertices(
+                            data, data_at(shadow_verts_off), n_sv, version)
+                lines_raw = b''
+                if num_lines_byte and lines_off:
+                    nxt = [o for o in (spheres_off, boxes_off, verts_off, faces_off,
+                                       shadow_verts_off, shadow_faces_off) if o > lines_off]
+                    end = min(nxt) if nxt else header.size + 4
+                    lines_raw = bytes(data[data_at(lines_off):block_base + end + 4])
+
             # Sanity checks — limits raised for large SA COL files
             # SA collision archives can have models with 500k+ vertices/faces
             if (len(spheres) > 50000 or len(boxes) > 50000
@@ -412,6 +428,12 @@ class COLParser: #vers 1
             model.name     = header.name
             model.version  = header.version
             model.model_id = header.model_id
+            if version != COLVersion.COL_1:
+                model.flags = model_flags
+                model.shadow_vertices = shadow_vertices
+                model.shadow_faces = shadow_faces
+                model.lines_raw = lines_raw
+                model.lines_count = num_lines_byte
 
             # Always advance by header-declared size (DragonFF: pos + file_size + 8).
             # For COL2/3 the data blocks are read by jumping with data_at(), not
@@ -567,17 +589,36 @@ class COLWriter: #vers 1
         return bytes(buf)
 
     @classmethod
-    def _write_col23_body(cls, model, ver) -> bytes: #vers 3
+    def _write_col23_body(cls, model, ver) -> bytes: #vers 4
         """COL2/3/4 body after bounds: offset header then data blocks.
-        Offsets are from the fourcc, pointing 4 bytes before each block."""
+        Offsets are from the fourcc, pointing 4 bytes before each block.
+        Keeps flags, suspension lines and COL3 shadow mesh; face groups dropped."""
         import struct
         spheres = model.spheres  or []
         boxes   = model.boxes    or []
         verts   = model.vertices or []
         faces   = model.faces    or []
+        s_verts = list(getattr(model, 'shadow_vertices', []) or []) if ver.value >= 3 else []
+        s_faces = list(getattr(model, 'shadow_faces', []) or []) if ver.value >= 3 else []
+        lines   = bytes(getattr(model, 'lines_raw', b'') or b'')
 
         def _i16(val):
             return max(-32768, min(32767, int(round(float(val) * 128.0))))
+
+        def _verts(vs):
+            out = bytearray()
+            for v in vs:
+                out += struct.pack('<hhh', _i16(v.x), _i16(v.y), _i16(v.z))
+            while len(out) % 4:
+                out += b'\x00'
+            return bytes(out)
+
+        def _faces(fs):
+            out = bytearray()
+            for f in fs:
+                out += struct.pack('<HHHBB', int(f.a), int(f.b), int(f.c),
+                                   cls._mat_id(f), int(getattr(f, 'light', 0) or 0) & 0xFF)
+            return bytes(out)
 
         hdr_len = 36 + (12 if ver.value >= 3 else 0) + (4 if ver.value >= 4 else 0)
         pos = 8 + 24 + 40 + hdr_len                     # fourcc+size, name+id, bounds
@@ -585,6 +626,8 @@ class COLWriter: #vers 1
 
         def _add(data):
             nonlocal pos, blocks
+            if not data:
+                return 0
             off = pos - 4
             blocks += data
             pos += len(data)
@@ -596,25 +639,22 @@ class COLWriter: #vers 1
         box = bytearray()
         for b in boxes:
             box += cls._v3(b.min) + cls._v3(b.max) + cls._surface(b)
-        vtx = bytearray()
-        for v in verts:
-            vtx += struct.pack('<hhh', _i16(v.x), _i16(v.y), _i16(v.z))
-        while len(vtx) % 4:
-            vtx += b'\x00'
-        fac = bytearray()
-        for f in faces:
-            fac += struct.pack('<HHHBB', int(f.a), int(f.b), int(f.c),
-                               cls._mat_id(f), int(getattr(f, 'light', 0) or 0) & 0xFF)
 
         off_sph = _add(bytes(sph))
         off_box = _add(bytes(box))
-        off_vtx = _add(bytes(vtx))
-        off_fac = _add(bytes(fac))
-        flags = 2 if (spheres or boxes or faces) else 0
-        hdr = struct.pack('<HHHBxIIIIIII', len(spheres), len(boxes), len(faces), 0,
-                          flags, off_sph, off_box, 0, off_vtx, off_fac, 0)
+        off_lin = _add(lines)
+        off_vtx = _add(_verts(verts))
+        off_fac = _add(_faces(faces))
+        off_svt = _add(_verts(s_verts))
+        off_sfc = _add(_faces(s_faces))
+        flags = int(getattr(model, 'flags', 0) or 0) & ~0x08          # face groups not written
+        flags = (flags | 0x02) if (spheres or boxes or faces) else (flags & ~0x02)
+        flags = (flags | 0x10) if s_faces else (flags & ~0x10)
+        n_lines = int(getattr(model, 'lines_count', 0) or 0) if lines else 0
+        hdr = struct.pack('<HHHBxIIIIIII', len(spheres), len(boxes), len(faces), n_lines,
+                          flags, off_sph, off_box, off_lin, off_vtx, off_fac, 0)
         if ver.value >= 3:
-            hdr += struct.pack('<III', 0, 0, 0)            # no shadow mesh
+            hdr += struct.pack('<III', len(s_faces), off_svt, off_sfc)
         if ver.value >= 4:
             hdr += struct.pack('<I', 0)
         return hdr + bytes(blocks)

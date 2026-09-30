@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 4
+#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 5
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop core logic
 
 """
@@ -69,6 +69,7 @@ COL Workshop core logic - file load/save, import/export, model edits, undo, surf
 # _saveall_file
 # _select_all_models
 # shadow_dialog
+# _shadow_mesh_changed
 # _show_shadow_mesh
 # showEvent
 # _sort_models
@@ -218,7 +219,7 @@ class COLCoreLogicMixin: #vers 1
         if active.rowCount() > new_row:
             active.selectRow(new_row)
 
-    def _build_col_from_txd(self): #vers 3
+    def _build_col_from_txd(self): #vers 4
         """Create stub COL models for each texture name in a loaded TXD."""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         from apps.methods.col_workshop_loader import COLFile
@@ -258,7 +259,6 @@ class COLCoreLogicMixin: #vers 1
                                    min=(-1.0, -1.0, -1.0), max=(1.0, 1.0, 1.0))
                 m = COLModel(header=hdr, bounds=bounds,
                              spheres=[], boxes=[], vertices=[], faces=[])
-                m.shadow_verts = []; m.shadow_faces = []
                 self.current_col_file.models.append(m)
                 added += 1
             self._populate_collision_list()
@@ -382,8 +382,8 @@ class COLCoreLogicMixin: #vers 1
         ok.clicked.connect(_do)
         dlg.exec()
 
-    def _create_shadow_mesh(self): #vers 2
-        """Auto-generate shadow mesh as a copy of the main collision mesh."""
+    def _create_shadow_mesh(self): #vers 3
+        """Create shadow mesh as a copy of the main collision mesh (COL3)."""
         from PyQt6.QtWidgets import QMessageBox
         import copy
         model = self._get_selected_model()
@@ -393,7 +393,6 @@ class COLCoreLogicMixin: #vers 1
         if not model.vertices or not model.faces:
             QMessageBox.warning(self, "No Mesh", f"'{model.name}' has no vertex/face data.")
             return
-        # Upgrade to COL3 if needed
         from apps.methods.col_workshop_classes import COLVersion
         if getattr(model.version, 'value', 0) < 3:
             reply = QMessageBox.question(self, "Upgrade to COL3",
@@ -401,37 +400,48 @@ class COLCoreLogicMixin: #vers 1
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if reply != QMessageBox.StandardButton.Yes:
                 return
+        if model.shadow_faces and QMessageBox.question(self, "Replace Shadow Mesh",
+                f"'{model.name}' already has a shadow mesh. Replace it with a copy of the mesh?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        self._push_undo(self.current_col_file.models.index(model), "Create shadow mesh")
+        if getattr(model.version, 'value', 0) < 3:
             model.version = COLVersion.COL_3
-        model.shadow_verts = copy.deepcopy(model.vertices)
+        model.shadow_vertices = copy.deepcopy(model.vertices)
         model.shadow_faces = copy.deepcopy(model.faces)
-        self._populate_collision_list()
-        self._populate_compact_col_list()
-        msg = (f"Shadow mesh created for {model.name}: "
-               f"{len(model.shadow_verts)}V {len(model.shadow_faces)}F")
-        self._set_status(msg)
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(msg)
+        self._shadow_mesh_changed(model, f"Shadow mesh created for {model.name}: "
+                                  f"{len(model.shadow_vertices)}V {len(model.shadow_faces)}F")
 
-    def _remove_shadow_mesh(self): #vers 2
+    def _remove_shadow_mesh(self): #vers 3
         """Remove shadow mesh data from the selected COL model."""
         from PyQt6.QtWidgets import QMessageBox
         model = self._get_selected_model()
         if not model:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
             return
-        has_shadow = bool(getattr(model, 'shadow_verts', []) or getattr(model, 'shadow_faces', []))
-        if not has_shadow:
+        if not model.shadow_faces:
             QMessageBox.information(self, "No Shadow Mesh", f"{model.name} has no shadow mesh.")
             return
-        reply = QMessageBox.question(self, "Remove Shadow Mesh",
-            f"Remove shadow mesh from '{model.name}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if reply == QMessageBox.StandardButton.Yes:
-            model.shadow_verts = []
-            model.shadow_faces = []
-            self._set_status(f"Removed shadow mesh from {model.name}")
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Shadow mesh removed from {model.name}")
+        if QMessageBox.question(self, "Remove Shadow Mesh",
+                f"Remove shadow mesh from '{model.name}'?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        self._push_undo(self.current_col_file.models.index(model), "Remove shadow mesh")
+        model.shadow_vertices = []
+        model.shadow_faces = []
+        self._shadow_mesh_changed(model, f"Removed shadow mesh from {model.name}")
+
+    def _shadow_mesh_changed(self, model, msg): #vers 1
+        """Refresh lists, viewport and save button after a shadow edit."""
+        idx = self.current_col_file.models.index(model)
+        self._populate_collision_list()
+        self._populate_compact_col_list()
+        self._select_model_by_row(idx)
+        if hasattr(self, 'save_btn'):
+            self.save_btn.setEnabled(True)
+        self._set_status(msg + " - not saved yet")
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(msg)
 
     def _compress_col(self): #vers 2
         """Mark COL file for compressed output (sets flags on export)."""
@@ -1595,25 +1605,22 @@ class COLCoreLogicMixin: #vers 1
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Mesh Editor Error", str(e))
 
-    def _show_shadow_mesh(self): #vers 2
-        """Show shadow mesh info for selected model."""
+    def _show_shadow_mesh(self): #vers 3
+        """Toggle the shadow mesh overlay in the viewport."""
         from PyQt6.QtWidgets import QMessageBox
         model = self._get_selected_model()
         if not model:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
             return
-        sv = len(getattr(model, 'shadow_verts', []))
-        sf = len(getattr(model, 'shadow_faces', []))
-        if sv == 0 and sf == 0:
-            QMessageBox.information(self, "Shadow Mesh",
-                f"'{model.name}' has no shadow mesh data.\n\n"
-                "COL3+ models can have a separate low-poly shadow collision mesh.")
-        else:
-            QMessageBox.information(self, "Shadow Mesh",
-                f"Model: {model.name}\n"
-                f"Shadow vertices: {sv}\n"
-                f"Shadow faces:    {sf}\n\n"
-                "Shadow mesh is included in COL3 export.")
+        pw = self.preview_widget
+        if not model.shadow_faces:
+            pw.set_show_shadow(False)
+            self._set_status(f"'{model.name}' has no shadow mesh (COL3 only) - use Create Shadow Mesh")
+            return
+        pw.set_show_shadow(not pw._show_shadow)
+        state = "shown" if pw._show_shadow else "hidden"
+        self._set_status(f"Shadow mesh {state}: {model.name} - "
+                         f"{len(model.shadow_vertices)}V {len(model.shadow_faces)}F")
 
     def _compress_surface(self, *_, **__): return self._compress_col()  #vers 1
 

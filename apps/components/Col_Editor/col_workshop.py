@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 122
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 123
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -299,7 +299,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # STUB: dock_btn, tearoff_btn, colour swatch buttons and _svg_to_icon()
     # created icons do not yet update on theme change. Wire to _refresh_icons.
 
-    def _show_workshop_settings(self): #vers 1
+    def _show_workshop_settings(self): #vers 2
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -471,7 +471,6 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         tabs.addTab(display_tab, "Display")
 
 
-        # TAB 3: placeholder
         # TAB 4: PERFORMANCE
 
         perf_tab = QWidget()
@@ -1674,7 +1673,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     #    IDE-linked operations                                              
 
 
-    def _show_settings_hotkeys(self): #vers 1
+    def _show_settings_hotkeys(self): #vers 2
         """Show settings dialog with hotkey customization"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QLineEdit, QPushButton,
@@ -1790,18 +1789,6 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         hotkeys_layout.addWidget(reset_hotkeys_btn)
 
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
-
-        # === GENERAL TAB (for future settings) ===
-        general_tab = QWidget()
-        general_layout = QVBoxLayout(general_tab)
-
-        placeholder_label = QLabel("Additional settings will appear here in future versions.")
-        placeholder_label.setStyleSheet("color: #888; font-style: italic; padding: 20px;")
-        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        general_layout.addWidget(placeholder_label)
-        general_layout.addStretch()
-
-        tabs.addTab(general_tab, "General")
 
         layout.addWidget(tabs)
 

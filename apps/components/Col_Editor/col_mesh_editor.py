@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/col_mesh_editor.py - Version: 7
+#this belongs in apps/components/Col_Editor/col_mesh_editor.py - Version: 8
 # X-Seti - March 2026 - IMG Factory 1.6 - COL Mesh Editor Dialog
 
 """
@@ -715,24 +715,6 @@ class COLMeshEditor(QDialog): #vers 1
 
 
     # - Selection sync
-    def _on_face_selection(self): #vers 1
-        rows = {idx.row() for idx in self.face_table.selectedIndexes()}
-        self.viewport.set_selected_faces(rows)
-        # Also highlight referenced vertices
-        verts = set()
-        faces = getattr(self._model, 'faces', [])
-        for r in rows:
-            if r < len(faces):
-                f = faces[r]
-                verts.update([f.a, f.b, f.c])
-
-        self.viewport.set_selected_verts(verts)
-
-    def _on_vert_selection(self):
-        rows = {idx.row() for idx in self.vert_table.selectedIndexes()}
-        self.viewport.set_selected_verts(rows)
-
-
     # - Inline cell editing
 
     def _on_face_cell_changed(self, item):

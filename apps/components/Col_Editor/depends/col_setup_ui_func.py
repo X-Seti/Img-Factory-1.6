@@ -1944,7 +1944,7 @@ class COLSetupUIMixin: #vers 1
 
         menu.addSeparator()
 
-        # Icon display mode submenu — auto-compact via resizeEvent/_update_transform_text_panel_visibility
+        # Icon display mode submenu — auto-compact via resizeEvent
         display_menu = menu.addMenu("Platform Display")
 
         icons_text_action = display_menu.addAction("Icons & Text")

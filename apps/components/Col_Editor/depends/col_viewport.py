@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 4
+#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 6
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop 3D viewport
 
 """
@@ -39,6 +39,7 @@ COL 3D Viewport - QPainter preview of collision models.
 # set_render_style
 # set_show_boxes
 # set_show_mesh
+# set_show_shadow
 # set_show_spheres
 # _set_theme_bg
 # _show_face_context_menu
@@ -60,7 +61,7 @@ class COL3DViewport(QWidget): #vers 2
     G key / button = translate gizmo, R key / button = rotate gizmo.
     """
 
-    def __init__(self, parent=None):  #vers 1
+    def __init__(self, parent=None):  #vers 2
         super().__init__(parent)
         self.setMinimumSize(200, 200)
         self._model        = None
@@ -74,13 +75,14 @@ class COL3DViewport(QWidget): #vers 2
         self._show_spheres = True
         self._show_boxes   = True
         self._show_mesh    = True
+        self._show_shadow  = False  # COL3 shadow mesh overlay
         self._backface     = False
         self._render_style = 'semi'
         # Sphere/box display colours (R,G,B) and fill alpha (0-255)
         self._sphere_color = (80, 200, 220)   # cyan
-        self._sphere_alpha = 25               # fill transparency
+        self._sphere_alpha = 70               # ghost fill transparency
         self._box_color    = (220, 180, 50)   # yellow
-        self._box_alpha    = 30               # fill transparency
+        self._box_alpha    = 60               # ghost fill transparency
         self._bg_color     = (25, 25, 35)  # overridden on first paint
         self._theme_bg_set = False
         # drag state
@@ -177,6 +179,7 @@ class COL3DViewport(QWidget): #vers 2
     def set_show_spheres(self, v): self._show_spheres = v; self.update()  #vers 1
     def set_show_boxes(self,   v): self._show_boxes   = v; self.update()  #vers 1
     def set_show_mesh(self,    v): self._show_mesh     = v; self.update()  #vers 1
+    def set_show_shadow(self,  v): self._show_shadow   = v; self.update()  #vers 1
     def set_backface(self,     v): self._backface      = v; self.update()  #vers 1
     def set_render_style(self, s): self._render_style  = s; self.update()  #vers 1
 
@@ -698,9 +701,9 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    paint                                                              
-    def paintEvent(self, event):  #vers 4
+    def paintEvent(self, event):  #vers 5
         """Fully self-contained paint — grid, mesh, boxes, spheres, bounds, gizmo, HUD."""
-        from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush,
+        from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush, QRadialGradient,
                                   QPolygonF, QLinearGradient)
         from PyQt6.QtCore import QPointF, QRectF, QRect
         import math
@@ -819,12 +822,22 @@ class COL3DViewport(QWidget): #vers 2
                     p.setPen(QPen(QColor(100,180,100),1))
                 p.drawPolygon(QPolygonF(pts))
 
+        #    Shadow mesh overlay (COL3) - magenta, dashed
+        s_verts = getattr(model, 'shadow_vertices', None) or []
+        s_faces = getattr(model, 'shadow_faces', None) or []
+        if self._show_shadow and s_verts and s_faces:
+            p.setPen(QPen(QColor(230, 80, 230, 220), 1, Qt.PenStyle.DashLine))
+            p.setBrush(QBrush(QColor(230, 80, 230, 40)))
+            n_sv = len(s_verts)
+            for sf in s_faces:
+                if not (0 <= sf.a < n_sv and 0 <= sf.b < n_sv and 0 <= sf.c < n_sv): continue
+                p.drawPolygon(QPolygonF([QPointF(*to_screen(*g3(s_verts[k]))) for k in (sf.a, sf.b, sf.c)]))
+
         #    Boxes — draw all 12 edges of AABB                              
         if self._show_boxes:
             _bc = getattr(self, '_box_color', (220, 180, 50))
             _ba = getattr(self, '_box_alpha', 30)
-            p.setPen(QPen(QColor(*_bc), 1.5))
-            p.setBrush(QBrush(QColor(*_bc, _ba)) if rs != 'wireframe' else Qt.BrushStyle.NoBrush)
+            _quads = [(0,1,3,2),(4,5,7,6),(0,1,5,4),(2,3,7,6),(0,2,6,4),(1,3,7,5)]
             for box in boxes:
                 mn_obj = getattr(box,'min_point',getattr(box,'min',None))
                 mx_obj = getattr(box,'max_point',getattr(box,'max',None))
@@ -834,7 +847,13 @@ class COL3DViewport(QWidget): #vers 2
                 # 8 corners
                 corners=[(xa,ya,za) for xa in(x0,x1) for ya in(y0,y1) for za in(z0,z1)]
                 sc=[to_screen(*c) for c in corners]
-                # 12 edges of the cube
+                # Ghost fill: 6 translucent sides, then 12 edges
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QBrush(QColor(*_bc, max(8, _ba // 3))))
+                for q in _quads:
+                    p.drawPolygon(QPolygonF([QPointF(*sc[k]) for k in q]))
+                p.setPen(QPen(QColor(*_bc), 1.5))
+                p.setBrush(Qt.BrushStyle.NoBrush)
                 edges=[(0,1),(0,2),(0,4),(1,3),(1,5),(2,3),(2,6),(3,7),(4,5),(4,6),(5,7),(6,7)]
                 for a2,b2 in edges:
                     ax,ay=sc[a2]; bx,by=sc[b2]
@@ -844,12 +863,22 @@ class COL3DViewport(QWidget): #vers 2
         if self._show_spheres:
             _sc = getattr(self, '_sphere_color', (80, 200, 220))
             _sa = getattr(self, '_sphere_alpha', 25)
-            p.setPen(QPen(QColor(*_sc), 1.5))
-            p.setBrush(QBrush(QColor(*_sc, _sa)) if rs != 'wireframe' else Qt.BrushStyle.NoBrush)
             N = 48
+            _scale0 = math.hypot(*(a - b for a, b in zip(to_screen(1, 0, 0), to_screen(0, 0, 0))))
             for sph in spheres:
                 cx,cy3,cz = g3(getattr(sph,'center',sph))
                 r = getattr(sph,'radius',1.0)
+                # Ghost fill: shaded disc (orthographic sphere outline)
+                scx, scy = to_screen(cx, cy3, cz)
+                rr = r * _scale0
+                grad = QRadialGradient(QPointF(scx - rr * 0.35, scy - rr * 0.35), rr * 1.3)
+                grad.setColorAt(0.0, QColor(min(255, _sc[0] + 90), min(255, _sc[1] + 90), min(255, _sc[2] + 90), min(255, _sa + 40)))
+                grad.setColorAt(1.0, QColor(*_sc, max(10, _sa // 2)))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QBrush(grad))
+                p.drawEllipse(QPointF(scx, scy), rr, rr)
+                p.setPen(QPen(QColor(*_sc), 1.5))
+                p.setBrush(Qt.BrushStyle.NoBrush)
                 # 3 rings in different planes
                 for t1,t2,t3 in [(1,0,0,),(0,1,0),(0,0,1)]:
                     # tangent vectors from axis (t1,t2,t3)
@@ -1087,10 +1116,11 @@ class COL3DViewport(QWidget): #vers 2
         #    HUD                                                            
         p.setFont(QFont('Arial',8)); p.setPen(self._get_ui_color('border'))
         p.drawText(6,14,getattr(model,'name','') or '')
-        y2=H-54
+        y2=H-54-(14 if s_faces else 0)
         for col_c,txt in [(QColor(100,180,100),f"Mesh  F:{len(faces)} V:{len(verts)}"),
                           (QColor(220,180,50), f"Boxes  {len(boxes)}"),
-                          (QColor(80,200,220), f"Spheres  {len(spheres)}")]:
+                          (QColor(80,200,220), f"Spheres  {len(spheres)}")] + \
+                         ([(QColor(230,80,230), f"Shadow  F:{len(s_faces)} V:{len(s_verts)}")] if s_faces else []):
             p.setPen(col_c); p.drawText(6,y2,txt); y2+=14
         p.setPen(QColor(120,125,140)); p.setFont(QFont('Arial',7))
         p.drawText(6,H-4,f"Y:{self._yaw:.0f}° P:{self._pitch:.0f}° Z:{self._zoom:.2f}x")

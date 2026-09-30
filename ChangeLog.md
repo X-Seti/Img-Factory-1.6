@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 194
+#this belongs in root /ChangeLog.md - Version: 195
+
+## Sep 30 2026 - COL shadow mesh, ghost fills, dead code, Build 431.105
+- COL3 shadow mesh now read, drawn (View toggle, magenta), created, removed, undone, saved; lines and flags kept on fresh writes (574 SA models verified).
+- Edits that change counts now save (fresh record) instead of refusing.
+- Spheres/boxes drawn with translucent ghost fill.
+- Removed duplicate mesh editor methods, no-op panel method, placeholder settings tab; shadow_verts renamed shadow_vertices.
 
 ## Sep 30 2026 - COL face picking, Build 431.92
 - COL viewport _pick_face: click anywhere inside a face (topmost wins); was centroid within 20px only.

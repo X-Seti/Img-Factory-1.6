@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 9
+#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 10
 # X-Seti - Sept 2026 - IMG Factory 1.6 - COL Workshop window functions
 
 from PyQt6.QtCore import Qt, QTimer
@@ -31,7 +31,6 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # _toggle_maximize
 # _update_all_buttons
 # _update_cursor
-# _update_transform_text_panel_visibility
 
 # - Window functionality
 
@@ -366,7 +365,7 @@ class COLWindowMixin: #vers 1
                 btn.setMaximumWidth(16777215)
 
 
-    def _on_splitter_moved(self, pos, index): #vers 4
+    def _on_splitter_moved(self, pos, index): #vers 5
         """Main splitter dragged: save sizes, update compact buttons."""
         if not hasattr(self, '_splitter_save_timer'):
             self._splitter_save_timer = QTimer(self)
@@ -374,7 +373,6 @@ class COLWindowMixin: #vers 1
             self._splitter_save_timer.timeout.connect(self._save_splitter_sizes)
         self._splitter_save_timer.start(500)
         self._apply_left_compact()
-        self._update_transform_text_panel_visibility()
         try:
             from apps.methods.imgfactory_ui_settings import apply_compact_buttons
             btns = getattr(self, '_col_compact_btns', [])
@@ -423,19 +421,11 @@ class COLWindowMixin: #vers 1
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2))
 
-    def _update_transform_text_panel_visibility(self): #vers 4
-        """No-op now - the old dual text/icon bottom rows were replaced by
-        real QToolBar ribbons (Name/Format/Shadow Mesh), which manage their
-        own layout/compacting natively. Kept as a safe no-op since
-        resizeEvent still calls it."""
-        pass
-
-    def resizeEvent(self, event): #vers 6
+    def resizeEvent(self, event): #vers 7
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - 16, self.height() - 16)
-        self._update_transform_text_panel_visibility()
         self._apply_left_compact()
         # Auto icon-only when window is narrow (overrides saved mode only if narrower)
         try:

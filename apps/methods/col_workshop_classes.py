@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_workshop_classes.py - Version: 2
+#this belongs in apps/methods/col_workshop_classes.py - Version: 3
 # X-Seti - September28 2026 - IMG Factory 1.6 - COL Data Classes
 
 """
@@ -6,7 +6,7 @@ COL data classes - the one set used by every tool (COL1/2/3/4).
 Vector3 works as .x/.y/.z and as a 3-item sequence.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Tuple
 from enum import Enum
 
@@ -220,7 +220,7 @@ class COLFace: #vers 2
 
 
 @dataclass
-class COLModel: #vers 2
+class COLModel: #vers 3
     """Complete COL model structure; name/version/model_id live in header."""
     header: COLHeader
     bounds: COLBounds
@@ -228,6 +228,11 @@ class COLModel: #vers 2
     boxes: List[COLBox]
     vertices: List[COLVertex]
     faces: List[COLFace]
+    shadow_vertices: List[COLVertex] = field(default_factory=list)   # COL3+
+    shadow_faces: List[COLFace] = field(default_factory=list)        # COL3+
+    lines_raw: bytes = b''      # COL2+ suspension lines, kept as read
+    lines_count: int = 0
+    flags: int = 0              # COL2+ header flags
 
     @property
     def name(self) -> str:
@@ -257,7 +262,7 @@ class COLModel: #vers 2
     def bounding_box(self) -> COLBounds:
         return self.bounds
 
-    def get_stats(self) -> dict: #vers 1
+    def get_stats(self) -> dict: #vers 2
         """Get model statistics"""
         return {
             'name': self.header.name,
@@ -265,5 +270,7 @@ class COLModel: #vers 2
             'spheres': len(self.spheres),
             'boxes': len(self.boxes),
             'vertices': len(self.vertices),
-            'faces': len(self.faces)
+            'faces': len(self.faces),
+            'shadow_vertices': len(self.shadow_vertices),
+            'shadow_faces': len(self.shadow_faces)
         }

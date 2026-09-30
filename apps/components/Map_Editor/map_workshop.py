@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 225
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 226
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -4747,7 +4747,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                     return sid
             return 0  # default
 
-        def _surface_label(sid: int) -> str:  #vers 1
+        def _surface_label(sid: int) -> str:  #vers 2
             for _, (s, lbl) in SURFACE_MAP:
                 if s == sid:
                     return lbl
@@ -4897,7 +4897,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                          for t in getattr(geom, 'triangles', [])]
             m = COLModel(header=hdr, bounds=bnd, spheres=[], boxes=[],
                          vertices=verts, faces=faces)
-            m.shadow_verts = []; m.shadow_faces = []
             self.current_col_file.models.append(m)
             added += 1
 
@@ -4945,14 +4944,14 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         dlg.exec()
 
 
-    def _show_shadow_mesh(self): #vers 2
+    def _show_shadow_mesh(self): #vers 3
         """Show shadow mesh info for selected model."""
         from PyQt6.QtWidgets import QMessageBox
         model = self._get_selected_model()
         if not model:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
             return
-        sv = len(getattr(model, 'shadow_verts', []))
+        sv = len(getattr(model, 'shadow_vertices', []))
         sf = len(getattr(model, 'shadow_faces', []))
         if sv == 0 and sf == 0:
             QMessageBox.information(self, "Shadow Mesh",
