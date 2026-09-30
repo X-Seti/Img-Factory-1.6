@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 79
+#This goes in root/apps/utils/app_settings_system.py - version 80
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3162,33 +3162,39 @@ class AppSettings:
 
 
 
-class AppPanelEffect: #vers 1
+class AppPanelEffect: #vers 2
     """Mixin installed on QWidget panels to draw fill/gradient/pattern
     effects from app_settings. Install with AppPanelEffect.install(widget, settings)."""
 
+    _filter = None
+
     @staticmethod
-    def install(widget, app_settings, effect_type="auto"): #vers 1
-        """Install panel effect paintEvent on widget.
-        effect_type: 'fill'|'gradient'|'pattern'|'auto' (reads panel_effect key)
-        """
+    def install(widget, app_settings, effect_type="auto"): #vers 2
+        """Hook panel effect painting onto widget via a shared event filter.
+        Works on widgets that already painted (instance paintEvent patches did not)."""
         widget._app_settings_ref = app_settings
         widget._panel_effect_type = effect_type
+        if getattr(widget, '_panel_effect_installed', False):
+            return
+        if AppPanelEffect._filter is None:
+            from PyQt6.QtCore import QObject, QEvent
+            from PyQt6.QtWidgets import QApplication
 
-        original_paint = widget.__class__.paintEvent if hasattr(widget.__class__, 'paintEvent') else None
+            class _PanelEffectFilter(QObject): #vers 1
+                """Paint the widget normally, then the panel effect on top."""
+                def eventFilter(self, obj, ev): #vers 1
+                    if ev.type() == QEvent.Type.Paint and getattr(obj, '_panel_effect_installed', False):
+                        type(obj).paintEvent(obj, ev)
+                        AppPanelEffect._draw_effect(obj, ev)
+                        return True
+                    return False
 
-        def _panel_paint(self_w, event):
-            if original_paint:
-                original_paint(self_w, event)
-            AppPanelEffect._draw_effect(self_w, event)
-
-        # Only patch if not already patched
-        if not getattr(widget, '_panel_effect_installed', False):
-            import types
-            widget.paintEvent = types.MethodType(_panel_paint, widget)
-            widget._panel_effect_installed = True
+            AppPanelEffect._filter = _PanelEffectFilter(QApplication.instance())
+        widget.installEventFilter(AppPanelEffect._filter)
+        widget._panel_effect_installed = True
 
     @staticmethod
-    def _draw_effect(widget, event): #vers 1
+    def _draw_effect(widget, event): #vers 2
         """Draw the panel effect on top of the widget background."""
         from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPen
         from PyQt6.QtCore import QPointF, Qt
@@ -3200,7 +3206,8 @@ class AppPanelEffect: #vers 1
             cs = getattr(cs, 'current_settings', {})
 
         effect = cs.get('panel_effect_type', 'none')
-        if effect == 'none' or not effect:
+        image = cs.get('panel_bg_image', '')
+        if (effect == 'none' or not effect) and not image:
             return
 
         # Guard against painting a widget that isn't currently paintable -
@@ -3227,6 +3234,8 @@ class AppPanelEffect: #vers 1
                 AppPanelEffect._paint_gradient(p, r, cs)
             elif effect == 'pattern':
                 AppPanelEffect._paint_pattern(p, r, cs)
+            if image:
+                AppPanelEffect._paint_image(p, r, cs)
         except Exception:
             pass
         finally:
@@ -3322,6 +3331,42 @@ class AppPanelEffect: #vers 1
         g.setColorAt(0, s1); g.setColorAt(0.5, s2); g.setColorAt(1, s3)
         p.fillRect(r, g)
 
+    _pixmap_cache = {}
+
+    @staticmethod
+    def _paint_image(p, r, cs): #vers 1
+        """Panel background image (tiled/stretched/centred/fit/fill) at blend opacity; True if drawn."""
+        from PyQt6.QtGui import QPixmap
+        from PyQt6.QtCore import Qt
+        path = cs.get('panel_bg_image', '')
+        if not path:
+            return False
+        px = AppPanelEffect._pixmap_cache.get(path)
+        if px is None:
+            px = QPixmap(path)
+            AppPanelEffect._pixmap_cache[path] = px
+        if px.isNull():
+            return False
+        mode = cs.get('panel_bg_image_mode', 0)
+        p.save()
+        p.setOpacity(cs.get('panel_bg_image_opacity', 100) / 100.0)
+        if mode == 0:       # Tiled
+            p.drawTiledPixmap(r, px)
+        elif mode == 1:     # Stretched
+            p.drawPixmap(r, px)
+        elif mode == 2:     # Centred
+            p.drawPixmap(r.left() + (r.width() - px.width()) // 2,
+                         r.top() + (r.height() - px.height()) // 2, px)
+        else:               # 3 Scaled fit, 4 Scaled fill
+            aspect = (Qt.AspectRatioMode.KeepAspectRatio if mode == 3
+                      else Qt.AspectRatioMode.KeepAspectRatioByExpanding)
+            sc = px.scaled(r.size(), aspect, Qt.TransformationMode.SmoothTransformation)
+            p.setClipRect(r)
+            p.drawPixmap(r.left() + (r.width() - sc.width()) // 2,
+                         r.top() + (r.height() - sc.height()) // 2, sc)
+        p.restore()
+        return True
+
     @staticmethod
     def _paint_pattern(p, r, cs): #vers 1
         from PyQt6.QtGui import QColor, QPen, QBrush
@@ -3361,7 +3406,7 @@ class AppPanelEffect: #vers 1
                 p.drawRect(r.left(), r.top()+row*scale, r.width(), scale)
 
 
-def apply_panel_effects(window, app_settings): #vers 3
+def apply_panel_effects(window, app_settings): #vers 4
     """Walk a window's panels and apply the current panel effect to each.
     Skips: AppSettings dialog itself.
     """
@@ -3369,7 +3414,11 @@ def apply_panel_effects(window, app_settings): #vers 3
     cs = app_settings.current_settings
     effect = cs.get('panel_effect_type', 'none')
 
-    if effect == 'none':
+    if effect == 'none' and not cs.get('panel_bg_image', ''):
+        from PyQt6.QtWidgets import QWidget
+        for w in window.findChildren(QWidget):          # repaint panels that had an effect
+            if getattr(w, '_panel_effect_installed', False):
+                w.update()
         return
 
     # Don't apply panel effects to the settings dialog itself
@@ -3651,45 +3700,12 @@ class PanelPreviewWidget(QWidget): #vers 1
         p.fillRect(r, g)
         self._label(p, r, "Copper Effect Preview")
 
-    def _draw_image(self, p, r, cs):
-        from PyQt6.QtGui import QColor, QPixmap
-        from PyQt6.QtCore import Qt
-        path = cs.get("panel_bg_image", "")
-        opacity = cs.get("panel_bg_image_opacity", 100) / 100.0
-        if path:
-            try:
-                px = QPixmap(path)
-                if not px.isNull():
-                    mode = cs.get("panel_bg_image_mode", 0)
-                    p.setOpacity(opacity)
-                    if mode == 0:   # Tiled
-                        p.drawTiledPixmap(r, px)
-                    elif mode == 1: # Stretched
-                        p.drawPixmap(r, px)
-                    elif mode == 2: # Centred
-                        x = r.left() + (r.width() - px.width()) // 2
-                        y = r.top() + (r.height() - px.height()) // 2
-                        p.drawPixmap(x, y, px)
-                    elif mode == 3: # Scaled fit
-                        scaled = px.scaled(r.size(),
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation)
-                        x = r.left() + (r.width() - scaled.width()) // 2
-                        y = r.top() + (r.height() - scaled.height()) // 2
-                        p.drawPixmap(x, y, scaled)
-                    elif mode == 4: # Scaled fill
-                        scaled = px.scaled(r.size(),
-                            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                            Qt.TransformationMode.SmoothTransformation)
-                        p.drawPixmap(r.left(), r.top(), scaled)
-                    p.setOpacity(1.0)
-                    self._label(p, r, "Image Preview")
-                    return
-            except Exception:
-                pass
-        # No image — show placeholder
+    def _draw_image(self, p, r, cs): #vers 2
         from PyQt6.QtGui import QColor
-        p.fillRect(r, QColor("#2a2a2a"))
+        p.fillRect(r, QColor(cs.get("bg_primary", "#2a2a2a")))
+        if AppPanelEffect._paint_image(p, r, cs):
+            self._label(p, r, "Image Preview")
+            return
         p.setPen(QColor("#888888"))
         p.drawText(r, 0x84, "No image selected")  # AlignCenter|AlignVCenter
 

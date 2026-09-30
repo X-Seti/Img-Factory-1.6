@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 207
+#this belongs in root /ChangeLog.md - Version: 208
+
+## Oct 01 2026 - Settings: panel background image
+- Panels tab image never drew on panels; now painted with mode and blend opacity. Panel effects use an event filter, so they apply live without restart.
 
 ## Oct 01 2026 - COL Workshop: CE II features (Mesh ribbon)
 - Hide/unhide faces, selection lock (Space), select by material, Shift+drag region select (rectangle/circle, crossing/window).
