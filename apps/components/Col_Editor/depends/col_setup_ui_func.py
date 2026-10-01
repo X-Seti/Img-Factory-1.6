@@ -531,7 +531,7 @@ class COLSetupUIMixin: #vers 1
                 self.is_docked and not self.standalone_mode)
         self._apply_custom_icons()
 
-    def _create_toolbar(self): #vers 13
+    def _create_toolbar(self): #vers 14
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
         # Read sizes from app_settings so they match Global App System Settings
         try:
@@ -579,6 +579,16 @@ class COLSetupUIMixin: #vers 1
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip("Workshop Settings")
         layout.addWidget(self.settings_btn)
+
+        # Standalone file tabs drop-down (docked: IMG Factory tabs are used)
+        from PyQt6.QtWidgets import QToolButton, QMenu
+        self.doc_tabs_btn = QToolButton()
+        self.doc_tabs_btn.setFont(self.button_font)
+        self.doc_tabs_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.doc_tabs_btn.setMenu(QMenu(self.doc_tabs_btn))
+        self.doc_tabs_btn.setToolTip("Open COL files - switch, open in new tab, close")
+        self.doc_tabs_btn.setVisible(False)
+        layout.addWidget(self.doc_tabs_btn)
 
         layout.addStretch()
 

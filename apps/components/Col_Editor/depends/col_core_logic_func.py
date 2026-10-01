@@ -1,8 +1,9 @@
-#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 6
+#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 7
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop core logic
 
 """
-COL Workshop core logic - file load/save, import/export, model edits, undo, surface.dat.
+COL Workshop core logic - file load/save, import/export, model edits, undo, surface.dat,
+standalone file tabs (title bar drop-down).
 """
 
 ##class COLCoreLogicMixin: -
@@ -12,6 +13,7 @@ COL Workshop core logic - file load/save, import/export, model edits, undo, surf
 # _apply_settings
 # _build_col_from_txd
 # _change_format
+# _close_doc
 # _compress_col
 # _compress_surface
 # _convert_surface
@@ -21,6 +23,8 @@ COL Workshop core logic - file load/save, import/export, model edits, undo, surf
 # _create_shadow_mesh
 # _delete_selected_model
 # _delete_surface
+# _doc_opened
+# _doc_state
 # dragEnterEvent
 # dragMoveEvent
 # dropEvent
@@ -48,7 +52,9 @@ COL Workshop core logic - file load/save, import/export, model edits, undo, surf
 # _open_col_file
 # open_col_file
 # _open_col_from_img_entry
+# _open_col_new_doc
 # _open_file
+# _open_file_new_tab
 # open_img_archive
 # _open_surface_edit_dialog
 # _open_surface_type_dialog
@@ -56,6 +62,7 @@ COL Workshop core logic - file load/save, import/export, model edits, undo, surf
 # _paste_surface
 # _pick_col_from_current_img
 # _push_undo
+# _refresh_doc_menu
 # _remove_shadow
 # _remove_shadow_mesh
 # _remove_via_ide
@@ -70,6 +77,7 @@ COL Workshop core logic - file load/save, import/export, model edits, undo, surf
 # _select_all_models
 # shadow_dialog
 # _shadow_mesh_changed
+# _show_col_file
 # _show_shadow_mesh
 # showEvent
 # _sort_models
@@ -83,6 +91,7 @@ COL Workshop core logic - file load/save, import/export, model edits, undo, surf
 # _surf_populate
 # _surf_refresh_list
 # _surf_save
+# _switch_doc
 # _toggle_pin_selected
 # _uncompress_col
 # _uncompress_surface
@@ -1201,7 +1210,7 @@ class COLCoreLogicMixin: #vers 1
         if failed:
             QMessageBox.warning(self, "Add COL", "Could not read:\n" + "\n".join(failed))
 
-    def open_col_file(self, file_path): #vers 4
+    def open_col_file(self, file_path): #vers 5
         """Open standalone COL file - supports COL1, COL2, COL3"""
         try:
             from apps.methods.col_workshop_loader import COLFile
@@ -1249,38 +1258,9 @@ class COLCoreLogicMixin: #vers 1
             # Store loaded file
             self.current_col_file = col_file
             self.current_file_path = file_path
-
-            # Update window title with model count
             model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
-            version_str = f"COL ({model_count} models)"
-            self.setWindowTitle(f"{App_name} - {os.path.basename(file_path)} - {version_str}")
-
-            # Populate UI — compact view is default, also populate detail table
-            self._populate_compact_col_list()
-            self._populate_collision_list()
-
-            # Select first model by default
-            active_list = (self.col_compact_list
-                          if self._col_view_mode == 'detail'
-                          else self.collision_list)
-            if active_list.rowCount() > 0:
-                active_list.selectRow(0)
-                self._select_model_by_row(0)
-
-
-            # Enable all buttons that require a loaded file
-            # Transform buttons: use helper to cover BOTH icon and text panels
-            self._set_col_buttons_enabled(True)
-            for btn_name in [
-                'save_btn', 'save_col_btn', 'saveall_btn',
-                'export_col_btn', 'export_all_btn', 'export_btn',
-                'import_btn', 'undo_btn', 'undo_col_btn',
-                'create_surface_btn', 'paste_btn',
-            ]:
-                btn = getattr(self, btn_name, None)
-                if btn:
-                    btn.setEnabled(True)
-
+            self._show_col_file()
+            self._doc_opened()
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Loaded COL: {os.path.basename(file_path)} ({model_count} models)")
@@ -1295,6 +1275,136 @@ class COLCoreLogicMixin: #vers 1
             print(f"Error opening COL file: {str(e)}")
             QMessageBox.critical(self, "Error", f"Failed to open COL file:\n{str(e)}")
             return False
+
+    def _show_col_file(self, row=0): #vers 1
+        """Title, model lists, selection and buttons for the current COL file."""
+        col_file, file_path = self.current_col_file, self.current_file_path
+        model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
+        version_str = f"COL ({model_count} models)"
+        self.setWindowTitle(f"{App_name} - {os.path.basename(file_path or '')} - {version_str}")
+
+        # Populate UI — compact view is default, also populate detail table
+        self._populate_compact_col_list()
+        self._populate_collision_list()
+
+        # Select first model by default
+        active_list = (self.col_compact_list
+                      if self._col_view_mode == 'detail'
+                      else self.collision_list)
+        if active_list.rowCount() > 0:
+            row = min(max(0, row), active_list.rowCount() - 1)
+            active_list.selectRow(row)
+            self._select_model_by_row(row)
+
+
+        # Enable all buttons that require a loaded file
+        # Transform buttons: use helper to cover BOTH icon and text panels
+        self._set_col_buttons_enabled(True)
+        for btn_name in [
+            'save_btn', 'save_col_btn', 'saveall_btn',
+            'export_col_btn', 'export_all_btn', 'export_btn',
+            'import_btn', 'undo_btn', 'undo_col_btn',
+            'create_surface_btn', 'paste_btn',
+        ]:
+            btn = getattr(self, btn_name, None)
+            if btn:
+                btn.setEnabled(True)
+        if hasattr(self, 'undo_col_btn'):
+            self.undo_col_btn.setEnabled(bool(self.undo_stack))
+
+    def _doc_opened(self): #vers 1
+        """First file opened standalone becomes tab 1."""
+        if getattr(self, '_col_doc_idx', -1) < 0:
+            self._col_docs, self._col_doc_idx = [{}], 0
+        self._refresh_doc_menu()
+
+    def _doc_state(self): #vers 1
+        """Snapshot of the open file: data, path, undo stack, selected row."""
+        lw = self.col_compact_list if self._col_view_mode == 'detail' else self.collision_list
+        return {'col_file': self.current_col_file, 'path': self.current_file_path,
+                'undo': self.undo_stack, 'row': max(0, lw.currentRow())}
+
+    def _open_col_new_doc(self, file_path): #vers 1
+        """Open a COL file in a new standalone tab, keeping the current one."""
+        if not getattr(self.current_col_file, 'models', None):
+            return self.open_col_file(file_path)
+        if getattr(self, '_col_doc_idx', -1) < 0:          # file loaded another way (IMG entry)
+            self._col_docs, self._col_doc_idx = [{}], 0
+        prev = self._col_doc_idx
+        self._col_docs[prev] = self._doc_state()
+        self._col_docs.append({})
+        self._col_doc_idx = len(self._col_docs) - 1
+        self.undo_stack = []
+        if self.open_col_file(file_path):
+            return True
+        self._col_docs.pop()
+        self._switch_doc(prev, save_current=False)
+        return False
+
+    def _switch_doc(self, index, save_current=True): #vers 1
+        """Show another open standalone file."""
+        docs = getattr(self, '_col_docs', [])
+        if not 0 <= index < len(docs):
+            return
+        if save_current and 0 <= self._col_doc_idx < len(docs):
+            docs[self._col_doc_idx] = self._doc_state()
+        st = docs[index]
+        self._col_doc_idx = index
+        self.current_col_file, self.current_file_path = st['col_file'], st['path']
+        self.undo_stack = st['undo']
+        self._show_col_file(st['row'])
+        self._refresh_doc_menu()
+
+    def _close_doc(self): #vers 1
+        """Close the current standalone tab (unsaved edits in it are lost)."""
+        docs = getattr(self, '_col_docs', [])
+        if not docs:
+            return
+        name = os.path.basename(self.current_file_path or 'file')
+        if QMessageBox.question(self, "Close Tab", f"Close {name}? Unsaved changes are lost.",
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) \
+                != QMessageBox.StandardButton.Yes:
+            return
+        del docs[self._col_doc_idx]
+        if docs:
+            self._col_doc_idx = -1
+            self._switch_doc(0, save_current=False)
+            return
+        self._col_doc_idx = -1
+        self.current_col_file, self.current_file_path, self.undo_stack = None, None, []
+        self.collision_list.setRowCount(0)
+        self.col_compact_list.setRowCount(0)
+        self.preview_widget.set_current_model(None)
+        self.setWindowTitle(App_name)
+        self._refresh_doc_menu()
+
+    def _refresh_doc_menu(self): #vers 1
+        """Title bar file drop-down: open files, current ticked, close tab."""
+        btn = getattr(self, 'doc_tabs_btn', None)
+        if btn is None:
+            return
+        docs = getattr(self, '_col_docs', [])
+        btn.setVisible(bool(self.standalone_mode and docs))
+        menu = btn.menu()
+        menu.clear()
+        for i in range(len(docs)):
+            path = self.current_file_path if i == self._col_doc_idx else docs[i].get('path')
+            act = menu.addAction(os.path.basename(path or 'untitled'))
+            act.setCheckable(True)
+            act.setChecked(i == self._col_doc_idx)
+            act.triggered.connect(lambda _=False, k=i: self._switch_doc(k))
+        menu.addSeparator()
+        menu.addAction("Open in New Tab...", self._open_file_new_tab)
+        menu.addAction("Close Tab", self._close_doc)
+        cur = os.path.basename(self.current_file_path or '')
+        btn.setText(f"{cur}  ({self._col_doc_idx + 1}/{len(docs)})" if docs else "")
+
+    def _open_file_new_tab(self): #vers 1
+        """Pick COL files and open each in a new standalone tab."""
+        paths, _ = QFileDialog.getOpenFileNames(self, "Open COL in New Tab", "",
+                                                "COL Files (*.col);;All Files (*)")
+        for path in paths:
+            self._open_col_new_doc(path)
 
     def _pick_col_from_current_img(self): #vers 1
         """Pick a COL entry from the IMG currently loaded in IMG Factory and open it."""
@@ -1710,7 +1820,7 @@ class COLCoreLogicMixin: #vers 1
         """Keep accepting while over the workshop."""
         self.dragEnterEvent(event)
 
-    def dropEvent(self, event): #vers 3
+    def dropEvent(self, event): #vers 4
         """Drop .col/.img: empty workshop opens it; loaded one asks add/new tab."""
         import sys
         open_col_workshop = sys.modules[type(self).__module__].open_col_workshop  # avoids circular import
@@ -1729,7 +1839,8 @@ class COLCoreLogicMixin: #vers 1
             box.setWindowTitle("Dropped COL")
             box.setText(f"{names}\n\nAdd to the open file, or open in a new tab?")
             add_btn = box.addButton("Add to current", QMessageBox.ButtonRole.AcceptRole) if cols else None
-            new_btn = box.addButton("Open in new tab", QMessageBox.ButtonRole.ActionRole) if tw is not None else None
+            can_new = tw is not None or (self.standalone_mode and cols)
+            new_btn = box.addButton("Open in new tab", QMessageBox.ButtonRole.ActionRole) if can_new else None
             box.addButton(QMessageBox.StandardButton.Cancel)
             box.exec()
             clicked = box.clickedButton()
@@ -1740,7 +1851,10 @@ class COLCoreLogicMixin: #vers 1
                         open_col_workshop(self.main_window, path)
             elif new_btn is not None and clicked is new_btn:
                 for path in paths:
-                    open_col_workshop(self.main_window, path)
+                    if tw is not None:
+                        open_col_workshop(self.main_window, path)
+                    elif path.lower().endswith('.col'):
+                        self._open_col_new_doc(path)
             return
         first, rest = paths[0], paths[1:]
         if first.lower().endswith('.img'):

@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 210
+#this belongs in root /ChangeLog.md - Version: 211
+
+## Oct 01 2026 - COL Workshop standalone file tabs
+- Dropping a COL on an open file offers Open in new tab standalone too; title bar drop-down (right of Settings) switches, opens and closes tabs. Docked uses IMG Factory tabs.
 
 ## Oct 01 2026 - Theme image/transparency saved; Ribbon Manager hide and dividers
 - Panel image copied to images/ beside settings or theme JSON (relative path); effect, image and transparency keys saved in themes and loaded on theme change.
