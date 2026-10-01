@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 8
+#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 9
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Workshop edit tools
 
 """
@@ -50,12 +50,14 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _edit_selection_to_file
 # _edit_selection_to_model
 # _edit_show_face_groups
+# _edit_show_vertices
 # _edit_sphere_to_mesh
 # _edit_split_faces
 # _edit_surfaces_from_dff
 # _edit_toggle_gamepad
 # _edit_toggle_lock
 # _edit_toggle_vertex_mode
+# _edit_tools_menu
 # _edit_unhide_all
 # _edit_vc_to_sa
 # _edit_vertex_position
@@ -919,6 +921,38 @@ class COLEditMixin: #vers 1
         n = ex.surfaces_from_triangles(model, verts, tris, game)
         self._mesh_edited(model, f"Surfaces set on {n} of {len(model.faces)} face(s) from "
                                  f"{os.path.basename(path)}", reselect=False)
+
+    def _edit_show_vertices(self, checked): #vers 1
+        """Red vertex dots in normal (face) mode."""
+        self.preview_widget._show_verts = bool(checked)
+        self.preview_widget.update()
+
+    def _edit_tools_menu(self, menu): #vers 1
+        """Key tools for right-click menus (viewport and model list)."""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory as IF
+        ic = self._get_icon_color()
+        menu.addAction(IF.surfaceedit_icon(20, ic), "Edit Model...", self._open_surface_edit_dialog)
+        vm = menu.addAction(IF.vertex_select_icon(20, ic), "Vertex Select Mode")
+        vm.setCheckable(True)
+        vm.setChecked(self.preview_widget._select_mode == 'vertex')
+        vm.toggled.connect(self.vertex_mode_btn.setChecked)
+        sv = menu.addAction(IF.show_vertices_icon(20, ic), "Show Vertices")
+        sv.setCheckable(True)
+        sv.setChecked(self.preview_widget._show_verts)
+        sv.toggled.connect(self.show_verts_btn.setChecked)
+        menu.addSeparator()
+        menu.addAction(IF.hide_faces_icon(20, ic), "Hide Selected Faces", self._edit_hide_selected)
+        menu.addAction(IF.unhide_faces_icon(20, ic), "Unhide All Faces", self._edit_unhide_all)
+        menu.addAction(IF.select_material_icon(20, ic), "Select by Material", self._edit_select_material)
+        menu.addSeparator()
+        menu.addAction(IF.filter_icon(20, ic), "Optimise Mesh...", self._edit_optimise)
+        menu.addAction(IF.optimum_bounds_icon(20, ic), "Optimum Bounds", self._edit_optimum_bounds)
+        menu.addAction(IF.face_groups_icon(20, ic), "Generate Face Groups...", self._edit_face_groups)
+        menu.addAction(IF.lighting_icon(20, ic), "Generate Lighting...", self._edit_lighting)
+        menu.addAction(IF.copy_lod_icon(20, ic), "Copy as LOD", self._edit_copy_as_lod)
+        menu.addSeparator()
+        all_menu = menu.addMenu("All Tools")
+        self._build_full_menu(all_menu)
 
     def _edit_gamepad_saved(self): #vers 1
         """Saved controller on/off from col_workshop.json."""

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 11
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 12
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -13,6 +13,7 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 # _apply_panel_font
 # _apply_theme
 # _apply_title_font
+# _build_full_menu
 # _build_menus_into_qmenu
 # _build_toolbars
 # _connect_all_buttons
@@ -247,24 +248,36 @@ class COLSetupUIMixin: #vers 1
         """Short label for imgfactory titlebar button."""
         return "COL"
 
-    def _build_menus_into_qmenu(self, parent_menu): #vers 1
-        """Populate parent_menu with COL Workshop actions."""
-        # File
+    def _build_menus_into_qmenu(self, parent_menu): #vers 2
+        """Populate parent_menu with every COL Workshop command (IMG Factory title bar)."""
+        self._build_full_menu(parent_menu)
+
+    def _build_full_menu(self, parent_menu): #vers 1
+        """File menu, then one sub-menu per ribbon with its buttons, then Ribbon Manager."""
+        from PyQt6.QtWidgets import QToolBar, QWidgetAction
         fm = parent_menu.addMenu("File")
-        fm.addAction("Open COL…",        self._open_file)
-        fm.addAction("Save COL",         self._save_file)
-        fm.addAction("Save COL As…",     self._save_file_as)
+        fm.addAction("Open COL…",          self._open_file)
+        if self.standalone_mode:
+            fm.addAction("Open in New Tab…", self._open_file_new_tab)
+        fm.addAction("Save COL",           self._save_file)
+        fm.addAction("Save COL As…",       self._save_file_as)
         fm.addSeparator()
-        fm.addAction("Import COL…",      self._import_col_data)
-        fm.addAction("Export COL…",      self._export_col_data)
-
-        # Edit
-        em = parent_menu.addMenu("Edit")
-        em.addAction("Undo",             lambda: getattr(self, 'undo_action', lambda: None) and self.undo_action())
-
-        # View
-        vm = parent_menu.addMenu("View")
-        vm.addAction("Sort Models",      self._show_sort_menu if hasattr(self, '_show_sort_menu') else lambda: None)
+        fm.addAction("Import COL…",        self._import_col_data)
+        fm.addAction("Export COL…",        self._export_col_data)
+        mw = getattr(self, '_inner_mw', None)
+        for tb in (mw.findChildren(QToolBar) if mw else []):
+            acts = [a for a in tb.actions() if a.isSeparator() or
+                    (not isinstance(a, QWidgetAction) and a.text())]
+            if not any(not a.isSeparator() for a in acts):
+                continue
+            sub = parent_menu.addMenu(tb.windowTitle() or tb.objectName())
+            for a in acts:
+                if a.isSeparator():
+                    sub.addSeparator()
+                elif a.isVisible():
+                    sub.addAction(a)
+        parent_menu.addSeparator()
+        parent_menu.addAction("Ribbon Manager…", self.open_ribbon_manager)
 
     def setup_ui(self): #vers 12
         """Setup the main UI layout"""
@@ -569,6 +582,21 @@ class COLSetupUIMixin: #vers 1
         layout = QHBoxLayout(self.toolbar)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
+
+        # Menu drop-down: every workshop command, grouped like the ribbons
+        from PyQt6.QtWidgets import QToolButton, QMenu
+        self.menu_btn = QToolButton()
+        self.menu_btn.setFont(self.button_font)
+        self.menu_btn.setText("Menu")
+        self.menu_btn.setIcon(self.icon_factory.menu_m_icon(color=icon_color))
+        self.menu_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
+        self.menu_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.menu_btn.setMenu(QMenu(self.menu_btn))
+        self.menu_btn.menu().aboutToShow.connect(
+            lambda: (self.menu_btn.menu().clear(), self._build_full_menu(self.menu_btn.menu())))
+        self.menu_btn.setToolTip("All COL Workshop commands")
+        layout.addWidget(self.menu_btn)
 
         # Settings button
         self.settings_btn = QPushButton()
@@ -1227,8 +1255,9 @@ class COLSetupUIMixin: #vers 1
              self._open_paint_editor,       enabled=False, attr='paint_btn')
         _act(tb_xform, "Surface Types", self.icon_factory.checkerboard_icon,
              self._open_surface_type_dialog, attr='surface_type_btn')
-        _act(tb_xform, "Surface Editor",self.icon_factory.surfaceedit_icon,
+        _act(tb_xform, "Edit Model...", self.icon_factory.surfaceedit_icon,
              self._open_surface_edit_dialog, attr='surface_edit_btn')
+        self.surface_edit_btn.setToolTip("Edit Model - mesh editor: vertices, faces, spheres, boxes")
         _act(tb_xform, "Build from TXD",self.icon_factory.build_icon,
              self._build_col_from_txd,       attr='build_from_txd_btn')
 
@@ -1257,8 +1286,10 @@ class COLSetupUIMixin: #vers 1
              lambda v: pw.set_show_boxes(v),   checkable=True, checked=True, attr='_boxes_act')
         self.view_mesh_btn    = _act(tb_rend, "Toggle Mesh",    self.icon_factory.mesh_icon,
              lambda v: pw.set_show_mesh(v),    checkable=True, checked=True, attr='_view_mesh_act')
-        self.backface_btn     = _act(tb_rend, "Toggle Backface",self.icon_factory.backface_icon,
+        self.backface_btn     = _act(tb_rend, "Toggle Backface",self.icon_factory.show_backfaces_icon,
              lambda v: pw.set_backface(v),     checkable=True, checked=False, attr='_backface_act')
+        _act(tb_rend, "Show Vertices", self.icon_factory.show_vertices_icon,
+             self._edit_show_vertices, checkable=True, checked=False, attr='show_verts_btn')
 
         #    Ribbon 4: Name                                                 
         # Replaces the old bottom info_group QFrame (COL name field + format/
@@ -1273,6 +1304,7 @@ class COLSetupUIMixin: #vers 1
         self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
         self.info_name.editingFinished.connect(self._apply_name_edit)
+        self.info_name.setToolTip("Model name - click to rename")
         tb_name.addWidget(self.info_name)
 
         #    Ribbon 5: Format                                               
@@ -1281,6 +1313,7 @@ class COLSetupUIMixin: #vers 1
         self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
         self.format_combo.currentTextChanged.connect(self._change_format)
         self.format_combo.setMaximumWidth(100)
+        self.format_combo.setToolTip("COL version of the selected model")
         tb_format.addWidget(self.format_combo)
         tb_format.addSeparator()
         _act(tb_format, "Cycle Render Mode", self.icon_factory.render_mode_icon,
@@ -1301,6 +1334,7 @@ class COLSetupUIMixin: #vers 1
         tb_shadow = _tb("Shadow Mesh", Qt.ToolBarArea.RightToolBarArea)
         self.info_format = QLabel("Shadow Mesh:")
         self.info_format.setMinimumWidth(90)
+        self.info_format.setToolTip("Shadow mesh (COL3): view, create, remove")
         tb_shadow.addWidget(self.info_format)
         _act(tb_shadow, "View Shadow Mesh",   self.icon_factory.view_icon,
              self._show_shadow_mesh,    enabled=False, attr='show_shadow_btn')
@@ -1781,7 +1815,7 @@ class COLSetupUIMixin: #vers 1
         m.addAction("Sort by Vertices (most)", lambda: self._sort_models_desc('vertices'))
         m.exec(self.cursor().pos())
 
-    def _show_collision_context_menu(self, position): #vers 6
+    def _show_collision_context_menu(self, position): #vers 7
         """Right-click context menu for both collision model lists."""
         # Work out which list sent the signal and find the row
         sender = self.sender()
@@ -1832,6 +1866,13 @@ class COLSetupUIMixin: #vers 1
 
             copy_action = menu.addAction("Copy Info to Clipboard")
             copy_action.triggered.connect(lambda: self._copy_model_info(model, row))
+
+            menu.addSeparator()
+
+            #    Tools (edit model, mesh tools, all commands)
+            tools = menu.addMenu("Tools")
+            self._edit_tools_menu(tools)
+            menu.addAction("Edit Model...", self._open_surface_edit_dialog)
 
             menu.addSeparator()
 

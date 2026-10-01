@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 10
+#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 11
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop 3D viewport
 
 """
@@ -116,6 +116,7 @@ class COL3DViewport(QWidget): #vers 2
         self._light_view   = False        # colour faces by day light (0-15)
         self._region_circle   = False     # region select: circle, else rectangle
         self._region_crossing = True      # faces: any corner inside, else all
+        self._show_verts   = False        # red vertex dots outside vertex mode
         # game controller (methods/gamepad_input.GamepadPoller)
         self._gamepad      = None
         self._pad_grab     = False
@@ -387,7 +388,7 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    mouse                                                             
-    def mousePressEvent(self, event):  #vers 5
+    def mousePressEvent(self, event):  #vers 6
         mx, my = event.position().x(), event.position().y()
         W, H = self.width(), self.height()
         if event.button() == Qt.MouseButton.LeftButton:
@@ -511,6 +512,8 @@ class COL3DViewport(QWidget): #vers 2
                 if vi is not None:
                     if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
                         self._selected_verts ^= {vi}
+                    elif self._selected_verts == {vi}:
+                        self._selected_verts = set()      # click the selected vertex again: deselect
                     else:
                         self._selected_verts = {vi}
                     self.update()
@@ -529,6 +532,10 @@ class COL3DViewport(QWidget): #vers 2
                         self._selected_faces.discard(fi)
                     else:
                         self._selected_faces.add(fi)
+                elif self._selected_faces == {fi} and not self._paint_mode:
+                    self._selected_faces = set()      # click the selected face again: deselect
+                    self.update()
+                    return
                 else:
                     self._selected_faces = {fi}
                 self._drag_selecting = True   # enable brush drag
@@ -919,9 +926,13 @@ class COL3DViewport(QWidget): #vers 2
         self.update()
 
 
-    def contextMenuEvent(self, event):  #vers 2
+    def contextMenuEvent(self, event):  #vers 3
         from PyQt6.QtWidgets import QMenu
         m = QMenu(self)
+        ws = self._find_workshop()
+        if ws and hasattr(ws, '_edit_tools_menu') and self._model is not None:
+            ws._edit_tools_menu(m)
+            m.addSeparator()
         m.addAction("Top",       lambda: self._set_angles(0,   0))
         m.addAction("Front",     lambda: self._set_angles(0,  90))
         m.addAction("Side",      lambda: self._set_angles(90,  0))
@@ -947,7 +958,7 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    paint                                                              
-    def paintEvent(self, event):  #vers 7
+    def paintEvent(self, event):  #vers 8
         """Fully self-contained paint — grid, mesh, boxes, spheres, bounds, gizmo, HUD."""
         from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush, QRadialGradient,
                                   QPolygonF, QLinearGradient)
@@ -1184,13 +1195,15 @@ class COL3DViewport(QWidget): #vers 2
                 p.setPen(QPen(QColor(180,100,220,120),1,Qt.PenStyle.DotLine))
                 for i in range(len(pts)-1): p.drawLine(pts[i],pts[i+1])
 
-        #    Vertex mode: all vertices as dots, selected in yellow
-        if self._select_mode == 'vertex' and verts:
+        #    Vertex mode: all vertices as dots, selected in yellow; Show Vertices: red dots
+        if verts and (self._select_mode == 'vertex' or self._show_verts):
             p.setPen(Qt.PenStyle.NoPen)
+            vmode = self._select_mode == 'vertex'
             for vi, v in enumerate(verts):
                 sx, sy = to_screen(*g3(v))
-                on = vi in self._selected_verts
-                p.setBrush(QBrush(QColor(255, 210, 60) if on else QColor(200, 200, 210, 170)))
+                on = vmode and vi in self._selected_verts
+                p.setBrush(QBrush(QColor(255, 210, 60) if on else
+                                  QColor(200, 200, 210, 170) if vmode else QColor(230, 50, 50, 220)))
                 r0 = 4 if on else 2.5
                 p.drawEllipse(QPointF(sx, sy), r0, r0)
 

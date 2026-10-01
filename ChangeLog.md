@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 214
+#this belongs in root /ChangeLog.md - Version: 215
+
+## Oct 01 2026 - COL Workshop menus and selection
+- Click a selected face or vertex again to deselect. Show Vertices toggle (red dots). New back-face icon.
+- Menu drop-down left of Settings lists every command; right-click menus get key tools and Edit Model. Surface Editor renamed Edit Model; missing tooltips added.
 
 ## Oct 01 2026 - Settings dialog layout
 - COL/TXD Workshop apply panel image and transparency at start-up and on theme change.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 44
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 45
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -97,7 +97,9 @@ from PyQt6.QtCore import Qt
 # select_material_icon
 # select_none_icon
 # selection_lock_icon
+# show_backfaces_icon
 # show_face_groups_icon
+# show_vertices_icon
 # sphere_to_mesh_icon
 # split_faces_icon
 # surfaces_from_dff_icon
@@ -4008,6 +4010,29 @@ class SVGIconFactory: #vers 8
             <polygon points="17.5,15 15.4,12.2 19.6,12.2" fill="currentColor"/>
             <polygon points="7,22.5 12,15 17,22.5" fill="#30b040"/>
             <polygon points="12.5,15 22.5,15 17.5,22.5" fill="#d8c070"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def show_vertices_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Show vertices - mesh with red vertex dots"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="3,20 12,4 21,20" fill="currentColor" opacity="0.35" stroke="currentColor" stroke-width="1"/>
+            <line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1" opacity="0.7"/>
+            <circle cx="12" cy="4" r="2.4" fill="#e03030"/>
+            <circle cx="3" cy="20" r="2.4" fill="#e03030"/>
+            <circle cx="21" cy="20" r="2.4" fill="#e03030"/>
+            <circle cx="12" cy="20" r="2.4" fill="#e03030"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def show_backfaces_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Show back faces - front face solid, flipped back face dashed"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="9,3 21,8 13,21" fill="none" stroke="#e03030" stroke-width="1.4"
+                     stroke-dasharray="2 1.6" stroke-linejoin="round"/>
+            <polygon points="3,7 15,4 9,19" fill="currentColor" opacity="0.85"/>
+            <path d="M15.5,13 C19,13.5 21,16 20.5,19.5" fill="none" stroke="#30b040" stroke-width="1.5"/>
+            <polygon points="20.3,21.8 18.4,18.6 22.3,18.9" fill="#30b040"/>
         </svg>''', size, color)
 
     @staticmethod
