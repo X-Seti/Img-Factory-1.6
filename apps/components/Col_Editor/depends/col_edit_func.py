@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 7
+#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 8
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Workshop edit tools
 
 """
@@ -7,7 +7,8 @@ weld, fill hole, box/sphere/mesh conversion, optimise, scale, centre, merge file
 vertex tools: select, position, create face, split, delete, mirror;
 hide, lock, select by material, LOD copy, shadow copy, clear, bounds,
 face groups, lighting, light view, VC to SA materials, region select modes,
-duplicate check, batch conversion, CST/3DS/X/DFF import, CST export, attach to DFF.
+duplicate check, batch conversion, CST/3DS/X/DFF import, CST export, attach to DFF,
+COL from DFF mesh, surfaces from DFF textures.
 Geometry maths lives in apps/methods/col_mesh_ops.py.
 """
 
@@ -20,6 +21,7 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _edit_centre_origin
 # _edit_clear_face_groups
 # _edit_clear_parts
+# _edit_col_from_dff
 # _edit_copy_as_lod
 # _edit_delete_faces
 # _edit_delete_isolated
@@ -50,6 +52,7 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _edit_show_face_groups
 # _edit_sphere_to_mesh
 # _edit_split_faces
+# _edit_surfaces_from_dff
 # _edit_toggle_gamepad
 # _edit_toggle_lock
 # _edit_toggle_vertex_mode
@@ -833,6 +836,89 @@ class COLEditMixin: #vers 1
         with open(dst, 'wb') as fh:
             fh.write(out)
         self._set_status(f"Attached {model.name} to {os.path.basename(dst)}")
+
+    def _edit_col_from_dff(self): #vers 1
+        """New COL model per DFF from its render mesh; surfaces from texture names."""
+        from apps.methods import col_exchange as ex
+        from apps.methods.dff_parser import load_dff
+        from apps.methods.col_materials import material_from_texture, COLGame
+        from apps.methods.col_workshop_classes import COLVersion
+        from apps.methods.col_workshop_loader import COLFile
+        paths, _ = QFileDialog.getOpenFileNames(self, "COL from DFF",
+                                                os.path.dirname(self.current_file_path or ''),
+                                                "GTA Models (*.dff)")
+        if not paths: return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"COL from DFF - {len(paths)} file(s)")
+        form = QFormLayout(dlg)
+        skip = QCheckBox("Skip LOD and damage parts (_vlo, _lod, _dam)"); skip.setChecked(True)
+        surf = QCheckBox("Surfaces from texture names"); surf.setChecked(True)
+        opt = QCheckBox("Clean mesh (weld, drop degenerate faces)"); opt.setChecked(True)
+        for cb in (skip, surf, opt):
+            form.addRow(cb)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        if not self.current_col_file:
+            self.current_col_file = COLFile()
+            self.current_col_file.models = []
+        cur = self._get_selected_model()
+        ver = cur.version if cur is not None else COLVersion.COL_3
+        game = COLGame.VC if ver == COLVersion.COL_1 else COLGame.SA
+        added, unknown, last = 0, set(), None
+        for path in paths:
+            dff = load_dff(path)
+            if dff is None: continue
+            verts, tris = ex.dff_triangles(dff, skip.isChecked())
+            if not tris: continue
+            rows = []
+            for a, b, c, tex in tris:
+                m = material_from_texture(tex, game) if surf.isChecked() else None
+                if m is None and surf.isChecked() and tex:
+                    unknown.add(tex)
+                rows.append([a, b, c, m or 0])
+            name = os.path.splitext(os.path.basename(path))[0]
+            model = ex.model_from_parts({'Vertex': [list(v) for v in verts], 'Face': rows}, name, ver)
+            if opt.isChecked():
+                ops.clean_mesh(model)
+                ops.recalc_bounds(model)
+            self.current_col_file.models.append(model)
+            added += 1; last = model
+        if not last:
+            QMessageBox.information(self, "COL from DFF", "No mesh found in the chosen DFF file(s).")
+            return
+        msg = f"Created {added} COL model(s) from DFF"
+        if unknown:
+            msg += f"; textures with no surface match (Default): {', '.join(sorted(unknown)[:12])}"
+        self._mesh_edited(last, msg)
+
+    def _edit_surfaces_from_dff(self): #vers 1
+        """Set the selected model's face surfaces from a DFF's texture names."""
+        from apps.methods import col_exchange as ex
+        from apps.methods.dff_parser import load_dff
+        from apps.methods.col_materials import COLGame
+        sel = self._edit_selection(need_faces=False)
+        if not sel: return
+        model, idx, _ = sel
+        if not model.faces:
+            QMessageBox.information(self, "Surfaces from DFF", f"{model.name} has no mesh faces.")
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Surfaces from DFF texture map",
+                                              os.path.dirname(self.current_file_path or ''),
+                                              "GTA Models (*.dff)")
+        if not path: return
+        dff = load_dff(path)
+        if dff is None:
+            QMessageBox.warning(self, "Surfaces from DFF", "DFF could not be read.")
+            return
+        verts, tris = ex.dff_triangles(dff, True)
+        game = COLGame.VC if getattr(model.version, 'value', 3) == 1 else COLGame.SA
+        self._push_undo(idx, "Surfaces from DFF")
+        n = ex.surfaces_from_triangles(model, verts, tris, game)
+        self._mesh_edited(model, f"Surfaces set on {n} of {len(model.faces)} face(s) from "
+                                 f"{os.path.basename(path)}", reselect=False)
 
     def _edit_gamepad_saved(self): #vers 1
         """Saved controller on/off from col_workshop.json."""

@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 208
+#this belongs in root /ChangeLog.md - Version: 209
+
+## Oct 01 2026 - COL from DFF, mono ribbon icons, panel image options
+- COL Workshop: COL from DFF (render mesh, LOD/damage parts skipped); surfaces from DFF texture names (grass, sand, wood, metal...).
+- Ribbon Manager: Mono icons option, saved per workshop.
+- Panel image: Across window mode (one image over all panels); optional show-through on lists, toolbars and tabs tinted by their colour.
 
 ## Oct 01 2026 - Settings: panel background image
 - Panels tab image never drew on panels; now painted with mode and blend opacity. Panel effects use an event filter, so they apply live without restart.

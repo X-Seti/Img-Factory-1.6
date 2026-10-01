@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 43
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 44
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -100,6 +100,7 @@ from PyQt6.QtCore import Qt
 # show_face_groups_icon
 # sphere_to_mesh_icon
 # split_faces_icon
+# surfaces_from_dff_icon
 # svg_edit_icon
 # settings_icon
 # sphere_icon
@@ -130,6 +131,7 @@ class SVGIconFactory: #vers 8
 
     # Shared icons folder — same path works in IMG Factory and all standalones
     _ICONS_DIR = None
+    _mono = False          # set while rendering mono ribbon icons
 
     @staticmethod
     def _get_icons_dir() -> str: #vers 1
@@ -180,7 +182,7 @@ class SVGIconFactory: #vers 8
 
     @staticmethod
     def _create_icon(svg_data: str, size: int = 20, color: str = None,
-                      bg_color: str = None, accent_color: str = None) -> QIcon: #vers 3
+                      bg_color: str = None, accent_color: str = None) -> QIcon: #vers 4
         """Create QIcon from SVG data with optional coloured background square.
         accent_color, if given, substitutes a second token 'currentAccent' in
         the SVG, separate from 'currentColor' — used by two-tone icons (e.g.
@@ -194,6 +196,10 @@ class SVGIconFactory: #vers 8
                 color = "#000000"
 
         svg_data = svg_data.replace("currentColor", color)
+        if SVGIconFactory._mono:                    # mono: every fixed colour becomes the icon colour
+            import re
+            svg_data = re.sub(r'(fill|stroke|stop-color)="#[0-9a-fA-F]{3,8}"',
+                              lambda m: f'{m.group(1)}="{color}"', svg_data)
         if accent_color:
             svg_data = svg_data.replace("currentAccent", accent_color)
         else:
@@ -3988,6 +3994,20 @@ class SVGIconFactory: #vers 8
             <path d="M4,21 L4,11 L9,6 L15,6 L20,11 L20,21 Z" fill="currentColor" opacity="0.8"/>
             <rect x="7" y="12" width="10" height="7" fill="none" stroke="#30b040" stroke-width="1.5" stroke-dasharray="1.8 1.2"/>
             <path d="M12,1.5 L12,5.5 M10,3.5 L14,3.5" stroke="#30b040" stroke-width="1.8"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def surfaces_from_dff_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Surfaces from DFF - texture squares painting faces"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="5" height="5" fill="#30b040"/>
+            <rect x="7" y="1.5" width="5" height="5" fill="#d8c070"/>
+            <rect x="1.5" y="7" width="5" height="5" fill="#8a6a40"/>
+            <rect x="7" y="7" width="5" height="5" fill="#9aa0a8"/>
+            <path d="M12.5,9.5 C16,9.5 17.5,11 17.5,13" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <polygon points="17.5,15 15.4,12.2 19.6,12.2" fill="currentColor"/>
+            <polygon points="7,22.5 12,15 17,22.5" fill="#30b040"/>
+            <polygon points="12.5,15 22.5,15 17.5,22.5" fill="#d8c070"/>
         </svg>''', size, color)
 
     @staticmethod

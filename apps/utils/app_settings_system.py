@@ -1799,6 +1799,7 @@ class AppSettings:
             'panel_bg_image':            '',
             'panel_bg_image_mode':       0,
             'panel_bg_image_opacity':    100,
+            'panel_bg_image_all':        False,
             'button_style':              'flat',
             'progressbar_style':         'system',
             'progressbar_fill':          '#4a7a9b',
@@ -3182,8 +3183,13 @@ class AppPanelEffect: #vers 2
 
             class _PanelEffectFilter(QObject): #vers 1
                 """Paint the widget normally, then the panel effect on top."""
-                def eventFilter(self, obj, ev): #vers 1
-                    if ev.type() == QEvent.Type.Paint and getattr(obj, '_panel_effect_installed', False):
+                def eventFilter(self, obj, ev): #vers 2
+                    if ev.type() != QEvent.Type.Paint:
+                        return False
+                    if getattr(obj, '_panel_under_tint', None) is not None:
+                        AppPanelEffect._draw_under(obj)       # image + tint, content paints on top
+                        return False
+                    if getattr(obj, '_panel_effect_installed', False):
                         type(obj).paintEvent(obj, ev)
                         AppPanelEffect._draw_effect(obj, ev)
                         return True
@@ -3192,6 +3198,56 @@ class AppPanelEffect: #vers 2
             AppPanelEffect._filter = _PanelEffectFilter(QApplication.instance())
         widget.installEventFilter(AppPanelEffect._filter)
         widget._panel_effect_installed = True
+
+    @staticmethod
+    def install_under(widget, styled, app_settings): #vers 1
+        """Image behind a list/toolbar/tab page: widget made transparent, its own
+        colour laid over the image as a tint. styled = widget carrying the stylesheet."""
+        from PyQt6.QtGui import QColor
+        if getattr(widget, '_panel_under_tint', None) is None:
+            role = widget.backgroundRole()
+            widget._panel_under_tint = QColor(widget.palette().color(role))
+            widget._panel_under_styled = styled
+            styled._panel_under_ss = styled.styleSheet()
+            styled.setStyleSheet(styled._panel_under_ss
+                                 + f"\n{type(styled).__name__} {{ background: transparent; }}")
+            widget.setAutoFillBackground(False)
+            AppPanelEffect.install(widget, app_settings)
+            widget._panel_effect_installed = False      # under mode only
+        widget._app_settings_ref = app_settings
+        widget.update()
+
+    @staticmethod
+    def remove_under(widget): #vers 1
+        """Undo install_under: original stylesheet back, no image."""
+        styled = getattr(widget, '_panel_under_styled', None)
+        if styled is not None:
+            styled.setStyleSheet(getattr(styled, '_panel_under_ss', ''))
+        widget._panel_under_tint = None
+        widget.update()
+
+    @staticmethod
+    def _draw_under(widget): #vers 1
+        """Paint image then the widget's own colour as a tint (1 - blend opacity)."""
+        from PyQt6.QtGui import QPainter, QColor
+        cs = getattr(widget, '_app_settings_ref', None) or {}
+        if not isinstance(cs, dict):
+            cs = getattr(cs, 'current_settings', {})
+        if not widget.isVisible() or widget.width() <= 0 or widget.height() <= 0:
+            return
+        p = QPainter()
+        if not p.begin(widget):
+            return
+        try:
+            r = widget.rect()
+            tint = QColor(widget._panel_under_tint)
+            p.fillRect(r, tint)
+            img = dict(cs); img['panel_bg_image_opacity'] = 100
+            if AppPanelEffect._paint_image(p, r, img, widget):
+                tint.setAlphaF(1.0 - cs.get('panel_bg_image_opacity', 100) / 100.0)
+                p.fillRect(r, tint)
+        finally:
+            p.end()
 
     @staticmethod
     def _draw_effect(widget, event): #vers 2
@@ -3235,7 +3291,7 @@ class AppPanelEffect: #vers 2
             elif effect == 'pattern':
                 AppPanelEffect._paint_pattern(p, r, cs)
             if image:
-                AppPanelEffect._paint_image(p, r, cs)
+                AppPanelEffect._paint_image(p, r, cs, widget)
         except Exception:
             pass
         finally:
@@ -3334,10 +3390,11 @@ class AppPanelEffect: #vers 2
     _pixmap_cache = {}
 
     @staticmethod
-    def _paint_image(p, r, cs): #vers 1
-        """Panel background image (tiled/stretched/centred/fit/fill) at blend opacity; True if drawn."""
+    def _paint_image(p, r, cs, widget=None): #vers 2
+        """Panel background image (tiled/stretched/centred/fit/fill, or one image
+        across the whole window) at blend opacity; True if drawn."""
         from PyQt6.QtGui import QPixmap
-        from PyQt6.QtCore import Qt
+        from PyQt6.QtCore import Qt, QPoint
         path = cs.get('panel_bg_image', '')
         if not path:
             return False
@@ -3350,14 +3407,28 @@ class AppPanelEffect: #vers 2
         mode = cs.get('panel_bg_image_mode', 0)
         p.save()
         p.setOpacity(cs.get('panel_bg_image_opacity', 100) / 100.0)
-        if mode == 0:       # Tiled
+        if mode == 5 and widget is not None:   # Across window: one image, panels show their part
+            win = widget.window()
+            key = (path, win.width(), win.height())
+            sc = AppPanelEffect._pixmap_cache.get(key)
+            if sc is None:
+                sc = px.scaled(win.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                               Qt.TransformationMode.SmoothTransformation)
+                AppPanelEffect._pixmap_cache = {k: v for k, v in AppPanelEffect._pixmap_cache.items()
+                                                if not isinstance(k, tuple)}
+                AppPanelEffect._pixmap_cache[key] = sc
+            off = widget.mapTo(win, QPoint(0, 0))
+            p.setClipRect(r)
+            p.drawPixmap(-off.x() + (win.width() - sc.width()) // 2,
+                         -off.y() + (win.height() - sc.height()) // 2, sc)
+        elif mode == 0:     # Tiled
             p.drawTiledPixmap(r, px)
         elif mode == 1:     # Stretched
             p.drawPixmap(r, px)
         elif mode == 2:     # Centred
             p.drawPixmap(r.left() + (r.width() - px.width()) // 2,
                          r.top() + (r.height() - px.height()) // 2, px)
-        else:               # 3 Scaled fit, 4 Scaled fill
+        else:               # 3 Scaled fit, 4 Scaled fill (5 in previews)
             aspect = (Qt.AspectRatioMode.KeepAspectRatio if mode == 3
                       else Qt.AspectRatioMode.KeepAspectRatioByExpanding)
             sc = px.scaled(r.size(), aspect, Qt.TransformationMode.SmoothTransformation)
@@ -3406,16 +3477,17 @@ class AppPanelEffect: #vers 2
                 p.drawRect(r.left(), r.top()+row*scale, r.width(), scale)
 
 
-def apply_panel_effects(window, app_settings): #vers 4
+def apply_panel_effects(window, app_settings): #vers 5
     """Walk a window's panels and apply the current panel effect to each.
     Skips: AppSettings dialog itself.
     """
-    from PyQt6.QtWidgets import QGroupBox, QFrame
+    from PyQt6.QtWidgets import QGroupBox, QFrame, QAbstractScrollArea
     cs = app_settings.current_settings
     effect = cs.get('panel_effect_type', 'none')
 
     if effect == 'none' and not cs.get('panel_bg_image', ''):
         from PyQt6.QtWidgets import QWidget
+        _apply_image_under(window, cs, False)
         for w in window.findChildren(QWidget):          # repaint panels that had an effect
             if getattr(w, '_panel_effect_installed', False):
                 w.update()
@@ -3458,10 +3530,43 @@ def apply_panel_effects(window, app_settings): #vers 4
                                     'dp5_bitmaps_panel', 'dp5_brushcolors_panel',
                                     'dp5_imagepalette_panel', 'dp5_userpalette_panel'):
             continue
+        if isinstance(widget, QAbstractScrollArea):      # painted via viewport, not the frame
+            continue
         if widget.frameStyle() & QFrame.Shape.StyledPanel.value:
             widget._app_settings_ref = cs
             AppPanelEffect.install(widget, cs)
             widget.update()
+
+    _apply_image_under(window, cs, bool(cs.get('panel_bg_image') and cs.get('panel_bg_image_all')))
+
+
+def _apply_image_under(window, cs, on): #vers 1
+    """Panel image behind lists, toolbars and tab pages (tinted), or removed when off."""
+    from PyQt6.QtWidgets import QAbstractScrollArea, QToolBar, QTabWidget, QStackedWidget
+    from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+    targets = []
+    for view in window.findChildren(QAbstractScrollArea):
+        vp = view.viewport()
+        if vp is not None and not isinstance(vp, QOpenGLWidget):
+            targets.append((vp, view))
+    targets += [(tb, tb) for tb in window.findChildren(QToolBar)]
+    for tw in window.findChildren(QTabWidget):
+        st = tw.findChild(QStackedWidget)
+        if st is not None:
+            targets.append((st, st))
+    for target, styled in targets:
+        w, skip = styled.parent(), False
+        while w is not None:
+            if 'Settings' in type(w).__name__ or 'Dialog' in type(w).__name__:
+                skip = True
+                break
+            w = w.parent()
+        if skip:
+            continue
+        if on:
+            AppPanelEffect.install_under(target, styled, cs)
+        elif getattr(target, '_panel_under_tint', None) is not None:
+            AppPanelEffect.remove_under(target)
 
 
 class PanelPreviewWidget(QWidget): #vers 1
@@ -7752,7 +7857,7 @@ Ready for operations..."""
         mode_lay.addWidget(QLabel("Display:"))
         self._panel_img_mode = QComboBox()
         self._panel_img_mode.addItems([
-            "Tiled", "Stretched", "Centred", "Scaled fit", "Scaled fill"])
+            "Tiled", "Stretched", "Centred", "Scaled fit", "Scaled fill", "Across window"])
         self._panel_img_mode.setCurrentIndex(
             self.app_settings.current_settings.get("panel_bg_image_mode", 0))
         mode_lay.addWidget(self._panel_img_mode)
@@ -7771,6 +7876,12 @@ Ready for operations..."""
         blend_lay.addWidget(self._panel_img_opacity)
         blend_lay.addWidget(self._panel_img_opacity_lbl)
         igl.addLayout(blend_lay)
+        self._panel_img_all = QCheckBox("Show through lists, toolbars and tabs (tinted by their colour)")
+        self._panel_img_all.setChecked(
+            bool(self.app_settings.current_settings.get("panel_bg_image_all", False)))
+        self._panel_img_all.toggled.connect(
+            lambda on: self.app_settings.current_settings.__setitem__("panel_bg_image_all", on))
+        igl.addWidget(self._panel_img_all)
         il.addWidget(img_group)
 
         self._img_preview = PanelPreviewWidget(self, "image")
@@ -9871,7 +9982,7 @@ Ready for operations..."""
         for key in ("panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
                     "panel_pattern_scale", "panel_effect_type",
                     "panel_bg_image", "panel_bg_image_mode", "panel_bg_image_opacity",
-                    "button_style", "progressbar_style", "progressbar_height"):
+                    "panel_bg_image_all", "button_style", "progressbar_style", "progressbar_height"):
             if key in cs:
                 theme_data[key] = cs[key]
 

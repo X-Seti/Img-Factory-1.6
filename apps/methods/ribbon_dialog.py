@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ribbon_dialog.py - Version: 1
+#this belongs in apps/methods/ribbon_dialog.py - Version: 2
 # X-Seti - September30 2026 - IMG Factory 1.6 - Ribbon Manager dialog
 
 """
@@ -18,6 +18,7 @@ Ribbon Manager - shared toolbar layout dialog and custom icon support for worksh
 # _on_action_reordered
 # _on_cancel
 # _on_icon_size_changed
+# _on_mono_toggled
 # _on_toolbar_selected
 # _refresh_action_list
 # _refresh_toolbar_list
@@ -29,9 +30,13 @@ Ribbon Manager - shared toolbar layout dialog and custom icon support for worksh
 ##class RibbonIconsMixin: -
 # _apply_custom_icons
 # _custom_icons
+# _icon_mono
 # _icons_dir
 # open_ribbon_manager
+# _render_ribbon_icons
+# _ribbon_config_set
 # _save_custom_icons
+# _set_icon_mono
 
 import json
 import shutil
@@ -114,6 +119,13 @@ class RibbonManagerDialog(QDialog): #vers 2
         self._size_slider.valueChanged.connect(self._on_icon_size_changed)
         size_row.addWidget(self._size_slider, stretch=1)
         size_row.addWidget(self._size_value_label)
+        from PyQt6.QtWidgets import QCheckBox
+        self._mono_chk = QCheckBox("Mono icons")
+        self._mono_chk.setToolTip("Draw ribbon icons in the theme icon colour only")
+        self._mono_chk.setChecked(self._ws._icon_mono() if hasattr(self._ws, '_icon_mono') else False)
+        self._mono_chk.setEnabled(hasattr(self._ws, '_set_icon_mono'))
+        self._mono_chk.toggled.connect(self._on_mono_toggled)
+        size_row.addWidget(self._mono_chk)
         outer.addLayout(size_row)
 
         # Splitter: left = toolbar list, right = action list
@@ -184,6 +196,14 @@ class RibbonManagerDialog(QDialog): #vers 2
         self._size_value_label.setText(f"{px}px")
         if hasattr(self._ws, '_apply_icon_scale'):
             self._ws._apply_icon_scale(px)
+
+
+    def _on_mono_toggled(self, on: bool): #vers 1
+        """Switch ribbon icons between colour and mono, refresh the lists."""
+        self._ws._set_icon_mono(on)
+        row = self._tb_list.currentRow()
+        self._refresh_toolbar_list()
+        self._tb_list.setCurrentRow(row)
 
 
     def _refresh_toolbar_list(self): #vers 1
@@ -466,28 +486,53 @@ class RibbonIconsMixin: #vers 1
             return {}
         return dict(data.get('custom_icons', {}))
 
-    def _save_custom_icons(self, icons: dict): #vers 1
-        """Store the icon choices and reapply every ribbon icon."""
+    def _ribbon_config_set(self, key, value): #vers 1
+        """Write one key to the ribbon config file."""
         path = self._ribbon_config_path()
         try:
             data = json.loads(path.read_text())
         except (OSError, ValueError):
             data = {}
-        data['custom_icons'] = icons
+        data[key] = value
         path.write_text(json.dumps(data, indent=2))
-        c = self._get_icon_color()
-        for e in getattr(self, '_ribbon_actions', []):
-            fn = e.get('icon_fn')
-            if fn is None:
-                continue
-            try:
-                e['action'].setIcon(fn(color=c))
-            except TypeError:                       # icon lambdas without a color kwarg
-                e['action'].setIcon(fn())
+
+    def _save_custom_icons(self, icons: dict): #vers 2
+        """Store the icon choices and reapply every ribbon icon."""
+        self._ribbon_config_set('custom_icons', icons)
         self._apply_custom_icons()
 
-    def _apply_custom_icons(self): #vers 1
-        """Set chosen icons/ images on ribbon actions; report missing files."""
+    def _icon_mono(self) -> bool: #vers 1
+        """Ribbon icons drawn in the single theme icon colour."""
+        try:
+            return bool(json.loads(self._ribbon_config_path().read_text()).get('icon_mono', False))
+        except (OSError, ValueError):
+            return False
+
+    def _set_icon_mono(self, on: bool): #vers 1
+        """Save colour/mono choice and redraw the ribbon."""
+        self._ribbon_config_set('icon_mono', bool(on))
+        self._apply_custom_icons()
+
+    def _render_ribbon_icons(self): #vers 1
+        """Redraw built-in ribbon icons in colour or mono."""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        c = self._get_icon_color()
+        SVGIconFactory._mono = self._icon_mono()
+        try:
+            for e in getattr(self, '_ribbon_actions', []):
+                fn = e.get('icon_fn')
+                if fn is None:
+                    continue
+                try:
+                    e['action'].setIcon(fn(color=c))
+                except TypeError:                   # icon lambdas without a color kwarg
+                    e['action'].setIcon(fn())
+        finally:
+            SVGIconFactory._mono = False
+
+    def _apply_custom_icons(self): #vers 2
+        """Draw ribbon icons (colour/mono), then chosen icons/ images; report missing files."""
+        self._render_ribbon_icons()
         icons = self._custom_icons()
         folder = self._icons_dir()
         missing = []

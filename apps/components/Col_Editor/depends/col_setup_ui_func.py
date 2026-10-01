@@ -1371,13 +1371,16 @@ class COLSetupUIMixin: #vers 1
                 ("Import CST/3DS/X/DFF...",    IF.import_exchange_icon,    self._edit_import_exchange,    'import_ex_btn',   False),
                 ("Export CST...",              IF.export_cst_icon,         self._edit_export_cst,         'export_cst_btn',  False),
                 ("Attach to DFF...",           IF.attach_dff_icon,         self._edit_attach_to_dff,      'attach_dff_btn',  False),
+                ("COL from DFF...",            IF.col_from_dff_icon,       self._edit_col_from_dff,       'col_dff_btn',     False),
+                ("Surfaces from DFF Textures...", IF.surfaces_from_dff_icon, self._edit_surfaces_from_dff, 'surf_dff_btn', False),
             ]),
         ]:
             tb_grp = _tb(group, Qt.ToolBarArea.TopToolBarArea)
             for name, icon, cb, attr, chk in entries:
                 _act(tb_grp, name, icon, cb, checkable=chk, enabled=False, attr=attr)
             self._tb_ce_groups.append(tb_grp)
-        self.batch_btn.setEnabled(True)        # works without an open file
+        self.batch_btn.setEnabled(True)        # these work without an open file
+        self.col_dff_btn.setEnabled(True)
 
         # Store toolbar refs
         self._tb_transform = tb_xform
@@ -1999,6 +2002,7 @@ class COLSetupUIMixin: #vers 1
             'clear_parts_btn', 'isolated_btn', 'opt_bounds_btn', 'face_groups_btn', 'clear_fg_btn',
             'show_fg_btn', 'lighting_btn', 'light_view_btn', 'vc_sa_btn', 'region_circle_btn',
             'region_window_btn', 'dup_check_btn', 'import_ex_btn', 'export_cst_btn', 'attach_dff_btn',
+            'col_dff_btn', 'surf_dff_btn',
         ]
         for attr in col_btn_attrs:
             btn = getattr(self, attr, None)

@@ -1,9 +1,9 @@
-#this belongs in apps/methods/col_exchange.py - Version: 1
+#this belongs in apps/methods/col_exchange.py - Version: 2
 # X-Seti - Oct 01 2026 - IMG Factory 1.6 - COL data exchange
 
 """
 COL data exchange - collision scripts (CST v1 and CE II CST2), 3DS and .X
-mesh import, and embedding a COL model in a DFF clump.
+mesh import, embedding a COL model in a DFF clump, COL mesh and surfaces from DFF.
 
 CST2 layout written here (sections "count, Name", one comma list per item):
   Vertex: x, y, z | Face: a, b, c, material, light
@@ -18,10 +18,12 @@ CST2 layout written here (sections "count, Name", one comma list per item):
 # _fmt
 # attach_col_to_dff
 # dff_collision
+# dff_triangles
 # model_from_parts
 # read_3ds_mesh
 # read_cst
 # read_x_mesh
+# surfaces_from_triangles
 # write_cst2
 
 import re
@@ -216,3 +218,69 @@ def attach_col_to_dff(dff, col_bytes): #vers 1
     if ext.children:
         return insert_section(dff, ext.children[-1], chunk)
     return insert_section(dff, None, chunk, parent=ext)
+
+
+def dff_triangles(dff_model, skip_lod=True): #vers 1
+    """World-space (vertices, [(a, b, c, texture)]) from every atomic of a DFF model.
+    skip_lod drops frames named *_vlo, *_dam and *_lod."""
+    frames = dff_model.frames
+
+    def apply(fi, p):  #vers 1
+        while 0 <= fi < len(frames):
+            f = frames[fi]
+            r = f.rotation
+            p = (p[0] * r[0] + p[1] * r[3] + p[2] * r[6] + f.position.x,
+                 p[0] * r[1] + p[1] * r[4] + p[2] * r[7] + f.position.y,
+                 p[0] * r[2] + p[1] * r[5] + p[2] * r[8] + f.position.z)
+            fi = f.parent_index
+        return p
+
+    verts, tris = [], []
+    pairs = ([(a.frame_index, a.geometry_index) for a in dff_model.atomics]
+             or [(-1, i) for i in range(len(dff_model.geometries))])
+    for fi, gi in pairs:
+        fname = frames[fi].name.lower() if 0 <= fi < len(frames) else ''
+        if skip_lod and (fname.endswith(('_vlo', '_lod')) or '_dam' in fname):
+            continue
+        if not 0 <= gi < len(dff_model.geometries):
+            continue
+        g = dff_model.geometries[gi]
+        base = len(verts)
+        verts += [apply(fi, (v.x, v.y, v.z)) for v in g.vertices]
+        for t in g.triangles:
+            tex = g.materials[t.material_id].texture_name if 0 <= t.material_id < len(g.materials) else ''
+            tris.append((t.v1 + base, t.v2 + base, t.v3 + base, tex))
+    return verts, tris
+
+
+def surfaces_from_triangles(model, verts, tris, game): #vers 1
+    """Set each COL face's surface from the texture of the nearest DFF triangle; returns faces set."""
+    from apps.methods.col_materials import material_from_texture
+    if not tris or not model.faces:
+        return 0
+    cen = lambda pts: tuple(sum(q[k] for q in pts) / 3 for k in range(3))
+    dcen = [cen([verts[t[0]], verts[t[1]], verts[t[2]]]) for t in tris]
+    mats = [material_from_texture(t[3], game) for t in tris]
+    cell = max(1.0, (model.bounds.radius or 10.0) / 20.0)
+    grid = {}
+    for i, c in enumerate(dcen):
+        if mats[i] is not None:
+            grid.setdefault(tuple(int(c[k] // cell) for k in range(3)), []).append(i)
+    if not grid:
+        return 0
+    n = 0
+    for f in model.faces:
+        c = cen([(model.vertices[i].x, model.vertices[i].y, model.vertices[i].z) for i in (f.a, f.b, f.c)])
+        key = tuple(int(c[k] // cell) for k in range(3))
+        best, ring = None, 0
+        while best is None and ring <= 4:
+            cand = [i for dx in range(-ring, ring + 1) for dy in range(-ring, ring + 1)
+                    for dz in range(-ring, ring + 1)
+                    for i in grid.get((key[0] + dx, key[1] + dy, key[2] + dz), ())]
+            if cand:
+                best = min(cand, key=lambda i: sum((dcen[i][k] - c[k]) ** 2 for k in range(3)))
+            ring += 1
+        if best is not None:
+            f.material = mats[best]
+            n += 1
+    return n
