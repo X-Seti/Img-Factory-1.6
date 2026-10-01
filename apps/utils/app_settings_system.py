@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 80
+#This goes in root/apps/utils/app_settings_system.py - version 81
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -1680,8 +1680,44 @@ class DebugSettings:
         self.app_settings.save_settings()
         return self.debug_enabled
 
+# Panel effect, image and transparency keys kept in theme and settings JSON
+THEME_EFFECT_KEYS = ("panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
+                     "panel_pattern_scale", "panel_effect_type",
+                     "panel_bg_image", "panel_bg_image_mode", "panel_bg_image_opacity",
+                     "panel_bg_image_all", "titlebar_opacity", "panel_opacity",
+                     "button_opacity", "widget_opacity",
+                     "button_style", "progressbar_style", "progressbar_height")
+
+_IMAGE_DIRS = []      # folders searched for relative panel image paths
+
+
+def resolve_panel_image(path): #vers 1
+    """Absolute path of a panel image; relative paths look in settings/themes folders."""
+    if not path or os.path.isabs(path):
+        return path
+    for d in _IMAGE_DIRS:
+        cand = os.path.join(str(d), path)
+        if os.path.isfile(cand):
+            return cand
+    return path
+
+
+def store_panel_image(path, folder): #vers 1
+    """Copy a panel image into folder/images; return 'images/<name>' (or '' when none)."""
+    import shutil
+    src = resolve_panel_image(path)
+    if not src or not os.path.isfile(src):
+        return path or ''
+    dst_dir = Path(folder) / 'images'
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / os.path.basename(src)
+    if Path(src).resolve() != dst.resolve():
+        shutil.copy2(src, dst)
+    return f"images/{dst.name}"
+
+
 class AppSettings:
-    def __init__(self, settings_file="appfactory.settings.json"): #vers 4
+    def __init__(self, settings_file="appfactory.settings.json"): #vers 5
         """Initialize application settings with Windows compatibility"""
         current_file_dir = Path(__file__).parent
 
@@ -1703,7 +1739,11 @@ class AppSettings:
             portable = portable_dir / settings_file
             if not portable.exists() and self.settings_file.exists():
                 shutil.copyfile(self.settings_file, portable)
+                bundled_imgs = self.settings_file.parent / 'images'
+                if bundled_imgs.is_dir():
+                    shutil.copytree(bundled_imgs, portable_dir / 'images', dirs_exist_ok=True)
             self.settings_file = portable
+        _IMAGE_DIRS[:] = [self.settings_file.parent, self.themes_dir]
 
         # FIXED: Windows-compatible default paths using Path objects
         if os.name == 'nt':  # Windows
@@ -2467,10 +2507,13 @@ class AppSettings:
 
         return themes
 
-    def save_settings(self):
-        """Save current settings to file"""
+    def save_settings(self): #vers 2
+        """Save current settings to file; panel image copied beside it (images/)."""
         try:
             self.settings_file.parent.mkdir(parents=True, exist_ok=True)  # ADD THIS LINE
+            if self.current_settings.get('panel_bg_image'):
+                self.current_settings['panel_bg_image'] = store_panel_image(
+                    self.current_settings['panel_bg_image'], self.settings_file.parent)
             with open(self.settings_file, 'w', encoding='utf-8') as f:  # ADD encoding='utf-8'
                 json.dump(self.current_settings, f, indent=2, ensure_ascii=False)  # ADD ensure_ascii=False
             print(f"Settings saved to: {self.settings_file}")
@@ -2862,6 +2905,13 @@ class AppSettings:
             print(f"Error saving theme {theme_name}: {e}")
             return False
 
+    def apply_theme_effects(self, theme_key): #vers 1
+        """Copy a theme's panel effect, image and transparency keys into current settings."""
+        theme = self.themes.get(theme_key, {})
+        for key in THEME_EFFECT_KEYS:
+            if key in theme:
+                self.current_settings[key] = theme[key]
+
     def save_theme(self, theme_name, theme_data): #vers 2
         """Save theme data to JSON file in themes directory"""
         try:
@@ -3227,9 +3277,11 @@ class AppPanelEffect: #vers 2
         widget.update()
 
     @staticmethod
-    def _draw_under(widget): #vers 1
-        """Paint image then the widget's own colour as a tint (1 - blend opacity)."""
+    def _draw_under(widget): #vers 2
+        """Paint image then the widget's own colour as a tint at Transparency
+        opacity (Panels; Widgets for toolbars)."""
         from PyQt6.QtGui import QPainter, QColor
+        from PyQt6.QtWidgets import QToolBar
         cs = getattr(widget, '_app_settings_ref', None) or {}
         if not isinstance(cs, dict):
             cs = getattr(cs, 'current_settings', {})
@@ -3242,9 +3294,9 @@ class AppPanelEffect: #vers 2
             r = widget.rect()
             tint = QColor(widget._panel_under_tint)
             p.fillRect(r, tint)
-            img = dict(cs); img['panel_bg_image_opacity'] = 100
-            if AppPanelEffect._paint_image(p, r, img, widget):
-                tint.setAlphaF(1.0 - cs.get('panel_bg_image_opacity', 100) / 100.0)
+            if AppPanelEffect._paint_image(p, r, cs, widget):
+                key = 'widget_opacity' if isinstance(widget, QToolBar) else 'panel_opacity'
+                tint.setAlphaF(max(0, min(100, cs.get(key, 100))) / 100.0)
                 p.fillRect(r, tint)
         finally:
             p.end()
@@ -3390,12 +3442,12 @@ class AppPanelEffect: #vers 2
     _pixmap_cache = {}
 
     @staticmethod
-    def _paint_image(p, r, cs, widget=None): #vers 2
+    def _paint_image(p, r, cs, widget=None): #vers 3
         """Panel background image (tiled/stretched/centred/fit/fill, or one image
         across the whole window) at blend opacity; True if drawn."""
         from PyQt6.QtGui import QPixmap
         from PyQt6.QtCore import Qt, QPoint
-        path = cs.get('panel_bg_image', '')
+        path = resolve_panel_image(cs.get('panel_bg_image', ''))
         if not path:
             return False
         px = AppPanelEffect._pixmap_cache.get(path)
@@ -7877,6 +7929,7 @@ Ready for operations..."""
         blend_lay.addWidget(self._panel_img_opacity_lbl)
         igl.addLayout(blend_lay)
         self._panel_img_all = QCheckBox("Show through lists, toolbars and tabs (tinted by their colour)")
+        self._panel_img_all.setToolTip("Tint strength: Transparency tab, Panels (lists, tabs) and Widgets (toolbars)")
         self._panel_img_all.setChecked(
             bool(self.app_settings.current_settings.get("panel_bg_image_all", False)))
         self._panel_img_all.toggled.connect(
@@ -8004,6 +8057,19 @@ Ready for operations..."""
                 pw = getattr(self, attr, None)
                 if pw:
                     pw.refresh()
+
+    def _load_panel_controls(self): #vers 1
+        """Show current panel image and transparency settings in the Panels tab."""
+        cs = self.app_settings.current_settings
+        if hasattr(self, '_panel_img_path'):
+            self._panel_img_path.setText(cs.get("panel_bg_image", ""))
+            self._panel_img_mode.setCurrentIndex(int(cs.get("panel_bg_image_mode", 0)))
+            self._panel_img_opacity.setValue(int(cs.get("panel_bg_image_opacity", 100)))
+            self._panel_img_all.setChecked(bool(cs.get("panel_bg_image_all", False)))
+        for key in ("titlebar_opacity", "panel_opacity", "button_opacity", "widget_opacity"):
+            sl = getattr(self, f"_{key}_slider", None)
+            if sl is not None:
+                sl.setValue(int(cs.get(key, 100)))
 
     def _browse_panel_bg_image(self): #vers 1
         """Browse for panel background image."""
@@ -9475,7 +9541,7 @@ Ready for operations..."""
 
     # ===== THEME MANAGEMENT =====
 
-    def _on_theme_changed(self, theme_name): #vers 3
+    def _on_theme_changed(self, theme_name): #vers 4
         """Handle theme selection change — applies live to entire app when checked."""
         theme_key = None
         for key, data in self.app_settings.themes.items():
@@ -9487,6 +9553,8 @@ Ready for operations..."""
             return
 
         self._load_theme_colors(theme_key)
+        self.app_settings.apply_theme_effects(theme_key)
+        self._load_panel_controls()
 
         # Re-apply stylesheet so dialog colours update immediately
         try:
@@ -9958,7 +10026,7 @@ Ready for operations..."""
 
 
 
-    def _save_current_theme(self): #vers 2
+    def _save_current_theme(self): #vers 3
         """Save modifications to the currently selected theme file in themes/"""
         current_theme_key = self.theme_selector_combo.currentData()
 
@@ -9977,14 +10045,14 @@ Ready for operations..."""
         for color_key, editor in self.color_editors.items():
             theme_data["colors"][color_key] = editor.color_input.text()
 
-        # Save panel effect settings into theme (non-colour controls)
+        # Save panel effect, image and transparency settings into theme
         cs = self.app_settings.current_settings
-        for key in ("panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
-                    "panel_pattern_scale", "panel_effect_type",
-                    "panel_bg_image", "panel_bg_image_mode", "panel_bg_image_opacity",
-                    "panel_bg_image_all", "button_style", "progressbar_style", "progressbar_height"):
+        for key in THEME_EFFECT_KEYS:
             if key in cs:
                 theme_data[key] = cs[key]
+        if theme_data.get("panel_bg_image"):
+            theme_data["panel_bg_image"] = store_panel_image(theme_data["panel_bg_image"],
+                                                             self.app_settings.themes_dir)
 
         # Collect gadget styles if modified
         if hasattr(self, '_gadget_modified') and self._gadget_modified:
@@ -10010,7 +10078,7 @@ Ready for operations..."""
             )
 
 
-    def _save_theme_as(self): #vers 7
+    def _save_theme_as(self): #vers 8
         """Save current theme as a new theme with file dialog - PRESERVES ALL DATA"""
         from PyQt6.QtWidgets import QInputDialog, QFileDialog, QMessageBox
         import json
@@ -10049,11 +10117,9 @@ Ready for operations..."""
             if color_key in theme_data["colors"] or color_key in self.theme_colors:
                 theme_data["colors"][color_key] = editor.color_input.text()
 
-        # Save panel effect settings at theme root level
+        # Save panel effect, image and transparency settings at theme root level
         cs = self.app_settings.current_settings
-        for key in ("panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
-                    "panel_pattern_scale", "panel_effect_type",
-                    "button_style", "progressbar_style", "progressbar_height"):
+        for key in THEME_EFFECT_KEYS:
             if key in cs:
                 theme_data[key] = cs[key]
 
@@ -10089,6 +10155,9 @@ Ready for operations..."""
         # Ensure .json extension
         if not file_path.endswith('.json'):
             file_path += '.json'
+        if theme_data.get("panel_bg_image"):                 # image travels with the json
+            theme_data["panel_bg_image"] = store_panel_image(theme_data["panel_bg_image"],
+                                                             os.path.dirname(file_path))
 
         # Save theme file
         try:

@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 209
+#this belongs in root /ChangeLog.md - Version: 210
+
+## Oct 01 2026 - Theme image/transparency saved; Ribbon Manager hide and dividers
+- Panel image copied to images/ beside settings or theme JSON (relative path); effect, image and transparency keys saved in themes and loaded on theme change.
+- Show-through tint uses Transparency tab: Panels (lists, tabs), Widgets (toolbars).
+- Ribbon Manager: untick to hide buttons, Add/Delete Divider; order, moves, dividers and hidden buttons saved and restored.
 
 ## Oct 01 2026 - COL from DFF, mono ribbon icons, panel image options
 - COL Workshop: COL from DFF (render mesh, LOD/damage parts skipped); surfaces from DFF texture names (grass, sand, wood, metal...).

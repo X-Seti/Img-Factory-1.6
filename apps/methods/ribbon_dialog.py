@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ribbon_dialog.py - Version: 2
+#this belongs in apps/methods/ribbon_dialog.py - Version: 3
 # X-Seti - September30 2026 - IMG Factory 1.6 - Ribbon Manager dialog
 
 """
@@ -8,14 +8,17 @@ Ribbon Manager - shared toolbar layout dialog and custom icon support for worksh
 ##Methods list -
 
 ##class RibbonManagerDialog: -
+# _add_divider
 # _build_ui
 # _create_toolbar
+# _delete_divider
 # _delete_toolbar
 # __init__
 # _load_preset
 # _move_action
 # _on_accept
 # _on_action_reordered
+# _on_item_checked
 # _on_cancel
 # _on_icon_size_changed
 # _on_mono_toggled
@@ -29,12 +32,15 @@ Ribbon Manager - shared toolbar layout dialog and custom icon support for worksh
 
 ##class RibbonIconsMixin: -
 # _apply_custom_icons
+# _apply_ribbon_layout
 # _custom_icons
 # _icon_mono
 # _icons_dir
 # open_ribbon_manager
 # _render_ribbon_icons
 # _ribbon_config_set
+# _ribbon_layout_snapshot
+# _save_ribbon_layout
 # _save_custom_icons
 # _set_icon_mono
 
@@ -152,6 +158,8 @@ class RibbonManagerDialog(QDialog): #vers 2
         self._act_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self._act_list.setIconSize(QSize(24, 24))
         self._act_list.model().rowsMoved.connect(self._on_action_reordered)
+        self._act_list.itemChanged.connect(self._on_item_checked)
+        self._act_list.setToolTip("Untick a button to hide it on the ribbon")
         rl.addWidget(self._act_list)
 
         # Move-to-toolbar button row
@@ -177,6 +185,14 @@ class RibbonManagerDialog(QDialog): #vers 2
         self._reset_icon_btn.clicked.connect(self._reset_icon)
         icon_row.addWidget(self._set_icon_btn)
         icon_row.addWidget(self._reset_icon_btn)
+        self._add_div_btn = QPushButton("Add Divider")
+        self._add_div_btn.setToolTip("Insert a divider after the selected button")
+        self._add_div_btn.clicked.connect(self._add_divider)
+        self._del_div_btn = QPushButton("Delete Divider")
+        self._del_div_btn.setToolTip("Remove the selected divider")
+        self._del_div_btn.clicked.connect(self._delete_divider)
+        icon_row.addWidget(self._add_div_btn)
+        icon_row.addWidget(self._del_div_btn)
         icon_row.addStretch()
         rl.addLayout(icon_row)
         splitter.addWidget(right)
@@ -233,7 +249,7 @@ class RibbonManagerDialog(QDialog): #vers 2
         self._refresh_action_list()
 
 
-    def _refresh_action_list(self): #vers 2
+    def _refresh_action_list(self): #vers 3
         """Populate right pane with actions in the selected toolbar.
 
          fix (Aug 21 2026,  "Ribbon Manager icons in
@@ -276,8 +292,12 @@ class RibbonManagerDialog(QDialog): #vers 2
                 item = QListWidgetItem(label or tip or "Action")
                 if icon and not icon.isNull():
                     item.setIcon(icon)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Checked if act.isVisible() else Qt.CheckState.Unchecked)
             item.setData(Qt.ItemDataRole.UserRole, act)
+            self._act_list.blockSignals(True)
             self._act_list.addItem(item)
+            self._act_list.blockSignals(False)
 
 
     def _on_action_reordered(self): #vers 1
@@ -297,6 +317,39 @@ class RibbonManagerDialog(QDialog): #vers 2
         for act in new_order:
             tb.addAction(act)
 
+
+    def _on_item_checked(self, item): #vers 1
+        """Tick shows, untick hides the button on its ribbon."""
+        act = item.data(Qt.ItemDataRole.UserRole)
+        if act is not None and not act.isSeparator():
+            act.setVisible(item.checkState() == Qt.CheckState.Checked)
+
+    def _add_divider(self): #vers 1
+        """Insert a divider after the selected button (or at the end)."""
+        tb = self._selected_tb
+        if not tb:
+            return
+        acts = tb.actions()
+        row = self._act_list.currentRow()
+        before = acts[row + 1] if 0 <= row < len(acts) - 1 else None
+        if before is not None:
+            tb.insertSeparator(before)
+        else:
+            tb.addSeparator()
+        self._refresh_action_list()
+        self._act_list.setCurrentRow(row + 1 if row >= 0 else self._act_list.count() - 1)
+
+    def _delete_divider(self): #vers 1
+        """Remove the selected divider."""
+        item = self._act_list.currentItem()
+        act = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if act is None or not act.isSeparator() or not self._selected_tb:
+            self._ws._set_status("Select a divider to delete")
+            return
+        row = self._act_list.currentRow()
+        self._selected_tb.removeAction(act)
+        self._refresh_action_list()
+        self._act_list.setCurrentRow(min(row, self._act_list.count() - 1))
 
     def _move_action(self): #vers 1
         """Move selected action from current toolbar to the target toolbar."""
@@ -453,9 +506,11 @@ class RibbonManagerDialog(QDialog): #vers 2
         self._refresh_toolbar_list()
         self._ws._set_status(f"Preset '{name}' loaded")
 
-    def _on_accept(self): #vers 1
-        """Apply and save state."""
+    def _on_accept(self): #vers 2
+        """Apply and save state, button order, dividers and hidden buttons."""
         self._ws._save_toolbar_state()
+        if hasattr(self._ws, '_save_ribbon_layout'):
+            self._ws._save_ribbon_layout()
         self.accept()
 
     def _on_cancel(self): #vers 1
@@ -464,7 +519,7 @@ class RibbonManagerDialog(QDialog): #vers 2
             self._mw.restoreState(self._cancel_state)
         self.reject()
 
-class RibbonIconsMixin: #vers 1
+class RibbonIconsMixin: #vers 2
     """Ribbon Manager hooks and custom icons/ images for a workshop.
     Workshop provides _ribbon_config_path, _ribbon_actions, _get_icon_color, _set_status."""
 
@@ -530,8 +585,80 @@ class RibbonIconsMixin: #vers 1
         finally:
             SVGIconFactory._mono = False
 
-    def _apply_custom_icons(self): #vers 2
-        """Draw ribbon icons (colour/mono), then chosen icons/ images; report missing files."""
+    def _ribbon_layout_snapshot(self) -> dict: #vers 1
+        """Button order, dividers ('|') and hidden buttons of toolbars made only of ribbon actions."""
+        from PyQt6.QtWidgets import QToolBar
+        mw = getattr(self, '_inner_mw', None)
+        names = {id(e['action']): e['name'] for e in getattr(self, '_ribbon_actions', [])}
+        bars, hidden = {}, []
+        for tb in (mw.findChildren(QToolBar) if mw else []):
+            row = []
+            for a in tb.actions():
+                if a.isSeparator():
+                    row.append('|')
+                elif id(a) in names:
+                    row.append(names[id(a)])
+                    if not a.isVisible():
+                        hidden.append(names[id(a)])
+                else:
+                    row = None
+                    break
+            if row is not None and tb.objectName():
+                bars[tb.objectName()] = row
+        return {'toolbars': bars, 'hidden': hidden}
+
+    def _save_ribbon_layout(self): #vers 1
+        """Store button order, dividers and hidden buttons in the ribbon config."""
+        self._ribbon_config_set('ribbon_layout', self._ribbon_layout_snapshot())
+
+    def _apply_ribbon_layout(self): #vers 1
+        """Rebuild saved toolbars: order, dividers, moves, hidden; new buttons stay at the end."""
+        from PyQt6.QtWidgets import QToolBar
+        mw = getattr(self, '_inner_mw', None)
+        try:
+            layout = json.loads(self._ribbon_config_path().read_text()).get('ribbon_layout')
+        except (OSError, ValueError):
+            layout = None
+        if not mw or not layout:
+            return
+        entries = {e['name']: e for e in getattr(self, '_ribbon_actions', [])}
+        current = self._ribbon_layout_snapshot()['toolbars']
+        bars = {tb.objectName(): tb for tb in mw.findChildren(QToolBar)}
+        for name in layout.get('toolbars', {}):
+            if name not in bars:                         # user-made toolbar
+                tb = QToolBar(name, mw)
+                tb.setObjectName(name)
+                mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+                bars[name] = tb
+                current[name] = []
+        managed = [bars[n] for n in current]
+        for tb in managed:
+            for a in list(tb.actions()):
+                tb.removeAction(a)
+        placed = set()
+        for name, row in layout.get('toolbars', {}).items():
+            tb = bars.get(name)
+            if tb is None or tb not in managed:
+                continue
+            for item in row:
+                if item == '|':
+                    tb.addSeparator()
+                elif item in entries and item not in placed:
+                    tb.addAction(entries[item]['action'])
+                    placed.add(item)
+        for name, e in entries.items():                 # buttons added since the save
+            if name not in placed and e.get('toolbar') in managed:
+                e['toolbar'].addAction(e['action'])
+        hidden = set(layout.get('hidden', []))
+        for name, e in entries.items():
+            e['action'].setVisible(name not in hidden)
+
+    def _apply_custom_icons(self): #vers 3
+        """Draw ribbon icons (colour/mono), then chosen icons/ images; report missing files.
+        First call also applies the saved ribbon layout."""
+        if not getattr(self, '_ribbon_layout_done', False):
+            self._ribbon_layout_done = True
+            self._apply_ribbon_layout()
         self._render_ribbon_icons()
         icons = self._custom_icons()
         folder = self._icons_dir()
