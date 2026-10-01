@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 96
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 97
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -697,37 +697,64 @@ def _list_stickers(): #vers 1
                   if f.is_file() and f.suffix.lower() in exts)
 
 
-def _load_sticker_rgba(filename: str): #vers 1
-    """Load a sticker image file, return (rgba_bytearray, w, h) with
-    transparency resolved and cached. Uses the image's own alpha info
-    if the source already has any transparent pixels (real GIF
-    transparency); otherwise treats the top-left corner pixel's colour
-    as the background and makes matching pixels transparent, since most
-    of this set are old-style solid-background icon GIFs without real
-    alpha. Returns (None, 0, 0) if the file can't be loaded."""
+def _load_sticker_rgba(filename: str): #vers 2
+    """Load a sticker image file, return (rgba_bytearray, w, h), cached.
+    Background joined to the border (corner colour, or white when the GIF
+    already has transparency) becomes transparent, then the light halo the
+    icons kept from their white backdrop fades out over 2 px so round
+    stickers have clean alpha edges. Returns (None, 0, 0) if unreadable."""
     if filename in _sticker_cache:
         return _sticker_cache[filename]
     path = _STICKER_DIR / filename
     try:
         from PIL import Image
+        from collections import deque
         img = Image.open(path).convert('RGBA')
         w, h = img.size
         px = img.load()
-        has_alpha = any(px[x, y][3] < 255
-                        for x in (0, w - 1) for y in (0, h - 1))
-        if not has_alpha:
-            bg = px[0, 0]
-            for y in range(h):
-                for x in range(w):
-                    r, g, b, a = px[x, y]
-                    if (r, g, b) == bg[:3]:
-                        px[x, y] = (r, g, b, 0)
+        has_alpha = any(px[x, y][3] < 255 for y in range(h) for x in range(w))
+        matte = (255, 255, 255) if has_alpha else px[0, 0][:3]
+
+        def near(c):
+            return c[3] == 0 or sum(abs(c[k] - matte[k]) for k in range(3)) <= 60
+
+        seen, q = set(), deque()
+        for x in range(w):
+            q.extend(((x, 0), (x, h - 1)))
+        for y in range(h):
+            q.extend(((0, y), (w - 1, y)))
+        while q:                                   # background joined to the border
+            x, y = q.popleft()
+            if (x, y) in seen or not (0 <= x < w and 0 <= y < h):
+                continue
+            seen.add((x, y))
+            if not near(px[x, y]):
+                continue
+            r, g, b, a = px[x, y]
+            px[x, y] = (r, g, b, 0)
+            q.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+
+        def light(c):
+            if matte == (255, 255, 255):
+                return min(c)
+            return 255 - max(abs(c[k] - matte[k]) for k in range(3))
+
+        for _ in range(2):                         # fade the light halo, 2 px deep
+            edge = [(x, y) for y in range(h) for x in range(w) if px[x, y][3] and (
+                    x in (0, w - 1) or y in (0, h - 1) or
+                    any(px[x + dx, y + dy][3] < 128 for dx in (-1, 0, 1) for dy in (-1, 0, 1)))]
+            for x, y in edge:
+                r, g, b, a = px[x, y]
+                l = light((r, g, b))
+                if l >= 235:
+                    px[x, y] = (r, g, b, 0)
+                elif l >= 190:
+                    px[x, y] = (r, g, b, min(a, round(255 * (235 - l) / 45)))
         rgba = bytearray(img.tobytes())
         _sticker_cache[filename] = (rgba, w, h)
         return rgba, w, h
     except Exception:
         return None, 0, 0
-
 
 # - Tool icon renderer — Photoshop-style white silhouettes on dark tile
 def _load_tool_icon(shape: str, size: int = 42, active: bool = False,
@@ -2801,7 +2828,7 @@ class DP5Canvas(QWidget):
                         i = (yy * w + xx) * 4
                         buf[i] = avg_r; buf[i+1] = avg_g; buf[i+2] = avg_b
 
-    def _stamp_sticker(self, cx: int, cy: int): #vers 3
+    def _stamp_sticker(self, cx: int, cy: int): #vers 4
         """Stamp a sticker image (from apps/emojis/) onto the canvas,
         centred at (cx, cy). Loads the file via _load_sticker_rgba
         (cached, transparency-resolved), scales it to the desired
@@ -2809,12 +2836,8 @@ class DP5Canvas(QWidget):
         onto the canvas - this is the only place in DP5 that stamps
         sticker/emoji images, using real picture files rather than
         rendering a font glyph (which depends on the system having a
-        colour-emoji font installed). Stamp size is based on the
-        source sticker's own natural dimensions scaled by brush_size,
-        rather than a fixed formula - the previous version forced an
-        8px stamp at the default brush_size=1 regardless of source
-        size, severely downscaling the ~19x19 source stickers and
-        losing most of their detail."""
+        colour-emoji font installed). Stamp is 20x20 px at brush size 1
+        (aspect kept, centred), times brush_size above that."""
         ed = self._editor
         filename = getattr(ed, '_current_sticker', None) if ed else None
         if not filename:
@@ -2823,10 +2846,15 @@ class DP5Canvas(QWidget):
         if src_rgba is None:
             return
 
-        size = max(sw, sh) * max(1, self.brush_size)
+        size = 20 * max(1, self.brush_size)          # 20x20 px stamp at brush size 1
         src_img = QImage(bytes(src_rgba), sw, sh, sw * 4, QImage.Format.Format_RGBA8888)
-        img = src_img.scaled(size, size, Qt.AspectRatioMode.IgnoreAspectRatio,
-                              Qt.TransformationMode.SmoothTransformation)
+        fit = src_img.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
+        img = QImage(size, size, QImage.Format.Format_RGBA8888)
+        img.fill(Qt.GlobalColor.transparent)
+        _p = QPainter(img)
+        _p.drawImage((size - fit.width()) // 2, (size - fit.height()) // 2, fit)
+        _p.end()
 
         half = size // 2
         w, h = self.tex_w, self.tex_h

@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 215
+#this belongs in root /ChangeLog.md - Version: 216
+
+## Oct 01 2026 - DP5 stickers
+- Stickers stamp at 20x20 px (aspect kept); background and white halo removed so round emojis have alpha edges.
 
 ## Oct 01 2026 - COL Workshop menus and selection
 - Click a selected face or vertex again to deselect. Show Vertices toggle (red dots). New back-face icon.
