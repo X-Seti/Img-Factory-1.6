@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 211
+#this belongs in root /ChangeLog.md - Version: 212
+
+## Oct 01 2026 - Colour transparency
+- Colors tab: transparency column (0-100) for backgrounds, panels, ribbons, buttons, title bar, menus, selection, table rows, splitter, scrollbar, dialogs; saved with theme. Menu - Background colour added.
 
 ## Oct 01 2026 - COL Workshop standalone file tabs
 - Dropping a COL on an open file offers Open in new tab standalone too; title bar drop-down (right of Settings) switches, opens and closes tabs. Docked uses IMG Factory tabs.

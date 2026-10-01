@@ -1,4 +1,4 @@
-#this belongs in apps/core/theme_utils.py - Version: 2
+#this belongs in apps/core/theme_utils.py - Version: 3
 # X-Seti - March 2026 - IMG Factory 1.6
 # Shared theme utilities — makes QDialogs and QWidgets theme-aware.
 """
@@ -347,4 +347,12 @@ def apply_dialog_theme(dialog, parent=None) -> None:
     """
     source = parent or dialog
     colors = get_theme_colors(source)
+    settings = None
+    node = source
+    while node is not None and settings is None:          # colour transparency from settings
+        settings = getattr(node, "app_settings", None)
+        node = node.parent() if callable(getattr(node, "parent", None)) else None
+    if settings is not None:
+        from apps.utils.app_settings_system import apply_color_alpha
+        colors = apply_color_alpha(colors, settings.current_settings.get("color_alpha", {}))
     dialog.setStyleSheet(build_dialog_stylesheet(colors))

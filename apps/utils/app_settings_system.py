@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 81
+#This goes in root/apps/utils/app_settings_system.py - version 82
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -1348,17 +1348,19 @@ class _DraggableSwatch(QLabel): #vers 1
         drag.exec(Qt.DropAction.CopyAction)
         self._drag_start = None
 
-class ThemeColorEditor(QWidget): #vers 5
+class ThemeColorEditor(QWidget): #vers 6
     """Widget for editing individual theme colors.
     Swatch supports drag-and-drop: drag from swatch to copy colour to another row."""
     colorChanged = pyqtSignal(str, str)  # color_key, hex_color
     lockChanged = pyqtSignal(str, bool)  # color_key, is_locked
+    alphaChanged = pyqtSignal(str, int)  # color_key, 0-100
 
-    def __init__(self, color_key, color_name, current_value, parent=None): #vers 4
+    def __init__(self, color_key, color_name, current_value, parent=None, alpha=None): #vers 5
         super().__init__(parent)
         self.color_key = color_key
         self.color_name = color_name
         self.current_value = current_value
+        self.alpha = alpha            # None = colour has no transparency
         self.is_locked = False
         self.setAcceptDrops(True)
         self._setup_ui()
@@ -1382,6 +1384,20 @@ class ThemeColorEditor(QWidget): #vers 5
         name_label.setSizePolicy(_SP.Policy.Expanding, _SP.Policy.Preferred)
         layout.addWidget(name_label)
 
+        # Transparency 0-100 (background colours only; blank keeps columns aligned)
+        from PyQt6.QtWidgets import QToolButton
+        self.alpha_btn = QToolButton()
+        self.alpha_btn.setFixedSize(64, 28)
+        self.alpha_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        if self.alpha is None:
+            self.alpha_btn.setEnabled(False)
+            self.alpha_btn.setAutoRaise(True)
+        else:
+            self.alpha_btn.setToolTip("Transparency: click to set 0-100 (100 = solid)")
+            self.alpha_btn.clicked.connect(self._pick_alpha)
+            self._show_alpha()
+        layout.addWidget(self.alpha_btn)
+
         # Color preview swatch — drag source
         self.color_preview = _DraggableSwatch(self)
         self.color_preview.setFixedSize(28, 28)
@@ -1404,6 +1420,46 @@ class ThemeColorEditor(QWidget): #vers 5
         dialog_btn.clicked.connect(self.open_color_dialog)
         layout.addWidget(dialog_btn)
         # NO addStretch() — name_label expansion handles alignment
+
+    def _show_alpha(self): #vers 1
+        """Alpha button: colour over a checkerboard at the set opacity, and the value."""
+        from PyQt6.QtGui import QPixmap, QPainter, QIcon
+        pm = QPixmap(16, 16)
+        p = QPainter(pm)
+        for y in range(0, 16, 4):
+            for x in range(0, 16, 4):
+                p.fillRect(x, y, 4, 4, QColor("#bbbbbb") if (x + y) // 4 % 2 else QColor("#ffffff"))
+        c = QColor(self.current_value if QColor(self.current_value).isValid() else "#000000")
+        c.setAlphaF(self.alpha / 100.0)
+        p.fillRect(0, 0, 16, 16, c)
+        p.end()
+        self.alpha_btn.setIcon(QIcon(pm))
+        self.alpha_btn.setText(f"{self.alpha}")
+
+    def set_alpha(self, value): #vers 1
+        """Set transparency 0-100 without emitting."""
+        if self.alpha is not None:
+            self.alpha = int(value)
+            self._show_alpha()
+
+    def _pick_alpha(self): #vers 1
+        """Pop-up slider 0-100 under the button; live update."""
+        from PyQt6.QtWidgets import QMenu, QWidgetAction, QSlider
+        menu = QMenu(self)
+        box = QWidget(); bl = QHBoxLayout(box); bl.setContentsMargins(8, 4, 8, 4)
+        sl = QSlider(Qt.Orientation.Horizontal); sl.setRange(0, 100); sl.setValue(self.alpha)
+        sl.setFixedWidth(160)
+        lbl = QLabel(f"{self.alpha}%"); lbl.setFixedWidth(40)
+        bl.addWidget(sl); bl.addWidget(lbl)
+
+        def _set(v):  #vers 1
+            lbl.setText(f"{v}%")
+            self.alpha = v
+            self._show_alpha()
+            self.alphaChanged.emit(self.color_key, v)
+        sl.valueChanged.connect(_set)
+        wa = QWidgetAction(menu); wa.setDefaultWidget(box); menu.addAction(wa)
+        menu.exec(self.alpha_btn.mapToGlobal(self.alpha_btn.rect().bottomLeft()))
 
     def dragEnterEvent(self, event): #vers 1
         """Accept colour drags from other swatches."""
@@ -1444,11 +1500,13 @@ class ThemeColorEditor(QWidget): #vers 5
             self.color_input.setStyleSheet("")
             self.lock_check.setToolTip("Unlocked - Click to lock")
 
-    def on_color_changed(self, text): #vers 1
+    def on_color_changed(self, text): #vers 2
         """Handle color input text change"""
         if text.startswith('#') and len(text) == 7:
             self.current_value = text
             self.update_preview(text)
+            if self.alpha is not None:
+                self._show_alpha()
             self.colorChanged.emit(self.color_key, text)
 
     def open_color_dialog(self): #vers 1
@@ -1681,7 +1739,7 @@ class DebugSettings:
         return self.debug_enabled
 
 # Panel effect, image and transparency keys kept in theme and settings JSON
-THEME_EFFECT_KEYS = ("panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
+THEME_EFFECT_KEYS = ("color_alpha", "panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
                      "panel_pattern_scale", "panel_effect_type",
                      "panel_bg_image", "panel_bg_image_mode", "panel_bg_image_opacity",
                      "panel_bg_image_all", "titlebar_opacity", "panel_opacity",
@@ -1689,6 +1747,24 @@ THEME_EFFECT_KEYS = ("panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
                      "button_style", "progressbar_style", "progressbar_height")
 
 _IMAGE_DIRS = []      # folders searched for relative panel image paths
+
+# Background colours that take a transparency value (Colors tab, 0-100)
+ALPHA_COLOR_KEYS = ("bg_primary", "bg_secondary", "bg_tertiary", "panel_bg", "toolbar_bg",
+                    "button_normal", "titlebar_bg", "gadgetbar_bg", "menu_bg",
+                    "selection_background", "table_row_odd", "table_row_even", "panel_entries",
+                    "splitter_color_background", "scrollbar_background", "dialog_bg")
+
+
+def apply_color_alpha(colors, alpha): #vers 1
+    """Copy of colors with transparent keys as rgba(); alpha = {key: 0-100}."""
+    out = dict(colors)
+    for key, a in (alpha or {}).items():
+        val = out.get(key)
+        if key in ALPHA_COLOR_KEYS and a < 100 and isinstance(val, str) \
+                and val.startswith('#') and len(val) == 7:
+            r, g, b = (int(val[i:i + 2], 16) for i in (1, 3, 5))
+            out[key] = f"rgba({r}, {g}, {b}, {round(max(0, a) * 2.55)})"
+    return out
 
 
 def resolve_panel_image(path): #vers 1
@@ -1877,10 +1953,26 @@ class AppSettings:
         self.weapons_folder = self.current_settings.get('weapons_folder', self.default_settings['weapons_folder'])
 
 
-    def _generate_stylesheet(self, colors): #vers 2
-        """Generate stylesheet from colors dict - shared by both classes"""
+    def _generate_stylesheet(self, colors): #vers 3
+        """Generate stylesheet from colors dict - shared by both classes.
+        Colour transparency (current_settings color_alpha) becomes rgba()."""
         if not colors:
             return ""
+        colors = dict(colors)
+        # Fallback colours resolved first so their own transparency applies
+        _bg2 = colors.get('bg_secondary', '#f5f5f5')
+        colors.setdefault('menu_bg', _bg2)
+        colors['scrollbar_background'] = colors.get('scrollbar_background') or _bg2
+        colors['dialog_bg'] = colors.get('dialog_bg') or colors.get('bg_primary', '#ffffff')
+        colors['toolbar_bg'] = colors.get('toolbar_bg') or _bg2
+        colors['gadgetbar_bg'] = colors.get('gadgetbar_bg') or colors['toolbar_bg']
+        _alpha = dict(getattr(self, 'current_settings', {}).get('color_alpha', {}))
+        if 'titlebar_bg' in _alpha:                       # title bar is drawn in gadgetbar_bg
+            _alpha['gadgetbar_bg'] = _alpha['titlebar_bg']
+        if 'splitter_color_background' in _alpha and colors.get('handle_color'):
+            colors['splitter_color_background'] = colors['handle_color']
+            colors.pop('handle_color')
+        colors = apply_color_alpha(colors, _alpha)
 
         # Extract all colors
         bg_primary = colors.get('bg_primary', '#ffffff')
@@ -2256,7 +2348,7 @@ class AppSettings:
         }}
 
         QMenu {{
-            background-color: {bg_secondary};
+            background-color: {colors.get('menu_bg', bg_secondary)};
             color: {text_primary};
             border: 1px solid {border};
         }}
@@ -2290,7 +2382,7 @@ class AppSettings:
         }}
 
         QScrollBar:vertical {{
-            background-color: {bg_secondary};
+            background-color: {colors['scrollbar_background']};
             width: 12px;
             border: none;
             margin: 0px;
@@ -2315,7 +2407,7 @@ class AppSettings:
         }}
 
         QScrollBar:horizontal {{
-            background-color: {bg_secondary};
+            background-color: {colors['scrollbar_background']};
             height: 12px;
             border: none;
             margin: 0px;
@@ -2905,12 +2997,13 @@ class AppSettings:
             print(f"Error saving theme {theme_name}: {e}")
             return False
 
-    def apply_theme_effects(self, theme_key): #vers 1
+    def apply_theme_effects(self, theme_key): #vers 2
         """Copy a theme's panel effect, image and transparency keys into current settings."""
         theme = self.themes.get(theme_key, {})
         for key in THEME_EFFECT_KEYS:
             if key in theme:
                 self.current_settings[key] = theme[key]
+        self.current_settings["color_alpha"] = dict(theme.get("color_alpha", {}))
 
     def save_theme(self, theme_name, theme_data): #vers 2
         """Save theme data to JSON file in themes directory"""
@@ -5262,6 +5355,7 @@ class SettingsDialog(QDialog): #vers 15
             "button_pressed": "Button - Pressed",
             "selection_background": "Selection - Background",
             "selection_text": "Selection - Text",
+            "menu_bg": "Menu - Background",
             "menu_highlight_bg": "Menu - Highlight Background",
             "menu_highlight_text": "Menu - Highlight Text",
             "table_row_even": "Table Row - Even",
@@ -5459,8 +5553,13 @@ class SettingsDialog(QDialog): #vers 15
 
             # Normal colour editor row
             current_value = current_colors.get(color_key, "#ffffff")
-            editor = ThemeColorEditor(color_key, color_name, current_value, self)
+            if color_key == "menu_bg" and color_key not in current_colors:
+                current_value = current_colors.get("bg_secondary", current_value)
+            alpha = (self.app_settings.current_settings.get("color_alpha", {}).get(color_key, 100)
+                     if color_key in ALPHA_COLOR_KEYS else None)
+            editor = ThemeColorEditor(color_key, color_name, current_value, self, alpha)
             editor.colorChanged.connect(self._on_theme_color_changed)
+            editor.alphaChanged.connect(self._on_color_alpha_changed)
             editor.lockChanged.connect(lambda key, locked: None)
             self.color_editors[color_key] = editor
             scroll_layout.addWidget(editor)
@@ -8058,9 +8157,21 @@ Ready for operations..."""
                 if pw:
                     pw.refresh()
 
-    def _load_panel_controls(self): #vers 1
-        """Show current panel image and transparency settings in the Panels tab."""
+    def _on_color_alpha_changed(self, key, value): #vers 1
+        """Store a colour's transparency; 100 removes it."""
+        alpha = dict(self.app_settings.current_settings.get("color_alpha", {}))
+        if value >= 100:
+            alpha.pop(key, None)
+        else:
+            alpha[key] = int(value)
+        self.app_settings.current_settings["color_alpha"] = alpha
+
+    def _load_panel_controls(self): #vers 2
+        """Show current panel image, transparency and colour alpha settings."""
         cs = self.app_settings.current_settings
+        for key, ed in getattr(self, 'color_editors', {}).items():
+            if key in ALPHA_COLOR_KEYS:
+                ed.set_alpha(cs.get("color_alpha", {}).get(key, 100))
         if hasattr(self, '_panel_img_path'):
             self._panel_img_path.setText(cs.get("panel_bg_image", ""))
             self._panel_img_mode.setCurrentIndex(int(cs.get("panel_bg_image_mode", 0)))
