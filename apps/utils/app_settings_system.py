@@ -5445,14 +5445,20 @@ class SettingsDialog(QDialog): #vers 15
 
         # Theme Selector
         theme_selector_layout = QHBoxLayout()
-        theme_selector_layout.addWidget(QLabel(""))
+        theme_selector_layout.setSpacing(4)
 
-        self.instant_apply_check = QCheckBox("Apply Theme")
+        # Tick box on its own, label beside it (clicking the label toggles it)
+        self.instant_apply_check = QCheckBox()
         self.instant_apply_check.setChecked(True)
-        self.instant_apply_check.setStyleSheet(       # tick box left of the label
-            "QCheckBox { font-weight: bold; spacing: 6px; padding: 2px 4px; }"
-            "QCheckBox::indicator { width: 14px; height: 14px; }")
+        self.instant_apply_check.setToolTip("Apply theme changes live")
+        apply_lbl = QLabel("Apply Theme")
+        apply_lbl.setStyleSheet("font-weight: bold; padding: 2px 6px;")
+        apply_lbl.setToolTip("Apply theme changes live")
+        apply_lbl.mousePressEvent = lambda e: self.instant_apply_check.toggle()
+        apply_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.instant_apply_check.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         theme_selector_layout.addWidget(self.instant_apply_check)
+        theme_selector_layout.addWidget(apply_lbl)
 
         self.theme_selector_combo = QComboBox()
         for theme_key, theme_data in self.app_settings.themes.items():
@@ -5467,7 +5473,7 @@ class SettingsDialog(QDialog): #vers 15
                     break
 
         self.theme_selector_combo.currentTextChanged.connect(self._on_theme_changed)
-        theme_selector_layout.addWidget(self.theme_selector_combo)
+        theme_selector_layout.addWidget(self.theme_selector_combo, 1)
 
 
         right_layout.addLayout(theme_selector_layout)

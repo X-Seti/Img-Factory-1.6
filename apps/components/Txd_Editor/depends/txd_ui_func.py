@@ -1182,7 +1182,7 @@ class TXDUIMixin: #vers 1
                 self.is_docked and not self.standalone_mode)
         self._apply_custom_icons()
 
-    def _apply_theme(self): #vers 5
+    def _apply_theme(self): #vers 6
         """Apply global app theme — uses QApplication stylesheet set by app_settings."""
         try:
             mw = getattr(self, 'main_window', None)
@@ -1200,6 +1200,9 @@ class TXDUIMixin: #vers 1
                     QApplication.instance().setStyleSheet(ss)
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
+            if app_settings:                    # panel effects, image and transparency
+                from apps.utils.app_settings_system import apply_panel_effects
+                apply_panel_effects(self, app_settings)
         except Exception as e:
             print(f"Theme application error: {e}")
 
