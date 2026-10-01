@@ -586,6 +586,7 @@ class COLSetupUIMixin: #vers 1
         self.doc_tabs_btn.setFont(self.button_font)
         self.doc_tabs_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.doc_tabs_btn.setMenu(QMenu(self.doc_tabs_btn))
+        self.doc_tabs_btn.menu().aboutToShow.connect(self._fill_doc_menu)
         self.doc_tabs_btn.setToolTip("Open COL files - switch, open in new tab, close")
         self.doc_tabs_btn.setVisible(False)
         layout.addWidget(self.doc_tabs_btn)

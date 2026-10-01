@@ -38,6 +38,7 @@ standalone file tabs (title bar drop-down).
 # export_selected
 # export_selected_surface
 # _export_via_ide
+# _fill_doc_menu
 # _force_save_col
 # _get_selected_model
 # _import_col_data
@@ -49,8 +50,8 @@ standalone file tabs (title bar drop-down).
 # _is_model_pinned
 # load_from_img_archive
 # _load_img_col_list
-# _open_col_file
 # open_col_file
+# _open_col_file
 # _open_col_from_img_entry
 # _open_col_new_doc
 # _open_file
@@ -1378,15 +1379,21 @@ class COLCoreLogicMixin: #vers 1
         self.setWindowTitle(App_name)
         self._refresh_doc_menu()
 
-    def _refresh_doc_menu(self): #vers 1
-        """Title bar file drop-down: open files, current ticked, close tab."""
+    def _refresh_doc_menu(self): #vers 2
+        """Title bar file drop-down button: shown standalone with files open, current name."""
         btn = getattr(self, 'doc_tabs_btn', None)
         if btn is None:
             return
         docs = getattr(self, '_col_docs', [])
         btn.setVisible(bool(self.standalone_mode and docs))
-        menu = btn.menu()
+        cur = os.path.basename(self.current_file_path or '')
+        btn.setText(f"{cur}  ({self._col_doc_idx + 1}/{len(docs)})" if docs else "")
+
+    def _fill_doc_menu(self): #vers 1
+        """Build the drop-down when it opens: files (current ticked), new tab, close."""
+        menu = self.doc_tabs_btn.menu()
         menu.clear()
+        docs = getattr(self, '_col_docs', [])
         for i in range(len(docs)):
             path = self.current_file_path if i == self._col_doc_idx else docs[i].get('path')
             act = menu.addAction(os.path.basename(path or 'untitled'))
@@ -1396,8 +1403,6 @@ class COLCoreLogicMixin: #vers 1
         menu.addSeparator()
         menu.addAction("Open in New Tab...", self._open_file_new_tab)
         menu.addAction("Close Tab", self._close_doc)
-        cur = os.path.basename(self.current_file_path or '')
-        btn.setText(f"{cur}  ({self._col_doc_idx + 1}/{len(docs)})" if docs else "")
 
     def _open_file_new_tab(self): #vers 1
         """Pick COL files and open each in a new standalone tab."""
