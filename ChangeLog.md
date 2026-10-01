@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 212
+#this belongs in root /ChangeLog.md - Version: 213
+
+## Oct 01 2026 - Settings dialog layout
+- Apply Theme tick left of label; Fonts one row each; Button style dropdown, tints in two columns; Panels: previews column plus background settings; Gadgets condensed; UI Management table rows with colour swatches.
 
 ## Oct 01 2026 - Colour transparency
 - Colors tab: transparency column (0-100) for backgrounds, panels, ribbons, buttons, title bar, menus, selection, table rows, splitter, scrollbar, dialogs; saved with theme. Menu - Background colour added.
