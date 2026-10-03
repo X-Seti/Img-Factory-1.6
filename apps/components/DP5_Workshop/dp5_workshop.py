@@ -835,7 +835,20 @@ def _make_tool_icon(shape: str, size: int = 42,
         'smudge':          'dp_smudge_icon',
         'lighten':         'dp_lighten_icon',
         'darken':          'dp_darken_icon',
+        'alpha_brush':  'dp_alpha_brush_icon',
+        'spraycan':     'dp_spraycan_icon',
+        'select_copy':  'dp_select_copy_icon',
+
     }
+
+
+    # Normalise colours once — empty/invalid strings must not reach QBrush/QColor
+    _bg = QColor(tile_bg) if tile_bg else QColor(0, 0, 0, 0)
+    if not _bg.isValid():
+        _bg = QColor(0, 0, 0, 0)
+    _ink = QColor(icon_col) if icon_col else QColor('#ffffff')
+    if not _ink.isValid():
+        _ink = QColor('#ffffff')
 
     if ICONS_AVAILABLE and shape in _SVG_MAP:
         method_name = _SVG_MAP[shape]
@@ -846,7 +859,7 @@ def _make_tool_icon(shape: str, size: int = 42,
                 ico = fn(size, color=icon_col)
                 # Composite onto tile background manually
                 px = QPixmap(size, size)
-                px.fill(QColor(tile_bg))
+                px.fill(_bg)
                 p  = QPainter(px)
                 p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
                 p.drawPixmap(0, 0, ico.pixmap(size, size))
@@ -858,11 +871,12 @@ def _make_tool_icon(shape: str, size: int = 42,
     # - QPainter fallback (shapes, lasso, select, text, etc.)
     import math as _m
 
-    tile_bg_c = QColor(tile_bg)
-    ink     = QColor(icon_col)
+    tile_bg_c = _bg
+    ink     = _ink
 
     px = QPixmap(size, size)
     px.fill(tile_bg_c)
+
 
     p = QPainter(px)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -926,7 +940,7 @@ def _make_tool_icon(shape: str, size: int = 42,
             16, 40,  # bottom body
         ))
         # Tip triangle (darker notch)
-        p.setBrush(QBrush(tile_bg))
+        p.setBrush(QBrush(tile_bg_c))
         p.drawPolygon(poly(8,40, 13,38, 10,35))
         # Eraser cap rectangle top-right
         p.setBrush(solid_brush())
@@ -947,7 +961,7 @@ def _make_tool_icon(shape: str, size: int = 42,
         p.setBrush(solid_brush())
         p.drawRoundedRect(6, 16, 36, 18, 4, 4)
         # Stripe in the middle (erased area — slightly darker)
-        p.setBrush(QBrush(tile_bg.lighter(130)))
+        p.setBrush(QBrush(tile_bg_c.lighter(130)))
         p.setPen(mk_pen(0))
         p.drawRoundedRect(6, 22, 18, 12, 2, 2)
         # Bottom shadow line
@@ -1119,7 +1133,7 @@ def _make_tool_icon(shape: str, size: int = 42,
         # Round glass bulb top-right
         p.drawEllipse(QPoint(34,12), 8, 8)
         # Band between bulb and shaft
-        p.setBrush(QBrush(tile_bg))
+        p.setBrush(QBrush(tile_bg_c))
         p.setPen(mk_pen(0))
         p.drawPolygon(poly(28,18, 32,14, 36,18, 32,22))
         p.setBrush(solid_brush())
@@ -6550,7 +6564,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             from apps.methods.imgfactory_svg_icons import get_clear_canvas_icon
             self.tb_clr_btn = _tb("Clear", "Clear canvas",
                                    self._clear_canvas,
-                                   lambda sz, col: get_clear_canvas_icon(sz, col))
+                                   SVGIconFactory.clear_icon)
+                                   #lambda sz, col: get_clear_canvas_icon(sz, col))
         except Exception:
             self.tb_clr_btn = _tb("Clear", "Clear canvas", self._clear_canvas)
 
