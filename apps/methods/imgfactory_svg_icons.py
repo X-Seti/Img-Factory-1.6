@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 58
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 59
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -64,6 +64,7 @@ from PyQt6.QtCore import Qt
 # folder_icon
 # format_convert_icon
 # generate_alpha_icon
+# generate_mipmaps_icon
 # globe_icon
 # hide_faces_icon
 # import_exchange_icon
@@ -841,6 +842,18 @@ class SVGIconFactory: #vers 8
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="5.5" y="5.5" width="13" height="13" rx="1" fill="#ffffff" stroke="#808080" stroke-width="0.7"/>
             <rect x="2" y="2" width="20" height="20" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2,2"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def generate_mipmaps_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Generate mipmaps: overlapping halving squares"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="10" width="13" height="13" rx="1" fill="currentColor" fill-opacity="0.3" stroke="currentColor" stroke-width="1.3"/>
+            <rect x="10.5" y="6.5" width="6.5" height="6.5" rx="0.7" fill="currentColor" fill-opacity="0.55" stroke="currentColor" stroke-width="1.1"/>
+            <rect x="15.2" y="4.2" width="3.3" height="3.3" rx="0.4" fill="currentColor" fill-opacity="0.8" stroke="currentColor" stroke-width="0.9"/>
+            <rect x="18" y="2.6" width="1.8" height="1.8" fill="currentColor"/>
+            <rect x="19.9" y="1.6" width="1" height="1" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
