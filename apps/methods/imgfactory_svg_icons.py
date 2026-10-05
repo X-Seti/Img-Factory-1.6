@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 48
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 49
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -2331,13 +2331,15 @@ class SVGIconFactory: #vers 8
 
 
     @staticmethod
-    def view_reset_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Reset view: rings with eye"""
+    def view_reset_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Reset view: eye inside two circling arrows"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M7.6,12 Q12,7.6 16.4,12 Q12,16.4 7.6,12 Z" fill="none" stroke="currentColor" stroke-width="1.3"/>
-            <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
+            <path d="M4.2,9.4 A8.3,8.3 0 0,1 18.6,6.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M20.6,3.6 L20.3,8.4 L15.7,7.2 Z" fill="currentColor"/>
+            <path d="M19.8,14.6 A8.3,8.3 0 0,1 5.4,17.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M3.4,20.4 L3.7,15.6 L8.3,16.8 Z" fill="currentColor"/>
+            <path d="M6.6,12 Q12,6.4 17.4,12 Q12,17.6 6.6,12 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="2" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
