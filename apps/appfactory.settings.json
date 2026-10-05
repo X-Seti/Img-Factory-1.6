@@ -74,7 +74,7 @@
   "copper_dark": "#7a4a1a",
   "panel_bg_image": "images/purple_nebula.png",
   "panel_bg_image_mode": 5,
-  "panel_bg_image_opacity": 90,
+  "panel_bg_image_opacity": 50,
   "panel_bg_image_all": true,
   "button_style": "gradient_45",
   "progressbar_style": "system",
