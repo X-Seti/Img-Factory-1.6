@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 53
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 55
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -14,6 +14,7 @@ from PyQt6.QtCore import Qt
 ##Methods list -
 # add_icon
 # add_surface_icon
+# alpha_circle_icon
 # arrow_down_icon
 # arrow_left_icon
 # arrow_right_icon
@@ -65,6 +66,7 @@ from PyQt6.QtCore import Qt
 # import_exchange_icon
 # import_icon
 # info_icon
+# invert_alpha_icon
 # isolated_verts_icon
 # launch_icon
 # light_view_icon
@@ -779,6 +781,24 @@ class SVGIconFactory: #vers 8
             <path d="M20.1,14 A8.3,8.3 0 0,1 5.6,17.9" fill="none" stroke="#43a047" stroke-width="2.4" stroke-linecap="round"/>
             <path d="M3,20.8 L3.4,15 L8.9,16.5 Z" fill="#43a047"/>
             <text x="12" y="16.2" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="11" text-anchor="middle" fill="currentColor">S</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def alpha_circle_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """A inside dotted circle"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2,2"/>
+            <text x="12" y="17.6" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="15" text-anchor="middle" fill="currentColor">A</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def invert_alpha_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Invert alpha: A inside dotted box"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="2" width="20" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2,2"/>
+            <text x="12" y="17.6" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="15" text-anchor="middle" fill="currentColor">A</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
