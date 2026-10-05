@@ -364,7 +364,7 @@ def build_txd(textures: List[Dict], rw_ver: int, device: int = None,
 
 
 def rebuild_txd(original: bytes, textures: List[Dict], target_ver: int = None,
-                target_dev: int = None) -> Optional[bytes]: #vers 2
+                target_dev: int = None) -> Optional[bytes]: #vers 3
     """New TXD bytes from the original file plus the edited texture list.
     Unchanged chunks are copied, renames/flags/plugin data patched, edited
     pixels re-encoded on the texture's own platform. target_ver converts
@@ -381,6 +381,7 @@ def rebuild_txd(original: bytes, textures: List[Dict], target_ver: int = None,
         n = _chunk_names(c)
         by_name.setdefault((n[0] if n else f"#{i}").lower(), []).append(i)
 
+    file_plat = _platform_of(chunks[0]) if chunks else None
     out = []
     for t in textures:
         src = t.get('_src_name')
@@ -391,18 +392,22 @@ def rebuild_txd(original: bytes, textures: List[Dict], target_ver: int = None,
             if q and len(q) > 1:
                 q.pop(0)          # consume in file order; last one stays reusable for copies
         chunk = chunks[idx] if idx is not None else None
-        plat = _platform_of(chunk) if chunk else None
+        plat = _platform_of(chunk) if chunk else file_plat
         if plat == 9 and ver < _SA_VER:
             plat = 8
         pixels_same = chunk is not None and t.get('_src_sig') == texture_signature(t) \
             and (plat == _platform_of(chunk))
         if not pixels_same:
-            if plat not in (None, 8, 9):
-                raise ValueError(f"'{t.get('name')}': pixel edits can't be saved on this "
-                                 f"platform (only names and flags)")
             ext = _native_parts(chunk)[1] if chunk else []
             ext_payload = next((p for k, p in ext if k == _EXT), b'')
-            out.append(build_native_chunk(t, ver, plat, ext_payload))
+            if plat == 5:
+                from apps.methods.txd_platform_xbox import build_xbox_chunk
+                out.append(build_xbox_chunk(t, ver, ext_payload))
+            elif plat in (None, 8, 9):
+                out.append(build_native_chunk(t, ver, plat, ext_payload))
+            else:
+                raise ValueError(f"'{t.get('name')}': pixel edits can't be saved on this "
+                                 f"platform yet (only names and flags)")
             continue
         names = _chunk_names(chunk)
         new_name = str(t.get('name', names[0] if names else '')).split('\0', 1)[0]
