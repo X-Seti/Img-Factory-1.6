@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 60
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 63
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -28,6 +28,9 @@ from PyQt6.QtCore import Qt
 # box_to_mesh_icon
 # brush_freehand_icon
 # build_from_dff_icon
+# bumpmap_ext_icon
+# bumpmap_icon
+# bumpmap_imp_icon
 # checkerboard_icon
 # chip_icon
 # clear_face_groups_icon
@@ -869,6 +872,38 @@ class SVGIconFactory: #vers 8
             <rect x="15.2" y="4.2" width="3.3" height="3.3" rx="0.4" fill="currentColor" fill-opacity="0.8" stroke="currentColor" stroke-width="0.9"/>
             <rect x="18" y="2.6" width="1.8" height="1.8" fill="currentColor"/>
             <rect x="19.9" y="1.6" width="1" height="1" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def bumpmap_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Bumpmap: blue square with raised bump"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="2" width="20" height="20" rx="1.5" fill="#7a7aff"/>
+            <path d="M3.5,19 C7.9,19 7.6,5.5 12.0,5.5 C16.4,5.5 16.1,19 20.5,19" fill="#c9c9ff" stroke="#3d3dbf" stroke-width="0.9"/>
+            <path d="M3.5,19 H20.5" stroke="#3d3dbf" stroke-width="0.9"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def bumpmap_ext_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Export bumpmap: bump square, up arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="7" width="16" height="16" rx="1.5" fill="#7a7aff"/>
+            <path d="M2.5,20 C6.02,20 5.48,10.5 9.0,10.5 C12.52,10.5 11.98,20 15.5,20" fill="#c9c9ff" stroke="#3d3dbf" stroke-width="0.9"/>
+            <path d="M2.5,20 H15.5" stroke="#3d3dbf" stroke-width="0.9"/>
+            <path d="M19.5,13 V2.5 M16.3,5.7 L19.5,2.5 L22.7,5.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def bumpmap_imp_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Import bumpmap: bump square, down arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="7" width="16" height="16" rx="1.5" fill="#7a7aff"/>
+            <path d="M2.5,20 C6.02,20 5.48,10.5 9.0,10.5 C12.52,10.5 11.98,20 15.5,20" fill="#c9c9ff" stroke="#3d3dbf" stroke-width="0.9"/>
+            <path d="M2.5,20 H15.5" stroke="#3d3dbf" stroke-width="0.9"/>
+            <path d="M19.5,2 V12.5 M16.3,9.3 L19.5,12.5 L22.7,9.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

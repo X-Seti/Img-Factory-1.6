@@ -626,7 +626,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 17
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 18
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -861,9 +861,9 @@ class TXDUIMixin: #vers 1
 
         _act(tb_mips, "Manage Bumpmaps", self.icon_factory.manage_icon,
              self._view_bumpmap,   enabled=False, attr='view_bumpmap_btn')
-        _act(tb_mips, "Export Bumpmap",  self.icon_factory.export_icon,
+        _act(tb_mips, "Export Bumpmap",  self.icon_factory.bumpmap_ext_icon,
              self._export_bumpmap, enabled=False, attr='export_bumpmap_btn')
-        _act(tb_mips, "Import Bumpmap",  self.icon_factory.import_icon,
+        _act(tb_mips, "Import Bumpmap",  self.icon_factory.bumpmap_imp_icon,
              self._import_bumpmap, enabled=False, attr='import_bumpmap_btn')
 
         # Store toolbar refs
@@ -1073,7 +1073,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 12
+    def _refresh_icons(self): #vers 13
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1128,8 +1128,8 @@ class TXDUIMixin: #vers 1
             ('uncompress_btn',      'uncompress_icon'),
             ('upscale_btn',         'upscale_icon'),
             # Bumpmap row
-            ('import_bumpmap_btn',  'import_icon'),
-            ('export_bumpmap_btn',  'export_icon'),
+            ('import_bumpmap_btn',  'bumpmap_imp_icon'),
+            ('export_bumpmap_btn',  'bumpmap_ext_icon'),
             # Right preview bar
             ('resize_texture_btn',  '_resize_icon'),
         ]

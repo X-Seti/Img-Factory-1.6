@@ -3614,7 +3614,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
     # labels/combos, and any icons created via _svg_to_icon() rather than
     # icon_factory. Address in a future pass.
-    def _refresh_icons(self): #vers 11
+    def _refresh_icons(self): #vers 12
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -3669,8 +3669,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             ('uncompress_btn',      'uncompress_icon'),
             ('upscale_btn',         'upscale_icon'),
             # Bumpmap row
-            ('import_bumpmap_btn',  'import_icon'),
-            ('export_bumpmap_btn',  'export_icon'),
+            ('import_bumpmap_btn',  'bumpmap_imp_icon'),
+            ('export_bumpmap_btn',  'bumpmap_ext_icon'),
         ]
         for attr, method in _icon_map:
             btn = getattr(self, attr, None)
