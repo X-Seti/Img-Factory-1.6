@@ -1826,12 +1826,17 @@ class TXDUIMixin: #vers 1
 
         super().keyPressEvent(event)
 
-    def _setup_hotkeys(self): #vers 5
+    def _setup_hotkeys(self): #vers 6
         """Plasma6-style keyboard shortcuts, wired to TXD methods."""
         from PyQt6.QtGui import QShortcut, QKeySequence
 
-        def _key(attr, seq, slot): #vers 1
+        from PyQt6.QtCore import Qt as _Qt
+        docked = not getattr(self, 'standalone_mode', True)
+
+        def _key(attr, seq, slot): #vers 2
             sc = QShortcut(QKeySequence(seq), self)
+            if docked:      # avoid clashing with IMG Factory's own Ctrl+O/S/Z
+                sc.setContext(_Qt.ShortcutContext.WidgetWithChildrenShortcut)
             sc.activated.connect(slot)
             setattr(self, attr, sc)
 

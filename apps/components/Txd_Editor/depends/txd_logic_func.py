@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 8
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 9
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -22,6 +22,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _check_txd_vs_dff
 # _clear_modified
 # _clear_texture_search
+# _clear_undo
 # _close_txd
 # _compress_texture
 # _confirm_discard
@@ -311,7 +312,7 @@ class TXDLogicMixin: #vers 1
 
         dialog.exec()
 
-    def _remove_mipmaps(self): #vers 1
+    def _remove_mipmaps(self): #vers 2
         """Remove all mipmap levels except Level 0"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
@@ -331,6 +332,7 @@ class TXDLogicMixin: #vers 1
         )
 
         if reply == QMessageBox.StandardButton.Yes:
+            self._save_undo_state("Remove mipmaps")
             # Keep only level 0
             level_0 = next((l for l in mipmap_levels if l.get('level') == 0), None)
 
@@ -350,7 +352,6 @@ class TXDLogicMixin: #vers 1
                 self.selected_texture['mipmaps'] = 1
 
             # Update display
-            self._save_undo_state("Remove mipmaps")
             self._update_texture_info(self.selected_texture)
             self._reload_texture_table()
             self._mark_as_modified()
@@ -1202,7 +1203,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Import Error", f"Failed to import: {str(e)}")
 
-    def _import_alpha_texture(self): #vers 2
+    def _import_alpha_texture(self): #vers 3
         """Import alpha channel - creates alpha if doesn't exist"""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Import Alpha Channel", "",
@@ -1225,6 +1226,7 @@ class TXDLogicMixin: #vers 1
             tex_width = self.selected_texture.get('width', 0)
             tex_height = self.selected_texture.get('height', 0)
 
+            self._save_undo_state("Import alpha channel")
             # If no texture data exists, create blank texture with alpha
             if not self.selected_texture.get('rgba_data') or tex_width == 0 or tex_height == 0:
                 # Use alpha image dimensions
@@ -1266,7 +1268,6 @@ class TXDLogicMixin: #vers 1
             alpha_data = bytes(ptr)
 
             # Apply alpha to existing texture
-            self._save_undo_state("Import alpha channel")
 
             rgba_data = bytearray(self.selected_texture['rgba_data'])
 
@@ -1564,6 +1565,7 @@ class TXDLogicMixin: #vers 1
             self.texture_list = []
             self.texture_table.setRowCount(0)
             self._clear_modified()
+            self._clear_undo()
 
             self.setWindowTitle(f"TXD Workshop: {name}")
             self._set_save_enabled(True)
@@ -2108,6 +2110,11 @@ class TXDLogicMixin: #vers 1
         # Limit undo stack to 10 items
         if len(self.undo_stack) > 10:
             self.undo_stack.pop(0)
+        self._set_undo_enabled()
+
+    def _clear_undo(self): #vers 1
+        """Empty the undo history (new file loaded)."""
+        self.undo_stack = []
         self._set_undo_enabled()
 
     def _set_undo_enabled(self): #vers 1
@@ -2920,6 +2927,7 @@ class TXDLogicMixin: #vers 1
                 self.texture_list.append(tex)
                 self._add_texture_to_table(tex)
             self._clear_modified()
+            self._clear_undo()
 
             for row in range(self.texture_table.rowCount()):
                 self.texture_table.setRowHeight(row, 100)
@@ -3663,6 +3671,7 @@ class TXDLogicMixin: #vers 1
         if hasattr(self, 'texture_table'):
             self.texture_table.setRowCount(0)
         self._clear_modified()
+        self._clear_undo()
         self.setWindowTitle("TXD Workshop")
 
     def _confirm_discard(self) -> bool: #vers 1
@@ -4420,7 +4429,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save to IMG:\n\n{str(e)}")
 
-    def _save_texture_name(self): #vers 1
+    def _save_texture_name(self): #vers 2
         """Save edited texture name"""
         if not self.selected_texture:
             return
@@ -4428,8 +4437,8 @@ class TXDLogicMixin: #vers 1
         new_name = self.info_name.text().strip()
         if new_name and new_name != self.selected_texture.get('name', ''):
             old_name = self.selected_texture.get('name', '')
-            self.selected_texture['name'] = new_name
             self._save_undo_state(f"Rename texture: {old_name} -> {new_name}")
+            self.selected_texture['name'] = new_name
             self._reload_texture_table()
             self._mark_as_modified()
 
@@ -4438,7 +4447,7 @@ class TXDLogicMixin: #vers 1
 
         self.info_name.setReadOnly(True)
 
-    def _save_alpha_name(self): #vers 1
+    def _save_alpha_name(self): #vers 2
         """Save edited alpha name"""
         if not self.selected_texture or not self.selected_texture.get('has_alpha'):
             return
@@ -4446,8 +4455,8 @@ class TXDLogicMixin: #vers 1
         new_alpha_name = self.info_alpha_name.text().strip()
         if new_alpha_name and new_alpha_name != self.selected_texture.get('alpha_name', ''):
             old_name = self.selected_texture.get('alpha_name', '')
-            self.selected_texture['alpha_name'] = new_alpha_name
             self._save_undo_state(f"Rename alpha: {old_name} -> {new_alpha_name}")
+            self.selected_texture['alpha_name'] = new_alpha_name
             self._reload_texture_table()
             self._mark_as_modified()
 
@@ -5826,7 +5835,7 @@ class TXDLogicMixin: #vers 1
             self.info_name.selectAll()
             self.info_name.setFocus()
 
-    def _rename_texture(self, alpha=False): #vers 3
+    def _rename_texture(self, alpha=False): #vers 4
         """Rename texture or alpha name and mark as modified"""
         from PyQt6.QtWidgets import QInputDialog
 
@@ -5846,7 +5855,7 @@ class TXDLogicMixin: #vers 1
             if ok and new_name and new_name != alpha_name:
                 self._save_undo_state("Rename alpha")
                 self.selected_texture['alpha_name'] = new_name
-                self.info_alpha_name.setText(f"Alpha: {new_name}")
+                self.info_alpha_name.setText(new_name)
                 self._update_table_display()
                 self._mark_as_modified()  # Mark as modified
                 if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -5856,7 +5865,7 @@ class TXDLogicMixin: #vers 1
             if ok and new_name and new_name != current_name:
                 self._save_undo_state("Rename texture")
                 self.selected_texture['name'] = new_name
-                self.info_name.setText(f"Name: {new_name}")
+                self.info_name.setText(new_name)
                 self._update_table_display()
                 self._mark_as_modified()  # Mark as modified
                 if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -7134,7 +7143,7 @@ class TXDLogicMixin: #vers 1
             return []
         return list(dict.fromkeys(n for n in names if n))
 
-    def _build_txd_from_dff(self): #vers 2
+    def _build_txd_from_dff(self): #vers 3
         """Build TXD structure from DFF material names with version/platform selection"""
         # Select DFF file
         dff_path, _ = QFileDialog.getOpenFileName(
@@ -7231,6 +7240,7 @@ class TXDLogicMixin: #vers 1
 
             # Update display
             self._reload_texture_table()
+            self._mark_as_modified()
 
             # Auto-import if requested
             if auto_import:
@@ -7308,10 +7318,11 @@ class TXDLogicMixin: #vers 1
             for path in archives[1:]:
                 open_txd_workshop(self.main_window, path)
 
-    def _batch_import_from_folder(self, folder): #vers 1
+    def _batch_import_from_folder(self, folder): #vers 2
         """Batch import textures from folder matching material names"""
         import os
 
+        self._save_undo_state("Batch import")
         imported = 0
 
         for texture in self.texture_list:
@@ -7362,6 +7373,8 @@ class TXDLogicMixin: #vers 1
 
         # Update display
         self._reload_texture_table()
+        if imported:
+            self._mark_as_modified()
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"Imported {imported}/{len(self.texture_list)} textures")

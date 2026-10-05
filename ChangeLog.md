@@ -1,5 +1,9 @@
 #this belongs in root /ChangeLog.md - Version: 218
 
+## Oct 05 2026 - TXD undo
+- Rename, alpha rename, remove mipmaps, alpha import record undo before the change; history cleared on open/new/close.
+- Mipmap Manager (import/clear/delete/level import) and Bumpmap apply undoable; level export/import implemented. Docked hotkeys no longer clash with IMG Factory.
+
 ## Oct 05 2026 - PS2 TXD edits, Save button
 - PS2 (III/VC/SA/Bully/LCS) texture edits saved in place: palette rebuilt, GS swizzle kept. Size/format fixed; mipmapped PS2 not yet.
 - TXD Save buttons (title bar + panel) enable on edit and save to the open file; File menu Open/Close/Convert wired.

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_dialogs.py - Version: 5
+#this belongs in apps/methods/txd_dialogs.py - Version: 6
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD dialogs
 
 """
@@ -49,6 +49,7 @@ Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, p
 ##class MipmapManagerWindow: -
 # _apply_changes
 # _auto_generate_mipmaps
+# _before_change
 # _clear_all_levels
 # _create_action_section
 # _create_bottom_bar
@@ -66,6 +67,7 @@ Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, p
 # _import_all_levels
 # _import_level
 # __init__
+# _level
 # mouseMoveEvent
 # mousePressEvent
 # mouseReleaseEvent
@@ -1399,7 +1401,7 @@ class MipmapManagerWindow(QWidget): #vers 2
 
 
     #Keep, needs work
-    def _import_all_levels(self): #vers 3
+    def _import_all_levels(self): #vers 4
         """Import mipmap levels from PNG files — filename must contain _mipN_."""
         import os, re
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
@@ -1411,6 +1413,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         if not paths:
             return
 
+        self._before_change("Import mipmap levels")
         imported = 0
         for file_path in sorted(paths):
             fname = os.path.basename(file_path)
@@ -1436,6 +1439,8 @@ class MipmapManagerWindow(QWidget): #vers 2
                 print(f"Mipmap import {file_path}: {e}")
 
         self.texture_data['mipmaps'] = len(self.texture_data.get('mipmap_levels', []))
+        if imported and hasattr(self.parent_workshop, '_mark_as_modified'):
+            self.parent_workshop._mark_as_modified()
         msg = f"Imported {imported} mipmap level(s)."
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(msg)
@@ -1445,7 +1450,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         MipmapManagerWindow(self.parent_workshop, self.texture_data, self.main_window).show()
 
 
-    def _clear_all_levels(self): #vers 1
+    def _clear_all_levels(self): #vers 2
         """Clear all mipmap levels except Level 0"""
         reply = QMessageBox.question(
             self, "Clear Mipmaps",
@@ -1458,27 +1463,68 @@ class MipmapManagerWindow(QWidget): #vers 2
                 # Keep only level 0
                 level_0 = next((l for l in self.texture_data['mipmap_levels'] if l.get('level') == 0), None)
                 if level_0:
+                    self._before_change("Clear mipmaps")
                     self.texture_data['mipmap_levels'] = [level_0]
                     self.texture_data['mipmaps'] = 1
+                    self.parent_workshop._mark_as_modified()
                     self.close()
                     new_window = MipmapManagerWindow(self.parent_workshop, self.texture_data, self.main_window)
                     new_window.show()
 
 
-    def _export_level(self, level_num): #vers 1
-        """Export single mipmap level"""
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Exporting Level {level_num}...")
+    def _level(self, level_num): #vers 1
+        """Mipmap level dict, or None."""
+        return next((l for l in self.texture_data.get('mipmap_levels', [])
+                     if l.get('level') == level_num), None)
 
+    def _before_change(self, action: str): #vers 1
+        """Undo step in the parent workshop before a level edit."""
+        if hasattr(self.parent_workshop, '_save_undo_state'):
+            self.parent_workshop._save_undo_state(action)
 
-    def _import_level(self, level_num): #vers 1
-        """Import single mipmap level"""
+    def _export_level(self, level_num): #vers 2
+        """Save one mipmap level as PNG."""
+        from PyQt6.QtWidgets import QFileDialog
+        from PIL import Image
+        lv = self._level(level_num)
+        if not lv or not lv.get('rgba_data'):
+            QMessageBox.warning(self, "Export Level", f"Level {level_num} has no image data")
+            return
+        name = f"{self.texture_data.get('name', 'texture')}_mip{level_num}_.png"
+        path, _ = QFileDialog.getSaveFileName(self, "Export Mipmap Level", name, "PNG Images (*.png)")
+        if not path:
+            return
+        Image.frombytes('RGBA', (lv['width'], lv['height']), bytes(lv['rgba_data'])).save(path)
         if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Importing Level {level_num}...")
+            self.main_window.log_message(f"Exported level {level_num}: {path}")
+
+    def _import_level(self, level_num): #vers 2
+        """Replace one mipmap level from an image (scaled to the level size)."""
+        from PyQt6.QtWidgets import QFileDialog
+        from PIL import Image
+        lv = self._level(level_num)
+        if not lv:
+            QMessageBox.warning(self, "Import Level", f"Level {level_num} doesn't exist")
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Import Mipmap Level", "",
+                                              "Images (*.png *.bmp *.tga *.jpg *.jpeg)")
+        if not path:
+            return
+        img = Image.open(path).convert('RGBA')
+        if img.size != (lv['width'], lv['height']):
+            img = img.resize((lv['width'], lv['height']), Image.Resampling.LANCZOS)
+        self._before_change(f"Import mipmap level {level_num}")
+        lv['rgba_data'] = img.tobytes()
+        lv['compressed_data'] = None
+        if level_num == 0:
+            self.texture_data['rgba_data'] = lv['rgba_data']
         self.modified_levels[level_num] = True
+        self.parent_workshop._mark_as_modified()
+        self.close()
+        MipmapManagerWindow(self.parent_workshop, self.texture_data, self.main_window).show()
 
 
-    def _delete_level(self, level_num): #vers 1
+    def _delete_level(self, level_num): #vers 2
         """Delete mipmap level"""
         reply = QMessageBox.question(
             self, "Delete Level",
@@ -1487,10 +1533,12 @@ class MipmapManagerWindow(QWidget): #vers 2
         )
 
         if reply == QMessageBox.StandardButton.Yes:
+            self._before_change(f"Delete mipmap level {level_num}")
             self.texture_data['mipmap_levels'] = [
                 l for l in self.texture_data.get('mipmap_levels', [])
                 if l.get('level') != level_num
             ]
+            self.parent_workshop._mark_as_modified()
             self.close()
             new_window = MipmapManagerWindow(self.parent_workshop, self.texture_data, self.main_window)
             new_window.show()
@@ -1906,13 +1954,15 @@ class BumpmapManagerWindow(QWidget): #vers 1
         return menu_bar
 
 
-    def _apply_changes(self): #vers 3
+    def _apply_changes(self): #vers 4
         """Apply changes and ensure parent workshop is fully updated"""
         if not self.modified:
             self.close()
             return
 
         try:
+            if hasattr(self.parent_workshop, '_save_undo_state'):
+                self.parent_workshop._save_undo_state("Bumpmap changes")
             # Mark parent as modified
             if hasattr(self.parent_workshop, '_mark_as_modified'):
                 self.parent_workshop._mark_as_modified()
