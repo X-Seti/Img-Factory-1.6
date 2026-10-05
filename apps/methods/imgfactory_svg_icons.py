@@ -786,21 +786,21 @@ class SVGIconFactory: #vers 8
 # - ROTATION & FLIP ICONS
 
     @staticmethod
-    def rotate_cw_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
-        """Rotate clockwise icon"""
+    def rotate_cw_icon(size: int = 20, color: str = None) -> QIcon: #vers 8
+        """Open ring, arrow clockwise at top"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M21 12a9 9 0 11-9-9v6M21 3l-3 6-6-3"
-                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18.93,8 A8,8 0 1,1 11.5,4.02" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M15.2,4 L10.6,0.9 L10.6,7.1 Z" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
 
     @staticmethod
-    def rotate_ccw_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
-        """Rotate counter-clockwise icon"""
+    def rotate_ccw_icon(size: int = 20, color: str = None) -> QIcon: #vers 8
+        """Open ring, arrow anticlockwise at top"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M3 12a9 9 0 109-9v6M3 3l3 6 6-3"
-                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <g transform="translate(24,0) scale(-1,1)"><path d="M18.93,8 A8,8 0 1,1 11.5,4.02" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M15.2,4 L10.6,0.9 L10.6,7.1 Z" fill="currentColor"/></g>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
