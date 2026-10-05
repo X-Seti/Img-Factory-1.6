@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 50
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 51
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -24,6 +24,7 @@ from PyQt6.QtCore import Qt
 # box_icon
 # box_to_mesh_icon
 # brush_freehand_icon
+# build_from_dff_icon
 # checkerboard_icon
 # chip_icon
 # clear_face_groups_icon
@@ -738,6 +739,21 @@ class SVGIconFactory: #vers 8
             <path d="M9.6,15.8 C9.8,13.4 11.2,12.4 12.8,12.6 L14.6,14.4 C14.8,16 13.8,17.4 11.4,17.6 Z" fill="#43a047"/>
             <path d="M13.2,12.2 L15,14 L16.6,12.4 L14.8,10.6 Z" fill="currentColor"/>
             <path d="M15.4,10 L17.2,11.8 L22.6,3.6 Q23,2.2 21.6,2.6 Z" fill="#8d6e63"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def build_from_dff_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Build from DFF: coloured DFF over TXD letters"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <g font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="12.5" text-anchor="middle">
+                <text x="4.2" y="11" fill="#e53935">D</text>
+                <text x="12" y="11" fill="#fb8c00">F</text>
+                <text x="19.6" y="11" fill="#ffb74d">F</text>
+                <text x="4.4" y="19.6" fill="#43a047">T</text>
+                <text x="12" y="19.6" fill="#1e88e5">X</text>
+                <text x="19.8" y="19.6" fill="#8e24aa">D</text>
+            </g>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

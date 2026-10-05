@@ -2543,7 +2543,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 7
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 8
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -2637,7 +2637,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
              self._open_paint_editor, enabled=False, attr='paint_btn')
         _act(tb_xform, "Check DFF",      self.icon_factory.analyze_icon,
              self._check_txd_vs_dff,    attr='check_dff_btn')
-        _act(tb_xform, "Build from DFF", self.icon_factory.build_icon,
+        _act(tb_xform, "Build from DFF", self.icon_factory.build_from_dff_icon,
              self._build_txd_from_dff,  attr='build_from_dff_btn')
         _act(tb_xform, "Filters", self.icon_factory.filter_icon,
              self._open_filters_dialog, enabled=False, attr='filters_btn')
@@ -3614,7 +3614,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
     # labels/combos, and any icons created via _svg_to_icon() rather than
     # icon_factory. Address in a future pass.
-    def _refresh_icons(self): #vers 5
+    def _refresh_icons(self): #vers 6
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -3649,7 +3649,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             ('duplicate_texture_btn','duplicate_icon'),
             ('paint_btn',           'paint_texture_icon'),
             ('check_dff_btn',       'analyze_icon'),
-            ('build_from_dff_btn',  'build_icon'),
+            ('build_from_dff_btn',  'build_from_dff_icon'),
             ('filters_btn',         'filter_icon'),
             ('switch_btn',          'flip_vert_icon'),
             ('invert_btn',          'build_icon'),
