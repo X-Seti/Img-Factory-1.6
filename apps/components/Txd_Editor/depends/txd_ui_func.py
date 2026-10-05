@@ -626,7 +626,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 13
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 14
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -725,7 +725,7 @@ class TXDUIMixin: #vers 1
              self.switch_texture_view,      enabled=False, attr='switch_btn')
         _act(tb_xform, "Invert Alpha",  self.icon_factory.invert_alpha_icon,
              self._toggle_alpha_invert,     enabled=False, attr='invert_btn')
-        _act(tb_xform, "Generate Alpha",self.icon_factory.paint_icon,
+        _act(tb_xform, "Generate Alpha",self.icon_factory.generate_alpha_icon,
              self._generate_alpha_mask,     enabled=False, attr='gen_alpha_btn')
         _act(tb_xform, "Properties",    self.icon_factory.properties_icon,
              self.show_properties,          enabled=False, attr='props_btn')
@@ -1073,7 +1073,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 8
+    def _refresh_icons(self): #vers 9
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1112,7 +1112,7 @@ class TXDUIMixin: #vers 1
             ('filters_btn',         'filter_icon'),
             ('switch_btn',          'switch_view_icon'),
             ('invert_btn',          'invert_alpha_icon'),
-            ('gen_alpha_btn',       'paint_icon'),
+            ('gen_alpha_btn',       'generate_alpha_icon'),
             ('props_btn',           'properties_icon'),
             # Info panel buttons
             ('import_btn',          'import_icon'),

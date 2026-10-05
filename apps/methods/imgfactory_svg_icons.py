@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 55
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 56
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -61,6 +61,7 @@ from PyQt6.QtCore import Qt
 # flip_vert_icon
 # folder_icon
 # format_convert_icon
+# generate_alpha_icon
 # globe_icon
 # hide_faces_icon
 # import_exchange_icon
@@ -799,6 +800,27 @@ class SVGIconFactory: #vers 8
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="2" y="2" width="20" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2,2"/>
             <text x="12" y="17.6" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="15" text-anchor="middle" fill="currentColor">A</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def generate_alpha_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Generate alpha: A fading into dots"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <defs><linearGradient id="ga" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="currentColor" stop-opacity="1"/>
+                <stop offset="1" stop-color="currentColor" stop-opacity="0.55"/>
+            </linearGradient></defs>
+            <path d="M3,21 L12,3 M7.2,15 H12" fill="none" stroke="url(#ga)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="13.18" cy="5.37" r="1.43" fill="currentColor" fill-opacity="0.76"/>
+            <circle cx="14.37" cy="7.74" r="1.31" fill="currentColor" fill-opacity="0.67"/>
+            <circle cx="15.55" cy="10.11" r="1.19" fill="currentColor" fill-opacity="0.58"/>
+            <circle cx="16.74" cy="12.47" r="1.07" fill="currentColor" fill-opacity="0.49"/>
+            <circle cx="17.92" cy="14.84" r="0.95" fill="currentColor" fill-opacity="0.40"/>
+            <circle cx="19.11" cy="17.21" r="0.83" fill="currentColor" fill-opacity="0.31"/>
+            <circle cx="20.29" cy="19.58" r="0.71" fill="currentColor" fill-opacity="0.22"/>
+            <circle cx="13.6" cy="15" r="1.10" fill="currentColor" fill-opacity="0.70"/>
+            <circle cx="15.6" cy="15" r="0.95" fill="currentColor" fill-opacity="0.55"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
