@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 67
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 68
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -2433,11 +2433,11 @@ class SVGIconFactory: #vers 8
 
 
     @staticmethod
-    def duplicate_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
-        """Duplicate/copy icon"""
-        svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <rect x="6" y="6" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <path d="M4 4h8v2H6v8H4V4z" fill="currentColor"/>
+    def duplicate_icon(size: int = 24, color: str = None) -> QIcon: #vers 3
+        """Duplicate: solid square over dotted copy"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M9,8 V3.5 Q9,2 10.5,2 H20.5 Q22,2 22,3.5 V13.5 Q22,15 20.5,15 H16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2,1.8"/>
+            <rect x="2" y="9" width="13" height="13" rx="1.5" fill="currentColor" fill-opacity="0.25" stroke="currentColor" stroke-width="1.8"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
