@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 49
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 50
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -80,6 +80,7 @@ from PyQt6.QtCore import Qt
 # optimum_bounds_icon
 # package_icon
 # paint_icon
+# paint_texture_icon
 # paste_icon
 # pause_icon
 # properties_icon
@@ -724,6 +725,19 @@ class SVGIconFactory: #vers 8
             <path d="M0.8,10.5 H9.2 M3.4,10.5 V9 H6.6 V10.5" fill="none" stroke="#e53935" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M1.8,11.5 L2.6,21 H7.4 L8.2,11.5 Z" fill="#e53935"/>
             <path d="M4,13.5 V19 M6,13.5 V19" stroke="#2b2b2b" stroke-width="0.8" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def paint_texture_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Paint: colour brush with colour trail"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M1.5,20.5 C4,16 7,22 10,17.5" fill="none" stroke="#e53935" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M1.8,22.6 C4.3,18.1 7.3,24 10.6,19.6" fill="none" stroke="#fdd835" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M1.4,18.4 C3.9,13.9 6.9,19.9 9.6,15.6" fill="none" stroke="#1e88e5" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M9.6,15.8 C9.8,13.4 11.2,12.4 12.8,12.6 L14.6,14.4 C14.8,16 13.8,17.4 11.4,17.6 Z" fill="#43a047"/>
+            <path d="M13.2,12.2 L15,14 L16.6,12.4 L14.8,10.6 Z" fill="currentColor"/>
+            <path d="M15.4,10 L17.2,11.8 L22.6,3.6 Q23,2.2 21.6,2.6 Z" fill="#8d6e63"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
