@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 227
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 228
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -11999,7 +11999,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             print(f"_parse_txd_lightweight error: {e}")
             return []
 
-    def _load_txd_file(self, path: str): #vers 3
+    def _load_txd_file(self, path: str): #vers 4
         """Parse a TXD file, populate texture panel, and feed textures into viewport."""
         try:
             with open(path, 'rb') as f:
@@ -12009,8 +12009,13 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 QMessageBox.warning(self, "TXD",
                     f"No textures found in {os.path.basename(path)}")
                 return
+            from apps.methods.txd_splice import tag_loaded_texture
+            for t in textures:
+                t.setdefault('alpha_name', t.get('mask', ''))
+                tag_loaded_texture(t)
             self._mod_textures = textures
             self._current_txd_path = path
+            self._current_txd_bytes = data
             self._populate_texture_list()
             self._tex_panel.setVisible(True)
             from PyQt6.QtCore import QTimer as _QTTex
@@ -12372,21 +12377,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         else:
             QMessageBox.warning(self, "TXD", "Could not build TXD from current textures.")
 
-    def _build_txd_from_textures(self): #vers 2
-        """Build a minimal TXD binary from self._mod_textures.
-        Uses the serializer if available, else copies from source TXD."""
-        # Simplest approach: if all textures came from the same TXD file, just return that
-        if getattr(self, '_current_txd_path', None) and len(self._mod_textures) > 0:
-            try:
-                # If textures haven't been modified, re-read the source file
-                with open(self._current_txd_path, 'rb') as f:
-                    return f.read()
-            except Exception:
-                pass
-        # Fall back to serializer
+    def _build_txd_from_textures(self): #vers 3
+        """TXD bytes from self._mod_textures; untouched textures keep their bytes."""
+        from apps.methods.txd_splice import txd_from_textures
         try:
-            from apps.methods.txd_serializer import serialize_txd_file
-            return serialize_txd_file(self._mod_textures)
+            return txd_from_textures(self._mod_textures, getattr(self, '_current_txd_bytes', None))
         except Exception as e:
             print(f"TXD build error: {e}")
             return None
@@ -18581,9 +18576,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         act3.triggered.connect(self._export_radar_tiles_as_img)
         menu.exec(button.mapToGlobal(pos))
 
-    def _build_radar_tile_txd_bytes(self, png_path, serializer, name=None): #vers 1
-        """Build real TXD binary bytes for one real radar tile PNG,
-        using a caller-provided TXDSerializer instance (Aug 20 2026)"""
+    def _build_radar_tile_txd_bytes(self, png_path, name=None): #vers 2
+        """TXD bytes (D3D8 layout) for one radar tile PNG."""
         from PIL import Image
         img = Image.open(png_path).convert('RGBA')
         has_alpha = any(p[3] < 255 for p in img.getdata())
@@ -18598,9 +18592,10 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             'raster_format_flags': 0x2600 if not has_alpha else 0x2500,
             'depth': 32, 'platform_id': 8, 'filter_flags': 0x1102,
         }
-        return serializer.serialize_txd([tex])
+        from apps.methods.txd_splice import build_txd
+        return build_txd([tex], 0x1803FFFF, platform=8)
 
-    def _send_radar_tiles_to_txd_workshop(self): #vers 2
+    def _send_radar_tiles_to_txd_workshop(self): #vers 3
         """Pack every just-generated radarNN.png into its own real
         radarNN.txd, right alongside the PNGs (Aug 20 2026)"""
         paths = getattr(self, '_last_radar_tile_paths', None)
@@ -18608,20 +18603,12 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             QMessageBox.information(self, "Send to TXD Workshop",
                 "No radar tiles generated yet - left-click Radar first.")
             return
-        try:
-            from apps.methods.txd_serializer import TXDSerializer
-        except Exception as e:
-            QMessageBox.warning(self, "Send to TXD Workshop",
-                f"Required module not available: {e}")
-            return
-
-        serializer = TXDSerializer()
         packed = 0
         failed = 0
         txd_paths = []
         for png_path in paths:
             try:
-                txd_bytes = self._build_radar_tile_txd_bytes(png_path, serializer)
+                txd_bytes = self._build_radar_tile_txd_bytes(png_path)
                 name = os.path.splitext(os.path.basename(png_path))[0]
                 txd_path = os.path.join(os.path.dirname(png_path), name + '.txd')
                 with open(txd_path, 'wb') as f:
@@ -18652,7 +18639,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         QMessageBox.information(self, "Send to TXD Workshop", msg +
             ("" if not failed else f"\n\n{failed} tile(s) failed - see console."))
 
-    def _export_radar_tiles_as_img(self): #vers 1
+    def _export_radar_tiles_as_img(self): #vers 2
         """Pack every just-generated radar tile into one real,
         combined RadarTex.img archive (Aug 20 2026)"""
         paths = getattr(self, '_last_radar_tile_paths', None)
@@ -18661,7 +18648,6 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 "No radar tiles generated yet - left-click Radar first.")
             return
         try:
-            from apps.methods.txd_serializer import TXDSerializer
             from apps.methods.img_core_classes import IMGFile, IMGVersion
         except Exception as e:
             QMessageBox.warning(self, "Export as RadarTex.img",
@@ -18677,7 +18663,6 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
         est_mb = max(10, (len(paths) * 64) // 1024 + 5)
 
-        serializer = TXDSerializer()
         img = IMGFile()
         if not img.create_new(out_path, IMGVersion.VERSION_2, initial_size_mb=est_mb):
             QMessageBox.warning(self, "Export as RadarTex.img",
@@ -18694,7 +18679,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 # (radar0000.txd...radar1295.txd) - not the 2-digit
                 # convention a loose, individual .txd file uses.
                 name = f"radar{idx:04d}"
-                txd_bytes = self._build_radar_tile_txd_bytes(png_path, serializer, name=name)
+                txd_bytes = self._build_radar_tile_txd_bytes(png_path, name=name)
                 if img.add_entry(name + '.txd', txd_bytes, auto_save=False):
                     packed += 1
                 else:

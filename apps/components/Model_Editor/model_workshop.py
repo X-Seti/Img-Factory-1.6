@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 210
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 211
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -7981,7 +7981,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             print(f"_parse_txd_lightweight error: {e}")
             return []
 
-    def _load_txd_file(self, path: str): #vers 3
+    def _load_txd_file(self, path: str): #vers 4
         """Parse a TXD file, populate texture panel, and feed textures into viewport."""
         try:
             with open(path, 'rb') as f:
@@ -7991,8 +7991,13 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 QMessageBox.warning(self, "TXD",
                     f"No textures found in {os.path.basename(path)}")
                 return
+            from apps.methods.txd_splice import tag_loaded_texture
+            for t in textures:
+                t.setdefault('alpha_name', t.get('mask', ''))
+                tag_loaded_texture(t)
             self._mod_textures = textures
             self._current_txd_path = path
+            self._current_txd_bytes = data
             self._populate_texture_list()
             self._tex_panel.setVisible(True)
             from PyQt6.QtCore import QTimer as _QTTex
@@ -8354,21 +8359,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         else:
             QMessageBox.warning(self, "TXD", "Could not build TXD from current textures.")
 
-    def _build_txd_from_textures(self): #vers 2
-        """Build a minimal TXD binary from self._mod_textures.
-        Uses the serializer if available, else copies from source TXD."""
-        # Simplest approach: if all textures came from the same TXD file, just return that
-        if getattr(self, '_current_txd_path', None) and len(self._mod_textures) > 0:
-            try:
-                # If textures haven't been modified, re-read the source file
-                with open(self._current_txd_path, 'rb') as f:
-                    return f.read()
-            except Exception:
-                pass
-        # Fall back to serializer
+    def _build_txd_from_textures(self): #vers 3
+        """TXD bytes from self._mod_textures; untouched textures keep their bytes."""
+        from apps.methods.txd_splice import txd_from_textures
         try:
-            from apps.methods.txd_serializer import serialize_txd_file
-            return serialize_txd_file(self._mod_textures)
+            return txd_from_textures(self._mod_textures, getattr(self, '_current_txd_bytes', None))
         except Exception as e:
             print(f"TXD build error: {e}")
             return None

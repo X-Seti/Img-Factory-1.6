@@ -31,6 +31,7 @@ every PC raster format)."""
 # split_txd
 # tag_loaded_texture
 # texture_signature
+# txd_from_textures
 
 import struct
 from typing import Dict, List, Optional
@@ -51,6 +52,8 @@ _RAW = {
     'ARGB4444': (0x0300, 16, 26), 'RGB555': (0x0A00, 16, 24),
     'LUM8': (0x0400, 8, 50), 'A8L8': (0x0400, 16, 51),
 }
+_FMT_ALIAS = {'RGBA32': 'ARGB8888', 'RGBA8888': 'ARGB8888', 'RGB24': 'RGB888',
+              'RGB32': 'RGB888', 'L8': 'LUM8'}
 _DXT = {'DXT1': (1, 0x31545844), 'DXT3': (3, 0x33545844), 'DXT5': (5, 0x35545844)}
 
 
@@ -350,9 +353,10 @@ def _set_versions(chunk: bytes, ver: int) -> bytes: #vers 1
     return _join_native(ver, out)
 
 
-def build_txd(textures: List[Dict], rw_ver: int, device: int = None) -> bytes: #vers 2
+def build_txd(textures: List[Dict], rw_ver: int, device: int = None,
+              platform: int = None) -> bytes: #vers 2
     """New TXD from scratch, every texture encoded."""
-    out = [build_native_chunk(t, rw_ver) for t in textures]
+    out = [build_native_chunk(t, rw_ver, platform) for t in textures]
     dev = device if device is not None else (2 if rw_ver >= _SA_VER else 0)
     inner = (struct.pack('<III', 1, 4, rw_ver) + struct.pack('<HH', len(out), dev)
              + b''.join(out) + struct.pack('<III', 3, 0, rw_ver))
@@ -401,11 +405,12 @@ def rebuild_txd(original: bytes, textures: List[Dict], target_ver: int = None,
             out.append(build_native_chunk(t, ver, plat, ext_payload))
             continue
         names = _chunk_names(chunk)
-        new_name = str(t.get('name', names[0] if names else ''))
-        new_alpha = str(t.get('alpha_name', '') or '')
+        new_name = str(t.get('name', names[0] if names else '')).split('\0', 1)[0]
+        new_alpha = str(t.get('alpha_name', '') or '').split('\0', 1)[0]
         if names is not None and (new_name != names[0] or new_alpha != names[1]):
             chunk = _patch_names(chunk, new_name, new_alpha)
-        elif names is None and (new_name != t.get('_src_name') or new_alpha != t.get('_src_alpha')):
+        elif names is None and (new_name != t.get('_src_name') or
+                                new_alpha != str(t.get('_src_alpha') or '').split('\0', 1)[0]):
             raise ValueError(f"'{t.get('name')}': rename not supported for this platform")
         if plat in (8, 9, 5) and t.get('_src_meta') != meta_signature(t):
             b = bytearray(chunk)
@@ -427,3 +432,30 @@ def rebuild_txd(original: bytes, textures: List[Dict], target_ver: int = None,
         tail = b''.join(struct.pack('<III', t2, len(d), ver) + d for t2, _v2, d in _ext_chunks(tail))
     inner = struct.pack('<III', 1, 4, ver) + new_struct + b''.join(out) + tail
     return struct.pack('<III', _TXD_DICT, len(inner), ver) + inner
+
+
+def txd_from_textures(textures: List[Dict], original: bytes = None,
+                      rw_ver: int = _SA_VER) -> bytes: #vers 1
+    """TXD bytes for a plain texture list (Model/Map Workshop). Textures
+    tagged from `original` keep their bytes; the rest are encoded."""
+    norm = []
+    for t in textures:
+        n = dict(t)
+        if 'alpha_name' not in n:
+            n['alpha_name'] = str(t.get('mask', '') or '')
+        fmt = _FMT_ALIAS.get(str(n.get('format') or ''), str(n.get('format') or ''))
+        if fmt not in _DXT and fmt not in _RAW and fmt not in ('PAL8', 'PAL4'):
+            rgba = bytes(n.get('rgba_data') or b'')
+            alpha = bool(rgba) and np.frombuffer(rgba, dtype=np.uint8)[3::4].min() < 255
+            fmt = 'DXT3' if alpha else 'DXT1'
+        if fmt != n.get('format'):
+            same = '_src_sig' in n and n['_src_sig'] == texture_signature(n)
+            n['format'] = fmt
+            if same:                                  # unedited, only the format name differs
+                n['_src_sig'] = texture_signature(n)
+        norm.append(n)
+    if original:
+        data = rebuild_txd(original, norm)
+        if data:
+            return data
+    return build_txd(norm, rw_ver)

@@ -1,5 +1,8 @@
 #this belongs in root /ChangeLog.md - Version: 218
 
+## Oct 05 2026 - Model/Map TXD save
+- Model and Map Workshop save TXDs through txd_splice (unedited textures byte-exact). Radar tiles too. Old txd_serializer.py removed (wrote invalid files).
+
 ## Oct 05 2026 - TXD save fixes
 - New TXD writer (methods/txd_splice.py): all PC formats, D3D8/D3D9 kept, filter flags patched, PS2/Xbox renames, version convert re-encodes for III/VC.
 - Bumpmap/reflection stored in IMG Factory extension plugin; game-safe. Numpy DXT1/3/5 encoders with 1-bit alpha.
