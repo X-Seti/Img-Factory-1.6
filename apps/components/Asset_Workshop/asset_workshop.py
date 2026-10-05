@@ -2543,7 +2543,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 8
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 9
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -2642,7 +2642,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         _act(tb_xform, "Filters", self.icon_factory.filter_icon,
              self._open_filters_dialog, enabled=False, attr='filters_btn')
         tb_xform.addSeparator()
-        _act(tb_xform, "Properties",    self.icon_factory.properties_icon,
+        _act(tb_xform, "Properties",    self.icon_factory.texture_properties_icon,
              self.show_properties,          enabled=False, attr='props_btn')
 
         # Store toolbar refs
@@ -3614,7 +3614,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
     # labels/combos, and any icons created via _svg_to_icon() rather than
     # icon_factory. Address in a future pass.
-    def _refresh_icons(self): #vers 12
+    def _refresh_icons(self): #vers 13
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -3654,10 +3654,10 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             ('switch_btn',          'switch_view_icon'),
             ('invert_btn',          'invert_alpha_icon'),
             ('gen_alpha_btn',       'generate_alpha_icon'),
-            ('props_btn',           'properties_icon'),
+            ('props_btn',           'texture_properties_icon'),
             # Info panel buttons
-            ('import_btn',          'import_icon'),
-            ('export_btn',          'export_icon'),
+            ('import_btn',          'texture_import_icon'),
+            ('export_btn',          'texture_export_icon'),
             ('convert_btn',         'format_convert_icon'),
             ('properties_btn',      'settings_icon'),
             ('analyze_btn',         'analyze_icon'),
@@ -3671,6 +3671,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             # Bumpmap row
             ('import_bumpmap_btn',  'bumpmap_imp_icon'),
             ('export_bumpmap_btn',  'bumpmap_ext_icon'),
+            ('view_bumpmap_btn',    'manage_bumpmaps_icon'),
         ]
         for attr, method in _icon_map:
             btn = getattr(self, attr, None)

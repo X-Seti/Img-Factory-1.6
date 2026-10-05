@@ -626,7 +626,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 18
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 19
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -727,7 +727,7 @@ class TXDUIMixin: #vers 1
              self._toggle_alpha_invert,     enabled=False, attr='invert_btn')
         _act(tb_xform, "Generate Alpha",self.icon_factory.generate_alpha_icon,
              self._generate_alpha_mask,     enabled=False, attr='gen_alpha_btn')
-        _act(tb_xform, "Properties",    self.icon_factory.properties_icon,
+        _act(tb_xform, "Properties",    self.icon_factory.texture_properties_icon,
              self.show_properties,          enabled=False, attr='props_btn')
 
         #    Ribbon 2: Navigation                                           
@@ -834,10 +834,10 @@ class TXDUIMixin: #vers 1
              self._convert_texture,   enabled=False, attr='convert_btn')
         tb_format.addSeparator()
         _act(tb_format, "Import",
-             self.icon_factory.import_icon, self._import_textures,
+             self.icon_factory.texture_import_icon, self._import_textures,
              enabled=True, attr='import_btn')
         _act(tb_format, "Export",
-             self.icon_factory.export_icon, self.export_selected_texture,
+             self.icon_factory.texture_export_icon, self.export_selected_texture,
              enabled=False, attr='export_btn')
 
         #    Ribbon 6: Mipmaps                                              
@@ -859,7 +859,7 @@ class TXDUIMixin: #vers 1
         self.info_format_b.setMinimumWidth(70)
         tb_mips.addWidget(self.info_format_b)
 
-        _act(tb_mips, "Manage Bumpmaps", self.icon_factory.manage_icon,
+        _act(tb_mips, "Manage Bumpmaps", self.icon_factory.manage_bumpmaps_icon,
              self._view_bumpmap,   enabled=False, attr='view_bumpmap_btn')
         _act(tb_mips, "Export Bumpmap",  self.icon_factory.bumpmap_ext_icon,
              self._export_bumpmap, enabled=False, attr='export_bumpmap_btn')
@@ -1073,7 +1073,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 13
+    def _refresh_icons(self): #vers 14
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1113,10 +1113,10 @@ class TXDUIMixin: #vers 1
             ('switch_btn',          'switch_view_icon'),
             ('invert_btn',          'invert_alpha_icon'),
             ('gen_alpha_btn',       'generate_alpha_icon'),
-            ('props_btn',           'properties_icon'),
+            ('props_btn',           'texture_properties_icon'),
             # Info panel buttons
-            ('import_btn',          'import_icon'),
-            ('export_btn',          'export_icon'),
+            ('import_btn',          'texture_import_icon'),
+            ('export_btn',          'texture_export_icon'),
             ('convert_btn',         'format_convert_icon'),
             ('properties_btn',      'settings_icon'),
             ('analyze_btn',         'analyze_icon'),
@@ -1130,6 +1130,7 @@ class TXDUIMixin: #vers 1
             # Bumpmap row
             ('import_bumpmap_btn',  'bumpmap_imp_icon'),
             ('export_bumpmap_btn',  'bumpmap_ext_icon'),
+            ('view_bumpmap_btn',    'manage_bumpmaps_icon'),
             # Right preview bar
             ('resize_texture_btn',  '_resize_icon'),
         ]

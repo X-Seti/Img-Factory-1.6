@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 63
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 67
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -78,6 +78,7 @@ from PyQt6.QtCore import Qt
 # launch_icon
 # light_view_icon
 # lighting_icon
+# manage_bumpmaps_icon
 # manage_icon
 # maximize_icon
 # mel_app_icon
@@ -124,6 +125,9 @@ from PyQt6.QtCore import Qt
 # stop_icon
 # swap_arrows_icon
 # switch_view_icon
+# texture_export_icon
+# texture_import_icon
+# texture_properties_icon
 # triad_icon
 # txd_workshop_icon
 # trash_icon
@@ -903,6 +907,51 @@ class SVGIconFactory: #vers 8
             <rect x="1" y="7" width="16" height="16" rx="1.5" fill="#7a7aff"/>
             <path d="M2.5,20 C6.02,20 5.48,10.5 9.0,10.5 C12.52,10.5 11.98,20 15.5,20" fill="#c9c9ff" stroke="#3d3dbf" stroke-width="0.9"/>
             <path d="M2.5,20 H15.5" stroke="#3d3dbf" stroke-width="0.9"/>
+            <path d="M19.5,2 V12.5 M16.3,9.3 L19.5,12.5 L22.7,9.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def manage_bumpmaps_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Manage bumpmaps: bump square with gear"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="7" width="16" height="16" rx="1.5" fill="#7a7aff"/>
+            <path d="M2.5,20 C6.02,20 5.48,10.5 9.0,10.5 C12.52,10.5 11.98,20 15.5,20" fill="#c9c9ff" stroke="#3d3dbf" stroke-width="0.9"/>
+            <path d="M2.5,20 H15.5" stroke="#3d3dbf" stroke-width="0.9"/>
+            <polygon points="23.70,6.00 21.96,7.43 22.18,9.68 19.93,9.46 18.50,11.20 17.07,9.46 14.82,9.68 15.04,7.43 13.30,6.00 15.04,4.57 14.82,2.32 17.07,2.54 18.50,0.80 19.93,2.54 22.18,2.32 21.96,4.57" fill="currentColor"/>
+            <circle cx="18.5" cy="6" r="1.56" fill="#2b2b2b"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def texture_properties_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Texture properties: picture with blue ?"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="7" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="6" cy="11.8" r="1.8" fill="#fdd835"/>
+            <path d="M2.2,21.8 L7.5,15.5 L10.5,18.5 L13,16 L15.8,19 V21.8 Z" fill="#43a047"/>
+            <text x="19" y="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="12" text-anchor="middle" fill="#1e88e5">?</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def texture_export_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Export texture: picture, up arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="7" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="6" cy="11.8" r="1.8" fill="#fdd835"/>
+            <path d="M2.2,21.8 L7.5,15.5 L10.5,18.5 L13,16 L15.8,19 V21.8 Z" fill="#43a047"/>
+            <path d="M19.5,13 V2.5 M16.3,5.7 L19.5,2.5 L22.7,5.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def texture_import_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Import texture: picture, down arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="7" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="6" cy="11.8" r="1.8" fill="#fdd835"/>
+            <path d="M2.2,21.8 L7.5,15.5 L10.5,18.5 L13,16 L15.8,19 V21.8 Z" fill="#43a047"/>
             <path d="M19.5,2 V12.5 M16.3,9.3 L19.5,12.5 L22.7,9.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
