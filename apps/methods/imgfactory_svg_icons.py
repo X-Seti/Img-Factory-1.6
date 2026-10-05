@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 45
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 46
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -56,6 +56,7 @@ from PyQt6.QtCore import Qt
 # flip_horz_icon
 # flip_vert_icon
 # folder_icon
+# format_convert_icon
 # globe_icon
 # hide_faces_icon
 # import_exchange_icon
@@ -117,6 +118,7 @@ from PyQt6.QtCore import Qt
 # vc_to_sa_icon
 # vertex_position_icon
 # view_icon
+# view_reset_icon
 # volume_down_icon
 # volume_up_icon
 # zoom_in_icon
@@ -2302,10 +2304,35 @@ class SVGIconFactory: #vers 8
 
 
     @staticmethod
-    def uncompress_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
-        """Uncompress icon"""
+    def view_reset_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Reset view: rings with eye"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path fill="currentColor" d="M11,4V2H13V4H11M13,21V19H11V21H13M4,12V10H20V12H4Z"/>
+            <circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M7.6,12 Q12,7.6 16.4,12 Q12,16.4 7.6,12 Z" fill="none" stroke="currentColor" stroke-width="1.3"/>
+            <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def format_convert_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Convert format: red circle to green triangle"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="5.5" cy="12" r="4.3" fill="#e53935"/>
+            <path d="M10.5,12 H14.5 M12.8,9.8 L15,12 L12.8,14.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16.2,16.5 L19.6,7.5 L23,16.5 Z" fill="#43a047"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def uncompress_icon(size: int = 20, color: str = None) -> QIcon: #vers 8
+        """G-clamp open, pad raised"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="1" width="22" height="20.6" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M17,4.5 H5.5 V18 H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M12,4.5 L10,6.71 L14,7.43 L10,8.14 L14,8.86 L10,9.57 L14,10.29 L10,11.00 L12,11.00" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="8" y="10.90" width="8" height="2" rx="0.5" fill="currentColor"/>
+            <rect x="10" y="20.6" width="4" height="3" rx="0.4" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2386,11 +2413,14 @@ class SVGIconFactory: #vers 8
         return SVGIconFactory._create_icon(svg, size, color)
 
     @staticmethod
-    def compress_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
-        """Create compress icon"""
+    def compress_icon(size: int = 24, color: str = None) -> QIcon: #vers 3
+        """G-clamp closed, pad down on base"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path fill="currentColor"
-                d="M4,2H20V4H13V10H20V12H4V10H11V4H4V2M4,13H20V15H13V21H20V23H4V21H11V15H4V13Z"/>
+            <rect x="1" y="1" width="22" height="20.6" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M17,4.5 H5.5 V18 H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M12,4.5 L10,7.37 L14,8.74 L10,10.11 L14,11.49 L10,12.86 L14,14.23 L10,15.60 L12,15.60" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="8" y="15.50" width="8" height="2" rx="0.5" fill="currentColor"/>
+            <rect x="10" y="20.6" width="4" height="3" rx="0.4" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

@@ -418,7 +418,7 @@ class COLSetupUIMixin: #vers 1
 
         return status_bar
 
-    def _refresh_icons(self): #vers 3
+    def _refresh_icons(self): #vers 4
         """Refresh all button icons after theme change — picks up current text_primary colour."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -468,7 +468,7 @@ class COLSetupUIMixin: #vers 1
             ('import_btn',           'import_icon'),
             ('export_btn',           'export_icon'),
             ('switch_btn',           'flip_vert_icon'),
-            ('convert_btn',          'convert_icon'),
+            ('convert_btn',          'format_convert_icon'),
             ('paint_undo_btn',       'undo_paint_icon'),
         ]
         for attr, method in _icon_map:
@@ -493,7 +493,7 @@ class COLSetupUIMixin: #vers 1
         try:
             tip_to_icon = {
                 'Zoom In': 'zoom_in_icon', 'Zoom Out': 'zoom_out_icon',
-                'Reset View': 'reset_icon', 'Fit to Window': 'fit_icon',
+                'Reset View': 'view_reset_icon', 'Fit to Window': 'fit_icon',
                 'Pan Up': 'arrow_up_icon', 'Pan Down': 'arrow_down_icon',
                 'Pan Left': 'arrow_left_icon', 'Pan Right': 'arrow_right_icon',
                 'Render / Background Settings': 'color_picker_icon',
@@ -1163,7 +1163,7 @@ class COLSetupUIMixin: #vers 1
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 9
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 10
         """Build all QToolBar instances using QAction (Model Workshop pattern,
         Build 388+). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_preview_controls panels."""
@@ -1265,7 +1265,7 @@ class COLSetupUIMixin: #vers 1
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
         _act(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
-        _act(tb_nav, "Reset View",    self.icon_factory.reset_icon,    pw.reset_view)
+        _act(tb_nav, "Reset View",    self.icon_factory.view_reset_icon,    pw.reset_view)
         _act(tb_nav, "Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window)
         tb_nav.addSeparator()
         _act(tb_nav, "Pan Up",    self.icon_factory.arrow_up_icon,    lambda: pw.pan( 0,  20))
@@ -1318,7 +1318,7 @@ class COLSetupUIMixin: #vers 1
         tb_format.addSeparator()
         _act(tb_format, "Cycle Render Mode", self.icon_factory.render_mode_icon,
              self.switch_surface_view,  enabled=False, attr='switch_btn')
-        _act(tb_format, "Convert Format",    self.icon_factory.convert_icon,
+        _act(tb_format, "Convert Format",    self.icon_factory.format_convert_icon,
              self._convert_surface,     enabled=False, attr='convert_btn')
         _act(tb_format, "Compress",          self.icon_factory.compress_icon,
              self._compress_surface,    enabled=False, attr='compress_btn')

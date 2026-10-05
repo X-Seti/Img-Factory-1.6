@@ -626,7 +626,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 6
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 7
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -734,7 +734,7 @@ class TXDUIMixin: #vers 1
         tb_nav = _tb("Navigation", Qt.ToolBarArea.RightToolBarArea)
         _act(tb_nav, "Zoom In",       self.icon_factory.zoom_in_icon,  pw.zoom_in)
         _act(tb_nav, "Zoom Out",      self.icon_factory.zoom_out_icon, pw.zoom_out)
-        _act(tb_nav, "Reset View",    self.icon_factory.reset_icon,    pw.reset_view)
+        _act(tb_nav, "Reset View",    self.icon_factory.view_reset_icon,    pw.reset_view)
         _act(tb_nav, "Fit to Window", self.icon_factory.fit_icon,      pw.fit_to_window)
         tb_nav.addSeparator()
         _act(tb_nav, "Pan Up",    self.icon_factory.arrow_up_icon,    lambda: self._pan_preview(0, -20))
@@ -830,7 +830,7 @@ class TXDUIMixin: #vers 1
              self._compress_texture,  enabled=False, attr='compress_btn')
         _act(tb_format, "Uncompress",       self.icon_factory.uncompress_icon,
              self._uncompress_texture,enabled=False, attr='uncompress_btn')
-        _act(tb_format, "Convert Format",   self.icon_factory.convert_icon,
+        _act(tb_format, "Convert Format",   self.icon_factory.format_convert_icon,
              self._convert_texture,   enabled=False, attr='convert_btn')
         tb_format.addSeparator()
         _act(tb_format, "Import",
@@ -1073,7 +1073,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 1
+    def _refresh_icons(self): #vers 2
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1117,7 +1117,7 @@ class TXDUIMixin: #vers 1
             # Info panel buttons
             ('import_btn',          'import_icon'),
             ('export_btn',          'export_icon'),
-            ('convert_btn',         'convert_icon'),
+            ('convert_btn',         'format_convert_icon'),
             ('properties_btn',      'settings_icon'),
             ('analyze_btn',         'analyze_icon'),
             # Mipmap row
@@ -1153,7 +1153,7 @@ class TXDUIMixin: #vers 1
             c2 = self._get_icon_color()
             tip_to_icon = {
                 'Zoom In': 'zoom_in_icon', 'Zoom Out': 'zoom_out_icon',
-                'Reset View': 'reset_icon', 'Fit to Window': 'fit_icon',
+                'Reset View': 'view_reset_icon', 'Fit to Window': 'fit_icon',
                 'Pan Up': 'arrow_up_icon', 'Pan Down': 'arrow_down_icon',
                 'Pan Left': 'arrow_left_icon', 'Pan Right': 'arrow_right_icon',
                 'Pick Background': 'color_picker_icon',

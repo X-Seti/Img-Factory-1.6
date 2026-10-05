@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 216
+#this belongs in root /ChangeLog.md - Version: 217
+
+## Oct 05 2026 - TXD/COL icons
+- New icons: Reset View (rings with eye), Convert Format (red circle to green triangle), Compress/Uncompress (G-clamp closed/open). Used in TXD, COL, Asset.
 
 ## Oct 01 2026 - DP5 stickers
 - Stickers stamp at 20x20 px (aspect kept); background and white halo removed so round emojis have alpha edges.
