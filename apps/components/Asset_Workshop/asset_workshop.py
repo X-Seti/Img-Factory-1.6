@@ -2543,7 +2543,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 4
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 5
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -2626,7 +2626,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         _act(tb_xform, "Paste", self.icon_factory.paste_icon,
              self._paste_texture, enabled=False, attr='paste_btn')
         tb_xform.addSeparator()
-        _act(tb_xform, "Create",    self.icon_factory.add_icon,
+        _act(tb_xform, "Create",    self.icon_factory.create_texture_icon,
              self._create_new_texture_entry, attr='create_texture_btn')
         _act(tb_xform, "Delete",    self.icon_factory.delete_icon,
              self._delete_texture,     enabled=False, attr='delete_texture_btn')
@@ -3614,7 +3614,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
     # labels/combos, and any icons created via _svg_to_icon() rather than
     # icon_factory. Address in a future pass.
-    def _refresh_icons(self): #vers 2
+    def _refresh_icons(self): #vers 3
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -3644,7 +3644,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             ('rotate_ccw_btn',      'rotate_ccw_icon'),
             ('copy_btn',            'copy_icon'),
             ('paste_btn',           'paste_icon'),
-            ('create_texture_btn',  'add_icon'),
+            ('create_texture_btn',  'create_texture_icon'),
             ('delete_texture_btn',  'delete_icon'),
             ('duplicate_texture_btn','duplicate_icon'),
             ('paint_btn',           'paint_icon'),

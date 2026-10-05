@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 46
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 47
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -38,6 +38,7 @@ from PyQt6.QtCore import Qt
 # copy_lod_icon
 # create_face_icon
 # create_shadow_icon
+# create_texture_icon
 # database_icon
 # delete_face_icon
 # delete_icon
@@ -697,6 +698,17 @@ class SVGIconFactory: #vers 8
         """Add/plus icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def create_texture_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Create texture: page with red plus on left"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M8,2.5 H16.5 L21,7 V21.5 H8 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M16.5,2.5 V7 H21" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M11,11 H18 M11,14 H18 M11,17 H16" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M5,10 V18 M1,14 H9" stroke="#e53935" stroke-width="2.6" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
