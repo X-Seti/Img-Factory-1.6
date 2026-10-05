@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 56
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 58
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -22,6 +22,8 @@ from PyQt6.QtCore import Qt
 # attach_dff_icon
 # backface_icon
 # batch_convert_icon
+# bg_black_icon
+# bg_white_icon
 # box_icon
 # box_to_mesh_icon
 # brush_freehand_icon
@@ -821,6 +823,24 @@ class SVGIconFactory: #vers 8
             <circle cx="20.29" cy="19.58" r="0.71" fill="currentColor" fill-opacity="0.22"/>
             <circle cx="13.6" cy="15" r="1.10" fill="currentColor" fill-opacity="0.70"/>
             <circle cx="15.6" cy="15" r="0.95" fill="currentColor" fill-opacity="0.55"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def bg_black_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Black background: dotted square, black fill"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="5.5" y="5.5" width="13" height="13" rx="1" fill="#000000" stroke="#808080" stroke-width="0.7"/>
+            <rect x="2" y="2" width="20" height="20" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2,2"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def bg_white_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """White background: dotted square, white fill"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="5.5" y="5.5" width="13" height="13" rx="1" fill="#ffffff" stroke="#808080" stroke-width="0.7"/>
+            <rect x="2" y="2" width="20" height="20" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2,2"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

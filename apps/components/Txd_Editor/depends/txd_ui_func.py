@@ -626,7 +626,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 14
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 15
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -764,9 +764,9 @@ class TXDUIMixin: #vers 1
         tb_fx.addSeparator()
         _act(tb_fx, "Checkerboard", self.icon_factory.checkerboard_icon,
              lambda: pw.set_checkerboard_background())
-        _act(tb_fx, "Black Background", self.icon_factory.stop_icon,
+        _act(tb_fx, "Black Background", self.icon_factory.bg_black_icon,
              lambda: pw.set_background_color(QColor(0, 0, 0)))
-        _act(tb_fx, "White Background", self.icon_factory.stop_icon,
+        _act(tb_fx, "White Background", self.icon_factory.bg_white_icon,
              lambda: pw.set_background_color(QColor(255, 255, 255)))
 
         #    Ribbon 4: Name                                                 
@@ -1073,7 +1073,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 9
+    def _refresh_icons(self): #vers 10
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1163,6 +1163,8 @@ class TXDUIMixin: #vers 1
                 'Seamless Tool…': 'seamless_icon',
                 'Snow Effect…': 'snow_icon',
                 'Alpha Coverage…': 'alpha_coverage_icon',
+                'Black Background': 'bg_black_icon',
+                'White Background': 'bg_white_icon',
             }
             for btn in getattr(self, '_preview_ctrl_view_btns', []):
                 fn_name = tip_to_icon.get(btn.toolTip())
