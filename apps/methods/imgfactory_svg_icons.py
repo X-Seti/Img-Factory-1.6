@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 51
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 53
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -112,6 +112,8 @@ from PyQt6.QtCore import Qt
 # settings_icon
 # sphere_icon
 # stop_icon
+# swap_arrows_icon
+# switch_view_icon
 # triad_icon
 # txd_workshop_icon
 # trash_icon
@@ -754,6 +756,29 @@ class SVGIconFactory: #vers 8
                 <text x="12" y="19.6" fill="#1e88e5">X</text>
                 <text x="19.8" y="19.6" fill="#8e24aa">D</text>
             </g>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def swap_arrows_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Red and green circling arrows"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3.9,10 A8.3,8.3 0 0,1 18.4,6.1" fill="none" stroke="#e53935" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M21,3.2 L20.6,9 L15.1,7.5 Z" fill="#e53935"/>
+            <path d="M20.1,14 A8.3,8.3 0 0,1 5.6,17.9" fill="none" stroke="#43a047" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M3,20.8 L3.4,15 L8.9,16.5 Z" fill="#43a047"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def switch_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Switch: red/green circling arrows with S"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3.9,10 A8.3,8.3 0 0,1 18.4,6.1" fill="none" stroke="#e53935" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M21,3.2 L20.6,9 L15.1,7.5 Z" fill="#e53935"/>
+            <path d="M20.1,14 A8.3,8.3 0 0,1 5.6,17.9" fill="none" stroke="#43a047" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M3,20.8 L3.4,15 L8.9,16.5 Z" fill="#43a047"/>
+            <text x="12" y="16.2" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="11" text-anchor="middle" fill="currentColor">S</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

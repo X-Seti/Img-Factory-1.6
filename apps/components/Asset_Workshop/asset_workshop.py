@@ -3614,7 +3614,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
     # labels/combos, and any icons created via _svg_to_icon() rather than
     # icon_factory. Address in a future pass.
-    def _refresh_icons(self): #vers 6
+    def _refresh_icons(self): #vers 7
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -3651,7 +3651,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             ('check_dff_btn',       'analyze_icon'),
             ('build_from_dff_btn',  'build_from_dff_icon'),
             ('filters_btn',         'filter_icon'),
-            ('switch_btn',          'flip_vert_icon'),
+            ('switch_btn',          'switch_view_icon'),
             ('invert_btn',          'build_icon'),
             ('gen_alpha_btn',       'paint_icon'),
             ('props_btn',           'properties_icon'),
