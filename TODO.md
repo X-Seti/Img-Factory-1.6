@@ -1,6 +1,9 @@
 #this belongs in root /TODO.md - Version: 14
 
 ## Sep 2026 - Duplicates still to review
+- methods/txd_serializer.py writes invalid TXDs; Model/Map Workshop still use it - switch to txd_splice.build_txd.
+- methods/txd_parser.py DXT3 decode differs from TXD Workshop on VC files; check.
+- Asset Workshop duplicates TXD load/save code; share with TXD Workshop.
 - apps/methods/ribbon_manager.py (DockableToolbar ribbon) has no users; remove?
 - DP5 Workshop builds its own Ribbon Manager inline; could move to methods/ribbon_dialog.py.
 - Radar Workshop encode_dxt1 duplicates methods/txd_dxt_encode.py.

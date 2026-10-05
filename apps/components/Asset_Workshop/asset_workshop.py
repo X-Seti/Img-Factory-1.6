@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 13
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 14
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -30,7 +30,6 @@ from PyQt6.QtSvg import QSvgRenderer
 
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow, ZoomablePreview
-from apps.methods.txd_dxt_encode import _encode_dxt1
 from apps.methods.txd_versions import ( detect_txd_version, get_platform_name, get_game_from_version, get_version_capabilities, get_platform_capabilities, is_mipmap_supported, is_bumpmap_supported, validate_txd_format, TXDPlatform, detect_platform_from_data)
 
 from apps.methods.txd_versions import (detect_txd_version, get_version_string, get_platform_name, get_platform_capabilities, TXDPlatform, TXDVersion)
@@ -7218,95 +7217,30 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         return estimated_size
 
 
-    def _rebuild_txd_data(self): #vers 4
-        """Rebuild TXD data with modified texture names and properties"""
+    def _rebuild_txd_data(self): #vers 5
+        """TXD bytes: original spliced with edits, or new file. Error in _rebuild_error."""
+        from apps.methods.txd_splice import rebuild_txd, build_txd
+        self._rebuild_error = ''
         try:
-            if not self.current_txd_data:
-                return None
-
-            # Preserve original version header
-            if len(self.current_txd_data) < 28:
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("Cannot rebuild: insufficient header data")
-                return None
-
-            # Read original header to preserve version
-            original_header = bytearray(self.current_txd_data[:28])
-
-            # Extract version info if not already detected
+            ver = getattr(self, '_save_target_version', None)
+            dev = getattr(self, '_save_target_device', None)
+            if not self.current_txd_data or len(self.current_txd_data) < 28:
+                if not self.texture_list:
+                    raise ValueError("No textures to save")
+                return build_txd(self.texture_list, ver or self.txd_version_id or 0x1803FFFF, dev)
             if self.txd_version_id == 0:
                 self._detect_txd_info(self.current_txd_data)
-
-            # Check if we have a target version from save_txd_file
-            target_version = self.txd_version_id
-            target_device = self.txd_device_id
-
-            if hasattr(self, '_save_target_version') and hasattr(self, '_save_target_device'):
-                target_version = self._save_target_version
-                target_device = self._save_target_device
-
-            # Update header if converting to different version
-            if target_version != self.txd_version_id or target_device != self.txd_device_id:
-                import struct
-                # Update RenderWare version at offset 4
-                struct.pack_into('<I', original_header, 4, target_version)
-
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    from apps.methods.txd_versions import get_version_string
-                    self.main_window.log_message(
-                        f"Converting to {get_version_string(target_version, target_device)}"
-                    )
-            else:
-                # Log rebuild info with original version
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(
-                        f"Rebuilding TXD with version: {self.txd_version_str}"
-                    )
-
-            # Import struct for header manipulation
-            import struct
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rebuilding TXD...")
-
-            # If we have original data, update it in place with new header
-            if self.current_txd_data and len(self.current_txd_data) > 100:
-                # Splice from the original bytes so edits (rename/replace/
-                # delete/add) are kept and untouched textures stay byte-exact
-                from apps.methods.txd_splice import rebuild_txd
-                from apps.methods.txd_splice import build_d3d8_chunk
-                _rw = struct.unpack_from('<I', self.current_txd_data, 8)[0]
-                spliced = rebuild_txd(self.current_txd_data, self.texture_list,
-                                      lambda t: build_d3d8_chunk(t, _rw, _encode_dxt1)) \
-                    if getattr(self, 'texture_list', None) else None
-                base = spliced if spliced else self.current_txd_data
-                if spliced:
-                    original_header = bytearray(spliced[:28])
-                    if target_version != self.txd_version_id:
-                        struct.pack_into('<I', original_header, 4, target_version)
-                rebuilt_data = bytes(original_header) + base[28:]
-
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Rebuilt: {len(rebuilt_data)} bytes")
-
-                return rebuilt_data
-
-            # No original data? Use serializer as fallback
-            if self.texture_list:
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Using serializer...")
-
-                # Try methods folder first (docked/IMG Factory)
-                from apps.methods.txd_serializer import serialize_txd_file
-                return serialize_txd_file(self.texture_list, target_version, target_device)
-
-
+            data = rebuild_txd(self.current_txd_data, self.texture_list,
+                               None if ver == self.txd_version_id else ver,
+                               None if dev == self.txd_device_id else dev)
+            if not data:
+                raise ValueError("Original TXD data could not be read")
+            return data
         except Exception as e:
+            self._rebuild_error = str(e)
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rebuild error: {str(e)}")
+                self.main_window.log_message(f"Rebuild error: {e}")
             return None
-
-
 
     def _get_format_description(self) -> str: #vers 1
         """Get human-readable format description for UI display"""
@@ -7833,7 +7767,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
 
     # Update the main save_txd_file method to use version selector:
-    def _save_txd_file(self): #vers 2
+    def _save_txd_file(self): #vers 3
         """Save TXD file with detailed structural logging"""
         if not self.current_txd_path and not self.current_txd_name:
             QMessageBox.warning(self, "No TXD", "No TXD file loaded")
@@ -7951,164 +7885,15 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                 if not has_data:
                     raise Exception(f"Texture {tex_name} has no image data")
 
-            # Initialize serializer
             log("")
-            log("PHASE 2: INITIALIZING SERIALIZER")
+            log("PHASE 2: BUILDING TXD (unchanged textures copied, edits encoded)")
             log("-" * 80)
-            update_progress(10)
-
-            from apps.methods.txd_serializer import TXDSerializer
-            log("Loaded serializer from apps.methods.txd_serializer.py")
-
-            serializer = TXDSerializer()
-            log("Serializer initialized")
-
-            # Build texture sections
-            log("")
-            log(f"PHASE 3: BUILDING {len(self.texture_list)} TEXTURE NATIVE SECTIONS")
-            log("=" * 80)
-            update_progress(15)
-
-            texture_sections = []
-
-            for idx, texture in enumerate(self.texture_list):
-                texture_progress = 15 + int((idx / len(self.texture_list)) * 50)
-
-                tex_name = texture.get('name', f'texture_{idx}')
-                tex_width = texture.get('width', 0)
-                tex_height = texture.get('height', 0)
-                tex_format = texture.get('format', 'Unknown')
-                has_alpha = texture.get('has_alpha', False)
-                alpha_name = texture.get('alpha_name', '')
-
-                log("")
-                log(f"[TEXTURE {idx+1}/{len(self.texture_list)}]")
-                log("-" * 80)
-                log(f"  Name         : {tex_name}")
-                log(f"  Dimensions   : {tex_width}x{tex_height}")
-                log(f"  Format       : {tex_format}")
-                log(f"  Depth        : {texture.get('depth', 32)}-bit")
-                log(f"  Alpha        : {has_alpha}")
-                if has_alpha:
-                    log(f"  Alpha Name   : {alpha_name}")
-
-                # Check data preservation
-                has_compressed = bool(texture.get('compressed_data'))
-                has_original_bgra = bool(texture.get('original_bgra_data'))
-                has_rgba = bool(texture.get('rgba_data'))
-
-                log(f"  Data Sources :")
-                log(f"    Compressed     : {'YES' if has_compressed else 'NO'} ({len(texture.get('compressed_data', b'')):,} bytes)")
-                log(f"    Original BGRA  : {'YES' if has_original_bgra else 'NO'} ({len(texture.get('original_bgra_data', b'')):,} bytes)")
-                log(f"    RGBA (display) : {'YES' if has_rgba else 'NO'} ({len(texture.get('rgba_data', b'')):,} bytes)")
-
-                # Mipmaps
-                mipmap_levels = texture.get('mipmap_levels', [])
-                if mipmap_levels:
-                    log(f"  Mipmaps      : {len(mipmap_levels)} levels")
-                    for level_idx, level in enumerate(mipmap_levels):
-                        level_width = level.get('width', 0)
-                        level_height = level.get('height', 0)
-                        level_has_compressed = bool(level.get('compressed_data'))
-                        level_has_bgra = bool(level.get('original_bgra_data'))
-                        log(f"    Level {level_idx}: {level_width}x{level_height} | Compressed: {level_has_compressed} | BGRA: {level_has_bgra}")
-
-                # Bumpmap
-                if texture.get('has_bumpmap', False):
-                    bumpmap_size = len(texture.get('bumpmap_data', b''))
-                    bumpmap_type = texture.get('bumpmap_type', 0)
-                    type_names = ['Height', 'Normal', 'Combined']
-                    log(f"  Bumpmap      : {type_names[bumpmap_type]} ({bumpmap_size:,} bytes)")
-
-                # Reflection
-                if texture.get('has_reflection', False):
-                    reflection_size = len(texture.get('reflection_map', b''))
-                    fresnel_size = len(texture.get('fresnel_map', b''))
-                    log(f"  Reflection   : {reflection_size:,} bytes")
-                    if fresnel_size:
-                        log(f"  Fresnel      : {fresnel_size:,} bytes")
-
-                update_progress(texture_progress, f"  Building texture native section...")
-
-                # Build texture native
-                try:
-                    tex_section = serializer._build_texture_native(texture)
-                    texture_sections.append(tex_section)
-
-                    log(f"  Section Size : {len(tex_section):,} bytes")
-                    log(f"  Result       : SUCCESS")
-
-                except Exception as e:
-                    log(f"  Result       : FAILED - {str(e)}")
-                    raise Exception(f"Failed to build texture {tex_name}: {str(e)}")
-
-            # Build TXD dictionary
-            log("")
-            log("PHASE 4: BUILDING TXD DICTIONARY STRUCTURE")
-            log("=" * 80)
-            update_progress(65)
-
-            log("")
-            log("Building main TXD dictionary header...")
-
-            # Calculate sizes
-            struct_size = 4  # texture count (u32)
-            struct_data = struct.pack('<I', len(self.texture_list))
-
-            log(f"  Struct Section:")
-            log(f"    Type         : 0x01 (Struct)")
-            log(f"    Size         : {struct_size} bytes")
-            log(f"    Data         : Texture count = {len(self.texture_list)}")
-
-            total_size = 12 + struct_size + 12  # struct header + data + extension header
-            for tex_section in texture_sections:
-                total_size += len(tex_section)
-
-            log(f"  Main Dictionary:")
-            log(f"    Type         : 0x16 (Texture Dictionary)")
-            log(f"    Total Size   : {total_size:,} bytes")
-            log(f"    Version      : 0x{serializer.RW_VERSION:08X}")
-
-            update_progress(70, "Assembling TXD structure...")
-
-            # Build complete TXD
-            result = bytearray()
-
-            # Write Texture Dictionary header
-            log("")
-            log("Writing TXD sections:")
-            log(f"  [Offset 0] Main TXD Dictionary header (12 bytes)")
-            result.extend(serializer._write_section_header(
-                serializer.SECTION_TEXTURE_DICTIONARY,
-                total_size - 12,
-                serializer.RW_VERSION
-            ))
-
-            # Write Struct section
-            log(f"  [Offset {len(result)}] Struct section header (12 bytes)")
-            result.extend(serializer._write_section_header(
-                serializer.SECTION_STRUCT,
-                struct_size,
-                serializer.RW_VERSION
-            ))
-
-            log(f"  [Offset {len(result)}] Struct data ({struct_size} bytes)")
-            result.extend(struct_data)
-
-            # Write texture sections
-            for idx, tex_section in enumerate(texture_sections):
-                update_progress(70 + int((idx / len(texture_sections)) * 20))
-                tex_name = self.texture_list[idx].get('name', f'texture_{idx}')
-                log(f"  [Offset {len(result)}] Texture {idx+1} ({tex_name}): {len(tex_section):,} bytes")
-                result.extend(tex_section)
-
-            # Write Extension section
-            log(f"  [Offset {len(result)}] Extension section (12 bytes)")
-            result.extend(serializer._write_section_header(
-                serializer.SECTION_EXTENSION,
-                0,
-                serializer.RW_VERSION
-            ))
+            update_progress(30)
+            built = self._rebuild_txd_data()
+            if not built:
+                raise RuntimeError(f"TXD rebuild failed: {self._rebuild_error}")
+            log(f"  Built {len(built):,} bytes")
+            result = bytearray(built)
 
             # Write to file
             log("")
@@ -8446,58 +8231,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
 
 #------ Rebuild functions
-
-
-    def _rebuild_txd_data_with_texture_progress(self, update_progress): #vers 1
-        """Rebuild TXD data with per-texture progress updates"""
-        try:
-            if not self.texture_list:
-                return None
-
-            from apps.methods.txd_serializer import TXDSerializer
-
-            serializer = TXDSerializer()
-
-            # Build each texture with progress
-            texture_sections = []
-            for i, texture in enumerate(self.texture_list):
-                texture_name = texture.get('name', f'texture_{i}')
-
-                # Update for mipmaps
-                num_mipmaps = len(texture.get('mipmap_levels', []))
-                if num_mipmaps > 0:
-                    update_progress(f" {texture_name}: {num_mipmaps} mipmaps")
-
-                # Update for bumpmap
-                if texture.get('has_bumpmap'):
-                    type_names = ['Height', 'Normal', 'Both']
-                    bumpmap_type = texture.get('bumpmap_type', 0)
-                    update_progress(f" {texture_name}: {type_names[bumpmap_type]} bumpmap")
-
-                # Update for reflection
-                if texture.get('has_reflection'):
-                    update_progress(f" {texture_name}: Reflection maps")
-
-                # Build texture section
-                tex_data = serializer._build_texture_native(texture)
-                texture_sections.append(tex_data)
-
-            # Build final TXD
-            update_progress("Finalizing TXD structure...")
-
-            # Use the serializer's method to build dictionary
-            result = serializer._build_texture_dictionary_from_sections(
-                texture_sections,
-                len(self.texture_list)
-            )
-
-            return result
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rebuild error: {str(e)}")
-            return None
-
 
 
     def _update_table_display(self): #vers 2

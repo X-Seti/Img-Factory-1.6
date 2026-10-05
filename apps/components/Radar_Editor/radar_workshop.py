@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 25
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 26
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -3422,10 +3422,10 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             saved.append(idx)
         return saved, skipped, bytes(data)
 
-    def _save_standalone_txd(self, path: str): #vers 1
+    def _save_standalone_txd(self, path: str): #vers 2
         """Replace the first texture of a standalone PC (D3D8/D3D9) TXD,
         keeping every other chunk byte-for-byte."""
-        from apps.methods.txd_splice import split_txd, build_d3d8_chunk
+        from apps.methods.txd_splice import split_txd, build_native_chunk
         src = Path(self._img_path).read_bytes()
         parts = split_txd(src)
         if not parts or not parts[2]:
@@ -3436,10 +3436,8 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                              "this file uses another platform.")
         rw = struct.unpack_from('<I', src, 8)[0]
         tex = {'name': Path(self._tile_entries[0]["name"]).stem, 'width': TILE_W,
-               'height': TILE_H, 'rgba_data': self._tile_rgba.get(0)}
-        chunk = build_d3d8_chunk(tex, rw, encode_dxt1)
-        if not chunk:
-            raise ValueError("Tile has no pixel data")
+               'height': TILE_H, 'rgba_data': self._tile_rgba.get(0), 'format': 'DXT1'}
+        chunk = build_native_chunk(tex, rw, struct.unpack_from('<I', chunks[0], 24)[0])
         chunks[0] = chunk
         inner = struct.pack('<III', 1, 4, rw) + struct.pack('<HH', len(chunks), struct.unpack_from('<H', dstruct, 14)[0]) \
             + b''.join(chunks) + tail

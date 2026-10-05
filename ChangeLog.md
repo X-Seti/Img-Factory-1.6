@@ -1,4 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 217
+#this belongs in root /ChangeLog.md - Version: 218
+
+## Oct 05 2026 - TXD save fixes
+- New TXD writer (methods/txd_splice.py): all PC formats, D3D8/D3D9 kept, filter flags patched, PS2/Xbox renames, version convert re-encodes for III/VC.
+- Bumpmap/reflection stored in IMG Factory extension plugin; game-safe. Numpy DXT1/3/5 encoders with 1-bit alpha.
+- Loader: per-level size for all PC formats, palette read once. Unsaved-changes prompt; _set_current_rgba wrote wrong row.
 
 ## Oct 05 2026 - TXD/COL icons
 - New icons: Reset View (rings with eye), Convert Format (red circle to green triangle), Compress/Uncompress (G-clamp closed/open). Used in TXD, COL, Asset.

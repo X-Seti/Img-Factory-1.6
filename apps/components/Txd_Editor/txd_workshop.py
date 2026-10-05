@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 42
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 43
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -36,6 +36,7 @@ from apps.methods.grip_splitter import SplitterSizesMixin
 
 ##class TXDWorkshop: -
 # _close_txd_tab
+# closeEvent
 # _dock_to_main
 # __init__
 # _launch_theme_settings
@@ -1481,23 +1482,21 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, S
 
 
 
-    def _close_txd_tab(self, index): #vers 1
+    def _close_txd_tab(self, index): #vers 2
         """Close TXD tab"""
         if self.txd_tabs.count() <= 1:
             QMessageBox.warning(self, "Cannot Close", "Cannot close the last tab")
             return
-
-        # Check if modified
-        # Check modified flag if present
-        tab_widget = self.txd_tabs.widget(index)
-        if tab_widget and getattr(tab_widget, 'is_modified', False):
-            from PyQt6.QtWidgets import QMessageBox
-            r = QMessageBox.question(self, 'Unsaved Changes',
-                'This tab has unsaved changes. Close anyway?')
-            if r != QMessageBox.StandardButton.Yes:
-                return
-
+        if not self._confirm_discard():
+            return
         self.txd_tabs.removeTab(index)
+
+    def closeEvent(self, event): #vers 1
+        """Ask before closing with unsaved changes."""
+        if not self._confirm_discard():
+            event.ignore()
+            return
+        super().closeEvent(event)
 
 
     def _switch_txd_tab(self, index): #vers 1

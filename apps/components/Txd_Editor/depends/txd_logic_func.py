@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 7
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 8
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -8,6 +8,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 ##class TXDLogicMixin: -
 # _add_texture_to_table
 # _add_warning_badge
+# _after_save
 # _apply_gaussian_blur
 # _ask_resize
 # _auto_generate_mipmaps
@@ -19,8 +20,10 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _change_format
 # _check_alpha_validity
 # _check_txd_vs_dff
+# _clear_modified
 # _clear_texture_search
 # _compress_texture
+# _confirm_discard
 # _convert_texture
 # _copy_texture
 # _create_blank_texture
@@ -148,7 +151,6 @@ from PyQt6.QtGui import QFont, QImage, QPixmap
 from PyQt6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidgetItem, QMessageBox, QPushButton, QRadioButton, QSlider, QSpinBox, QTableWidgetItem, QTextEdit, QVBoxLayout
 from apps.components.Txd_Editor.depends.txd_ui_func import App_name
 from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow
-from apps.methods.txd_dxt_encode import _encode_dxt1
 from apps.methods.txd_versions import detect_txd_version, get_game_from_version, get_platform_name, get_version_capabilities, is_bumpmap_supported, validate_txd_format
 from apps.methods.img_factory_settings import get_user_config_dir
 
@@ -1544,8 +1546,10 @@ class TXDLogicMixin: #vers 1
             QMessageBox.information(self, "Success",
                 f"Created new texture:\n{texture_name}\nSize: {width}x{height}")
 
-    def _create_new_txd(self): #vers 1
+    def _create_new_txd(self): #vers 2
         """Create a new empty TXD file"""
+        if not self._confirm_discard():
+            return
         name, ok = QInputDialog.getText(self, "New TXD", "Enter TXD filename (without .txd):")
         if ok and name:
             if not name.lower().endswith('.txd'):
@@ -1556,6 +1560,7 @@ class TXDLogicMixin: #vers 1
             self.current_txd_data = self._create_empty_txd_data()
             self.texture_list = []
             self.texture_table.setRowCount(0)
+            self._clear_modified()
 
             self.setWindowTitle(f"TXD Workshop: {name}")
             self.save_txd_btn.setEnabled(True)
@@ -1803,8 +1808,9 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Delete Error", f"Failed to delete: {str(e)}")
 
-    def _mark_as_modified(self): #vers 1
+    def _mark_as_modified(self): #vers 2
         """Mark the TXD as modified and enable save button"""
+        self._txd_modified = True
         self.save_txd_btn.setEnabled(True)
         self.save_txd_btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;")
         current_title = self.windowTitle()
@@ -2484,11 +2490,11 @@ class TXDLogicMixin: #vers 1
 
         dialog.exec()
 
-    def _on_txd_selected(self, item): #vers 2
+    def _on_txd_selected(self, item): #vers 3
         """Handle TXD file selection"""
         try:
             entry = item.data(Qt.ItemDataRole.UserRole)
-            if entry:
+            if entry and self._confirm_discard():
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Loading TXD: {entry.name} offset={hex(entry.offset)} size={entry.size}")
                 txd_data = self._extract_txd_from_img(entry)
@@ -2517,7 +2523,7 @@ class TXDLogicMixin: #vers 1
                 self.main_window.log_message(f"Extract error: {str(e)}")
             return None
 
-    def _load_txd_textures(self, txd_data, txd_name): #vers 15
+    def _load_txd_textures(self, txd_data, txd_name): #vers 16
         """Load textures from TXD data with detailed structural parsing, log output, and granular control"""
         try:
             from PyQt6.QtWidgets import (QProgressDialog, QMessageBox, QDialog,
@@ -2608,8 +2614,7 @@ class TXDLogicMixin: #vers 1
             log("")
             log("PHASE 1: FORMAT DETECTION")
             log("-" * 80)
-            if self.txd_version_id == 0:
-                self._detect_txd_info(txd_data)
+            self._detect_txd_info(txd_data)
 
             self.current_txd_data = txd_data
             self.current_txd_name = txd_name
@@ -2912,6 +2917,7 @@ class TXDLogicMixin: #vers 1
                 tag_loaded_texture(tex)
                 self.texture_list.append(tex)
                 self._add_texture_to_table(tex)
+            self._clear_modified()
 
             for row in range(self.texture_table.rowCount()):
                 self.texture_table.setRowHeight(row, 100)
@@ -3565,92 +3571,63 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to uncompress: {str(e)}")
 
-    def _rebuild_txd_data(self): #vers 6
-        """Rebuild TXD data with modified texture names and properties"""
+    def _rebuild_txd_data(self): #vers 7
+        """TXD bytes: original spliced with edits, or new file. Error in _rebuild_error."""
+        from apps.methods.txd_splice import rebuild_txd
+        self._rebuild_error = ''
         try:
             if not self.current_txd_data or len(self.current_txd_data) < 28:
-                return self._build_new_txd_data()     # new TXD, no original file
-
-            # Read original header to preserve version
-            original_header = bytearray(self.current_txd_data[:28])
-
-            # Extract version info if not already detected
+                return self._build_new_txd_data()
             if self.txd_version_id == 0:
                 self._detect_txd_info(self.current_txd_data)
-
-            # Check if we have a target version from save_txd_file
-            target_version = self.txd_version_id
-            target_device = self.txd_device_id
-
-            if hasattr(self, '_save_target_version') and hasattr(self, '_save_target_device'):
-                target_version = self._save_target_version
-                target_device = self._save_target_device
-
-            # Update header if converting to different version
-            if target_version != self.txd_version_id or target_device != self.txd_device_id:
-                import struct
-                # Update RenderWare version (header offset 8, struct offset 20)
-                struct.pack_into('<I', original_header, 8, target_version)   # dict header version
-                struct.pack_into('<I', original_header, 20, target_version)  # dict struct version
-
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    from apps.methods.txd_versions import get_version_string
-                    self.main_window.log_message(
-                        f"Converting to {get_version_string(target_version, target_device)}"
-                    )
-            else:
-                # Log rebuild info with original version
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(
-                        f"Rebuilding TXD with version: {self.txd_version_str}"
-                    )
-
-            # Import struct for header manipulation
-            import struct
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rebuilding TXD...")
-
-            # If we have original data, update it in place with new header
-            if self.current_txd_data and len(self.current_txd_data) > 100:
-                # Splice from the original bytes so edits (rename/replace/
-                # delete/add) are kept and untouched textures stay byte-exact
-                from apps.methods.txd_splice import rebuild_txd
-                from apps.methods.txd_splice import build_d3d8_chunk
-                _rw = struct.unpack_from('<I', self.current_txd_data, 8)[0]
-                spliced = rebuild_txd(self.current_txd_data, self.texture_list,
-                                      lambda t: build_d3d8_chunk(t, _rw, _encode_dxt1)) \
-                    if getattr(self, 'texture_list', None) else None
-                base = spliced if spliced else self.current_txd_data
-                if spliced:
-                    original_header = bytearray(spliced[:28])
-                    if target_version != self.txd_version_id:
-                        struct.pack_into('<I', original_header, 8, target_version)   # dict header version
-                        struct.pack_into('<I', original_header, 20, target_version)  # dict struct version
-                rebuilt_data = bytes(original_header) + base[28:]
-
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Rebuilt: {len(rebuilt_data)} bytes")
-
-                return rebuilt_data
-
-            # No original data? Use serializer as fallback
-            if self.texture_list:
-                return self._build_new_txd_data()
-
-
+            ver = getattr(self, '_save_target_version', None)
+            dev = getattr(self, '_save_target_device', None)
+            if ver == self.txd_version_id:
+                ver = None
+            if dev == self.txd_device_id:
+                dev = None
+            data = rebuild_txd(self.current_txd_data, self.texture_list, ver, dev)
+            if not data:
+                raise ValueError("Original TXD data could not be read")
+            self._log(f"Rebuilt TXD: {len(data):,} bytes")
+            return data
         except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rebuild error: {str(e)}")
+            self._rebuild_error = str(e)
+            self._log(f"Rebuild error: {e}")
             return None
 
-    def _build_new_txd_data(self): #vers 1
+    def _build_new_txd_data(self): #vers 2
         """TXD bytes from scratch when there is no original file."""
-        from apps.methods.txd_splice import build_txd, build_d3d8_chunk
+        from apps.methods.txd_splice import build_txd
         if not self.texture_list:
-            return None
+            raise ValueError("No textures to save")
         ver = getattr(self, '_save_target_version', None) or self.txd_version_id or 0x1803FFFF
-        return build_txd(self.texture_list, ver, lambda t: build_d3d8_chunk(t, ver, _encode_dxt1))
+        return build_txd(self.texture_list, ver, getattr(self, '_save_target_device', None))
+
+    def _after_save(self, data: bytes): #vers 1
+        """Saved bytes become the new original; textures re-tagged, flag cleared."""
+        from apps.methods.txd_splice import tag_loaded_texture
+        self.current_txd_data = data
+        self._detect_txd_info(data)
+        for t in self.texture_list:
+            tag_loaded_texture(t)
+        self._clear_modified()
+
+    def _clear_modified(self): #vers 1
+        """Clear unsaved-changes flag, save button and title star."""
+        self._txd_modified = False
+        if hasattr(self, 'save_txd_btn'):
+            self.save_txd_btn.setEnabled(False)
+            self.save_txd_btn.setStyleSheet("")
+        self.setWindowTitle(self.windowTitle().replace("*", ""))
+
+    def _confirm_discard(self) -> bool: #vers 1
+        """True when there are no unsaved changes or the user discards them."""
+        if not getattr(self, '_txd_modified', False):
+            return True
+        r = QMessageBox.question(self, "Unsaved Changes",
+            "The current TXD has unsaved changes. Discard them?")
+        return r == QMessageBox.StandardButton.Yes
 
     def _get_format_description(self) -> str: #vers 1
         """Get human-readable format description for UI display"""
@@ -3938,7 +3915,7 @@ class TXDLogicMixin: #vers 1
                 if removed_bumpmaps > 0:
                     self.main_window.log_message(f"Removed {removed_bumpmaps} bumpmaps (GTA III doesn't support bumpmaps)")
 
-    def _save_as_txd_file(self): #vers 5
+    def _save_as_txd_file(self): #vers 6
         """Save as standalone TXD file - respects save location setting"""
         import os
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
@@ -3986,7 +3963,7 @@ class TXDLogicMixin: #vers 1
             modified_txd_data = self._rebuild_txd_data()
 
             if not modified_txd_data:
-                QMessageBox.critical(self, "Error", "Failed to rebuild TXD data")
+                QMessageBox.critical(self, "Error", f"Failed to rebuild TXD data:\n\n{self._rebuild_error}")
                 return
 
             # Write to file
@@ -4011,11 +3988,7 @@ class TXDLogicMixin: #vers 1
             QMessageBox.information(self, "Success",
                 f"TXD saved successfully!\n\n{file_path}")
 
-            # Clear modified state
-            self.save_txd_btn.setEnabled(False)
-            self.save_txd_btn.setStyleSheet("")
-            title = self.windowTitle().replace("*", "")
-            self.setWindowTitle(title)
+            self._after_save(modified_txd_data)
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save TXD:\n\n{str(e)}")
@@ -4031,7 +4004,7 @@ class TXDLogicMixin: #vers 1
             # IMG-based TXD save with version selector
             return self._save_txd_to_img_with_version_selector()
 
-    def _save_txd_file(self): #vers 3
+    def _save_txd_file(self): #vers 4
         """Save TXD file with detailed structural logging"""
         if not self.current_txd_path and not self.current_txd_name:
             QMessageBox.warning(self, "No TXD", "No TXD file loaded")
@@ -4149,170 +4122,14 @@ class TXDLogicMixin: #vers 1
                 if not has_data:
                     raise Exception(f"Texture {tex_name} has no image data")
 
-            # Initialize serializer
             log("")
-            log("PHASE 2: INITIALIZING SERIALIZER")
+            log("PHASE 2: BUILDING TXD (unchanged textures copied, edits encoded)")
             log("-" * 80)
-            update_progress(10)
-
-            from apps.methods.txd_serializer import TXDSerializer
-            log("Loaded serializer from apps.methods.txd_serializer.py")
-
-            serializer = TXDSerializer()
-            log("Serializer initialized")
-
-            # Build texture sections
-            log("")
-            log(f"PHASE 3: BUILDING {len(self.texture_list)} TEXTURE NATIVE SECTIONS")
-            log("=" * 80)
-            update_progress(15)
-
-            texture_sections = []
-
-            for idx, texture in enumerate(self.texture_list):
-                texture_progress = 15 + int((idx / len(self.texture_list)) * 50)
-
-                tex_name = texture.get('name', f'texture_{idx}')
-                tex_width = texture.get('width', 0)
-                tex_height = texture.get('height', 0)
-                tex_format = texture.get('format', 'Unknown')
-                has_alpha = texture.get('has_alpha', False)
-                alpha_name = texture.get('alpha_name', '')
-
-                log("")
-                log(f"[TEXTURE {idx+1}/{len(self.texture_list)}]")
-                log("-" * 80)
-                log(f"  Name         : {tex_name}")
-                log(f"  Dimensions   : {tex_width}x{tex_height}")
-                log(f"  Format       : {tex_format}")
-                log(f"  Depth        : {texture.get('depth', 32)}-bit")
-                log(f"  Alpha        : {has_alpha}")
-                if has_alpha:
-                    log(f"  Alpha Name   : {alpha_name}")
-
-                # Check data preservation
-                has_compressed = bool(texture.get('compressed_data'))
-                has_original_bgra = bool(texture.get('original_bgra_data'))
-                has_rgba = bool(texture.get('rgba_data'))
-
-                log(f"  Data Sources :")
-                log(f"    Compressed     : {'YES' if has_compressed else 'NO'} ({len(texture.get('compressed_data', b'')):,} bytes)")
-                log(f"    Original BGRA  : {'YES' if has_original_bgra else 'NO'} ({len(texture.get('original_bgra_data', b'')):,} bytes)")
-                log(f"    RGBA (display) : {'YES' if has_rgba else 'NO'} ({len(texture.get('rgba_data', b'')):,} bytes)")
-
-                # Mipmaps
-                mipmap_levels = texture.get('mipmap_levels', [])
-                if mipmap_levels:
-                    log(f"  Mipmaps      : {len(mipmap_levels)} levels")
-                    for level_idx, level in enumerate(mipmap_levels):
-                        level_width = level.get('width', 0)
-                        level_height = level.get('height', 0)
-                        level_has_compressed = bool(level.get('compressed_data'))
-                        level_has_bgra = bool(level.get('original_bgra_data'))
-                        log(f"    Level {level_idx}: {level_width}x{level_height} | Compressed: {level_has_compressed} | BGRA: {level_has_bgra}")
-
-                # Bumpmap
-                if texture.get('has_bumpmap', False):
-                    bumpmap_size = len(texture.get('bumpmap_data', b''))
-                    bumpmap_type = texture.get('bumpmap_type', 0)
-                    type_names = ['Height', 'Normal', 'Combined']
-                    log(f"  Bumpmap      : {type_names[bumpmap_type]} ({bumpmap_size:,} bytes)")
-
-                # Reflection
-                if texture.get('has_reflection', False):
-                    reflection_size = len(texture.get('reflection_map', b''))
-                    fresnel_size = len(texture.get('fresnel_map', b''))
-                    log(f"  Reflection   : {reflection_size:,} bytes")
-                    if fresnel_size:
-                        log(f"  Fresnel      : {fresnel_size:,} bytes")
-
-                update_progress(texture_progress, f"  Building texture native section...")
-
-                # Build texture native
-                try:
-                    tex_section = serializer._build_texture_native(texture)
-                    texture_sections.append(tex_section)
-
-                    log(f"  Section Size : {len(tex_section):,} bytes")
-                    log(f"  Result       : SUCCESS")
-
-                except Exception as e:
-                    log(f"  Result       : FAILED - {str(e)}")
-                    raise Exception(f"Failed to build texture {tex_name}: {str(e)}")
-
-            # Build TXD dictionary
-            log("")
-            log("PHASE 4: BUILDING TXD DICTIONARY STRUCTURE")
-            log("=" * 80)
-            update_progress(65)
-
-            log("")
-            log("Building main TXD dictionary header...")
-
-            # Calculate sizes
-            struct_size = 4  # texture count (u32)
-            struct_data = struct.pack('<I', len(self.texture_list))
-
-            log(f"  Struct Section:")
-            log(f"    Type         : 0x01 (Struct)")
-            log(f"    Size         : {struct_size} bytes")
-            log(f"    Data         : Texture count = {len(self.texture_list)}")
-
-            total_size = 12 + struct_size + 12  # struct header + data + extension header
-            for tex_section in texture_sections:
-                total_size += len(tex_section)
-
-            log(f"  Main Dictionary:")
-            log(f"    Type         : 0x16 (Texture Dictionary)")
-            log(f"    Total Size   : {total_size:,} bytes")
-            log(f"    Version      : 0x{serializer.RW_VERSION:08X}")
-
-            update_progress(70, "Assembling TXD structure...")
-
-            # Build complete TXD
-            result = bytearray()
-
-            # Write Texture Dictionary header
-            log("")
-            log("Writing TXD sections:")
-            log(f"  [Offset 0] Main TXD Dictionary header (12 bytes)")
-            result.extend(serializer._write_section_header(
-                serializer.SECTION_TEXTURE_DICTIONARY,
-                total_size - 12,
-                serializer.RW_VERSION
-            ))
-
-            # Write Struct section
-            log(f"  [Offset {len(result)}] Struct section header (12 bytes)")
-            result.extend(serializer._write_section_header(
-                serializer.SECTION_STRUCT,
-                struct_size,
-                serializer.RW_VERSION
-            ))
-
-            log(f"  [Offset {len(result)}] Struct data ({struct_size} bytes)")
-            result.extend(struct_data)
-
-            # Write texture sections
-            for idx, tex_section in enumerate(texture_sections):
-                update_progress(70 + int((idx / len(texture_sections)) * 20))
-                tex_name = self.texture_list[idx].get('name', f'texture_{idx}')
-                log(f"  [Offset {len(result)}] Texture {idx+1} ({tex_name}): {len(tex_section):,} bytes")
-                result.extend(tex_section)
-
-            # Write Extension section
-            log(f"  [Offset {len(result)}] Extension section (12 bytes)")
-            result.extend(serializer._write_section_header(
-                serializer.SECTION_EXTENSION,
-                0,
-                serializer.RW_VERSION
-            ))
-
-            # Splice: untouched textures byte-exact, edited ones re-encoded
+            update_progress(30)
             spliced = self._rebuild_txd_data()
             if not spliced:
-                raise RuntimeError("TXD rebuild failed")
-            log(f"  Spliced output replaces serializer output ({len(spliced):,} bytes)")
+                raise RuntimeError(f"TXD rebuild failed: {self._rebuild_error}")
+            log(f"  Built {len(spliced):,} bytes")
             result = bytearray(spliced)
 
             # Write to file
@@ -4374,12 +4191,7 @@ class TXDLogicMixin: #vers 1
             # Update internal state
             self.current_txd_path = file_path
             self.current_txd_name = os.path.basename(file_path)
-
-            # Clear modified flag
-            self.save_txd_btn.setEnabled(False)
-            self.save_txd_btn.setStyleSheet("")
-            title = self.windowTitle().replace("*", "")
-            self.setWindowTitle(title)
+            self._after_save(bytes(result))
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Saved TXD: {file_path} ({len(self.texture_list)} textures)")
@@ -4399,7 +4211,7 @@ class TXDLogicMixin: #vers 1
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD save error: {str(e)}")
 
-    def _save_as_txd_file_with_version_selector(self): #vers 2
+    def _save_as_txd_file_with_version_selector(self): #vers 3
         """Save standalone TXD with version selector"""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         import os
@@ -4455,7 +4267,7 @@ class TXDLogicMixin: #vers 1
             modified_txd_data = self._rebuild_txd_data()
 
             if not modified_txd_data:
-                QMessageBox.critical(self, "Error", "Failed to rebuild TXD data")
+                QMessageBox.critical(self, "Error", f"Failed to rebuild TXD data:\n\n{self._rebuild_error}")
                 return
 
             # Write to file
@@ -4481,12 +4293,7 @@ class TXDLogicMixin: #vers 1
             QMessageBox.information(self, "Success",
                 f"TXD saved successfully!\n\n{file_path}\n\nVersion: 0x{target_version:08X}")
 
-            # Clear modified state
-            if hasattr(self, 'save_txd_btn'):
-                self.save_txd_btn.setEnabled(False)
-                self.save_txd_btn.setStyleSheet("")
-            title = self.windowTitle().replace("*", "")
-            self.setWindowTitle(title)
+            self._after_save(modified_txd_data)
 
             # Clean up
             if hasattr(self, '_save_target_version'):
@@ -4497,7 +4304,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save TXD:\n\n{str(e)}")
 
-    def _save_txd_to_img_with_version_selector(self): #vers 1
+    def _save_txd_to_img_with_version_selector(self): #vers 2
         """Save TXD back to IMG with version selector"""
         from PyQt6.QtWidgets import QMessageBox
 
@@ -4524,7 +4331,7 @@ class TXDLogicMixin: #vers 1
             modified_txd_data = self._rebuild_txd_data()
 
             if not modified_txd_data:
-                QMessageBox.critical(self, "Error", "Failed to rebuild TXD data")
+                QMessageBox.critical(self, "Error", f"Failed to rebuild TXD data:\n\n{self._rebuild_error}")
                 return
 
             # Find entry in IMG
@@ -4558,12 +4365,7 @@ class TXDLogicMixin: #vers 1
             QMessageBox.information(self, "Success",
                 f"TXD updated in IMG archive!\n\n{self.current_txd_name}\nVersion: 0x{target_version:08X}")
 
-            # Clear modified state
-            if hasattr(self, 'save_txd_btn'):
-                self.save_txd_btn.setEnabled(False)
-                self.save_txd_btn.setStyleSheet("")
-            title = self.windowTitle().replace("*", "")
-            self.setWindowTitle(title)
+            self._after_save(modified_txd_data)
 
             # Clean up
             if hasattr(self, '_save_target_version'):
@@ -4679,7 +4481,7 @@ class TXDLogicMixin: #vers 1
 
         QMessageBox.information(self, "Alpha Validity Check", result_text)
 
-    def _parse_single_texture(self, txd_data, offset, index, rw_version=0x1803FFFF): #vers 6
+    def _parse_single_texture(self, txd_data, offset, index, rw_version=0x1803FFFF): #vers 7
         """
         Parse single texture from TXD with bumpmap and reflection support
         ADDED: Extract separate alpha mask for display switching
@@ -4723,9 +4525,12 @@ class TXDLogicMixin: #vers 1
                 return tex
 
             pos = struct_offset + 12
+            struct_end = pos + struct_size
 
             # Read 88-byte header
             platform_id, filter_mode, uv_addressing = struct.unpack('<I2B', txd_data[pos:pos+6])[:3]
+            tex['platform_id'] = platform_id
+            tex['filter_flags'] = struct.unpack_from('<I', txd_data, pos + 4)[0]
 
             #    Xbox (platform_id == 5): delegate to Xbox parser               
             if platform_id == 5:
@@ -4915,89 +4720,55 @@ class TXDLogicMixin: #vers 1
                             tex['alpha_mask'] = bytes(alpha_mask)
                     w = max(1, w//2); h = max(1, h//2)
             else:
+                # PC (D3D8/D3D9): palette once, then per level u32 size + data
+                pal_data = b''
+                if fmt in ('PAL8', 'PAL4'):
+                    pal_size = 1024 if fmt == 'PAL8' else (64 if depth == 4 else 128)
+                    pal_data = txd_data[pos:pos + pal_size]
+                    pos += pal_size
                 w, h = width, height
                 for level in range(num_levels):
-                    # Calculate expected size for this mipmap level
                     if 'DXT1' in fmt:
                         expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 8
                     elif 'DXT' in fmt:
                         expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 16
                     elif fmt in ('ARGB8888', 'A8L8'):
-                        expected = w * h * 4
+                        expected = w * h * (4 if fmt == 'ARGB8888' else 2)
                     elif fmt == 'RGB888':
                         expected = w * h * (4 if tex.get('depth', 0) == 32 else 3)
-                    elif fmt in ('RGB565', 'ARGB1555', 'ARGB4444', 'RGB555'):
-                        expected = w * h * 2
-                    elif fmt == 'LUM8':
+                    elif fmt == 'LUM8' or fmt == 'PAL8':
                         expected = w * h
-                    elif fmt == 'PAL8':
-                        # Layout: palette(1024 raw) + pixel_size(4) + pixels(w*h)
-                        # DragonFF: read_palette has no prefix; read_pixels has 4-byte prefix
-                        expected = 1024 + 4 + w * h
                     elif fmt == 'PAL4':
-                        # Layout: palette(64 or 128 raw) + pixel_size(4) + pixels((w*h+1)//2)
-                        _pal4_sz = 64 if depth == 4 else 128
-                        expected = _pal4_sz + 4 + (w * h + 1) // 2
+                        expected = (w * h + 1) // 2
                     else:
                         expected = w * h * 2
-
-                    # Read declared data_size if present, use it if sane
-                    if has_data_size_field:
-                        if pos + 4 > len(txd_data):
-                            break
-                        declared = struct.unpack('<I', txd_data[pos:pos+4])[0]
-                        pos += 4
-                        size = declared if (expected // 2 <= declared <= expected * 4) else expected
-                    else:
-                        size = expected
-
-                    lw, lh = w, h
-
+                    if pos + 4 > struct_end:
+                        break
+                    declared = struct.unpack('<I', txd_data[pos:pos+4])[0]
+                    pos += 4
+                    size = declared if 0 < declared and pos + declared <= struct_end else expected
                     if pos + size > len(txd_data):
                         break
-
                     level_data = txd_data[pos:pos+size]
                     pos += size
 
-                    # Decompress if needed
                     lw = max(1, width >> level)
                     lh = max(1, height >> level)
-                    if 'DXT' in tex['format']:
-                        rgba_data = self._decompress_texture(level_data, lw, lh, tex['format'])
-                    elif tex['format'] in ('PAL8', 'PAL4'):
+                    if 'DXT' in fmt:
+                        rgba_data = self._decompress_texture(level_data, lw, lh, fmt)
+                    elif fmt in ('PAL8', 'PAL4'):
                         # GTA3/VC palettes are RGBA; SA (>=0x1803FFFF) palettes are BGRA
-                        # palette_is_bgra stored during header parse
-                        pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
-                        palette_is_bgra = tex.get('palette_is_bgra', True)
-                        # DragonFF: pal8_noalpha when has_alpha()==False
-                        # raster_format_type in (888, 565, 555, LUM) -> no alpha
                         _NO_ALPHA_TYPES = {0x0600, 0x0200, 0x0A00, 0x0400}  # 888,565,555,LUM
-                        _pix_type = tex.get('raster_format_flags', 0) & 0x0F00
-                        force_opaque_pal = _pix_type in _NO_ALPHA_TYPES
-                        # PAL8=1024 bytes, PAL4=64 bytes (depth==4) or 128 bytes (depth!=4)
-                        # Matches DragonFF read_palette() logic
-                        if tex['format'] == 'PAL8':
-                            pal_size = 1024
-                        elif tex.get('depth', 4) == 4:
-                            pal_size = 64
-                        else:
-                            pal_size = 128
-                        if len(level_data) >= pal_size:
-                            pal_data = level_data[:pal_size]
-                            # Skip the 4-byte pixel data size prefix that follows palette
-                            # (DragonFF read_pixels always reads size-prefixed; palette is raw)
-                            pix_offset = pal_size + 4
-                            pix_data = level_data[pix_offset:]
-                            rgba_data = self._decompress_uncompressed(
-                                pix_data, lw, lh, tex['format'],
-                                palette=pal_data, palette_entry_fmt=pal_entry_fmt,
-                                palette_is_bgra=palette_is_bgra,
-                                force_opaque=force_opaque_pal)
-                        else:
-                            rgba_data = b'\x00' * (lw * lh * 4)
+                        force_opaque_pal = (raster_format_flags & 0x0F00) in _NO_ALPHA_TYPES
+                        rgba_data = self._decompress_uncompressed(
+                            level_data, lw, lh, fmt,
+                            palette=pal_data,
+                            palette_entry_fmt=tex.get('palette_entry_format', 'ARGB8888'),
+                            palette_is_bgra=tex.get('palette_is_bgra', True),
+                            force_opaque=force_opaque_pal)
                     else:
                         rgba_data = self._decompress_uncompressed(
-                            level_data, lw, lh, tex['format'],
+                            level_data, lw, lh, fmt,
                             depth=tex.get('depth', 0),
                             force_opaque=tex.get('force_opaque', False))
 
@@ -5028,8 +4799,8 @@ class TXDLogicMixin: #vers 1
                     w = max(1, w // 2)
                     h = max(1, h // 2)
 
-            # Read bumpmap data (if present)
-            if tex['has_bumpmap'] and pos + 5 <= len(txd_data):
+            # Legacy IMG Factory bumpmap inside the struct (old saves)
+            if tex['has_bumpmap'] and pos + 5 <= struct_end:
                 try:
                     bumpmap_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
                     pos += 4
@@ -5037,7 +4808,7 @@ class TXDLogicMixin: #vers 1
                     bumpmap_type = struct.unpack('<B', txd_data[pos:pos+1])[0]
                     pos += 1
 
-                    if pos + bumpmap_size <= len(txd_data):
+                    if pos + bumpmap_size <= struct_end:
                         tex['bumpmap_data'] = txd_data[pos:pos+bumpmap_size]
                         tex['bumpmap_type'] = bumpmap_type
                         pos += bumpmap_size
@@ -5052,14 +4823,14 @@ class TXDLogicMixin: #vers 1
                     if self.main_window and hasattr(self.main_window, 'log_message'):
                         self.main_window.log_message(f"  Bumpmap read error: {str(e)}")
 
-            # Read reflection map data (if present)
-            if pos + 8 <= len(txd_data):
+            # Legacy reflection map inside the struct (old saves)
+            if pos + 8 <= struct_end:
                 try:
                     reflection_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
                     pos += 4
 
                     expected_reflection_size = width * height * 3
-                    if reflection_size == expected_reflection_size and pos + reflection_size <= len(txd_data):
+                    if reflection_size == expected_reflection_size and pos + reflection_size <= struct_end:
                         tex['reflection_map'] = txd_data[pos:pos+reflection_size]
                         tex['has_reflection'] = True
                         pos += reflection_size
@@ -5069,7 +4840,7 @@ class TXDLogicMixin: #vers 1
                             pos += 4
 
                             expected_fresnel_size = width * height
-                            if fresnel_size == expected_fresnel_size and pos + fresnel_size <= len(txd_data):
+                            if fresnel_size == expected_fresnel_size and pos + fresnel_size <= struct_end:
                                 tex['fresnel_map'] = txd_data[pos:pos+fresnel_size]
                                 pos += fresnel_size
 
@@ -5080,6 +4851,14 @@ class TXDLogicMixin: #vers 1
                                     )
                 except Exception as e:
                     pass
+
+            # IMG Factory bumpmap/reflection plugin in the extension chunk
+            if struct_end + 12 <= len(txd_data) and \
+                    struct.unpack_from('<I', txd_data, struct_end)[0] == 0x03:
+                from apps.methods.txd_splice import read_bump_ext
+                ext_size = struct.unpack_from('<I', txd_data, struct_end + 4)[0]
+                tex.update(read_bump_ext(txd_data[struct_end + 12:struct_end + 12 + ext_size]))
+            tex['has_bumpmap'] = bool(tex.get('bumpmap_data'))
 
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -6048,9 +5827,11 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open IMG: {str(e)}")
 
-    def open_txd_file(self, file_path=None): #vers 3
+    def open_txd_file(self, file_path=None): #vers 4
         """Open standalone TXD file with version detection"""
         try:
+            if not self._confirm_discard():
+                return
             if not file_path:
                 file_path, _ = QFileDialog.getOpenFileName(
                     self, "Open TXD File", "",
@@ -6310,17 +6091,14 @@ class TXDLogicMixin: #vers 1
         return (t.get('rgba_data', b''), t.get('width', 0),
                 t.get('height', 0), t.get('name', 'texture'))
 
-    def _set_current_rgba(self, rgba: bytes):  #vers 1
+    def _set_current_rgba(self, rgba: bytes):  #vers 2
         """Replace selected texture rgba_data and refresh preview."""
         t = getattr(self, 'selected_texture', None)
         if not t:
             return
         t['rgba_data'] = rgba
         t['modified']  = True
-        # Also update the texture_list entry
-        row = self.texture_table.currentRow() if hasattr(self, 'texture_table') else -1
-        if row >= 0 and hasattr(self, 'texture_list') and row < len(self.texture_list):
-            self.texture_list[row]['rgba_data'] = rgba
+        self._mark_as_modified()
         # Refresh preview using the existing display pipeline
         try:
             self._update_texture_info(t)
@@ -6670,7 +6448,7 @@ class TXDLogicMixin: #vers 1
 
         self._log(f"Mobile DB: {db.name}.{db.platform} — {len(real_textures)} textures loaded")
 
-    def _open_ps2_txd(self, file_path: str): #vers 2
+    def _open_ps2_txd(self, file_path: str): #vers 3
         """Open a GTA PS2 TXD (all games/regions — device_id 0 or 6).
 
         Populates self.texture_list and texture_table exactly like a regular
@@ -6695,7 +6473,10 @@ class TXDLogicMixin: #vers 1
 
             depth_fmt = {4: "PSMT4", 8: "PSMT8", 16: "PSMCT16", 32: "PSMCT32"}
 
-            # Clear existing texture data
+            # Clear existing texture data; file bytes kept for rename saves
+            from apps.methods.txd_splice import tag_loaded_texture
+            self.current_txd_data = data
+            self._detect_txd_info(data)
             self.texture_list = []
             if hasattr(self, 'texture_table'):
                 self.texture_table.setRowCount(0)
@@ -6726,6 +6507,7 @@ class TXDLogicMixin: #vers 1
                     'platform':             'PS2',
                     'compressed_size':      tex.get('pixels_size', 0),
                 }
+                tag_loaded_texture(tex_entry)
                 self.texture_list.append(tex_entry)
                 if hasattr(self, '_add_texture_to_table'):
                     self._add_texture_to_table(tex_entry)

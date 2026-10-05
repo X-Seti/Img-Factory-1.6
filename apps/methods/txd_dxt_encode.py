@@ -1,201 +1,107 @@
-#this belongs in apps/methods/txd_dxt_encode.py - Version: 1
-# X-Seti - September30 2026 - IMG Factory 1.6 - DXT encoders
+#this belongs in apps/methods/txd_dxt_encode.py - Version: 2
+# X-Seti - October05 2026 - IMG Factory 1.6 - DXT encoders
 
 """
-DXT1 / DXT5 block encoders for TXD and Asset Workshop.
+DXT1 / DXT3 / DXT5 block encoders (numpy) for TXD, Asset and Radar saves.
 """
 
 ##Methods list -
-# _565_to_rgb
-# _best_color_index
-# _encode_alpha_block
+# _blocks
+# _colour_blocks
 # _encode_dxt1
+# _encode_dxt3
 # _encode_dxt5
-# _rgb_to_565
 
-import struct
+import numpy as np
 
-__all__ = ['_rgb_to_565', '_565_to_rgb', '_best_color_index', '_encode_dxt1', '_encode_alpha_block', '_encode_dxt5']
+__all__ = ['_encode_dxt1', '_encode_dxt3', '_encode_dxt5']
 
-
-def _rgb_to_565(r, g, b):  #vers 1
-    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
+_LUM = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
 
-def _565_to_rgb(c):  #vers 1
-    r = ((c >> 11) & 0x1F) << 3
-    g = ((c >> 5) & 0x3F) << 2
-    b = (c & 0x1F) << 3
-    return r, g, b
+def _blocks(rgba_bytes, width, height): #vers 1
+    """RGBA bytes -> (n_blocks, 16, 4) uint8, edges repeated to 4x4."""
+    a = np.frombuffer(bytes(rgba_bytes[:width * height * 4]), dtype=np.uint8).reshape(height, width, 4)
+    ph, pw = (-height) % 4, (-width) % 4
+    if ph or pw:
+        a = np.pad(a, ((0, ph), (0, pw), (0, 0)), mode='edge')
+    by, bx = a.shape[0] // 4, a.shape[1] // 4
+    return a.reshape(by, 4, bx, 4, 4).transpose(0, 2, 1, 3, 4).reshape(by * bx, 16, 4)
 
 
-def _best_color_index(palette, r, g, b):  #vers 1
-    best = 0
-    best_dist = None
-    for i, (pr, pg, pb) in enumerate(palette):
-        dr = pr - r
-        dg = pg - g
-        db = pb - b
-        dist = dr*dr + dg*dg + db*db
-        if best_dist is None or dist < best_dist:
-            best_dist = dist
-            best = i
-    return best
+def _colour_blocks(blk, punch=False): #vers 1
+    """8-byte colour blocks; punch=True gives 1-bit alpha (DXT1A)."""
+    rgb = blk[:, :, :3].astype(np.int32)
+    f = rgb.astype(np.float32)
+    cen = f - f.mean(1, keepdims=True)
+    cov = np.einsum('nki,nkj->nij', cen, cen)
+    axis = np.broadcast_to(_LUM, (len(f), 3)).copy()
+    for _ in range(6):                                   # power iteration: principal axis
+        axis = np.einsum('nij,nj->ni', cov, axis)
+        axis /= np.maximum(np.linalg.norm(axis, axis=1, keepdims=True), 1e-6)
+    axis[np.abs(axis).sum(1) < 1e-3] = _LUM
+    proj = np.einsum('nki,ni->nk', f, axis)
+    clear = (blk[:, :, 3] < 128) if punch else np.zeros(blk.shape[:2], dtype=bool)
+    hi = rgb[np.arange(len(rgb)), np.where(clear, -np.inf, proj).argmax(1)]
+    lo = rgb[np.arange(len(rgb)), np.where(clear, np.inf, proj).argmin(1)]
+
+    def to565(c):
+        return ((c[:, 0] >> 3) << 11) | ((c[:, 1] >> 2) << 5) | (c[:, 2] >> 3)
+
+    c0, c1 = to565(hi), to565(lo)
+    three = clear.any(1)                                 # blocks needing 3-colour mode
+    swap = np.where(three, c0 > c1, c0 < c1)
+    c0, c1 = np.where(swap, c1, c0), np.where(swap, c0, c1)
+
+    def expand(c):
+        r, g, b = (c >> 11) & 31, (c >> 5) & 63, c & 31
+        return np.stack([(r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2)], 1)
+
+    p0, p1 = expand(c0), expand(c1)
+    four = np.stack([p0, p1, (2 * p0 + p1) // 3, (p0 + 2 * p1) // 3], 1)         # (n,4,3)
+    tri = np.stack([p0, p1, (p0 + p1) // 2, np.full_like(p0, 9000)], 1)        # idx 3 = clear
+    pal = np.where(three[:, None, None], tri, four)
+    d = ((rgb[:, :, None, :] - pal[:, None, :, :]) ** 2).sum(-1)                 # (n,16,4)
+    idx = d.argmin(-1).astype(np.uint32)
+    idx[(c0 == c1) & ~three] = 0
+    idx[clear] = 3
+    bits = (idx << (2 * np.arange(16, dtype=np.uint32))).sum(1, dtype=np.uint64).astype(np.uint32)
+    out = np.zeros((len(rgb), 8), dtype=np.uint8)
+    out[:, 0:2] = c0.astype('<u2').view(np.uint8).reshape(-1, 2)
+    out[:, 2:4] = c1.astype('<u2').view(np.uint8).reshape(-1, 2)
+    out[:, 4:8] = bits.astype('<u4').view(np.uint8).reshape(-1, 4)
+    return out
 
 
-def _encode_dxt1(rgba_bytes, width, height):  #vers 1
-    """Encode raw RGBA bytes (RGBA8888) into DXT1 bytes.
-    Simple block-wise encoder: select endpoints by luminance heuristic and assign indices.
-    """
-    blocks_x = (width + 3) // 4
-    blocks_y = (height + 3) // 4
-    out = bytearray()
-
-    for by in range(blocks_y):
-        for bx in range(blocks_x):
-            pixels = []
-            for py in range(4):
-                for px in range(4):
-                    x = bx*4 + px
-                    y = by*4 + py
-                    if x < width and y < height:
-                        idx = (y*width + x)*4
-                        r = rgba_bytes[idx]
-                        g = rgba_bytes[idx+1]
-                        b = rgba_bytes[idx+2]
-                    else:
-                        r = g = b = 0
-                    pixels.append((r,g,b))
-
-            lum = [0.2126*p[0] + 0.7152*p[1] + 0.0722*p[2] for p in pixels]
-            max_i = lum.index(max(lum))
-            min_i = lum.index(min(lum))
-            c0_rgb = pixels[max_i]
-            c1_rgb = pixels[min_i]
-
-            c0_565 = _rgb_to_565(*c0_rgb)
-            c1_565 = _rgb_to_565(*c1_rgb)
-
-            pr0 = _565_to_rgb(c0_565)
-            pr1 = _565_to_rgb(c1_565)
-            palette = [pr0, pr1]
-            if c0_565 > c1_565:
-                palette.append(((2*pr0[0]+pr1[0])//3, (2*pr0[1]+pr1[1])//3, (2*pr0[2]+pr1[2])//3))
-                palette.append(((pr0[0]+2*pr1[0])//3, (pr0[1]+2*pr1[1])//3, (pr0[2]+2*pr1[2])//3))
-            else:
-                palette.append(((pr0[0]+pr1[0])//2, (pr0[1]+pr1[1])//2, (pr0[2]+pr1[2])//2))
-                palette.append((0,0,0))
-
-            indices = 0
-            bit_pos = 0
-            for (r,g,b) in pixels:
-                idx = _best_color_index(palette, r, g, b)
-                indices |= (idx & 0x3) << bit_pos
-                bit_pos += 2
-
-            out.extend(struct.pack('<HHI', c0_565, c1_565, indices))
-
-    return bytes(out)
+def _encode_dxt1(rgba_bytes, width, height, alpha=False): #vers 2
+    """RGBA8888 bytes -> DXT1 bytes; alpha=True keeps 1-bit alpha."""
+    return _colour_blocks(_blocks(rgba_bytes, width, height), alpha).tobytes()
 
 
-def _encode_alpha_block(alpha_bytes):  #vers 1
-    """Encode 4x4 alpha block for DXT5.
-    alpha_bytes: list of 16 alpha values (0-255)
-    Returns 8 bytes: a0, a1, and 48-bit index stream (little-endian packed 3 bits per pixel)
-    """
-    a0 = max(alpha_bytes)
-    a1 = min(alpha_bytes)
-
-    # Build alpha palette (must match decoder exactly)
-    alpha_palette = [a0, a1]
-    if a0 > a1:
-        # 6 interpolated values at 1/7 .. 6/7
-        for i in range(1, 7):
-            alpha_palette.append(round(a0 * ((7-i)/7) + a1 * (i/7)))
-    else:
-        # 4 interpolated + hard 0 and 255
-        for i in range(1, 5):
-            alpha_palette.append(round(a0 * ((5-i)/5) + a1 * (i/5)))
-        alpha_palette.extend([0, 255])
-
-    # For each pixel, find best index (0..7)
-    indices = 0
-    bit_pos = 0
-    for a in alpha_bytes:
-        # find closest
-        best_i = 0
-        best_dist = None
-        for i, av in enumerate(alpha_palette):
-            dist = (av - a) * (av - a)
-            if best_dist is None or dist < best_dist:
-                best_dist = dist
-                best_i = i
-        indices |= (best_i & 0x7) << bit_pos
-        bit_pos += 3
-
-    # pack into 6 bytes little endian
-    idx_bytes = indices.to_bytes(6, 'little')
-    return bytes([a0, a1]) + idx_bytes
+def _encode_dxt3(rgba_bytes, width, height): #vers 1
+    """RGBA8888 bytes -> DXT3 bytes (4-bit explicit alpha)."""
+    blk = _blocks(rgba_bytes, width, height)
+    a4 = (blk[:, :, 3].astype(np.uint64) + 8) // 17
+    abits = (a4 << (4 * np.arange(16, dtype=np.uint64))).sum(1, dtype=np.uint64)
+    out = np.zeros((len(blk), 16), dtype=np.uint8)
+    out[:, 0:8] = abits.astype('<u8').view(np.uint8).reshape(-1, 8)
+    out[:, 8:16] = _colour_blocks(blk)
+    return out.tobytes()
 
 
-def _encode_dxt5(rgba_bytes, width, height):  #vers 1
-    """Encode raw RGBA8888 bytes into DXT5 bytes.
-    DXT5 block = 8 bytes alpha block + 8 bytes color block (same as DXT1 color block)
-    """
-    blocks_x = (width + 3) // 4
-    blocks_y = (height + 3) // 4
-    out = bytearray()
-
-    for by in range(blocks_y):
-        for bx in range(blocks_x):
-            alpha_vals = []
-            pixels_rgb = []
-            for py in range(4):
-                for px in range(4):
-                    x = bx*4 + px
-                    y = by*4 + py
-                    if x < width and y < height:
-                        idx = (y*width + x)*4
-                        r = rgba_bytes[idx]
-                        g = rgba_bytes[idx+1]
-                        b = rgba_bytes[idx+2]
-                        a = rgba_bytes[idx+3]
-                    else:
-                        r = g = b = a = 0
-                    pixels_rgb.append((r,g,b))
-                    alpha_vals.append(a)
-
-            # alpha block
-            alpha_block = _encode_alpha_block(alpha_vals)
-
-            # color block same as DXT1
-            lum = [0.2126*p[0] + 0.7152*p[1] + 0.0722*p[2] for p in pixels_rgb]
-            max_i = lum.index(max(lum))
-            min_i = lum.index(min(lum))
-            c0_rgb = pixels_rgb[max_i]
-            c1_rgb = pixels_rgb[min_i]
-            c0_565 = _rgb_to_565(*c0_rgb)
-            c1_565 = _rgb_to_565(*c1_rgb)
-            pr0 = _565_to_rgb(c0_565)
-            pr1 = _565_to_rgb(c1_565)
-            palette = [pr0, pr1]
-            if c0_565 > c1_565:
-                palette.append(((2*pr0[0]+pr1[0])//3, (2*pr0[1]+pr1[1])//3, (2*pr0[2]+pr1[2])//3))
-                palette.append(((pr0[0]+2*pr1[0])//3, (pr0[1]+2*pr1[1])//3, (pr0[2]+2*pr1[2])//3))
-            else:
-                palette.append(((pr0[0]+pr1[0])//2, (pr0[1]+pr1[1])//2, (pr0[2]+pr1[2])//2))
-                palette.append((0,0,0))
-
-            indices = 0
-            bit_pos = 0
-            for (r,g,b) in pixels_rgb:
-                idx = _best_color_index(palette, r, g, b)
-                indices |= (idx & 0x3) << bit_pos
-                bit_pos += 2
-
-            color_bytes = struct.pack('<HHI', c0_565, c1_565, indices)
-
-            out.extend(alpha_block)
-            out.extend(color_bytes)
-
-    return bytes(out)
+def _encode_dxt5(rgba_bytes, width, height): #vers 2
+    """RGBA8888 bytes -> DXT5 bytes (interpolated alpha)."""
+    blk = _blocks(rgba_bytes, width, height)
+    a = blk[:, :, 3].astype(np.int32)
+    a0, a1 = a.max(1), a.min(1)
+    w0 = np.array([7, 0, 6, 5, 4, 3, 2, 1], dtype=np.int32)
+    pal = (w0[None, :] * a0[:, None] + (7 - w0[None, :]) * a1[:, None] + 3) // 7    # 8-value mode
+    idx = np.abs(a[:, :, None] - pal[:, None, :]).argmin(-1).astype(np.uint64)
+    idx[a0 == a1] = 0
+    bits = (idx << (3 * np.arange(16, dtype=np.uint64))).sum(1, dtype=np.uint64)
+    out = np.zeros((len(blk), 16), dtype=np.uint8)
+    out[:, 0] = a0.astype(np.uint8)
+    out[:, 1] = a1.astype(np.uint8)
+    out[:, 2:8] = bits.astype('<u8').view(np.uint8).reshape(-1, 8)[:, :6]
+    out[:, 8:16] = _colour_blocks(blk)
+    return out.tobytes()
