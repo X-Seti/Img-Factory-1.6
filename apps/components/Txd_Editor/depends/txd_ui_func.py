@@ -626,7 +626,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 16
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 17
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -851,7 +851,7 @@ class TXDUIMixin: #vers 1
              self._open_mipmap_manager,  enabled=False, attr='show_mipmaps_btn')
         _act(tb_mips, "Generate Mipmaps", self.icon_factory.generate_mipmaps_icon,
              self._create_mipmaps_dialog, enabled=False, attr='create_mipmaps_btn')
-        _act(tb_mips, "Remove Mipmaps", self.icon_factory.delete_icon,
+        _act(tb_mips, "Remove Mipmaps", self.icon_factory.remove_mipmaps_icon,
              self._remove_mipmaps,       enabled=False, attr='remove_mipmaps_btn')
         tb_mips.addSeparator()
 
@@ -1073,7 +1073,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 11
+    def _refresh_icons(self): #vers 12
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1122,7 +1122,7 @@ class TXDUIMixin: #vers 1
             ('analyze_btn',         'analyze_icon'),
             # Mipmap row
             ('create_mipmaps_btn',  'generate_mipmaps_icon'),
-            ('remove_mipmaps_btn',  'delete_icon'),
+            ('remove_mipmaps_btn',  'remove_mipmaps_icon'),
             ('show_mipmaps_btn',    'view_icon'),
             ('compress_btn',        'compress_icon'),
             ('uncompress_btn',      'uncompress_icon'),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 59
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 60
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -94,6 +94,7 @@ from PyQt6.QtCore import Qt
 # record_icon
 # region_circle_icon
 # region_window_icon
+# remove_mipmaps_icon
 # remove_shadow_icon
 # render_mode_icon
 # reset_icon
@@ -850,6 +851,20 @@ class SVGIconFactory: #vers 8
         """Generate mipmaps: overlapping halving squares"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="1" y="10" width="13" height="13" rx="1" fill="currentColor" fill-opacity="0.3" stroke="currentColor" stroke-width="1.3"/>
+            <rect x="10.5" y="6.5" width="6.5" height="6.5" rx="0.7" fill="currentColor" fill-opacity="0.55" stroke="currentColor" stroke-width="1.1"/>
+            <rect x="15.2" y="4.2" width="3.3" height="3.3" rx="0.4" fill="currentColor" fill-opacity="0.8" stroke="currentColor" stroke-width="0.9"/>
+            <rect x="18" y="2.6" width="1.8" height="1.8" fill="currentColor"/>
+            <rect x="19.9" y="1.6" width="1" height="1" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def remove_mipmaps_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Remove mipmaps: halving squares, red bin in large"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1" y="10" width="13" height="13" rx="1" fill="currentColor" fill-opacity="0.3" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M3.6,13.4 H11.4 M5.9,13.4 V12 H9.1 V13.4" fill="none" stroke="#e53935" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4.5,14.5 L5.2,21 H9.8 L10.5,14.5 Z" fill="#e53935"/>
             <rect x="10.5" y="6.5" width="6.5" height="6.5" rx="0.7" fill="currentColor" fill-opacity="0.55" stroke="currentColor" stroke-width="1.1"/>
             <rect x="15.2" y="4.2" width="3.3" height="3.3" rx="0.4" fill="currentColor" fill-opacity="0.8" stroke="currentColor" stroke-width="0.9"/>
             <rect x="18" y="2.6" width="1.8" height="1.8" fill="currentColor"/>
