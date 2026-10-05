@@ -626,7 +626,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 8
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 9
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -707,7 +707,7 @@ class TXDUIMixin: #vers 1
         tb_xform.addSeparator()
         _act(tb_xform, "Create",    self.icon_factory.create_texture_icon,
              self._create_new_texture_entry, attr='create_texture_btn')
-        _act(tb_xform, "Delete",    self.icon_factory.delete_icon,
+        _act(tb_xform, "Delete",    self.icon_factory.delete_texture_icon,
              self._delete_texture,     enabled=False, attr='delete_texture_btn')
         _act(tb_xform, "Duplicate", self.icon_factory.duplicate_icon,
              self._duplicate_texture,  enabled=False, attr='duplicate_texture_btn')
@@ -1073,7 +1073,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 3
+    def _refresh_icons(self): #vers 4
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1104,7 +1104,7 @@ class TXDUIMixin: #vers 1
             ('copy_btn',            'copy_icon'),
             ('paste_btn',           'paste_icon'),
             ('create_texture_btn',  'create_texture_icon'),
-            ('delete_texture_btn',  'delete_icon'),
+            ('delete_texture_btn',  'delete_texture_icon'),
             ('duplicate_texture_btn','duplicate_icon'),
             ('paint_btn',           'paint_icon'),
             ('check_dff_btn',       'analyze_icon'),

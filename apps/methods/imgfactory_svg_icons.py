@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 47
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 48
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -43,6 +43,7 @@ from PyQt6.QtCore import Qt
 # delete_face_icon
 # delete_icon
 # delete_surface_icon
+# delete_texture_icon
 # delete_vertex_icon
 # detach_faces_icon
 # duplicate_check_icon
@@ -709,6 +710,20 @@ class SVGIconFactory: #vers 8
             <path d="M16.5,2.5 V7 H21" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
             <path d="M11,11 H18 M11,14 H18 M11,17 H16" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
             <path d="M5,10 V18 M1,14 H9" stroke="#e53935" stroke-width="2.6" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def delete_texture_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Delete texture: page, arrow to red bin"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M10,2.5 H17 L21.5,7 V21.5 H10 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M17,2.5 V7 H21.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M13,8.5 H17.5 M13,11 H19" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M19.5,16 H12.5 M14.8,13.6 L12.3,16 L14.8,18.4" fill="none" stroke="#e53935" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M0.8,10.5 H9.2 M3.4,10.5 V9 H6.6 V10.5" fill="none" stroke="#e53935" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M1.8,11.5 L2.6,21 H7.4 L8.2,11.5 Z" fill="#e53935"/>
+            <path d="M4,13.5 V19 M6,13.5 V19" stroke="#2b2b2b" stroke-width="0.8" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
