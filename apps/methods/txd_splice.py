@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_splice.py - Version: 3
+#this belongs in apps/methods/txd_splice.py - Version: 4
 # X-Seti - October05 2026 - IMG Factory 1.6 - TXD splice rebuild
 
 """txd_splice.py - TXD writer. Rebuilds from the ORIGINAL file bytes so a
@@ -27,6 +27,7 @@ every PC raster format)."""
 # ext_signature
 # meta_signature
 # read_bump_ext
+# rebuild_inplace_txd
 # rebuild_txd
 # split_txd
 # tag_loaded_texture
@@ -470,3 +471,29 @@ def txd_from_textures(textures: List[Dict], original: bytes = None,
         if data:
             return data
     return build_txd(norm, rw_ver)
+
+
+def rebuild_inplace_txd(original: bytes, textures: List[Dict]) -> bytes: #vers 1
+    """TXD whose natives keep their byte ranges (PSP files, wrong size fields).
+    Edited pixels are rewritten in place; names, count and order fixed."""
+    from apps.methods.txd_platform_psp import rebuild_psp_chunk
+    from apps.methods.txd_ps2_parser import rebuild_ps2_chunk
+    out = bytearray(original)
+    for t in textures:
+        if '_chunk_off' not in t:
+            raise ValueError(f"'{t.get('name')}': textures can't be added to this TXD")
+        if str(t.get('name')) != str(t.get('_src_name')) or \
+                str(t.get('alpha_name') or '') != str(t.get('_src_alpha') or ''):
+            raise ValueError(f"'{t.get('name')}': renaming isn't supported in this TXD")
+        if t.get('_src_sig') == texture_signature(t):
+            continue
+        off, end = t['_chunk_off'], t['_chunk_end']
+        chunk = bytes(original[off:end])
+        new = rebuild_psp_chunk(chunk, t) if _platform_of(chunk) != _PS2 else rebuild_ps2_chunk(chunk, t)
+        if len(new) != len(chunk):
+            raise ValueError(f"'{t.get('name')}': rebuilt texture changed size")
+        out[off:end] = new
+    if len(textures) != len({t['_chunk_off'] for t in textures}) or \
+            len(textures) != struct.unpack_from('<H', original, 24)[0]:
+        raise ValueError("Textures can't be added or removed in this TXD")
+    return bytes(out)

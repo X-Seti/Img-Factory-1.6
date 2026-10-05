@@ -4,3 +4,4 @@ Pillow
 numpy
 pygame
 requests
+scipy

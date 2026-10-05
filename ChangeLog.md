@@ -1,5 +1,10 @@
 #this belongs in root /ChangeLog.md - Version: 218
 
+## Oct 05 2026 - TXD platforms: mobile, PSP, Stories, PS2 mips
+- GTA III iOS/Android (War Drum UNC/PVR) TXDs: read, edit, save (PVRTC encoder, needs scipy).
+- LCS iOS PSP-native TXDs, VCS/LCS .xtx/.chk (PS2/PSP): read, edit, save in place.
+- PS2: mipmapped textures save all levels; swizzle detection fixed (LC HUD, VC MISC, SA/Bully small icons).
+
 ## Oct 05 2026 - TXD undo
 - Rename, alpha rename, remove mipmaps, alpha import record undo before the change; history cleared on open/new/close.
 - Mipmap Manager (import/clear/delete/level import) and Bumpmap apply undoable; level export/import implemented. Docked hotkeys no longer clash with IMG Factory.

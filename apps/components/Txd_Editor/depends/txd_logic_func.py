@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 9
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 10
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -46,7 +46,6 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _detect_txd_info
 # _detect_y_flip
 # _display_mobile_textures
-# _display_xtx_texture
 # dragEnterEvent
 # dragMoveEvent
 # dropEvent
@@ -88,26 +87,29 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _on_texture_table_double_click
 # _on_txd_selected
 # _open_alpha_coverage
-# _open_chk_file
 # _open_colour_adjust
 # _open_filters_dialog
 # open_img_archive
+# _open_lc_mobile_txd
 # _open_mipmap_manager
 # _open_mobile_texture_db
 # _open_paint_editor
 # _open_ps2_txd
+# _open_psp_txd
 # _open_seamless_tool
 # _open_snow_tool
+# _open_stories_file
 # open_txd_file
 # _open_xtd_file
-# _open_xtx_file
 # _parse_dff_materials
 # _parse_single_texture
 # _paste_texture
 # _perform_ai_upscale
 # _preview_bumpmap_generation
+# _ps2_entry
 # _quick_alpha_check
 # _rebuild_mip_levels
+# _rebuild_special
 # _rebuild_txd_data
 # _reload_texture_table
 # _remove_mipmaps
@@ -136,6 +138,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _set_save_enabled
 # _set_undo_enabled
 # show_properties
+# _show_textures
 # _show_txd_info
 # _show_version_selector_dialog
 # _sobel_filter
@@ -1562,6 +1565,7 @@ class TXDLogicMixin: #vers 1
             # Create minimal TXD structure
             self.current_txd_name = name
             self.current_txd_data = self._create_empty_txd_data()
+            self._txd_kind = 'rw'
             self.texture_list = []
             self.texture_table.setRowCount(0)
             self._clear_modified()
@@ -2627,6 +2631,7 @@ class TXDLogicMixin: #vers 1
 
             self.current_txd_data = txd_data
             self.current_txd_name = txd_name
+            self._txd_kind = 'rw'
 
             update_progress(5)
             log(f"File Name      : {txd_name}")
@@ -3581,11 +3586,14 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to uncompress: {str(e)}")
 
-    def _rebuild_txd_data(self): #vers 7
+    def _rebuild_txd_data(self): #vers 8
         """TXD bytes: original spliced with edits, or new file. Error in _rebuild_error."""
         from apps.methods.txd_splice import rebuild_txd
         self._rebuild_error = ''
         try:
+            kind = getattr(self, '_txd_kind', 'rw')
+            if kind != 'rw' and self.current_txd_data:
+                return self._rebuild_special()
             if not self.current_txd_data or len(self.current_txd_data) < 28:
                 return self._build_new_txd_data()
             if self.txd_version_id == 0:
@@ -3605,6 +3613,25 @@ class TXDLogicMixin: #vers 1
             self._rebuild_error = str(e)
             self._log(f"Rebuild error: {e}")
             return None
+
+    def _rebuild_special(self) -> bytes: #vers 1
+        """Save bytes for mobile, PSP and Stories files (layout kept)."""
+        from apps.methods.txd_splice import texture_signature, rebuild_inplace_txd
+        kind, data = self._txd_kind, self.current_txd_data
+        if kind == 'lc_mobile':
+            from apps.methods.txd_lc_android import build_lc_android_txd
+            return build_lc_android_txd(self.texture_list, self.texture_list[0]['platform_id'], data)
+        if kind == 'inplace':
+            return rebuild_inplace_txd(data, self.texture_list)
+        if kind == 'stories':
+            from apps.methods.xtx_reader import write_stories_textures
+            for t in self.texture_list:
+                if t.get('name') != t.get('_src_name'):
+                    raise ValueError(f"'{t.get('name')}': Stories textures can't be renamed")
+            return write_stories_textures(data, [
+                None if t.get('_src_sig') == texture_signature(t) else t['rgba_data']
+                for t in self.texture_list])
+        raise ValueError(f"Unknown file kind '{kind}'")
 
     def _build_new_txd_data(self): #vers 2
         """TXD bytes from scratch when there is no original file."""
@@ -5880,7 +5907,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open IMG: {str(e)}")
 
-    def open_txd_file(self, file_path=None): #vers 4
+    def open_txd_file(self, file_path=None): #vers 5
         """Open standalone TXD file with version detection"""
         try:
             if not self._confirm_discard():
@@ -5927,19 +5954,25 @@ class TXDLogicMixin: #vers 1
                 except Exception:
                     pass  # not a mobile DB — fall through to TXD
 
-                # Route .chk files to CHK parser (GTA III PS2 splash)
-                if file_path.lower().endswith('.chk'):
-                    self._open_chk_file(file_path)
-                    return
-
-                # Route .xtx files to XTX reader
-                if file_path.lower().endswith('.xtx'):
-                    self._open_xtx_file(file_path)
+                # Stories .chk / .xtx texture lists (PS2/PSP)
+                if file_path.lower().endswith(('.chk', '.xtx')):
+                    self._open_stories_file(file_path)
                     return
 
                 #    Undocumented: XTD texture dicts (.wtd/.ytd)               
                 if _ext in ('.wtd', '.ytd'):
                     self._open_xtd_file(file_path)
+                    return
+
+                # War Drum mobile (III iOS/Android) and PSP-native TXDs
+                with open(file_path, 'rb') as _f:
+                    _all = _f.read()
+                from apps.methods.txd_lc_android import detect_lc_android_txd
+                if detect_lc_android_txd(_all):
+                    self._open_lc_mobile_txd(file_path, _all)
+                    return
+                if len(_all) > 56 and _all[52:56] == b'PSP\0':
+                    self._open_psp_txd(file_path, _all)
                     return
 
                 # Detect PS2 TXD before full parse
@@ -6343,75 +6376,9 @@ class TXDLogicMixin: #vers 1
             QMessageBox.critical(self, "Error", f"Failed to open XTD dict:\n{e}")
             traceback.print_exc()
 
-    def _open_xtx_file(self, file_path: str): #vers 1
-        """Open a VCS PS2/PC XTX palettized texture and display it in the workshop."""
-        try:
-            from apps.methods.xtx_reader import read_xtx, xtx_to_qimage
-            info = read_xtx(file_path)
-            if info['error']:
-                QMessageBox.warning(self, "XTX Error",
-                    f"Failed to read XTX file:\n{info['error']}")
-                return
-
-            name = os.path.basename(file_path)
-            w, h = info['width'], info['height']
-
-            # Build a fake texture list entry compatible with the existing display
-            qimg = xtx_to_qimage(file_path)
-            if qimg is None:
-                QMessageBox.warning(self, "XTX Error", "Could not decode XTX texture")
-                return
-
-            from PyQt6.QtGui import QPixmap
-            from PyQt6.QtCore import Qt
-            pixmap = QPixmap.fromImage(qimg)
-
-            # Display in the texture preview
-            self._display_xtx_texture(name, pixmap, info)
-
-            self.current_txd_path = file_path
-            self.current_txd_name = name
-            self.setWindowTitle(f"TXD Workshop: {name} [XTX — VCS PS2 Palettized {w}x{h}]")
-            self._log(f"Opened XTX: {name} ({w}x{h}, 256-colour indexed)")
-
-        except Exception as e:
-            QMessageBox.critical(self, "XTX Error", f"Failed to open XTX:\n{str(e)}")
-
     def _log(self, msg: str):  #vers 1
         """Safe logging — uses print() since TXDWorkshop has no log_message."""
         print(f"[TXDWorkshop] {msg}")
-
-    def _open_chk_file(self, file_path: str): #vers 1
-        """Open a GTA III PS2 CHK splash texture file."""
-        try:
-            from apps.methods.chk_parser import load_chk
-            tex = load_chk(file_path)
-            if not tex:
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.warning(self, "CHK Error", f"Failed to parse CHK file:\n{file_path}")
-                return
-
-            name = tex['name']
-            self.setWindowTitle(f"TXD Workshop: {name}.CHK [{tex['width']}x{tex['height']}]")
-            self._set_status(f"Opened CHK: {name}  "
-                             f"{tex['width']}x{tex['height']}  8bpp palettised")
-
-            # Display as a single-texture list
-            self.texture_list = [tex]
-            if hasattr(self, 'texture_table'):
-                self.texture_table.setRowCount(0)
-
-            self._add_texture_to_table(tex)
-            self.selected_texture = tex
-
-            # Selecting the row drives the normal preview/info path
-            if hasattr(self, 'texture_table') and self.texture_table.rowCount():
-                self.texture_table.selectRow(0)
-                self._on_texture_selected()
-
-        except Exception as e:
-            import traceback; traceback.print_exc()
-            print(f"[TXDWorkshop] CHK error: {e}")
 
     def _open_mobile_texture_db(self, file_path: str): #vers 1
         """Open a mobile texture database (.txt+.toc+.dat+.tmb quad-file set).
@@ -6501,14 +6468,97 @@ class TXDLogicMixin: #vers 1
 
         self._log(f"Mobile DB: {db.name}.{db.platform} — {len(real_textures)} textures loaded")
 
-    def _open_ps2_txd(self, file_path: str): #vers 3
+    def _show_textures(self, textures, data: bytes, kind: str, title: str): #vers 1
+        """Fill the table from a parsed texture list of any format."""
+        from apps.methods.txd_splice import tag_loaded_texture
+        self.current_txd_data = data
+        self._txd_kind = kind
+        self.texture_list = []
+        if hasattr(self, 'texture_table'):
+            self.texture_table.setRowCount(0)
+        for t in textures:
+            t.setdefault('alpha_name', t.get('mask', '') or '')
+            t.setdefault('mipmap_levels', [])
+            tag_loaded_texture(t)
+            self.texture_list.append(t)
+            self._add_texture_to_table(t)
+        self._clear_modified()
+        self._clear_undo()
+        self.setWindowTitle(f"TXD Workshop: {title}")
+        if self.texture_list and hasattr(self, 'texture_table'):
+            self.texture_table.selectRow(0)
+        self._log(f"Opened {title}")
+
+    def _open_stories_file(self, file_path: str): #vers 1
+        """Open a Stories .xtx/.chk texture list (PS2 or PSP)."""
+        from apps.methods.xtx_reader import parse_stories_textures
+        try:
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            texs = parse_stories_textures(data)
+        except Exception as e:
+            QMessageBox.warning(self, "Stories Texture", f"Failed to read {os.path.basename(file_path)}:\n{e}")
+            return
+        name = os.path.basename(file_path)
+        self.current_txd_path, self.current_txd_name = file_path, name
+        self._show_textures(texs, data, 'stories',
+                            f"{name} [{texs[0].get('platform', '')} Stories, {len(texs)} textures]")
+
+    def _open_lc_mobile_txd(self, file_path: str, data: bytes): #vers 1
+        """Open a War Drum GTA III mobile TXD (UNC / PVR)."""
+        from apps.methods.txd_lc_android import parse_lc_android_txd
+        texs = parse_lc_android_txd(data)
+        name = os.path.basename(file_path)
+        self.current_txd_path, self.current_txd_name = file_path, name
+        self._detect_txd_info(data)
+        kind = 'UNC' if texs and texs[0].get('platform_id') == 12 else 'PVR'
+        self._show_textures(texs, data, 'lc_mobile', f"{name} [III mobile {kind}, {len(texs)} textures]")
+
+    def _ps2_entry(self, tex: dict) -> dict: #vers 1
+        """PS2 parser dict to a workshop texture entry."""
+        from apps.methods.txd_ps2_parser import ps2_tex_to_rgba
+        rgba = ps2_tex_to_rgba(tex) or bytes(tex['width'] * tex['height'] * 4)
+        d = tex['depth']
+        fmt = {4: "PSMT4", 8: "PSMT8", 16: "PSMCT16", 32: "PSMCT32"}.get(d, f"{d}bpp")
+        pal_type = (tex['raster_format_flags'] >> 13) & 0x3
+        if pal_type in (1, 2):
+            fmt += f"-PAL{'8' if pal_type == 1 else '4'}"
+        return {'name': tex['name'], 'width': tex['width'], 'height': tex['height'],
+                'depth': d, 'format': fmt, 'has_alpha': True,
+                'alpha_name': tex.get('mask', ''), 'mipmaps': 1, 'rgba_data': rgba,
+                'raster_format_flags': tex['raster_format_flags'], 'is_swizzled': False,
+                'platform': 'PS2', 'compressed_size': tex.get('pixels_size', 0)}
+
+    def _open_psp_txd(self, file_path: str, data: bytes): #vers 1
+        """Open a TXD with PSP natives (LCS iOS); PS2 natives allowed too."""
+        import struct
+        from apps.methods.txd_platform_psp import parse_psp_nativetex, psp_native_end
+        from apps.methods.txd_ps2_parser import _parse_native
+        count = struct.unpack_from('<H', data, 24)[0]
+        texs, off = [], 28
+        for i in range(count):
+            if data[off + 24:off + 28] == b'PSP\0':
+                t = parse_psp_nativetex(data, off, i)
+                end = psp_native_end(data, off)
+            else:
+                t = self._ps2_entry(_parse_native(data, off))
+                end = off + 12 + struct.unpack_from('<I', data, off + 4)[0]
+            t['_chunk_off'], t['_chunk_end'] = off, end
+            texs.append(t)
+            off = end
+        name = os.path.basename(file_path)
+        self.current_txd_path, self.current_txd_name = file_path, name
+        self._detect_txd_info(data)
+        self._show_textures(texs, data, 'inplace', f"{name} [PSP, {len(texs)} textures]")
+
+    def _open_ps2_txd(self, file_path: str): #vers 4
         """Open a GTA PS2 TXD (all games/regions — device_id 0 or 6).
 
         Populates self.texture_list and texture_table exactly like a regular
         TXD so that export, undo, and info panel all work correctly.
         """
         try:
-            from apps.methods.txd_ps2_parser import parse_ps2_txd, ps2_tex_to_rgba
+            from apps.methods.txd_ps2_parser import parse_ps2_txd
 
             with open(file_path, 'rb') as f:
                 data = f.read()
@@ -6524,42 +6574,17 @@ class TXDLogicMixin: #vers 1
             self.current_txd_path = file_path
             self.current_txd_name = name
 
-            depth_fmt = {4: "PSMT4", 8: "PSMT8", 16: "PSMCT16", 32: "PSMCT32"}
-
             # Clear existing texture data; file bytes kept for rename saves
             from apps.methods.txd_splice import tag_loaded_texture
             self.current_txd_data = data
+            self._txd_kind = 'rw'
             self._detect_txd_info(data)
             self.texture_list = []
             if hasattr(self, 'texture_table'):
                 self.texture_table.setRowCount(0)
 
             for tex in textures:
-                rgba = ps2_tex_to_rgba(tex)
-                if rgba is None:
-                    rgba = bytes(tex['width'] * tex['height'] * 4)
-
-                d = tex['depth']
-                palette_type = (tex['raster_format_flags'] >> 13) & 0x3
-                fmt = depth_fmt.get(d, f"{d}bpp")
-                if palette_type in (1, 2):
-                    fmt += f"-PAL{'8' if palette_type==1 else '4'}"
-
-                tex_entry = {
-                    'name':                 tex['name'],
-                    'width':                tex['width'],
-                    'height':               tex['height'],
-                    'depth':                d,
-                    'format':               fmt,
-                    'has_alpha':            True,
-                    'alpha_name':           tex.get('mask', ''),
-                    'mipmaps':              1,
-                    'rgba_data':            rgba,
-                    'raster_format_flags':  tex['raster_format_flags'],
-                    'is_swizzled':          False,   # already unswizzled
-                    'platform':             'PS2',
-                    'compressed_size':      tex.get('pixels_size', 0),
-                }
+                tex_entry = self._ps2_entry(tex)
                 tag_loaded_texture(tex_entry)
                 self.texture_list.append(tex_entry)
                 if hasattr(self, '_add_texture_to_table'):
@@ -6580,49 +6605,6 @@ class TXDLogicMixin: #vers 1
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "PS2 TXD Error",
                 f"Failed to open PS2 TXD:\n{e}")
-
-    def _display_xtx_texture(self, name: str, pixmap, info: dict): #vers 1
-        """Show an XTX texture in the workshop preview area."""
-        try:
-            w, h = info['width'], info['height']
-
-            # Clear existing texture list and add XTX entry
-            if hasattr(self, 'txd_list_widget'):
-                self.txd_list_widget.clear()
-                item = QListWidgetItem(
-                    f"{name}  [{w}x{h}]  XTX/PSMT8-256col"
-                )
-                self.txd_list_widget.addItem(item)
-                self.txd_list_widget.setCurrentRow(0)
-
-            # Show in preview
-            if hasattr(self, 'texture_preview'):
-                scaled = pixmap.scaled(
-                    self.texture_preview.width(),
-                    self.texture_preview.height(),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                self.texture_preview.setPixmap(scaled)
-
-            # Update info labels if present
-            for attr, val in [
-                ('texture_name_label',   name),
-                ('texture_size_label',   f"{w} x {h} pixels"),
-                ('texture_format_label', "PSMT8 (8-bit palette-indexed)"),
-                ('texture_depth_label',  "8 bpp -> 256 colours"),
-                ('texture_alpha_label',  "Yes (PS2 alpha 0–128 range)"),
-            ]:
-                lbl = getattr(self, attr, None)
-                if lbl and hasattr(lbl, 'setText'):
-                    lbl.setText(val)
-
-            # Store for potential export
-            self._xtx_pixmap = pixmap
-            self._xtx_info   = info
-
-        except Exception as e:
-            self._log(f"XTX display error: {e}")
 
     def _import_textures(self): #vers 8
         """Pick image file(s) and import them as textures."""
