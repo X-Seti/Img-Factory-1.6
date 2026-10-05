@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 8
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 9
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -84,19 +84,19 @@ class TXDUIMixin: #vers 1
         """Return menu label for imgfactory menu bar."""
         return "TXD"
 
-    def _build_menus_into_qmenu(self, parent_menu): #vers 1
+    def _build_menus_into_qmenu(self, parent_menu): #vers 2
         """Populate parent_menu with TXD Workshop actions for imgfactory injection."""
         from PyQt6.QtGui import QAction
 
         # File
         fm = parent_menu.addMenu("File")
-        fm.addAction("Open TXD…",           self._open_txd_file if hasattr(self, '_open_txd_file') else lambda: None)
-        fm.addAction("Save TXD",             self._save_txd_file)
+        fm.addAction("Open TXD…",           self.open_txd_file)
+        fm.addAction("Save TXD",             self._save_current)
         fm.addAction("Save TXD As…",         self._save_as_txd_file)
         fm.addSeparator()
         fm.addAction("New TXD",              self._create_new_txd)
         fm.addSeparator()
-        fm.addAction("Close TXD",            lambda: None)
+        fm.addAction("Close TXD",            self._close_txd)
 
         # Texture
         tm = parent_menu.addMenu("Texture")
@@ -104,7 +104,7 @@ class TXDUIMixin: #vers 1
         tm.addAction("Export Selected…",     self.export_selected_texture)
         tm.addAction("Export All…",          self.export_all_textures)
         tm.addSeparator()
-        tm.addAction("Convert Format…",      self._show_convert_dialog if hasattr(self, '_show_convert_dialog') else lambda: None)
+        tm.addAction("Convert Format…",      self._convert_texture)
 
         # Tools
         tools = parent_menu.addMenu("Tools")
@@ -278,7 +278,7 @@ class TXDUIMixin: #vers 1
         from apps.methods.button_mode import apply_button_mode_to_button
         apply_button_mode_to_button(button, text, self.button_display_mode)
 
-    def _create_toolbar(self): #vers 13
+    def _create_toolbar(self): #vers 14
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
         self.titlebar = QFrame()
         self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -346,8 +346,9 @@ class TXDUIMixin: #vers 1
         self.save_txd_btn.setFont(self.button_font)
         self.save_txd_btn.setIcon(self.icon_factory.save_icon(color=self._get_icon_color()))
         self.save_txd_btn.setIconSize(QSize(20, 20))
-        self.save_txd_btn.clicked.connect(self.save_txd_file)
+        self.save_txd_btn.clicked.connect(self._save_current)
         self.save_txd_btn.setEnabled(False)
+        self._save_buttons = [self.save_txd_btn]
         layout.addWidget(self.save_txd_btn)
 
         self.export_all_btn = QPushButton("Extract")
@@ -493,7 +494,7 @@ class TXDUIMixin: #vers 1
 
         return panel
 
-    def _create_middle_panel(self): #vers 9
+    def _create_middle_panel(self): #vers 10
         """Create middle panel - Texture list with mini toolbar shown in docked mode."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -529,8 +530,9 @@ class TXDUIMixin: #vers 1
         self.save_txd_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
         self.save_txd_btn.setIconSize(QSize(20, 20))
         self.save_txd_btn.setToolTip("Save TXD file (Ctrl+S)")
-        self.save_txd_btn.clicked.connect(self.save_txd_file)
+        self.save_txd_btn.clicked.connect(self._save_current)
         self.save_txd_btn.setEnabled(False)
+        self._save_buttons.append(self.save_txd_btn)
         btn_layout.addWidget(self.save_txd_btn)
 
         self.export_all_btn = QPushButton("Extract")
@@ -1824,7 +1826,7 @@ class TXDUIMixin: #vers 1
 
         super().keyPressEvent(event)
 
-    def _setup_hotkeys(self): #vers 4
+    def _setup_hotkeys(self): #vers 5
         """Plasma6-style keyboard shortcuts, wired to TXD methods."""
         from PyQt6.QtGui import QShortcut, QKeySequence
 
@@ -1835,7 +1837,7 @@ class TXDUIMixin: #vers 1
 
         # File
         _key('hotkey_open',       QKeySequence.StandardKey.Open,    self.open_txd_file)
-        _key('hotkey_save',       QKeySequence.StandardKey.Save,    self._save_txd_file)
+        _key('hotkey_save',       QKeySequence.StandardKey.Save,    self._save_current)
         _key('hotkey_force_save', "Alt+Shift+S",                    self._force_save_txd)
         _key('hotkey_save_as',    QKeySequence.StandardKey.SaveAs,  self._save_as_txd_file)
         _key('hotkey_close',      QKeySequence.StandardKey.Close,   self.close)

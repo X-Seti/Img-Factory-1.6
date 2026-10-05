@@ -397,6 +397,12 @@ def rebuild_txd(original: bytes, textures: List[Dict], target_ver: int = None,
             plat = 8
         pixels_same = chunk is not None and t.get('_src_sig') == texture_signature(t) \
             and (plat == _platform_of(chunk))
+        if not pixels_same and plat == _PS2 and chunk is not None:
+            from apps.methods.txd_ps2_parser import rebuild_ps2_chunk
+            if str(t.get('format')) != str(t.get('_src_sig', (None,) * 4)[3]):
+                raise ValueError(f"'{t.get('name')}': PS2 textures keep their format")
+            chunk = rebuild_ps2_chunk(chunk, t)
+            pixels_same = True
         if not pixels_same:
             ext = _native_parts(chunk)[1] if chunk else []
             ext_payload = next((p for k, p in ext if k == _EXT), b'')

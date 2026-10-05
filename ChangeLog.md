@@ -1,5 +1,9 @@
 #this belongs in root /ChangeLog.md - Version: 218
 
+## Oct 05 2026 - PS2 TXD edits, Save button
+- PS2 (III/VC/SA/Bully/LCS) texture edits saved in place: palette rebuilt, GS swizzle kept. Size/format fixed; mipmapped PS2 not yet.
+- TXD Save buttons (title bar + panel) enable on edit and save to the open file; File menu Open/Close/Convert wired.
+
 ## Oct 05 2026 - Xbox TXD read/write
 - methods/txd_platform_xbox.py v2: unswizzle, PAL8/PAL4 palettes, DXT1-5 codes; SA effects no longer blank.
 - Xbox textures can be edited and saved in any format (swizzled, power-of-two for uncompressed).

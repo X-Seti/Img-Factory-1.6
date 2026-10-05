@@ -22,6 +22,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _check_txd_vs_dff
 # _clear_modified
 # _clear_texture_search
+# _close_txd
 # _compress_texture
 # _confirm_discard
 # _convert_texture
@@ -120,6 +121,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _save_alpha_name
 # _save_as_txd_file
 # _save_as_txd_file_with_version_selector
+# _save_current
 # _save_settings
 # _save_texture_format
 # _save_texture_name
@@ -130,6 +132,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _save_undo_state
 # _selected_textures
 # _set_current_rgba
+# _set_save_enabled
 # _set_undo_enabled
 # show_properties
 # _show_txd_info
@@ -1546,7 +1549,7 @@ class TXDLogicMixin: #vers 1
             QMessageBox.information(self, "Success",
                 f"Created new texture:\n{texture_name}\nSize: {width}x{height}")
 
-    def _create_new_txd(self): #vers 2
+    def _create_new_txd(self): #vers 3
         """Create a new empty TXD file"""
         if not self._confirm_discard():
             return
@@ -1563,7 +1566,7 @@ class TXDLogicMixin: #vers 1
             self._clear_modified()
 
             self.setWindowTitle(f"TXD Workshop: {name}")
-            self.save_txd_btn.setEnabled(True)
+            self._set_save_enabled(True)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Created new TXD: {name}")
@@ -1808,11 +1811,10 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Delete Error", f"Failed to delete: {str(e)}")
 
-    def _mark_as_modified(self): #vers 2
+    def _mark_as_modified(self): #vers 3
         """Mark the TXD as modified and enable save button"""
         self._txd_modified = True
-        self.save_txd_btn.setEnabled(True)
-        self.save_txd_btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;")
+        self._set_save_enabled(True)
         current_title = self.windowTitle()
         if not current_title.endswith("*"):
             self.setWindowTitle(current_title + "*")
@@ -3616,10 +3618,52 @@ class TXDLogicMixin: #vers 1
     def _clear_modified(self): #vers 1
         """Clear unsaved-changes flag, save button and title star."""
         self._txd_modified = False
-        if hasattr(self, 'save_txd_btn'):
-            self.save_txd_btn.setEnabled(False)
-            self.save_txd_btn.setStyleSheet("")
+        self._set_save_enabled(False)
         self.setWindowTitle(self.windowTitle().replace("*", ""))
+
+    def _set_save_enabled(self, on: bool): #vers 1
+        """Enable/highlight every Save button (title bar and panel)."""
+        for btn in getattr(self, '_save_buttons', []):
+            btn.setEnabled(on)
+            btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;" if on else "")
+
+    def _save_current(self): #vers 1
+        """Save to the open file (or IMG entry) without asking; Save As when new."""
+        if not self.texture_list:
+            QMessageBox.warning(self, "No Textures", "No textures to save")
+            return
+        if self.current_img and not self.current_txd_path:
+            return self._save_txd_to_img_with_version_selector()
+        path = self.current_txd_path
+        if not path or not os.path.isfile(path):
+            return self._save_as_txd_file()
+        data = self._rebuild_txd_data()
+        if not data:
+            QMessageBox.critical(self, "Save Error", f"Failed to rebuild TXD data:\n\n{self._rebuild_error}")
+            return
+        from apps.methods.file_backup import backup_file, note_change
+        note_change(f"Save TXD {os.path.basename(path)}")
+        if backup_file(path) is None:
+            QMessageBox.warning(self, "Save", "Backup failed - file not overwritten.")
+            return
+        with open(path, 'wb') as f:
+            f.write(data)
+        self._after_save(data)
+        self._log(f"Saved TXD: {path} ({len(self.texture_list)} textures, {len(data):,} bytes)")
+
+    def _close_txd(self): #vers 1
+        """Close the open TXD (asks first when there are unsaved changes)."""
+        if not self._confirm_discard():
+            return
+        self.texture_list = []
+        self.current_txd_data = None
+        self.current_txd_path = None
+        self.current_txd_name = None
+        self.selected_texture = None
+        if hasattr(self, 'texture_table'):
+            self.texture_table.setRowCount(0)
+        self._clear_modified()
+        self.setWindowTitle("TXD Workshop")
 
     def _confirm_discard(self) -> bool: #vers 1
         """True when there are no unsaved changes or the user discards them."""
@@ -6581,7 +6625,7 @@ class TXDLogicMixin: #vers 1
         if file_paths:
             self._import_texture_files(file_paths)
 
-    def _import_texture_files(self, file_paths): #vers 1
+    def _import_texture_files(self, file_paths): #vers 2
         """Import image files as textures.
         - If a texture is selected and one file given: ask to replace or add.
         - Multiple files: always add.
@@ -6688,8 +6732,7 @@ class TXDLogicMixin: #vers 1
                 if last_row >= 0:
                     self.texture_table.selectRow(last_row)
             # Enable save/export now that we have textures
-            if hasattr(self, 'save_txd_btn'):
-                self.save_txd_btn.setEnabled(True)
+            self._set_save_enabled(True)
             if hasattr(self, 'export_all_btn'):
                 self.export_all_btn.setEnabled(True)
 

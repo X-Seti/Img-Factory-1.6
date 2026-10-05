@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_ps2_parser.py - Version: 2
+#this belongs in apps/methods/txd_ps2_parser.py - Version: 3
 # X-Seti - Apr 2026 - IMG Factory 1.6 - GTA PS2 TXD Parser
 """
 GTA PS2 TXD parser — rewritten using DragonFF's NativePS2Texture approach.
@@ -112,6 +112,126 @@ def detect_ps2_txd(data: bytes) -> bool:
     return b'PS2\x00' in data[12:min(200, len(data))]
 
 
+def _parse_native(data: bytes, chunk_pos: int, device_id: int = 0) -> Dict: #vers 1
+    """One PS2 NativeTexture chunk; records pixel/palette offsets for in-place saves."""
+    ct3, sz3, lib3, p3 = _read_chunk(data, chunk_pos)
+    nt_end = p3 + sz3
+    tex: Dict = {
+        'name': '', 'mask': '', 'width': 0, 'height': 0,
+        'depth': 0, 'raster_format_flags': 0,
+        'pixels': None, 'palette': None,
+        'pixels_size': 0, 'palette_size': 0,
+        'device_id': device_id, 'platform_id': 0,
+    }
+    pos = p3    # walk inside NativeTex
+
+    #    Struct(8): platform_id + filter + uv                           
+    if pos < nt_end - 12:
+        ct4, sz4, _, p4 = _read_chunk(data, pos)
+        if ct4 == 0x01 and sz4 == 8:
+            tex['platform_id'] = struct.unpack('<I', data[p4:p4+4])[0]
+        pos = p4 + sz4
+
+    #    String chunks: name, mask                                      
+    for key in ('name', 'mask'):
+        if pos >= nt_end - 12: break
+        ct4, sz4, _, p4 = _read_chunk(data, pos)
+        if ct4 == 0x02:
+            tex[key] = data[p4:p4+sz4].split(b'\x00')[0].decode('ascii', 'replace')
+        pos = p4 + sz4
+
+    #    Native chunk (outer wrapper) — step INTO                       
+    if pos < nt_end - 12:
+        ct4, sz4, _, p4 = _read_chunk(data, pos)
+        pos = p4   # do NOT skip payload — it contains Raster + Texture chunks
+
+    #    Raster chunk: w/h/depth/flags + GS registers + sizes          
+    if pos < nt_end - 12:
+        ct4, sz4, _, p4 = _read_chunk(data, pos)
+        FMT = '<4I4Q4I'
+        FS  = struct.calcsize(FMT)   # 16+32+16 = 64 bytes
+        if sz4 >= FS:
+            (w, h, depth, raster_fmt,
+             tex0, tex1, mip1, mip2,
+             pix_sz, pal_sz, gpu_sz, sky_mip
+             ) = struct.unpack_from(FMT, data, p4)
+            tex['width']               = w
+            tex['height']              = h
+            tex['depth']               = depth
+            tex['raster_format_flags'] = raster_fmt
+            tex['pixels_size']         = pix_sz
+            tex['palette_size']        = pal_sz
+            # TEX0 GS register: bits 0-13 = TBP0 (texture base pointer).
+            # tbp0==0 means the data was uploaded from page 0 of GS VRAM
+            # and has the GS VRAM swizzle applied.
+            # tbp0!=0 means data is at a specific VRAM offset — stored linearly.
+            tex['tbp0']                = int(tex0) & 0x3FFF
+        pos = p4 + sz4
+
+    #    Texture chunk (inner) — step INTO pixel/palette data           
+    if pos < nt_end - 12:
+        ct4, sz4, _, p4 = _read_chunk(data, pos)
+        pos = p4
+
+    #    Pixel + palette data                                           
+    raster_type  = (tex['raster_format_flags'] >> 8) & 0xF   # 5 = RASTER_8888
+    palette_type = (tex['raster_format_flags'] >> 13) & 0x3  # 1=PAL8 2=PAL4
+    w, h, depth  = tex['width'], tex['height'], tex['depth']
+    pix_sz       = tex['pixels_size']
+    pal_sz       = tex['palette_size']
+
+    if raster_type == 5 and pal_sz > 0:
+        # Palettised PSMT8 or PSMT4
+        pix_sz -= 80;  pal_sz -= 80
+
+        pos += 80                                     # skip pixel GIF header
+        # pix_sz may include GIF alignment padding; clamp to actual pixel count
+        expected_pix_bytes = w * h * depth // 8
+        raw_pixels = data[pos:pos + min(pix_sz, expected_pix_bytes)]
+        tex['_pix_off'], tex['_pix_len'] = pos - chunk_pos, len(raw_pixels)
+        pos += pix_sz                                 # advance past full block
+
+        pos += 80                                     # skip palette GIF header
+        tex['_pal_off'] = pos - chunk_pos
+        tex['_pal_len'] = 1024 if palette_type == 1 else 64
+        if palette_type == 1:                         # PAL8 — 256 entries
+            palette = _read_palette(data, pos, 1024);  pos += 1024
+        elif palette_type == 2:                       # PAL4 — 16 entries
+            palette = _read_palette(data, pos, 64);    pos += pal_sz
+        else:
+            palette = None
+
+        # Unswizzle predicate — combined rule covering all known PS2 TXD variants:
+        #   tbp0 == 0: texture uploaded from GS VRAM page 0 (always swizzled)
+        #   PSMT8, w >= 64: large 8bpp texture spans GS pages (LC PS2, MISC.TXD wheels)
+        #   PSMT4, w >= 128: large 4bpp texture spans GS pages
+        # This covers: PARTICLE/EFFECTS/FRONTEN (tbp0=0),
+        #               LC PS2 loading screens (PSMT8 512×512, tbp0≠0),
+        #               while correctly skipping HUD icons (PSMT4 64×64, tbp0≠0).
+        tbp0 = tex.get('tbp0', 0)
+        needs_unswizzle = (
+            tbp0 == 0
+            or (depth == 8  and w >= 64)
+            or (depth == 4  and w >= 128)
+        )
+        if depth == 8 and palette and needs_unswizzle:
+            palette     = _unswizzle_palette(palette)
+            raw_pixels  = _unswizzle8(raw_pixels, w, h)
+        elif depth == 4 and needs_unswizzle:
+            raw_pixels  = _unswizzle4(raw_pixels, w, h)
+
+        tex['_swizzled'] = bool(needs_unswizzle)
+        tex['pixels']  = raw_pixels
+        tex['palette'] = palette
+
+    elif raster_type == 5 and depth == 32:
+        # Unpalettised PSMCT32 — raw RGBA32
+        tex['pixels'] = data[pos:pos + pix_sz]
+        tex['_pix_off'], tex['_pix_len'] = pos - chunk_pos, min(pix_sz, w * h * 4)
+
+    return tex
+
+
 def parse_ps2_txd(data: bytes) -> List[Dict]:
     """
     Parse a GTA PS2 TXD file.
@@ -140,122 +260,10 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
     for _ in range(tex_count):
         if pos >= td_end - 12:
             break
-
         ct3, sz3, lib3, p3 = _read_chunk(data, pos)
-        if ct3 != 0x15:    # NativeTexture
-            pos = p3 + sz3; continue
-        nt_end = p3 + sz3
-
-        tex: Dict = {
-            'name': '', 'mask': '', 'width': 0, 'height': 0,
-            'depth': 0, 'raster_format_flags': 0,
-            'pixels': None, 'palette': None,
-            'pixels_size': 0, 'palette_size': 0,
-            'device_id': device_id, 'platform_id': 0,
-        }
-        pos = p3    # walk inside NativeTex
-
-        #    Struct(8): platform_id + filter + uv                           
-        if pos < nt_end - 12:
-            ct4, sz4, _, p4 = _read_chunk(data, pos)
-            if ct4 == 0x01 and sz4 == 8:
-                tex['platform_id'] = struct.unpack('<I', data[p4:p4+4])[0]
-            pos = p4 + sz4
-
-        #    String chunks: name, mask                                      
-        for key in ('name', 'mask'):
-            if pos >= nt_end - 12: break
-            ct4, sz4, _, p4 = _read_chunk(data, pos)
-            if ct4 == 0x02:
-                tex[key] = data[p4:p4+sz4].split(b'\x00')[0].decode('ascii', 'replace')
-            pos = p4 + sz4
-
-        #    Native chunk (outer wrapper) — step INTO                       
-        if pos < nt_end - 12:
-            ct4, sz4, _, p4 = _read_chunk(data, pos)
-            pos = p4   # do NOT skip payload — it contains Raster + Texture chunks
-
-        #    Raster chunk: w/h/depth/flags + GS registers + sizes          
-        if pos < nt_end - 12:
-            ct4, sz4, _, p4 = _read_chunk(data, pos)
-            FMT = '<4I4Q4I'
-            FS  = struct.calcsize(FMT)   # 16+32+16 = 64 bytes
-            if sz4 >= FS:
-                (w, h, depth, raster_fmt,
-                 tex0, tex1, mip1, mip2,
-                 pix_sz, pal_sz, gpu_sz, sky_mip
-                 ) = struct.unpack_from(FMT, data, p4)
-                tex['width']               = w
-                tex['height']              = h
-                tex['depth']               = depth
-                tex['raster_format_flags'] = raster_fmt
-                tex['pixels_size']         = pix_sz
-                tex['palette_size']        = pal_sz
-                # TEX0 GS register: bits 0-13 = TBP0 (texture base pointer).
-                # tbp0==0 means the data was uploaded from page 0 of GS VRAM
-                # and has the GS VRAM swizzle applied.
-                # tbp0!=0 means data is at a specific VRAM offset — stored linearly.
-                tex['tbp0']                = int(tex0) & 0x3FFF
-            pos = p4 + sz4
-
-        #    Texture chunk (inner) — step INTO pixel/palette data           
-        if pos < nt_end - 12:
-            ct4, sz4, _, p4 = _read_chunk(data, pos)
-            pos = p4
-
-        #    Pixel + palette data                                           
-        raster_type  = (tex['raster_format_flags'] >> 8) & 0xF   # 5 = RASTER_8888
-        palette_type = (tex['raster_format_flags'] >> 13) & 0x3  # 1=PAL8 2=PAL4
-        w, h, depth  = tex['width'], tex['height'], tex['depth']
-        pix_sz       = tex['pixels_size']
-        pal_sz       = tex['palette_size']
-
-        if raster_type == 5 and pal_sz > 0:
-            # Palettised PSMT8 or PSMT4
-            pix_sz -= 80;  pal_sz -= 80
-
-            pos += 80                                     # skip pixel GIF header
-            # pix_sz may include GIF alignment padding; clamp to actual pixel count
-            expected_pix_bytes = w * h * depth // 8
-            raw_pixels = data[pos:pos + min(pix_sz, expected_pix_bytes)]
-            pos += pix_sz                                 # advance past full block
-
-            pos += 80                                     # skip palette GIF header
-            if palette_type == 1:                         # PAL8 — 256 entries
-                palette = _read_palette(data, pos, 1024);  pos += 1024
-            elif palette_type == 2:                       # PAL4 — 16 entries
-                palette = _read_palette(data, pos, 64);    pos += pal_sz
-            else:
-                palette = None
-
-            # Unswizzle predicate — combined rule covering all known PS2 TXD variants:
-            #   tbp0 == 0: texture uploaded from GS VRAM page 0 (always swizzled)
-            #   PSMT8, w >= 64: large 8bpp texture spans GS pages (LC PS2, MISC.TXD wheels)
-            #   PSMT4, w >= 128: large 4bpp texture spans GS pages
-            # This covers: PARTICLE/EFFECTS/FRONTEN (tbp0=0),
-            #               LC PS2 loading screens (PSMT8 512×512, tbp0≠0),
-            #               while correctly skipping HUD icons (PSMT4 64×64, tbp0≠0).
-            tbp0 = tex.get('tbp0', 0)
-            needs_unswizzle = (
-                tbp0 == 0
-                or (depth == 8  and w >= 64)
-                or (depth == 4  and w >= 128)
-            )
-            if depth == 8 and palette and needs_unswizzle:
-                palette     = _unswizzle_palette(palette)
-                raw_pixels  = _unswizzle8(raw_pixels, w, h)
-            elif depth == 4 and needs_unswizzle:
-                raw_pixels  = _unswizzle4(raw_pixels, w, h)
-
-            tex['pixels']  = raw_pixels
-            tex['palette'] = palette
-
-        elif raster_type == 5 and depth == 32:
-            # Unpalettised PSMCT32 — raw RGBA32
-            tex['pixels'] = data[pos:pos + pix_sz]
-
-        results.append(tex)
-        pos = nt_end
+        if ct3 == 0x15:
+            results.append(_parse_native(data, pos, device_id))
+        pos = p3 + sz3
 
     return results
 
@@ -295,4 +303,68 @@ def ps2_tex_to_rgba(tex: Dict) -> Optional[bytes]:
     return bytes(out)
 
 
-__all__ = ['detect_ps2_txd', 'parse_ps2_txd', 'ps2_tex_to_rgba']
+def _swizzle8_ids(width: int, height: int): #vers 1
+    """Stored (swizzled) byte index for each linear PSMT8 pixel (numpy)."""
+    import numpy as np
+    y = np.arange(height)[:, None]
+    x = np.arange(width)[None, :]
+    block_y = (y & ~0xf) * width
+    pos_y = (((y & ~3) >> 1) + (y & 1)) & 0x7
+    swap_sel = (((y + 2) >> 2) & 0x1) * 4
+    col_loc = pos_y * width * 2 + ((x + swap_sel) & 0x7) * 4
+    byte_num = ((y >> 1) & 1) + ((x >> 2) & 2)
+    return (block_y + (x & ~0xf) * 2 + col_loc + byte_num).ravel()
+
+
+def rebuild_ps2_chunk(chunk: bytes, tex: Dict) -> bytes: #vers 1
+    """Same PS2 NativeTexture chunk with tex['rgba_data'] written in place.
+    Size, depth and palette type stay as stored (GS registers untouched)."""
+    import numpy as np
+    from apps.methods.txd_splice import _palette, _palette_index
+    lay = _parse_native(chunk, 0)
+    w, h, depth = lay['width'], lay['height'], lay['depth']
+    name = tex.get('name')
+    if (int(tex.get('width') or 0), int(tex.get('height') or 0)) != (w, h):
+        raise ValueError(f"'{name}': PS2 textures keep their size ({w}x{h})")
+    if lay['raster_format_flags'] & 0x8000:
+        raise ValueError(f"'{name}': PS2 mipmapped textures can't be edited yet")
+    if '_pix_off' not in lay:
+        raise ValueError(f"'{name}': PS2 raster type not supported for saving")
+    rgba = bytes(tex.get('rgba_data') or b'')[:w * h * 4]
+    if len(rgba) < w * h * 4:
+        raise ValueError(f"'{name}' has no pixel data")
+    out = bytearray(chunk)
+    po, pl = lay['_pix_off'], lay['_pix_len']
+    if depth == 32:
+        a = np.frombuffer(rgba, dtype=np.uint8).reshape(-1, 4).copy()
+        a[:, 3] = (a[:, 3].astype(np.uint16) + 1) // 2
+        out[po:po + pl] = a.tobytes()[:pl]
+        return bytes(out)
+    pal = _palette(rgba, w, h, 256 if depth == 8 else 16)
+    idx = _palette_index(rgba, pal)
+    if lay.get('_swizzled'):
+        ids = _swizzle8_ids(w, h)
+        n = pl if depth == 8 else pl * 2
+        keep = ids < n
+        sw = np.zeros(n, dtype=np.uint8)
+        sw[ids[keep]] = idx[keep]
+        idx = sw
+    if depth == 4:
+        idx = idx[:pl * 2]
+        if len(idx) % 2:
+            idx = np.append(idx, 0)
+        data = ((idx[1::2] << 4) | (idx[0::2] & 15)).astype(np.uint8).tobytes()
+    else:
+        data = idx.tobytes()
+    out[po:po + pl] = data[:pl].ljust(pl, b'\0')
+    p = np.frombuffer(pal, dtype=np.uint8).reshape(-1, 4).copy()
+    p[:, 3] = (p[:, 3].astype(np.uint16) + 1) // 2
+    if depth == 8 and lay.get('_swizzled'):
+        perm = np.array([(q & 231) | ((q & 8) << 1) | ((q & 16) >> 1) for q in range(256)])
+        p = p[perm]
+    pb = p.tobytes()
+    out[lay['_pal_off']:lay['_pal_off'] + len(pb)] = pb
+    return bytes(out)
+
+
+__all__ = ['detect_ps2_txd', 'parse_ps2_txd', 'ps2_tex_to_rgba', 'rebuild_ps2_chunk']
