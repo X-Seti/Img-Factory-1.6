@@ -1,115 +1,105 @@
-#this belongs in apps/methods/mobile_texture_db.py - Version: 1
-# X-Seti - March 2026 - IMG Factory 1.6 - Mobile Texture Database Parser
+#this belongs in apps/methods/mobile_texture_db.py - Version: 2
+# X-Seti - October05 2026 - IMG Factory 1.6 - Mobile Texture Database
+
 """
-Mobile Texture Database Parser
-
-Supports the SA/VC mobile texture database format used by iOS and Android ports.
-This is NOT a RenderWare TXD - it is a separate quad-file format:
-
-  name.txt   - texture list + properties (human-readable)
-  name.x.toc - table of contents (offsets into .dat)
-  name.x.dat - texture data (listings + raw pixel data)
-  name.x.tmb - thumbnails
-
-Where x = pvr (iOS) or etc (Android / some iOS).
-
-Reference: https://gtamods.com/wiki/Mobile_textures_(SA/VC)
+SA/VC mobile texture database (.txt .toc .dat .tmb) read and write.
 """
 
-import struct
+# Files: name.txt shared, name.<plat>.toc/.dat/.tmb per platform.
+# .toc: u32 dat size, i32 offset per entry, -1 affiliate.
+# SA entry: u16 hash, enc, width, height|0x8000 mips.
+#   Then u32 size; body is u32 RLE indicator plus stream.
+# VC entry: same 8 byte header, raw chain, no size.
+# RLE segment: max(4, block bytes); chain padded to segment.
+# .tmb: one thumbnail entry per stored texture, same entry layout.
+
 import os
-from typing import List, Dict, Optional, Tuple
+import re
+import struct
 
-## Methods list -
-# hash_texture_name
-# detect_mobile_db
-# parse_txt_file
-# parse_toc_file
-# parse_dat_file
-# load_mobile_texture_db
-# get_encoding_name
-# get_encoding_bpp
+import numpy as np
+
+from apps.methods.mobile_texture_decode import (
+    GL_DXT1, GL_DXT1A, GL_DXT3, GL_DXT5, GL_ETC1, GL_L8, GL_PVRTC2_RGB,
+    GL_PVRTC2_RGBA, GL_PVRTC4_RGB, GL_PVRTC4_RGBA, GL_RGB565, GL_RGBA4444,
+    GL_RGBA5551, GL_RGBA8888, decode_level, encode_level, level_size, mip_dims,
+)
+
+##Methods list -
+# _build_entry
+# _downsample
+# _make_thumb
+# _parse_entries
+# _rle_segment
+# _txt_set_size
+# _walk_offsets
+# _write_file
 # decode_rle
-# MobileTexture
-# MobileTextureDB
+# describe_mobile_db
+# detect_mobile_db
+# encode_rle
+# get_encoding_bpp
+# get_encoding_name
+# hash_texture_name
+# load_mobile_texture_db
+# parse_toc_file
+# parse_txt_file
+# save_mobile_texture_db
 
+##class MobileTexture: -
+# __init__
+# __repr__
+# bpp
+# encoding_name
+# has_alpha
+# is_etc1
+# is_pvrtc
+# levels
 
-#    Encoding type constants                                                     
-# Values confirmed from community research of GTA SA/VC mobile dat files.
-# GTAMods wiki does not list the encoding_type values explicitly.
-
-ENCODING_RGBA8888   = 0   # 32-bit RGBA uncompressed
-ENCODING_PVRTC_4RGB = 1   # PVRTC 4bpp RGB  (iOS PowerVR)
-ENCODING_PVRTC_4RGBA= 2   # PVRTC 4bpp RGBA (iOS PowerVR)
-ENCODING_PVRTC_2RGB = 3   # PVRTC 2bpp RGB  (iOS PowerVR)
-ENCODING_PVRTC_2RGBA= 4   # PVRTC 2bpp RGBA (iOS PowerVR)
-ENCODING_ETC1       = 5   # ETC1 (Android / some iOS fallback)
-# VC Android pvr.dat encoding IDs (different from SA)
-ENCODING_VC_PVRTC2  = 0x8C01   # PVRTC 2bpp (VC Android gta3hi.pvr.dat)
-ENCODING_VC_PVRTC2B = 0x8C02   # PVRTC 2bpp variant 2
-ENCODING_RGB565     = 6   # 16-bit RGB 5:6:5
-ENCODING_RGBA4444   = 7   # 16-bit RGBA 4:4:4:4
-ENCODING_RGBA5551   = 8   # 16-bit RGBA 5:5:5:1
+##class MobileTextureDB: -
+# __init__
+# get_by_name
+# is_android
+# is_ios
+# texture_count
 
 ENCODING_NAMES = {
-    ENCODING_RGBA8888:    'RGBA8888',
-    ENCODING_PVRTC_4RGB:  'PVRTC-4bpp-RGB',
-    ENCODING_PVRTC_4RGBA: 'PVRTC-4bpp-RGBA',
-    ENCODING_PVRTC_2RGB:  'PVRTC-2bpp-RGB',
-    ENCODING_PVRTC_2RGBA: 'PVRTC-2bpp-RGBA',
-    ENCODING_ETC1:        'ETC1',
-    ENCODING_VC_PVRTC2:  'PVRTC-2bpp-VC',
-    ENCODING_VC_PVRTC2B: 'PVRTC-2bpp-VC-B',
-    ENCODING_RGB565:      'RGB565',
-    ENCODING_RGBA4444:    'RGBA4444',
-    ENCODING_RGBA5551:    'RGBA5551',
+    GL_RGBA8888: 'RGBA8888', GL_L8: 'L8', GL_RGBA4444: 'RGBA4444',
+    GL_RGBA5551: 'RGBA5551', GL_RGB565: 'RGB565', GL_DXT1: 'DXT1',
+    GL_DXT1A: 'DXT1A', GL_DXT3: 'DXT3', GL_DXT5: 'DXT5',
+    GL_PVRTC4_RGB: 'PVRTC4-RGB', GL_PVRTC2_RGB: 'PVRTC2-RGB',
+    GL_PVRTC4_RGBA: 'PVRTC4-RGBA', GL_PVRTC2_RGBA: 'PVRTC2-RGBA',
+    GL_ETC1: 'ETC1',
 }
-
 ENCODING_BPP = {
-    ENCODING_RGBA8888:    32,
-    ENCODING_PVRTC_4RGB:  4,
-    ENCODING_PVRTC_4RGBA: 4,
-    ENCODING_PVRTC_2RGB:  2,
-    ENCODING_PVRTC_2RGBA: 2,
-    ENCODING_ETC1:        4,   # ETC1 = 4 bits per pixel (4×4 blocks, 8 bytes each)
-    ENCODING_RGB565:      16,
-    ENCODING_RGBA4444:    16,
-    ENCODING_RGBA5551:    16,
+    GL_RGBA8888: 32, GL_L8: 8, GL_RGBA4444: 16, GL_RGBA5551: 16,
+    GL_RGB565: 16, GL_DXT1: 4, GL_DXT1A: 4, GL_DXT3: 8, GL_DXT5: 8,
+    GL_PVRTC4_RGB: 4, GL_PVRTC2_RGB: 2, GL_PVRTC4_RGBA: 4,
+    GL_PVRTC2_RGBA: 2, GL_ETC1: 4,
 }
+ENCODING_IS_PVRTC = {GL_PVRTC4_RGB, GL_PVRTC2_RGB, GL_PVRTC4_RGBA, GL_PVRTC2_RGBA}
+ENCODING_HAS_ALPHA = {GL_RGBA8888, GL_RGBA4444, GL_RGBA5551, GL_DXT1A,
+                      GL_DXT3, GL_DXT5, GL_PVRTC4_RGBA, GL_PVRTC2_RGBA}
 
-ENCODING_IS_PVRTC = {
-    ENCODING_PVRTC_4RGB, ENCODING_PVRTC_4RGBA,
-    ENCODING_PVRTC_2RGB, ENCODING_PVRTC_2RGBA,
-}
-
-#    Platform detection                                                          
-# File extension of the texture data files determines platform:
-PLATFORM_IOS     = 'pvr'   # iOS   → PVRTC compression
-PLATFORM_ANDROID = 'etc'   # Android → ETC1 compression
+PLATFORM_IOS = 'pvr'
+PLATFORM_ANDROID = 'etc'
+PLATFORMS = ('pvr', 'dxt', 'etc', 'unc')
+LAYOUT_SA = 'sa'
+LAYOUT_VC = 'vc'
 
 
-def get_encoding_name(encoding_type: int) -> str:
-    """Return readable name for encoding_type value."""
+def get_encoding_name(encoding_type): #vers 2
+    """Readable name for a GL encoding id."""
     return ENCODING_NAMES.get(encoding_type, f'Unknown (0x{encoding_type:04X})')
 
 
-def get_encoding_bpp(encoding_type: int) -> int:
-    """Return bits per pixel for encoding_type, 0 if unknown."""
+def get_encoding_bpp(encoding_type): #vers 2
+    """Bits per pixel for a GL encoding id, 0 if unknown."""
     return ENCODING_BPP.get(encoding_type, 0)
 
 
-#    Hash algorithm (from GTAMods wiki)                                         
-
-def hash_texture_name(name: str) -> int:
-    """
-    Hash texture name to u16 for .dat verification.
-
-    Algorithm (from GTAMods wiki):
-    1. Start with u32 hash = 0
-    2. For each byte: hash += (hash << 5) + byte  (all u32 wrapping)
-    3. After loop: hash += hash >> 5
-    4. Return low 16 bits
-    """
+def hash_texture_name(name): #vers 1
+    """u16 name hash stored in each .dat entry."""
     h = 0
     for byte in name.encode('ascii', errors='replace'):
         h = (h + ((h << 5) & 0xFFFFFFFF) + byte) & 0xFFFFFFFF
@@ -117,543 +107,453 @@ def hash_texture_name(name: str) -> int:
     return h & 0xFFFF
 
 
-#    RLE decompression (from GTAMods wiki)                                      
+def _rle_segment(enc): #vers 1
+    """RLE segment size in bytes for an encoding."""
+    if enc in (GL_DXT3, GL_DXT5):
+        return 16
+    if enc in (GL_DXT1, GL_DXT1A, GL_ETC1) or enc in ENCODING_IS_PVRTC:
+        return 8
+    return 4
 
-def decode_rle(data: bytes, segment_size: int, indicator: int) -> bytes:
-    """
-    Decode mobile texture RLE compression.
 
-    Args:
-        data:         Compressed bytes.
-        segment_size: Size of each segment in bytes (must be >= 1).
-        indicator:    If a group starts with this byte, the next byte is a
-                      repeat count and the following segment_size bytes are
-                      repeated that many times.
-
-    Returns:
-        Decompressed bytes.
-    """
-    # Sanity checks to prevent runaway loops on corrupt/wrong data
-    segment_size = max(1, segment_size)
-    max_out = max(len(data) * 256, 64 * 1024 * 1024)  # cap at 64 MB
-
+def decode_rle(data, segment_size, indicator): #vers 2
+    """Expand RLE stream: indicator, count, segment repeats."""
     out = bytearray()
-    i = 0
-    n = len(data)
-
+    i, n = 0, len(data)
     while i < n:
-        if len(out) >= max_out:
-            break  # safety cap — corrupt data guard
-        b = data[i]; i += 1
-        if b == indicator:
-            if i + 1 + segment_size > n:
-                break
-            count = data[i]; i += 1
-            if count == 0:
-                continue  # skip zero-repeat runs
-            segment = data[i:i + segment_size]; i += segment_size
-            for _ in range(count):
-                out.extend(segment)
-                if len(out) >= max_out:
-                    break
+        if data[i] == indicator:
+            if i + 2 + segment_size > n:
+                raise ValueError(f"RLE run truncated at {i}")
+            out += data[i + 2:i + 2 + segment_size] * data[i + 1]
+            i += 2 + segment_size
         else:
-            if i + segment_size - 1 > n:
-                break
-            # First byte already read; prepend it to the segment
-            segment = bytes([b]) + data[i:i + segment_size - 1]
-            i += segment_size - 1
-            out.extend(segment)
-
+            if i + segment_size > n:
+                raise ValueError(f"RLE literal truncated at {i}")
+            out += data[i:i + segment_size]
+            i += segment_size
     return bytes(out)
 
 
-#    Data structures                                                             
+def encode_rle(data, segment_size, indicator): #vers 1
+    """Compress data with the mobile RLE scheme."""
+    if len(data) % segment_size:
+        raise ValueError("RLE input not a whole number of segments")
+    segs = [data[i:i + segment_size] for i in range(0, len(data), segment_size)]
+    out = bytearray()
+    i = 0
+    while i < len(segs):
+        j = i + 1
+        while j < len(segs) and j - i < 255 and segs[j] == segs[i]:
+            j += 1
+        run = j - i
+        if run >= 2 or segs[i][0] == indicator:
+            out += bytes([indicator, run]) + segs[i]
+        else:
+            out += segs[i]
+        i = j
+    return bytes(out)
+
 
 class MobileTexture:
-    """Single texture entry from a mobile texture database."""
+    """One texture entry from a mobile texture database."""
 
-    def __init__(self):
-        self.name: str = ''
-        self.hash: int = 0
-        self.encoding_type: int = 0
-        self.width: int = 0
-        self.height: int = 0
-        self.has_mipmaps: bool = False
-        self.mip_count: int = 1
-        self.compressed_size: int = 0
-        self.rle_indicator: int = 0      # 0 = no RLE
-        self.data_offset: int = 0        # byte offset into .dat file
-        self.raw_data: bytes = b''       # compressed bytes as stored in .dat
-        self.pixel_data: bytes = b''     # decoded pixel bytes (decompressed)
-
-        # Properties from .txt file
-        self.txt_props: Dict[str, str] = {}
-        self.is_affiliate: bool = False  # affiliate=... redirect entry
+    def __init__(self): #vers 2
+        self.name = ''
+        self.index = 0
+        self.hash = 0
+        self.encoding_type = 0
+        self.width = 0
+        self.height = 0
+        self.has_mipmaps = False
+        self.mip_count = 1
+        self.compressed_size = 0
+        self.rle_indicator = 0
+        self.entry_offset = -1
+        self.data_offset = 0
+        self.entry_bytes = b''
+        self.raw_data = b''
+        self.pixel_data = b''
+        self.thumb_index = -1
+        self.txt_props = {}
+        self.is_affiliate = False
 
     @property
-    def encoding_name(self) -> str:
+    def encoding_name(self): #vers 1
         return get_encoding_name(self.encoding_type)
 
     @property
-    def is_pvrtc(self) -> bool:
+    def is_pvrtc(self): #vers 2
         return self.encoding_type in ENCODING_IS_PVRTC
 
     @property
-    def is_etc1(self) -> bool:
-        return self.encoding_type == ENCODING_ETC1
+    def is_etc1(self): #vers 2
+        return self.encoding_type == GL_ETC1
 
     @property
-    def bpp(self) -> int:
+    def bpp(self): #vers 1
         return get_encoding_bpp(self.encoding_type)
 
-    def __repr__(self):
-        return (f'<MobileTexture {self.name!r} '
-                f'{self.width}x{self.height} '
-                f'{self.encoding_name} '
-                f'mipmaps={self.has_mipmaps}>')
+    @property
+    def has_alpha(self): #vers 1
+        return self.encoding_type in ENCODING_HAS_ALPHA
+
+    def levels(self): #vers 1
+        """Decoded mip levels as (width, height, rgba bytes)."""
+        out, pos = [], 0
+        for w, h in mip_dims(self.width, self.height, self.has_mipmaps):
+            size = level_size(self.encoding_type, w, h)
+            rgba = decode_level(self.encoding_type, self.pixel_data[pos:pos + size], w, h)
+            out.append((w, h, rgba.tobytes()))
+            pos += size
+        return out
+
+    def __repr__(self): #vers 1
+        return (f'<MobileTexture {self.name!r} {self.width}x{self.height} '
+                f'{self.encoding_name} mipmaps={self.has_mipmaps}>')
 
 
 class MobileTextureDB:
-    """
-    Parsed mobile texture database (quad-file set: .txt + .toc + .dat + .tmb).
-    """
+    """Parsed mobile texture database for one platform."""
 
-    def __init__(self):
-        self.name: str = ''               # e.g. 'gta3'
-        self.platform: str = ''           # 'pvr' or 'etc'
-        self.textures: List[MobileTexture] = []
-        self.txt_path: str = ''
-        self.toc_path: str = ''
-        self.dat_path: str = ''
-        self.tmb_path: str = ''
-        self.dat_size: int = 0            # size of .dat as stored in .toc header
-        self.errors: List[str] = []
+    def __init__(self): #vers 2
+        self.name = ''
+        self.platform = ''
+        self.layout = ''
+        self.folder = ''
+        self.textures = []
+        self.thumbs = []
+        self.txt_path = ''
+        self.toc_path = ''
+        self.dat_path = ''
+        self.tmb_path = ''
+        self.dat_size = 0
+        self.errors = []
 
     @property
-    def texture_count(self) -> int:
+    def texture_count(self): #vers 1
         return len(self.textures)
 
     @property
-    def is_ios(self) -> bool:
+    def is_ios(self): #vers 1
         return self.platform == PLATFORM_IOS
 
     @property
-    def is_android(self) -> bool:
-        return self.platform == PLATFORM_ANDROID
+    def is_android(self): #vers 2
+        return self.platform in ('etc', 'dxt')
 
-    def get_by_name(self, name: str) -> Optional[MobileTexture]:
+    def get_by_name(self, name): #vers 1
         for t in self.textures:
             if t.name == name:
                 return t
         return None
 
 
-#    Parsers                                                                     
-
-def parse_txt_file(txt_path: str) -> Tuple[Dict, List[Dict]]:
-    """
-    Parse the .txt property file.
-
-    Returns:
-        (category_props, list_of_texture_prop_dicts)
-        Each texture dict has at minimum 'name' key.
-    """
-    category_props: Dict[str, str] = {}
-    textures: List[Dict] = []
-
-    if not os.path.isfile(txt_path):
-        return category_props, textures
-
-    with open(txt_path, 'r', errors='replace') as f:
-        lines = f.readlines()
-
-    for raw_line in lines:
-        line = raw_line.strip()
+def parse_txt_file(txt_path): #vers 2
+    """Parse .txt into category props and texture prop dicts."""
+    category, textures = {}, []
+    with open(txt_path, 'r', errors='replace', newline='') as f:
+        lines = f.read().splitlines()
+    for line_no, raw in enumerate(lines):
+        line = raw.strip()
         if not line or line.startswith('#'):
             continue
-
-        # Parse key=value pairs from this line
-        props: Dict[str, str] = {}
         name = None
-        is_affiliate = False
-
-        # Texture lines begin with a quoted name: "texname"
+        rest = line
         if line.startswith('"'):
             end = line.find('"', 1)
-            if end != -1:
-                name = line[1:end]
-                rest = line[end + 1:].strip()
-            else:
-                continue
-        else:
-            rest = line
-
-        # Parse remaining key=value pairs
+            if end == -1:
+                raise ValueError(f"{txt_path}:{line_no + 1}: unterminated name")
+            name, rest = line[1:end], line[end + 1:]
+        props = {}
         for token in rest.split():
             if '=' in token:
                 k, _, v = token.partition('=')
-                # Handle quoted values (e.g. "affiliate=something")
-                v = v.strip('"')
-                k = k.strip('"')
-                props[k] = v
-                if k == 'affiliate':
-                    is_affiliate = True
-            elif token.startswith('"') and token.endswith('"'):
-                # bare quoted token is a texture name on a category line
-                pass
-
-        if 'cat' in props:
-            # Category / database info line
-            category_props.update(props)
-            if name:
-                category_props['_name'] = name
-        elif name is not None:
-            entry = {'name': name, 'is_affiliate': is_affiliate}
+                props[k.strip('"')] = v.strip('"')
+        if name is None:
+            category.update(props)
+        else:
+            entry = {'name': name, 'is_affiliate': 'affiliate' in props, '_line': line_no}
             entry.update(props)
             textures.append(entry)
-        elif props:
-            # Unnamed property line — treat as category
-            category_props.update(props)
-
-    return category_props, textures
+    return category, textures
 
 
-def parse_toc_file(toc_path: str, entry_count: int) -> Tuple[int, List[int]]:
-    """
-    Parse the .toc offset file.
-
-    Supports two TOC layouts:
-      With-txt (SA iOS / VC iOS):
-        dat_size(4) + N×offset(4) where N == entry_count, offsets -1 = affiliate
-      No-txt (SA Android / VC Android):
-        dat_size(4) + pad(4) + M×offset(4) where M = (file_size-8)/4
-        First texture is implicitly at offset 0 (not in the array).
-
-    Args:
-        toc_path:    Path to .toc file.
-        entry_count: Number of entries from .txt (0 = no-txt format).
-
-    Returns:
-        (stated_dat_size, list_of_offsets)
-        Offsets of -1 (0xFFFFFFFF) = affiliate/gap entries.
-    """
-    offsets: List[int] = []
-    dat_size = 0
-
-    if not os.path.isfile(toc_path):
-        return dat_size, offsets
-
+def parse_toc_file(toc_path, entry_count): #vers 2
+    """Read .toc: (stated dat size, offsets with -1 affiliates)."""
     with open(toc_path, 'rb') as f:
         data = f.read()
-
-    if len(data) < 4:
-        return dat_size, offsets
-
-    dat_size = struct.unpack_from('<I', data, 0)[0]
-
-    if entry_count == 0:
-        # No-txt format: dat_size(4) + pad(4) + flat u32 offsets
-        # First texture is always at offset 0 in the DAT (implicit).
-        if len(data) < 8:
-            return dat_size, offsets
-        n = (len(data) - 8) // 4
-        raw = struct.unpack_from(f'<{n}I', data, 8)
-        # Prepend 0 (implicit first entry) then all TOC entries
-        # Sentinel 0xFFFFFFFF = affiliate gap → keep as -1
-        offsets = [0] + [int(o) if o != 0xFFFFFFFF else -1 for o in raw]
-    else:
-        # With-txt format: dat_size(4) + entry_count × u32 offsets
-        n = min(entry_count, (len(data) - 4) // 4)
-        raw = struct.unpack_from(f'<{n}I', data, 4)
-        offsets = [int(o) if o != 0xFFFFFFFF else -1 for o in raw]
-
-    return dat_size, offsets
+    if len(data) != 4 + 4 * entry_count:
+        raise ValueError(f"{os.path.basename(toc_path)}: {len(data)} bytes, "
+                         f"expected {4 + 4 * entry_count} for {entry_count} entries")
+    return struct.unpack_from('<I', data, 0)[0], list(struct.unpack_from(f'<{entry_count}i', data, 4))
 
 
-def parse_dat_file(dat_path: str, txt_entries: List[Dict],
-                   offsets: Optional[List[int]] = None,
-                   load_pixel_data: bool = True) -> List[MobileTexture]:
-    """
-    Parse the .dat texture data file.
-
-    Args:
-        dat_path:         Path to .dat file.
-        txt_entries:      Texture dicts from parse_txt_file.
-        offsets:          Offset list from parse_toc_file (optional — will scan
-                          sequentially if not provided or mismatched).
-        load_pixel_data:  If True, decompress RLE and store in texture.pixel_data.
-
-    Returns:
-        List of MobileTexture objects.
-    """
-    textures: List[MobileTexture] = []
-
-    if not os.path.isfile(dat_path):
-        return textures
-
-    with open(dat_path, 'rb') as f:
-        dat = f.read()
-
-    # If no txt_entries but offsets exist (VC Android no-txt format),
-    # create synthetic entry list so we can iterate over TOC offsets directly.
-    if not txt_entries and offsets:
-        txt_entries = [{'name': f'texture_{i}', 'is_affiliate': False}
-                       for i in range(len(offsets))]
-
-    use_offsets = (offsets is not None and len(offsets) == len(txt_entries))
-    pos = 0
-    HEADER_SIZE = 16  # u16 hash + u16 enc + u16 w + u16 h_mask + u32 csz + i32 rle
-
-    for idx, entry_props in enumerate(txt_entries):
-        tex = MobileTexture()
-        tex.name = entry_props.get('name', f'texture_{idx}')
-        tex.txt_props = dict(entry_props)
-        tex.is_affiliate = entry_props.get('is_affiliate', False)
-
-        if tex.is_affiliate:
-            textures.append(tex)
-            continue
-
-        # Find position in .dat
-        if use_offsets and idx < len(offsets):
-            off = offsets[idx]
-            if off == -1:
-                # Affiliate in .toc - skip
-                tex.is_affiliate = True
-                textures.append(tex)
-                continue
-            pos = off
-        # else: use sequential pos
-
-        if pos + HEADER_SIZE > len(dat):
-            break
-
-        # --- Parse 12-byte listing header ---
-        (name_hash, encoding_type,
-         width, height_mask,
-         comp_size, rle_indicator) = struct.unpack_from('<HHHHIi', dat, pos)
-
-        tex.hash = name_hash
-        tex.encoding_type = encoding_type
-        tex.width = width
-        tex.height = height_mask & 0x7FFF
-        tex.has_mipmaps = not bool(height_mask & 0x8000)
-        tex.compressed_size = comp_size
-        tex.rle_indicator = rle_indicator  # 0 = no RLE; treated as signed but wiki says u32
-        tex.data_offset = pos + HEADER_SIZE
-
-        # Count mipmaps
-        if tex.has_mipmaps and tex.width > 0 and tex.height > 0:
-            w, h = tex.width, tex.height
-            count = 0
-            while w >= 1 and h >= 1:
-                count += 1
-                if w == 1 and h == 1:
-                    break
-                w = max(1, w >> 1)
-                h = max(1, h >> 1)
-            tex.mip_count = count
+def _parse_entries(blob, starts, layout, load_pixel_data): #vers 1
+    """Parse entries at sorted start offsets of a .dat or .tmb."""
+    out = []
+    ends = starts[1:] + [len(blob)]
+    for start, end in zip(starts, ends):
+        t = MobileTexture()
+        t.entry_offset = start
+        t.entry_bytes = blob[start:end]
+        t.hash, t.encoding_type, t.width, hm = struct.unpack_from('<HHHH', blob, start)
+        t.height = hm & 0x7FFF
+        t.has_mipmaps = bool(hm & 0x8000)
+        dims = mip_dims(t.width, t.height, t.has_mipmaps)
+        t.mip_count = len(dims)
+        chain = sum(level_size(t.encoding_type, w, h) for w, h in dims)
+        if layout == LAYOUT_SA:
+            t.compressed_size, t.rle_indicator = struct.unpack_from('<II', blob, start + 8)
+            if 12 + t.compressed_size != end - start:
+                raise ValueError(f"Entry at 0x{start:x}: size {t.compressed_size} != span {end - start - 12}")
+            t.data_offset = start + 16
         else:
-            tex.mip_count = 1
-
-        # When TOC offsets available, derive true comp_size from offset difference.
-        # VC pvr.dat stores garbage in the csz header field — use TOC instead.
-        # Skip -1 (affiliate/gap) entries to find the real next valid offset.
-        if use_offsets:
-            for _nxt_i in range(idx + 1, len(offsets)):
-                if offsets[_nxt_i] != -1:
-                    toc_comp_size = offsets[_nxt_i] - pos - HEADER_SIZE
-                    if toc_comp_size > 0:
-                        comp_size = toc_comp_size
-                        tex.compressed_size = comp_size
-                    break
-
-        # Sanity check comp_size before reading — corrupt/wrong-format guard
-        MAX_TEX_BYTES = 16 * 1024 * 1024  # 16 MB hard cap per texture
-        if comp_size == 0 or comp_size > MAX_TEX_BYTES:
-            # comp_size is unrecoverable — append affiliate placeholder and skip
-            tex.is_affiliate = True
-            textures.append(tex)
-            continue
-
-        # Read raw compressed bytes
-        data_start = pos + HEADER_SIZE
-        data_end = data_start + comp_size
-        if data_end <= len(dat):
-            tex.raw_data = dat[data_start:data_end]
-        else:
-            tex.raw_data = dat[data_start:]  # truncated
-
-        # Decode RLE if present
-        if load_pixel_data and tex.raw_data:
-            if rle_indicator != 0:
-                seg_sz = max(1, get_encoding_bpp(encoding_type) // 8)
-                if seg_sz < 1:
-                    seg_sz = 1
-                tex.pixel_data = decode_rle(tex.raw_data, seg_sz,
-                                            rle_indicator & 0xFF)
+            if 8 + chain != end - start:
+                raise ValueError(f"Entry at 0x{start:x}: chain {chain} != span {end - start - 8}")
+            t.compressed_size = chain
+            t.data_offset = start + 8
+        t.raw_data = blob[t.data_offset:end]
+        if load_pixel_data:
+            if layout == LAYOUT_SA and t.rle_indicator:
+                pix = decode_rle(t.raw_data, _rle_segment(t.encoding_type), t.rle_indicator)
             else:
-                tex.pixel_data = tex.raw_data
+                pix = t.raw_data
+            if not chain <= len(pix) < chain + _rle_segment(t.encoding_type):
+                raise ValueError(f"Entry at 0x{start:x}: pixel data {len(pix)} != chain {chain}")
+            t.pixel_data = pix[:chain]
+        out.append(t)
+    return out
 
-        textures.append(tex)
-        pos = data_end  # advance for sequential scan
 
-    return textures
-
-
-#    Top-level loader                                                            
-
-def detect_mobile_db(path: str) -> Optional[Tuple[str, str, str]]:
-    """
-    Detect if a path belongs to a mobile texture database.
-
-    Accepts (with .txt sidecar — SA iOS / VC iOS format):
-      - name.txt, name.pvr.dat, name.pvr.toc, name.pvr.tmb
-
-    Accepts (without .txt — SA Android / VC Android format):
-      - name.dxt.toc / name.dxt.dat / name.dxt.tmb
-      - name.etc.toc / name.etc.dat / name.etc.tmb
-      - name.pvr.toc / name.pvr.dat / name.pvr.tmb  (VC)
-
-    Returns:
-        (base_name, platform_ext, folder_path)  or  None if not a mobile DB.
-        e.g. ('gta3', 'pvr', '/path/to/texdb/')
-    """
+def detect_mobile_db(path): #vers 2
+    """Return (db_name, platform, folder) for any DB file, else None."""
     if not path:
         return None
-
-    folder = os.path.dirname(path)
-    fname  = os.path.basename(path)
-    name_lower = fname.lower()
-
-    # Quick reject: must have a known platform extension somewhere in the name
-    KNOWN_PLATFORMS = (PLATFORM_IOS, PLATFORM_ANDROID, 'dxt', 'etc')
-
-    # Case 1: .txt file → look for companion .dat
-    if name_lower.endswith('.txt'):
-        db_name = os.path.splitext(fname)[0]
-        for platform in (PLATFORM_IOS, PLATFORM_ANDROID, 'dxt', 'etc'):
-            dat = os.path.join(folder, f'{db_name}.{platform}.dat')
-            if os.path.isfile(dat):
-                return (db_name, platform, folder)
+    folder, fname = os.path.split(path)
+    low = fname.lower()
+    if low.endswith('.txt'):
+        db_name = fname[:-4]
+        for plat in PLATFORMS:
+            if os.path.isfile(os.path.join(folder, f'{db_name}.{plat}.dat')):
+                return db_name, plat, folder
         return None
-
-    # Case 2: .dat / .toc / .tmb with embedded platform token
-    # Filename looks like: gta3hi.pvr.dat  /  txd.dxt.toc  /  hud.etc.tmb
-    for platform in (PLATFORM_IOS, PLATFORM_ANDROID, 'dxt', 'etc'):
-        token = f'.{platform}.'
-        if token in name_lower:
-            db_name = fname[:name_lower.index(token)]
-            # With .txt sidecar (preferred)
-            txt = os.path.join(folder, f'{db_name}.txt')
-            if os.path.isfile(txt):
-                return (db_name, platform, folder)
-            # Without .txt — Android/no-txt format; verify .dat exists
-            dat = os.path.join(folder, f'{db_name}.{platform}.dat')
-            if os.path.isfile(dat):
-                return (db_name, platform, folder)
-
-    return None
+    m = re.match(r'^(.+)\.(pvr|dxt|etc|unc)\.(dat|toc|tmb)$', fname, re.I)
+    if not m:
+        return None
+    db_name, plat = m.group(1), m.group(2).lower()
+    if not os.path.isfile(os.path.join(folder, f'{db_name}.{plat}.dat')):
+        return None
+    return db_name, plat, folder
 
 
-def load_mobile_texture_db(path: str,
-                           load_pixel_data: bool = True) -> Optional[MobileTextureDB]:
-    """
-    Load a mobile texture database from any one of its four files.
-
-    Args:
-        path:             Path to .txt, .dat, .toc, or .tmb file.
-        load_pixel_data:  Whether to decode RLE and populate pixel_data.
-
-    Returns:
-        MobileTextureDB on success, None if not recognised.
-    """
+def load_mobile_texture_db(path, load_pixel_data=True): #vers 2
+    """Load a mobile texture database from any of its files."""
     detected = detect_mobile_db(path)
     if not detected:
         return None
-
     db_name, platform, folder = detected
-
     db = MobileTextureDB()
-    db.name = db_name
-    db.platform = platform
+    db.name, db.platform, db.folder = db_name, platform, folder
     db.txt_path = os.path.join(folder, f'{db_name}.txt')
     db.toc_path = os.path.join(folder, f'{db_name}.{platform}.toc')
     db.dat_path = os.path.join(folder, f'{db_name}.{platform}.dat')
     db.tmb_path = os.path.join(folder, f'{db_name}.{platform}.tmb')
-
-    # 1. Parse .txt (optional — not present in Android / no-txt format)
-    cat_props, txt_entries = parse_txt_file(db.txt_path)
-
-    has_txt = bool(txt_entries)
-
-    # 2. Parse .toc
-    # entry_count=0 triggers no-txt mode in parse_toc_file
-    offsets: Optional[List[int]] = None
-    if os.path.isfile(db.toc_path):
-        dat_size, offsets = parse_toc_file(
-            db.toc_path,
-            entry_count=len(txt_entries) if has_txt else 0
-        )
-        db.dat_size = dat_size
-
-        # Validate against actual dat size
-        if os.path.isfile(db.dat_path):
-            actual_size = os.path.getsize(db.dat_path)
-            if dat_size and dat_size != actual_size:
-                db.errors.append(
-                    f'.toc states dat_size={dat_size} but actual={actual_size}; '
-                    f'using sequential scan'
-                )
-                if has_txt:
-                    offsets = None  # only discard offsets if we have .txt fallback
-
-    # For no-txt format: synthesise placeholder txt_entries from offsets
-    if not has_txt and offsets:
-        txt_entries = [{'name': f'texture_{i}'} for i in range(len(offsets))]
-
-    if not txt_entries:
-        db.errors.append(
-            f'No texture entries found: missing {db.txt_path} '
-            f'and could not derive entries from .toc'
-        )
-        return db
-
-    # 3. Parse .dat (only if we have entries to match — no-txt formats
-    #    use TOC offsets alone; txt_entries may be [] for VC Android)
-    if os.path.isfile(db.dat_path):
-        if txt_entries or offsets:
-            db.textures = parse_dat_file(db.dat_path, txt_entries, offsets,
-                                         load_pixel_data)
+    if not os.path.isfile(db.txt_path):
+        raise FileNotFoundError(f"Missing {db.txt_path}")
+    _, entries = parse_txt_file(db.txt_path)
+    db.dat_size, offsets = parse_toc_file(db.toc_path, len(entries))
+    with open(db.dat_path, 'rb') as f:
+        dat = f.read()
+    if db.dat_size != len(dat):
+        raise ValueError(f".toc dat size {db.dat_size} != actual {len(dat)}")
+    starts = sorted(o for o in offsets if o >= 0)
+    if not starts:
+        raise ValueError("No stored textures in .toc")
+    # SA entries carry a size field matching the span
+    nxt = starts[1] if len(starts) > 1 else len(dat)
+    db.layout = LAYOUT_SA if struct.unpack_from('<I', dat, starts[0] + 8)[0] + 12 == nxt - starts[0] else LAYOUT_VC
+    parsed = {t.entry_offset: t for t in _parse_entries(dat, starts, db.layout, load_pixel_data)}
+    stored = 0
+    for i, (props, off) in enumerate(zip(entries, offsets)):
+        if off < 0:
+            t = MobileTexture()
+            t.is_affiliate = True
         else:
-            db.errors.append(
-                'No texture entries (.txt missing and TOC has no usable offsets) '
-                f'for {os.path.basename(db.dat_path)} — cannot parse.'
-            )
-    else:
-        db.errors.append(f'Missing .dat file: {db.dat_path}')
-
+            t = parsed[off]
+            t.thumb_index = stored
+            stored += 1
+            if t.hash != hash_texture_name(props['name']):
+                db.errors.append(f"Hash mismatch for {props['name']}")
+        t.name, t.index, t.txt_props = props['name'], i, dict(props)
+        db.textures.append(t)
+    if os.path.isfile(db.tmb_path):
+        with open(db.tmb_path, 'rb') as f:
+            tmb = f.read()
+        db.thumbs = _parse_entries(tmb, _walk_offsets(tmb, db.layout), db.layout, load_pixel_data)
+        if len(db.thumbs) != stored:
+            raise ValueError(f".tmb has {len(db.thumbs)} entries, expected {stored}")
     return db
 
 
-#    Summary helpers                                                             
+def _walk_offsets(blob, layout): #vers 1
+    """Entry start offsets of a sequential .tmb file."""
+    pos, starts = 0, []
+    while pos < len(blob):
+        starts.append(pos)
+        enc, w, hm = struct.unpack_from('<HHH', blob, pos + 2)
+        if layout == LAYOUT_SA:
+            pos += 12 + struct.unpack_from('<I', blob, pos + 8)[0]
+        else:
+            dims = mip_dims(w, hm & 0x7FFF, bool(hm & 0x8000))
+            pos += 8 + sum(level_size(enc, a, b) for a, b in dims)
+    if pos != len(blob):
+        raise ValueError(".tmb entries overrun file end")
+    return starts
 
-def describe_mobile_db(db: MobileTextureDB) -> str:
-    """Return a one-line summary string for the database."""
-    platform_str = 'iOS (PVRTC)' if db.is_ios else 'Android (ETC1)' if db.is_android else db.platform
+
+def _downsample(rgba): #vers 1
+    """2x2 box filter to the next mip size."""
+    h, w = rgba.shape[:2]
+    a = rgba.astype(np.uint32)
+    if h > 1:
+        a = a[0:h // 2 * 2:2] + a[1:h // 2 * 2:2]
+    if w > 1:
+        a = a[:, 0:w // 2 * 2:2] + a[:, 1:w // 2 * 2:2]
+    div = (2 if h > 1 else 1) * (2 if w > 1 else 1)
+    return ((a + div // 2) // div).astype(np.uint8)
+
+
+def _build_entry(layout, name_hash, enc, rgba, mips, rle_indicator): #vers 1
+    """Encode RGBA array as a full .dat or .tmb entry."""
+    h, w = rgba.shape[:2]
+    if enc in ENCODING_IS_PVRTC and (w & (w - 1) or h & (h - 1)):
+        raise ValueError(f"PVRTC needs power of two size, got {w}x{h}")
+    parts, cur = [], rgba
+    for lw, lh in mip_dims(w, h, mips):
+        if cur.shape[:2] != (lh, lw):
+            cur = _downsample(cur)
+        parts.append(encode_level(enc, cur, lw, lh))
+    chain = b''.join(parts)
+    head = struct.pack('<HHHH', name_hash, enc, w, h | (0x8000 if mips else 0))
+    if layout == LAYOUT_VC:
+        return head + chain
+    if rle_indicator:
+        seg = _rle_segment(enc)
+        chain += b'\0' * (-len(chain) % seg)
+        body = struct.pack('<I', rle_indicator) + encode_rle(chain, seg, rle_indicator)
+    else:
+        body = struct.pack('<I', 0) + chain
+    return head + struct.pack('<I', len(body)) + body
+
+
+def _make_thumb(layout, tex, thumb, rgba): #vers 1
+    """New thumbnail entry in the old thumbnail's format."""
+    small = rgba
+    while small.shape[0] > thumb.height or small.shape[1] > thumb.width:
+        small = _downsample(small)
+    if small.shape[:2] != (thumb.height, thumb.width):
+        raise ValueError(f"{tex.name}: cannot fit thumbnail {thumb.width}x{thumb.height}")
+    return _build_entry(layout, thumb.hash, thumb.encoding_type, small,
+                        thumb.has_mipmaps, thumb.rle_indicator)
+
+
+def _txt_set_size(text, line_no, width, height): #vers 1
+    """Rewrite width and height on one .txt line."""
+    lines = text.splitlines(True)
+    line = lines[line_no]
+    line = re.sub(r'\bwidth=\d+', f'width={width}', line)
+    line = re.sub(r'\bheight=\d+', f'height={height}', line)
+    lines[line_no] = line
+    return ''.join(lines)
+
+
+def _write_file(path, data): #vers 1
+    """Write bytes to path."""
+    with open(path, 'wb') as f:
+        f.write(data)
+
+
+def save_mobile_texture_db(db_or_path, edited, out_dir=None): #vers 1
+    """Re-encode edited textures; rewrite .dat .toc .tmb .txt."""
+    db = db_or_path if isinstance(db_or_path, MobileTextureDB) else load_mobile_texture_db(db_or_path)
+    if db is None:
+        raise ValueError(f"Not a mobile texture database: {db_or_path}")
+    out_dir = out_dir or db.folder
+    os.makedirs(out_dir, exist_ok=True)
+    by_name = {t.name: t for t in db.textures}
+    new_entry, new_thumb, resized = {}, {}, {}
+    for name, val in edited.items():
+        tex = by_name.get(name)
+        if tex is None or tex.is_affiliate:
+            raise KeyError(f"No stored texture named {name!r}")
+        rgba, w, h = (val, tex.width, tex.height) if isinstance(val, (bytes, bytearray)) else val
+        if len(rgba) != w * h * 4:
+            raise ValueError(f"{name}: rgba is {len(rgba)} bytes, expected {w * h * 4}")
+        arr = np.frombuffer(bytes(rgba), dtype=np.uint8).reshape(h, w, 4)
+        new_entry[tex.entry_offset] = _build_entry(db.layout, tex.hash, tex.encoding_type, arr,
+                                                   tex.has_mipmaps, tex.rle_indicator)
+        if db.thumbs:
+            new_thumb[tex.thumb_index] = _make_thumb(db.layout, tex, db.thumbs[tex.thumb_index], arr)
+        if (w, h) != (tex.width, tex.height):
+            resized[tex.index] = (w, h)
+    # Rebuild .dat in original physical order
+    stored = sorted((t for t in db.textures if not t.is_affiliate), key=lambda t: t.entry_offset)
+    dat, remap = bytearray(), {}
+    for t in stored:
+        remap[t.entry_offset] = len(dat)
+        dat += new_entry.get(t.entry_offset, t.entry_bytes)
+    toc = struct.pack('<I', len(dat)) + b''.join(
+        struct.pack('<i', -1 if t.is_affiliate else remap[t.entry_offset]) for t in db.textures)
+    base = os.path.join(out_dir, db.name)
+    written = []
+    for path, data in ((f'{base}.{db.platform}.dat', bytes(dat)), (f'{base}.{db.platform}.toc', toc)):
+        _write_file(path, data)
+        written.append(path)
+    # Thumbnails: platform .tmb plus shared .unc.tmb
+    tmb_paths = [db.tmb_path] if db.thumbs else []
+    unc = os.path.join(db.folder, f'{db.name}.unc.tmb')
+    if db.platform != 'unc' and os.path.isfile(unc):
+        tmb_paths.append(unc)
+    for src in tmb_paths:
+        with open(src, 'rb') as f:
+            blob = f.read()
+        thumbs = db.thumbs if src == db.tmb_path else _parse_entries(
+            blob, _walk_offsets(blob, db.layout), db.layout, False)
+        if len(thumbs) != len(db.thumbs):
+            raise ValueError(f"{os.path.basename(src)} entry count differs from {db.tmb_path}")
+        data = bytearray()
+        for i, th in enumerate(thumbs):
+            if i in new_thumb:
+                tex = next(t for t in db.textures if t.thumb_index == i)
+                val = edited[tex.name]
+                rgba, w, h = (val, tex.width, tex.height) if isinstance(val, (bytes, bytearray)) else val
+                arr = np.frombuffer(bytes(rgba), dtype=np.uint8).reshape(h, w, 4)
+                data += _make_thumb(db.layout, tex, th, arr)
+            else:
+                data += th.entry_bytes
+        dst = os.path.join(out_dir, os.path.basename(src))
+        _write_file(dst, bytes(data))
+        written.append(dst)
+    with open(db.txt_path, 'r', newline='') as f:
+        text = f.read()
+    for idx, (w, h) in resized.items():
+        text = _txt_set_size(text, db.textures[idx].txt_props['_line'], w, h)
+    dst = os.path.join(out_dir, os.path.basename(db.txt_path))
+    with open(dst, 'w', newline='') as f:
+        f.write(text)
+    written.append(dst)
+    return written
+
+
+def describe_mobile_db(db): #vers 2
+    """One-line summary of a loaded database."""
     real = [t for t in db.textures if not t.is_affiliate]
-    affiliates = len(db.textures) - len(real)
-    enc_counts: Dict[str, int] = {}
+    enc_counts = {}
     for t in real:
         enc_counts[t.encoding_name] = enc_counts.get(t.encoding_name, 0) + 1
-    enc_str = ', '.join(f'{k}:{v}' for k, v in sorted(enc_counts.items()))
-    parts = [
-        f'{db.name}.{db.platform}',
-        platform_str,
-        f'{len(real)} textures',
-    ]
-    if affiliates:
-        parts.append(f'{affiliates} affiliates')
-    if enc_str:
-        parts.append(enc_str)
+    parts = [f'{db.name}.{db.platform}', f'{db.layout.upper()} layout', f'{len(real)} textures']
+    if len(db.textures) > len(real):
+        parts.append(f'{len(db.textures) - len(real)} affiliates')
+    if enc_counts:
+        parts.append(', '.join(f'{k}:{v}' for k, v in sorted(enc_counts.items())))
     return ' | '.join(parts)

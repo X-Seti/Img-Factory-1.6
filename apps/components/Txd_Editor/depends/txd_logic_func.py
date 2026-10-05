@@ -125,6 +125,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _save_as_txd_file
 # _save_as_txd_file_with_version_selector
 # _save_current
+# _save_mobile_db
 # _save_settings
 # _save_texture_format
 # _save_texture_name
@@ -3623,6 +3624,8 @@ class TXDLogicMixin: #vers 1
             return build_lc_android_txd(self.texture_list, self.texture_list[0]['platform_id'], data)
         if kind == 'inplace':
             return rebuild_inplace_txd(data, self.texture_list)
+        if kind == 'mobile_db':
+            raise ValueError("Texture databases save with Save (Ctrl+S), not Save As")
         if kind == 'stories':
             from apps.methods.xtx_reader import write_stories_textures
             for t in self.texture_list:
@@ -3662,13 +3665,15 @@ class TXDLogicMixin: #vers 1
             btn.setEnabled(on)
             btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;" if on else "")
 
-    def _save_current(self): #vers 1
+    def _save_current(self): #vers 2
         """Save to the open file (or IMG entry) without asking; Save As when new."""
         if not self.texture_list:
             QMessageBox.warning(self, "No Textures", "No textures to save")
             return
         if self.current_img and not self.current_txd_path:
             return self._save_txd_to_img_with_version_selector()
+        if getattr(self, '_txd_kind', 'rw') == 'mobile_db':
+            return self._save_mobile_db()
         path = self.current_txd_path
         if not path or not os.path.isfile(path):
             return self._save_as_txd_file()
@@ -3685,6 +3690,30 @@ class TXDLogicMixin: #vers 1
             f.write(data)
         self._after_save(data)
         self._log(f"Saved TXD: {path} ({len(self.texture_list)} textures, {len(data):,} bytes)")
+
+    def _save_mobile_db(self): #vers 1
+        """Write edited textures back into the mobile texture database files."""
+        from apps.methods.mobile_texture_db import save_mobile_texture_db
+        from apps.methods.txd_splice import texture_signature, tag_loaded_texture
+        edited = {}
+        for t in self.texture_list:
+            if t.get('name') != t.get('_src_name'):
+                QMessageBox.warning(self, "Save", f"'{t.get('name')}': texture DB entries can't be renamed")
+                return
+            if t.get('_src_sig') != texture_signature(t):
+                edited[t['name']] = (t['rgba_data'], t['width'], t['height'])
+        if not edited:
+            self._clear_modified()
+            return
+        try:
+            paths = save_mobile_texture_db(self._mobile_db, edited)
+        except Exception as e:
+            QMessageBox.critical(self, "Save Error", f"Failed to save texture database:\n\n{e}")
+            return
+        for t in self.texture_list:
+            tag_loaded_texture(t)
+        self._clear_modified()
+        self._log(f"Saved texture DB: {len(edited)} texture(s), {len(paths)} file(s)")
 
     def _close_txd(self): #vers 1
         """Close the open TXD (asks first when there are unsaved changes)."""
@@ -6419,54 +6448,27 @@ class TXDLogicMixin: #vers 1
             QMessageBox.critical(self, "Mobile DB Error",
                 f"Failed to load mobile texture database:\n{e}")
 
-    def _display_mobile_textures(self, db): #vers 2
-        """Populate texture_table with mobile texture database textures."""
-        from apps.methods.mobile_texture_decode import to_pil_image
-        from apps.methods.mobile_texture_db import ENCODING_IS_PVRTC
-
-        real_textures = [t for t in db.textures if not t.is_affiliate]
-
-        # Clear existing textures
-        self.texture_list = []
-        if hasattr(self, 'texture_table'):
-            self.texture_table.setRowCount(0)
-
-        for tex in real_textures:
-            enc_name = tex.encoding_name
-            pvrtc = tex.encoding_type in ENCODING_IS_PVRTC
-
-            # Decode to RGBA
-            pil_img = to_pil_image(tex)
-            if pil_img:
-                rgba = pil_img.tobytes('raw', 'RGBA')
-            else:
-                rgba = bytes(tex.width * tex.height * 4)
-
-            fmt = enc_name + (" (preview)" if pvrtc else "")
-            tex_entry = {
-                'name':                tex.name,
-                'width':               tex.width,
-                'height':              tex.height,
-                'depth':               tex.bpp,
-                'format':              fmt,
-                'has_alpha':           tex.encoding_type in (2, 4, 7, 8),
-                'alpha_name':          '',
-                'mipmaps':             tex.mip_count,
-                'rgba_data':           rgba,
-                'raster_format_flags': 0,
-                'is_swizzled':         False,
-                'platform':            db.platform.upper(),
-                'compressed_size':     tex.compressed_size,
-                'mobile_tex':          tex,
-            }
-            self.texture_list.append(tex_entry)
-            if hasattr(self, '_add_texture_to_table'):
-                self._add_texture_to_table(tex_entry)
-
-        if hasattr(self, 'texture_table') and self.texture_list:
-            self.texture_table.selectRow(0)
-
-        self._log(f"Mobile DB: {db.name}.{db.platform} — {len(real_textures)} textures loaded")
+    def _display_mobile_textures(self, db): #vers 3
+        """Show a mobile texture database (all mip levels decoded)."""
+        texs = []
+        for tex in db.textures:
+            if tex.is_affiliate:
+                continue
+            lv = tex.levels()
+            rgba = lv[0][2] if lv else bytes(tex.width * tex.height * 4)
+            texs.append({
+                'name': tex.name, 'width': tex.width, 'height': tex.height,
+                'depth': tex.bpp, 'format': tex.encoding_name,
+                'has_alpha': tex.has_alpha, 'alpha_name': '',
+                'mipmaps': len(lv), 'rgba_data': rgba,
+                'mipmap_levels': [{'level': i, 'width': w, 'height': h, 'rgba_data': d}
+                                  for i, (w, h, d) in enumerate(lv)],
+                'raster_format_flags': 0, 'platform': db.platform.upper(),
+                'compressed_size': tex.compressed_size,
+            })
+        self._mobile_db = db
+        self._show_textures(texs, b'db', 'mobile_db',
+                            f"{db.name} [{db.platform} texture DB, {len(texs)} textures]")
 
     def _show_textures(self, textures, data: bytes, kind: str, title: str): #vers 1
         """Fill the table from a parsed texture list of any format."""

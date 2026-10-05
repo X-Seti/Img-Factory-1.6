@@ -1,271 +1,306 @@
-#this belongs in apps/methods/mobile_texture_decode.py - Version: 1
-# X-Seti - Apr 2026 - IMG Factory 1.6 - Mobile Texture Pixel Decoders
-"""
-Mobile texture pixel decoders for PVRTC and ETC1 formats.
+#this belongs in apps/methods/mobile_texture_decode.py - Version: 2
+# X-Seti - October05 2026 - IMG Factory 1.6 - Mobile Texture Pixel Codecs
 
-ETC1  — full pure-Python decoder (4x4 block, 64-bit per block)
-PVRTC — not decoded (complex proprietary algorithm); returns grey placeholder
-RGB565/RGBA4444/RGBA5551/RGBA8888 — trivial unpack
+"""
+Pixel decoders and encoders for SA/VC mobile texture databases.
 """
 
-import struct
-from typing import Tuple, Optional
+# Encoding ids are GL constants (type or compressed format).
+# PVRTC codec lives in txd_lc_android.py, DXT encode in txd_dxt_encode.py.
 
-## Methods list -
-# decode_etc1_block
+import numpy as np
+
+##Methods list -
+# _dxt_colour
+# _expand
+# decode_dxt
 # decode_etc1
-# decode_rgb565
-# decode_rgba4444
-# decode_rgba5551
-# decode_rgba8888
+# decode_level
 # decode_mobile_texture
+# encode_etc1
+# encode_level
+# level_size
+# mip_dims
 # to_pil_image
 
+GL_RGBA8888 = 0x1401
+GL_L8 = 0x1909
+GL_RGBA4444 = 0x8033
+GL_RGBA5551 = 0x8034
+GL_RGB565 = 0x8363
+GL_DXT1 = 0x83F0
+GL_DXT1A = 0x83F1
+GL_DXT3 = 0x83F2
+GL_DXT5 = 0x83F3
+GL_PVRTC4_RGB = 0x8C00
+GL_PVRTC2_RGB = 0x8C01
+GL_PVRTC4_RGBA = 0x8C02
+GL_PVRTC2_RGBA = 0x8C03
+GL_ETC1 = 0x8D64
 
-#    ETC1 decoder                                                               
+_PVRTC_BPP = {GL_PVRTC4_RGB: 4, GL_PVRTC2_RGB: 2, GL_PVRTC4_RGBA: 4, GL_PVRTC2_RGBA: 2}
+_BLOCK8 = (GL_DXT1, GL_DXT1A, GL_ETC1)
+_BLOCK16 = (GL_DXT3, GL_DXT5)
+_RAW_BPP = {GL_RGBA8888: 4, GL_L8: 1, GL_RGBA4444: 2, GL_RGBA5551: 2, GL_RGB565: 2}
+_ETC_TABLE = np.array([[2, 8], [5, 17], [9, 29], [13, 42],
+                       [18, 60], [24, 80], [33, 106], [47, 183]], dtype=np.int32)
 
-# ETC1 modifier tables (per spec)
-_ETC1_MODIFIER = [
-    [2,   8],  [5,  17], [9,  29], [13,  42],
-    [18, 60], [24,  80], [33, 106], [47, 183],
-]
 
-def _clamp(v: int) -> int:
-    return max(0, min(255, v))
+def _expand(v, bits): #vers 1
+    """Expand n-bit values to 8 bits by bit replication."""
+    v = v.astype(np.int32)
+    if bits == 1:
+        return (v * 255).astype(np.uint8)
+    return ((v << (8 - bits)) | (v >> (2 * bits - 8))).astype(np.uint8)
 
-def decode_etc1_block(block: bytes) -> bytes:
-    """Decode one 8-byte ETC1 block → 4×4 RGBA bytes (64 bytes)."""
-    if len(block) < 8:
-        return b'\xff\x00\xff\xff' * 16   # magenta placeholder
 
-    # ETC1 block layout (MSB first in the 64-bit word):
-    # Bytes 0-3: pixel data (indices + flip/diff bits)
-    # Bytes 4-7: color data
-    p0, p1, p2, p3 = block[0], block[1], block[2], block[3]
-    c0, c1, c2, c3 = block[4], block[5], block[6], block[7]
+def mip_dims(width, height, mips=True): #vers 1
+    """Mip level sizes, full chain to 1x1 when mips set."""
+    dims = [(width, height)]
+    while mips and (width > 1 or height > 1):
+        width, height = max(1, width // 2), max(1, height // 2)
+        dims.append((width, height))
+    return dims
 
-    diff_bit  = (c3 >> 1) & 1
-    flip_bit  = c3 & 1
-    table_idx = [(c3 >> 5) & 0x7, (c3 >> 2) & 0x7]
 
-    if diff_bit:
-        # Differential mode: 5-bit base + 3-bit signed delta
-        r1 = (c0 >> 3) & 0x1F
-        g1 = (c1 >> 3) & 0x1F
-        b1 = (c2 >> 3) & 0x1F
-        dr = c0 & 0x7; dr = dr if dr < 4 else dr - 8
-        dg = c1 & 0x7; dg = dg if dg < 4 else dg - 8
-        db = c2 & 0x7; db = db if db < 4 else db - 8
-        r2, g2, b2 = r1 + dr, g1 + dg, b1 + db
-        # Expand 5→8 bits
-        base = [
-            (_clamp(r1 * 255 // 31), _clamp(g1 * 255 // 31), _clamp(b1 * 255 // 31)),
-            (_clamp(r2 * 255 // 31), _clamp(g2 * 255 // 31), _clamp(b2 * 255 // 31)),
-        ]
+def level_size(enc, width, height): #vers 1
+    """Byte size of one stored level for an encoding."""
+    if enc in _RAW_BPP:
+        return width * height * _RAW_BPP[enc]
+    if enc in _BLOCK8 or enc in _BLOCK16:
+        return ((width + 3) // 4) * ((height + 3) // 4) * (8 if enc in _BLOCK8 else 16)
+    if enc in _PVRTC_BPP:
+        bpp = _PVRTC_BPP[enc]
+        return max(width, 16 if bpp == 2 else 8) * max(height, 8) * bpp // 8
+    raise ValueError(f"Unknown mobile texture encoding 0x{enc:04X}")
+
+
+def _dxt_colour(blk): #vers 1
+    """Decode 8-byte colour blocks to (n,16,3) and 3-colour flag."""
+    c = blk[:, 0:4].copy().view('<u2')
+    c0, c1 = c[:, 0].astype(np.int32), c[:, 1].astype(np.int32)
+    bits = blk[:, 4:8].copy().view('<u4')[:, 0].astype(np.uint64)
+    rgb = lambda v: np.stack([_expand(v >> 11, 5), _expand((v >> 5) & 63, 6),
+                              _expand(v & 31, 5)], -1).astype(np.int32)
+    p0, p1 = rgb(c0), rgb(c1)
+    four = (c0 > c1)[:, None]
+    p2 = np.where(four, (2 * p0 + p1) // 3, (p0 + p1) // 2)
+    p3 = np.where(four, (p0 + 2 * p1) // 3, 0)
+    pal = np.stack([p0, p1, p2, p3], 1)
+    idx = ((bits[:, None] >> (2 * np.arange(16, dtype=np.uint64))) & 3).astype(np.int64)
+    cols = np.take_along_axis(pal, idx[..., None], 1)
+    return cols, idx, ~four[:, 0]
+
+
+def decode_dxt(data, width, height, enc): #vers 1
+    """Decode DXT1/1A/3/5 level to RGBA array."""
+    bw, bh = (width + 3) // 4, (height + 3) // 4
+    bs = 8 if enc in _BLOCK8 else 16
+    blk = np.frombuffer(data, dtype=np.uint8, count=bw * bh * bs).reshape(-1, bs)
+    out = np.empty((bw * bh, 16, 4), dtype=np.uint8)
+    cols, idx, three = _dxt_colour(blk[:, bs - 8:])
+    out[..., :3] = cols
+    if enc == GL_DXT3:
+        a = blk[:, 0:8].copy().view('<u8')[:, 0]
+        out[..., 3] = _expand(((a[:, None] >> (4 * np.arange(16, dtype=np.uint64))) & 15), 4)
+    elif enc == GL_DXT5:
+        a0, a1 = blk[:, 0].astype(np.int32), blk[:, 1].astype(np.int32)
+        w0 = np.array([7, 0, 6, 5, 4, 3, 2, 1])
+        w1 = 7 - w0
+        pal8 = (w0[None] * a0[:, None] + w1[None] * a1[:, None]) // 7
+        v0 = np.array([5, 0, 4, 3, 2, 1, 0, 0])
+        v1 = np.array([0, 5, 1, 2, 3, 4, 0, 0])
+        pal6 = (v0[None] * a0[:, None] + v1[None] * a1[:, None]) // 5
+        pal6[:, 6], pal6[:, 7] = 0, 255
+        pal = np.where((a0 > a1)[:, None], pal8, pal6)
+        bits = np.zeros(len(blk), dtype=np.uint64)
+        for i in range(6):
+            bits |= blk[:, 2 + i].astype(np.uint64) << np.uint64(8 * i)
+        ai = ((bits[:, None] >> (3 * np.arange(16, dtype=np.uint64))) & 7).astype(np.int64)
+        out[..., 3] = np.take_along_axis(pal, ai, 1)
+    elif enc == GL_DXT1A:
+        out[..., 3] = np.where(three[:, None] & (idx == 3), 0, 255)
     else:
-        # Individual mode: two 4-bit colours per sub-block
-        r1 = (c0 >> 4) & 0xF;  g1 = (c1 >> 4) & 0xF;  b1 = (c2 >> 4) & 0xF
-        r2 = c0 & 0xF;          g2 = c1 & 0xF;          b2 = c2 & 0xF
-        # Expand 4→8 bits
-        base = [
-            (r1 * 17, g1 * 17, b1 * 17),
-            (r2 * 17, g2 * 17, b2 * 17),
-        ]
-
-    # Build pixel LUT for each sub-block
-    # index = 2-bit value from pixel bits; sign from msb pixel bit
-    # Combine pixel index bits from p0..p3 (16 pixels × 2 bits)
-    # Bit layout: msb plane in p0,p1; lsb plane in p2,p3 (column-major)
-    out = bytearray(64)
-
-    for px in range(16):
-        col = px // 4    # 0-3
-        row = px % 4     # 0-3
-
-        if flip_bit:
-            sub = 1 if row >= 2 else 0
-        else:
-            sub = 1 if col >= 2 else 0
-
-        r, g, b = base[sub]
-        tbl = _ETC1_MODIFIER[table_idx[sub]]
-
-        # Extract 2-bit index for this pixel
-        bit = (3 - col) * 4 + (3 - row)   # bit position in the 16-bit plane
-        msb = (p0 >> (bit - 8) & 1) if bit >= 8 else (p1 >> bit & 1)
-        lsb = (p2 >> (bit - 8) & 1) if bit >= 8 else (p3 >> bit & 1)
-
-        # Safer bit extraction
-        byte_msb = p0 if bit >= 8 else p1
-        byte_lsb = p2 if bit >= 8 else p3
-        b_pos = bit % 8 if bit < 8 else bit - 8
-        msb = (byte_msb >> b_pos) & 1
-        lsb = (byte_lsb >> b_pos) & 1
-
-        idx = (msb << 1) | lsb
-        mod = tbl[1] if idx >= 2 else tbl[0]
-        sign = -1 if idx in (3, 0) else 1   # ETC1: 0→+small, 1→+large, 2→-large, 3→-small
-        # Correct ETC1 modifier sign: 0=+mod[0], 1=+mod[1], 2=-mod[1], 3=-mod[0]
-        if   idx == 0: mod =  tbl[0]
-        elif idx == 1: mod =  tbl[1]
-        elif idx == 2: mod = -tbl[1]
-        else:          mod = -tbl[0]
-
-        # Output pixel at (col, row) — RGBA
-        out_idx = (row * 4 + col) * 4
-        out[out_idx]   = _clamp(r + mod)
-        out[out_idx+1] = _clamp(g + mod)
-        out[out_idx+2] = _clamp(b + mod)
-        out[out_idx+3] = 255
-
-    return bytes(out)
+        out[..., 3] = 255
+    img = out.reshape(bh, bw, 4, 4, 4).transpose(0, 2, 1, 3, 4).reshape(bh * 4, bw * 4, 4)
+    return img[:height, :width]
 
 
-def decode_etc1(data: bytes, width: int, height: int) -> bytes:
-    """Decode full ETC1 image → raw RGBA bytes (width*height*4)."""
-    blocks_x = max(1, (width  + 3) // 4)
-    blocks_y = max(1, (height + 3) // 4)
-    rgba = bytearray(width * height * 4)
-
-    block_idx = 0
-    for by in range(blocks_y):
-        for bx in range(blocks_x):
-            block_off = block_idx * 8
-            if block_off + 8 > len(data):
-                break
-            block_rgba = decode_etc1_block(data[block_off:block_off+8])
-            block_idx += 1
-
-            # Write 4×4 block into output
-            for py in range(4):
-                for px in range(4):
-                    ox = bx * 4 + px
-                    oy = by * 4 + py
-                    if ox >= width or oy >= height:
-                        continue
-                    src = (py * 4 + px) * 4
-                    dst = (oy * width + ox) * 4
-                    rgba[dst:dst+4] = block_rgba[src:src+4]
-
-    return bytes(rgba)
-
-
-#    Simple format decoders                                                      
-
-def decode_rgb565(data: bytes, width: int, height: int) -> bytes:
-    """RGB565 → RGBA8888."""
-    out = bytearray(width * height * 4)
-    for i in range(width * height):
-        if i * 2 + 2 > len(data): break
-        v = struct.unpack_from('<H', data, i * 2)[0]
-        r = ((v >> 11) & 0x1F) * 255 // 31
-        g = ((v >> 5)  & 0x3F) * 255 // 63
-        b =  (v        & 0x1F) * 255 // 31
-        out[i*4:i*4+4] = [r, g, b, 255]
-    return bytes(out)
+def decode_etc1(data, width, height): #vers 2
+    """Decode ETC1 level to RGBA array."""
+    bw, bh = (width + 3) // 4, (height + 3) // 4
+    blk = np.frombuffer(data, dtype=np.uint8, count=bw * bh * 8).reshape(-1, 8).astype(np.int32)
+    diff = (blk[:, 3] >> 1) & 1
+    flip = blk[:, 3] & 1
+    base = np.empty((len(blk), 2, 3), dtype=np.int32)
+    for ch in range(3):
+        b = blk[:, ch]
+        c1 = b >> 3
+        d = (b & 7) - ((b & 4) << 1)
+        dif1 = _expand(c1, 5).astype(np.int32)
+        dif2 = _expand(np.clip(c1 + d, 0, 31), 5).astype(np.int32)
+        ind1 = (b >> 4) * 17
+        ind2 = (b & 15) * 17
+        base[:, 0, ch] = np.where(diff == 1, dif1, ind1)
+        base[:, 1, ch] = np.where(diff == 1, dif2, ind2)
+    tab = np.stack([_ETC_TABLE[blk[:, 3] >> 5], _ETC_TABLE[(blk[:, 3] >> 2) & 7]], 1)
+    msb = (blk[:, 4] << 8) | blk[:, 5]
+    lsb = (blk[:, 6] << 8) | blk[:, 7]
+    i = np.arange(16)
+    x, y = i // 4, i % 4
+    sel = ((msb[:, None] >> i) & 1) * 2 + ((lsb[:, None] >> i) & 1)
+    sub = np.where(flip[:, None] == 1, (y >= 2)[None], (x >= 2)[None]).astype(np.int64)
+    t = np.take_along_axis(tab, sub[..., None], 1)
+    mag = np.where(sel % 2 == 1, t[..., 1], t[..., 0])
+    mod = np.where(sel >= 2, -mag, mag)
+    col = np.take_along_axis(base, sub[..., None], 1) + mod[..., None]
+    px = np.empty((len(blk), 4, 4, 4), dtype=np.uint8)
+    px[:, y, x, :3] = np.clip(col, 0, 255)
+    px[..., 3] = 255
+    img = px.reshape(bh, bw, 4, 4, 4).transpose(0, 2, 1, 3, 4).reshape(bh * 4, bw * 4, 4)
+    return img[:height, :width]
 
 
-def decode_rgba4444(data: bytes, width: int, height: int) -> bytes:
-    """RGBA4444 → RGBA8888."""
-    out = bytearray(width * height * 4)
-    for i in range(width * height):
-        if i * 2 + 2 > len(data): break
-        v = struct.unpack_from('<H', data, i * 2)[0]
-        r = ((v >> 12) & 0xF) * 17
-        g = ((v >> 8)  & 0xF) * 17
-        b = ((v >> 4)  & 0xF) * 17
-        a =  (v        & 0xF) * 17
-        out[i*4:i*4+4] = [r, g, b, a]
-    return bytes(out)
+def encode_etc1(rgba, width, height): #vers 1
+    """Encode RGBA array to ETC1 level bytes."""
+    a = np.asarray(rgba, dtype=np.uint8).reshape(height, width, 4)
+    ph, pw = (-height) % 4, (-width) % 4
+    if ph or pw:
+        a = np.pad(a, ((0, ph), (0, pw), (0, 0)), mode='edge')
+    bh, bw = a.shape[0] // 4, a.shape[1] // 4
+    px = a.reshape(bh, 4, bw, 4, 4).transpose(0, 2, 3, 1, 4).reshape(-1, 16, 3 + 1)[..., :3].astype(np.int32)
+    n = len(px)
+    i = np.arange(16)
+    x, y = i // 4, i % 4
+    best_err = np.full(n, np.inf)
+    best = np.zeros((n, 8), dtype=np.uint8)
+    for flip in (0, 1):
+        sub = (y >= 2) if flip else (x >= 2)
+        avg = np.stack([px[:, ~sub].mean(1), px[:, sub].mean(1)], 1)
+        for diff in (0, 1):
+            if diff:
+                q = np.clip(np.rint(avg * 31 / 255), 0, 31).astype(np.int32)
+                d = q[:, 1] - q[:, 0]
+                ok = np.all((d >= -4) & (d <= 3), 1)
+                q[:, 1] = q[:, 0] + np.clip(d, -4, 3)
+                cb = _expand(q, 5).astype(np.int32)
+            else:
+                q = np.clip(np.rint(avg * 15 / 255), 0, 15).astype(np.int32)
+                ok = np.ones(n, dtype=bool)
+                cb = q * 17
+            err_tot = np.zeros(n)
+            tsel = np.zeros((n, 2), dtype=np.int32)
+            sels = np.zeros((n, 16), dtype=np.int32)
+            for s in (0, 1):
+                mask = sub if s else ~sub
+                p = px[:, mask]
+                cand = cb[:, s][:, None, None, :] + np.stack(
+                    [_ETC_TABLE[:, 0], _ETC_TABLE[:, 1], -_ETC_TABLE[:, 0], -_ETC_TABLE[:, 1]], 1)[None, :, :, None]
+                cand = np.clip(cand, 0, 255)
+                e = ((p[:, None, None, :, :] - cand[:, :, :, None, :]) ** 2).sum(-1)
+                emin = e.min(2)
+                tot = emin.sum(-1)
+                tb = tot.argmin(1)
+                tsel[:, s] = tb
+                err_tot += tot[np.arange(n), tb]
+                sels[:, mask] = e[np.arange(n), tb].argmin(1)
+            err_tot[~ok] = np.inf
+            better = err_tot < best_err
+            if not better.any():
+                continue
+            best_err = np.where(better, err_tot, best_err)
+            blk = np.zeros((n, 8), dtype=np.int32)
+            if diff:
+                dd = (q[:, 1] - q[:, 0]) & 7
+                blk[:, 0:3] = (q[:, 0] << 3) | dd
+            else:
+                blk[:, 0:3] = (q[:, 0] << 4) | q[:, 1]
+            blk[:, 3] = (tsel[:, 0] << 5) | (tsel[:, 1] << 2) | (diff << 1) | flip
+            # Selector index 0..3 maps to (+a,+b,-a,-b)
+            msb = ((sels >= 2).astype(np.int64) << i).sum(1)
+            lsb = ((sels % 2).astype(np.int64) << i).sum(1)
+            blk[:, 4], blk[:, 5] = msb >> 8, msb & 255
+            blk[:, 6], blk[:, 7] = lsb >> 8, lsb & 255
+            best[better] = blk[better].astype(np.uint8)
+    return best.tobytes()
 
 
-def decode_rgba5551(data: bytes, width: int, height: int) -> bytes:
-    """RGBA5551 → RGBA8888."""
-    out = bytearray(width * height * 4)
-    for i in range(width * height):
-        if i * 2 + 2 > len(data): break
-        v = struct.unpack_from('<H', data, i * 2)[0]
-        r = ((v >> 11) & 0x1F) * 255 // 31
-        g = ((v >> 6)  & 0x1F) * 255 // 31
-        b = ((v >> 1)  & 0x1F) * 255 // 31
-        a = 255 if (v & 1) else 0
-        out[i*4:i*4+4] = [r, g, b, a]
-    return bytes(out)
+def decode_level(enc, data, width, height): #vers 1
+    """Decode one stored level to an RGBA uint8 array."""
+    size = level_size(enc, width, height)
+    if len(data) < size:
+        raise ValueError(f"Level data short: {len(data)} < {size}")
+    if enc in _PVRTC_BPP:
+        from apps.methods.txd_lc_android import _decode_pvrtc
+        return _decode_pvrtc(bytes(data[:size]), width, height, _PVRTC_BPP[enc])
+    if enc == GL_ETC1:
+        return decode_etc1(data, width, height)
+    if enc in _BLOCK8 or enc in _BLOCK16:
+        return decode_dxt(data, width, height, enc)
+    v = np.frombuffer(data, dtype=np.uint8, count=size)
+    if enc == GL_RGBA8888:
+        return v.reshape(height, width, 4).copy()
+    out = np.empty((height, width, 4), dtype=np.uint8)
+    if enc == GL_L8:
+        out[..., :3] = v.reshape(height, width, 1)
+        out[..., 3] = 255
+        return out
+    s = v.view('<u2').reshape(height, width).astype(np.int32)
+    if enc == GL_RGB565:
+        parts = [(s >> 11, 5), ((s >> 5) & 63, 6), (s & 31, 5)]
+        out[..., 3] = 255
+    elif enc == GL_RGBA4444:
+        parts = [(s >> 12, 4), ((s >> 8) & 15, 4), ((s >> 4) & 15, 4), (s & 15, 4)]
+    else:
+        parts = [(s >> 11, 5), ((s >> 6) & 31, 5), ((s >> 1) & 31, 5), (s & 1, 1)]
+    for ch, (val, bits) in enumerate(parts):
+        out[..., ch] = _expand(val, bits)
+    return out
 
 
-def decode_rgba8888(data: bytes, width: int, height: int) -> bytes:
-    """RGBA8888 — data is already RGBA, just clip to size."""
-    size = width * height * 4
-    return (data + b'\x00' * size)[:size]
+def encode_level(enc, rgba, width, height): #vers 1
+    """Encode an RGBA array to one stored level."""
+    a = np.ascontiguousarray(np.asarray(rgba, dtype=np.uint8).reshape(height, width, 4))
+    if enc in _PVRTC_BPP:
+        from apps.methods.txd_lc_android import _encode_pvrtc
+        return _encode_pvrtc(a, _PVRTC_BPP[enc])
+    if enc == GL_ETC1:
+        return encode_etc1(a, width, height)
+    if enc in _BLOCK8 or enc in _BLOCK16:
+        from apps.methods.txd_dxt_encode import _encode_dxt1, _encode_dxt3, _encode_dxt5
+        raw = a.tobytes()
+        if enc == GL_DXT1:
+            return _encode_dxt1(raw, width, height, False)
+        if enc == GL_DXT1A:
+            return _encode_dxt1(raw, width, height, True)
+        return (_encode_dxt3 if enc == GL_DXT3 else _encode_dxt5)(raw, width, height)
+    if enc == GL_RGBA8888:
+        return a.tobytes()
+    c = a.astype(np.uint32)
+    if enc == GL_L8:
+        return ((c[..., 0] + c[..., 1] + c[..., 2] + 1) // 3).astype(np.uint8).tobytes()
+    if enc == GL_RGB565:
+        v = ((c[..., 0] >> 3) << 11) | ((c[..., 1] >> 2) << 5) | (c[..., 2] >> 3)
+    elif enc == GL_RGBA4444:
+        v = ((c[..., 0] >> 4) << 12) | ((c[..., 1] >> 4) << 8) | ((c[..., 2] >> 4) << 4) | (c[..., 3] >> 4)
+    elif enc == GL_RGBA5551:
+        v = ((c[..., 0] >> 3) << 11) | ((c[..., 1] >> 3) << 6) | ((c[..., 2] >> 3) << 1) | (c[..., 3] >> 7)
+    else:
+        raise ValueError(f"Unknown mobile texture encoding 0x{enc:04X}")
+    return v.astype('<u2').tobytes()
 
 
-#    Dispatch                                                                    
-
-def decode_mobile_texture(tex) -> Optional[bytes]:
-    """
-    Decode a MobileTexture object to raw RGBA bytes.
-
-    Returns None for PVRTC (not yet implemented) or on error.
-    Returns bytes of length width*height*4 for supported formats.
-    """
-    from apps.methods.mobile_texture_db import (
-        ENCODING_RGBA8888, ENCODING_ETC1,
-        ENCODING_RGB565, ENCODING_RGBA4444, ENCODING_RGBA5551,
-        ENCODING_IS_PVRTC,
-    )
-
-    data = tex.pixel_data or tex.raw_data
-    if not data or tex.width <= 0 or tex.height <= 0:
+def decode_mobile_texture(tex): #vers 2
+    """Decode a MobileTexture top level to RGBA bytes."""
+    if tex.is_affiliate or not tex.pixel_data:
         return None
-
-    enc = tex.encoding_type
-    w, h = tex.width, tex.height
-
-    if enc == ENCODING_RGBA8888:
-        return decode_rgba8888(data, w, h)
-    elif enc == ENCODING_ETC1:
-        return decode_etc1(data, w, h)
-    elif enc == ENCODING_RGB565:
-        return decode_rgb565(data, w, h)
-    elif enc == ENCODING_RGBA4444:
-        return decode_rgba4444(data, w, h)
-    elif enc == ENCODING_RGBA5551:
-        return decode_rgba5551(data, w, h)
-    elif enc in ENCODING_IS_PVRTC:
-        # iOS PVRTC — placeholder (standard PVRTC4/2 different from VC variant)
-        placeholder = bytearray(w * h * 4)
-        for y in range(h):
-            for x in range(w):
-                border = (x == 0 or x == w-1 or y == 0 or y == h-1)
-                i = (y * w + x) * 4
-                if border:
-                    placeholder[i:i+4] = [255, 64, 128, 255]
-                else:
-                    v = 80 + (x + y) % 40
-                    placeholder[i:i+4] = [v, v, v+10, 255]
-        return bytes(placeholder)
-
-    # VC Android PVRTC2 (enc 0x8C01 / 0x8C02)
-    from apps.methods.mobile_texture_db import ENCODING_VC_PVRTC2, ENCODING_VC_PVRTC2B
-    if enc in (ENCODING_VC_PVRTC2, ENCODING_VC_PVRTC2B):
-        try:
-            from apps.methods.pvrtc_decode import decode_pvrtc2
-            return decode_pvrtc2(data, w, h)
-        except Exception:
-            pass
-
-    return None
+    return decode_level(tex.encoding_type, tex.pixel_data, tex.width, tex.height).tobytes()
 
 
-def to_pil_image(tex):
-    """Convert a MobileTexture to a PIL Image, or return None."""
-    try:
-        from PIL import Image
-        rgba = decode_mobile_texture(tex)
-        if rgba is None:
-            return None
-        return Image.frombytes('RGBA', (tex.width, tex.height), rgba)
-    except Exception:
+def to_pil_image(tex): #vers 2
+    """Convert a MobileTexture to a PIL RGBA image."""
+    from PIL import Image
+    rgba = decode_mobile_texture(tex)
+    if rgba is None:
         return None
-
-
+    return Image.frombytes('RGBA', (tex.width, tex.height), rgba)

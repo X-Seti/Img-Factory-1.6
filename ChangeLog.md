@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 218
+#this belongs in root /ChangeLog.md - Version: 219
+
+## Oct 05 2026 - Mobile texture DB save
+- VC/SA Android and iOS texdb (.dat/.toc/.tmb, DXT/ETC/PVR/UNC): edits saved via Save button; unedited saves byte-identical.
 
 ## Oct 05 2026 - TXD platforms: mobile, PSP, Stories, PS2 mips
 - GTA III iOS/Android (War Drum UNC/PVR) TXDs: read, edit, save (PVRTC encoder, needs scipy).
