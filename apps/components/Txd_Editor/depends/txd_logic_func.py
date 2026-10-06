@@ -3657,7 +3657,7 @@ class TXDLogicMixin: #vers 1
             self._log(f"Rebuild error: {e}")
             return None
 
-    def _rebuild_special(self) -> bytes: #vers 5
+    def _rebuild_special(self) -> bytes: #vers 6
         """Save bytes for mobile, PSP, Stories, GTA IV and Bully PC (layout kept)."""
         from apps.methods.txd_splice import texture_signature, rebuild_inplace_txd
         kind, data = self._txd_kind, self.current_txd_data
@@ -3680,12 +3680,13 @@ class TXDLogicMixin: #vers 1
             return write_nif_textures(data, edits, names)
         if kind == 'stories':
             from apps.methods.xtx_reader import write_stories_textures
-            for t in self.texture_list:
-                if t.get('name') != t.get('_src_name'):
-                    raise ValueError(f"'{t.get('name')}': Stories textures can't be renamed")
+            names = [None if (t.get('name'), t.get('alpha_name') or '') ==
+                     (t.get('_src_name'), t.get('_src_alpha') or '')
+                     else (str(t.get('name')), str(t.get('alpha_name') or ''))
+                     for t in self.texture_list]
             return write_stories_textures(data, [
                 None if t.get('_src_sig') == texture_signature(t) else t['rgba_data']
-                for t in self.texture_list])
+                for t in self.texture_list], names)
         raise ValueError(f"Unknown file kind '{kind}'")
 
     def _build_new_txd_data(self): #vers 2

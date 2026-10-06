@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_splice.py - Version: 4
+#this belongs in apps/methods/txd_splice.py - Version: 5
 # X-Seti - October05 2026 - IMG Factory 1.6 - TXD splice rebuild
 
 """txd_splice.py - TXD writer. Rebuilds from the ORIGINAL file bytes so a
@@ -13,6 +13,7 @@ every PC raster format)."""
 # _chunk_names
 # _encode_level
 # _ext_chunks
+# _inplace_names
 # _join_native
 # _level_rgba
 # _native_parts
@@ -173,6 +174,21 @@ def _with_ext(ext_payload: bytes, tex: Dict, ver: int) -> bytes: #vers 1
                     for t, v, d in _ext_chunks(ext_payload) if t != IMGF_EXT)
     bp = _bump_payload(tex)
     return keep + (struct.pack('<III', IMGF_EXT, len(bp), ver) + bp if bp else b'')
+
+
+def _inplace_names(buf: bytearray, off: int, name: str, alpha: str): #vers 1
+    """Write names into a native's string chunks without resizing."""
+    q = off + 12
+    q += 12 + struct.unpack_from('<I', buf, q + 4)[0]
+    for val in (name, alpha):
+        t, size = struct.unpack_from('<II', buf, q)
+        if t != _STRING:
+            raise ValueError(f"'{name}': name chunk not found")
+        raw = val.encode('ascii', 'ignore')
+        if len(raw) >= size:
+            raise ValueError(f"'{val}': name too long here (max {size - 1} characters)")
+        buf[q + 12:q + 12 + size] = raw.ljust(size, b'\0')
+        q += 12 + size
 
 
 def _join_native(ver: int, kids: List[tuple]) -> bytes: #vers 1
@@ -473,18 +489,14 @@ def txd_from_textures(textures: List[Dict], original: bytes = None,
     return build_txd(norm, rw_ver)
 
 
-def rebuild_inplace_txd(original: bytes, textures: List[Dict]) -> bytes: #vers 1
-    """TXD whose natives keep their byte ranges (PSP files, wrong size fields).
-    Edited pixels are rewritten in place; names, count and order fixed."""
+def rebuild_inplace_txd(original: bytes, textures: List[Dict]) -> bytes: #vers 2
+    """TXD natives keep byte ranges; pixels and names rewritten in place."""
     from apps.methods.txd_platform_psp import rebuild_psp_chunk
     from apps.methods.txd_ps2_parser import rebuild_ps2_chunk
     out = bytearray(original)
     for t in textures:
         if '_chunk_off' not in t:
             raise ValueError(f"'{t.get('name')}': textures can't be added to this TXD")
-        if str(t.get('name')) != str(t.get('_src_name')) or \
-                str(t.get('alpha_name') or '') != str(t.get('_src_alpha') or ''):
-            raise ValueError(f"'{t.get('name')}': renaming isn't supported in this TXD")
         if t.get('_src_sig') == texture_signature(t):
             continue
         off, end = t['_chunk_off'], t['_chunk_end']
@@ -493,6 +505,10 @@ def rebuild_inplace_txd(original: bytes, textures: List[Dict]) -> bytes: #vers 1
         if len(new) != len(chunk):
             raise ValueError(f"'{t.get('name')}': rebuilt texture changed size")
         out[off:end] = new
+    for t in textures:
+        if str(t.get('name')) != str(t.get('_src_name')) or \
+                str(t.get('alpha_name') or '') != str(t.get('_src_alpha') or ''):
+            _inplace_names(out, t['_chunk_off'], str(t.get('name')), str(t.get('alpha_name') or ''))
     if len(textures) != len({t['_chunk_off'] for t in textures}) or \
             len(textures) != struct.unpack_from('<H', original, 24)[0]:
         raise ValueError("Textures can't be added or removed in this TXD")

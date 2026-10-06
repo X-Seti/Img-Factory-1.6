@@ -1,8 +1,9 @@
-#this belongs in root /ChangeLog.md - Version: 228
+#this belongs in root /ChangeLog.md - Version: 229
 
 ## Oct 06 2026 - Asset Workshop reader, GTA IV rename
 - Asset Workshop uses methods/txd_reader (old parser + 5 decoders removed, ~700 lines); output identical on 854 textures.
 - GTA IV .wtd textures can be renamed (name fits old slot; hashes re-sorted).
+- PSP in-place TXDs and Stories .xtx/.chk: texture/alpha rename in place (name must fit existing slot).
 - Bully PC .nft/.txd textures can be renamed (file name and Filename extra string; path/extension kept).
 
 ## Oct 06 2026 - Dat Browser GTA IV profile

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/xtx_reader.py - Version: 2
+#this belongs in apps/methods/xtx_reader.py - Version: 3
 # X-Seti - October05 2026 - IMG Factory 1.6 - Stories XTX Texture Reader Writer
 
 """
@@ -176,8 +176,8 @@ def read_xtx(path: str) -> Dict: #vers 2
                 'error': str(e)}
 
 
-def write_stories_textures(original: bytes, rgba) -> bytes: #vers 1
-    """Rewrite pixels/palettes in place; rgba is bytes or per-texture list."""
+def write_stories_textures(original: bytes, rgba, names=None) -> bytes: #vers 2
+    """Rewrite pixels/palettes/names in place; names: (name, mask) or None."""
     texs = parse_stories_textures(original)
     if isinstance(rgba, (bytes, bytearray)):
         if len(texs) != 1:
@@ -208,6 +208,15 @@ def write_stories_textures(original: bytes, rgba) -> bytes: #vers 1
         if new_pal is not None:
             out[tex['pal_off']:tex['pal_off'] + tex['pal_size']] = \
                 encode_palette(new_pal, tex['ps2_alpha'], tex['csm1'])
+    for tex, nm in zip(texs, names or []):
+        if nm is None:
+            continue
+        t = tex['texture_offset']
+        for off, val in ((16, nm[0]), (48, nm[1])):
+            raw = (val or '').encode('latin-1', 'ignore')
+            if len(raw) > 31:
+                raise ValueError(f"'{val}': Stories names are 31 characters max")
+            out[t + off:t + off + 32] = raw.ljust(32, b'\0')
     return bytes(out)
 
 
