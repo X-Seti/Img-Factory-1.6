@@ -2981,7 +2981,7 @@ class IMGFactory(QMainWindow):
             return False
 
 
-    def load_file_unified(self, file_path: str): #vers 9
+    def load_file_unified(self, file_path: str): #vers 10
         """Unified file loader - handles IMG, COL, TXD, HXD, MXD, AGR, LVZ"""
         try:
             if not file_path or not os.path.exists(file_path):
@@ -2990,7 +2990,8 @@ class IMGFactory(QMainWindow):
 
             file_ext = os.path.splitext(file_path)[1].lower()
 
-            if file_ext == '.txd':
+            from apps.methods.txd_reader import TEXTURE_EXTS
+            if file_ext in TEXTURE_EXTS:
                 self._load_txd_file_in_new_tab(file_path)
                 return True
             elif file_ext in ('.hxd', '.mxd', '.agr', '.lvz'):
@@ -3140,7 +3141,7 @@ class IMGFactory(QMainWindow):
         return workshop
 
 
-    def _update_workshop_on_tab_change(self, workshop, tab_index): #vers 2
+    def _update_workshop_on_tab_change(self, workshop, tab_index): #vers 3
         """Update specific workshop when tab changes"""
         if not workshop or not workshop.isVisible():
             return
@@ -3151,7 +3152,8 @@ class IMGFactory(QMainWindow):
 
         file_path = getattr(tab_widget, 'file_path', None)
         if file_path:
-            if file_path.lower().endswith('.txd'):
+            from apps.methods.txd_reader import TEXTURE_EXTS
+            if file_path.lower().endswith(TEXTURE_EXTS):
                 # Only open standalone TXD if workshop doesn't have an IMG loaded
                 if not getattr(workshop, 'current_img', None):
                     workshop.open_txd_file(file_path)

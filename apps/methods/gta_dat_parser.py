@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 7
+#this belongs in apps/methods/gta_dat_parser.py - Version: 8
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -41,6 +41,13 @@ Field formats per game (verified from real .ide files):
   SA   inst:  id, model, interior, px, py, pz, rx, ry, rz, rw[, lod]
 
   SOL: SA-format IDE/IPL sections (mod runs on SA engine)
+
+IV (PC) load order (verified from real files, root holds common/ + pc/):
+  Phase 1: common/data/default.dat -> 3 IDEs
+  Phase 2: common/data/gta.dat     -> IMGLIST images.txt, IDEs, IPLs
+  Paths:   common:/ -> common/, platform:/ -> pc/, IPL names load as .wpl
+  IDE:     no model IDs; objects get synthetic sequential IDs
+  WPL:     binary, 68-byte header, inst records 48 bytes, joaat name hash
 """
 
 import os
@@ -56,12 +63,14 @@ class GTAGame:
     VC   = "vc"
     SA   = "sa"
     SOL  = "sol"   # GTASOL mod (SA engine, multi-city)
+    IV   = "iv"    # GTA IV PC (RAGE engine, root has common/ + pc/)
 
     DAT_FILE = {
         "gta3": "gta3.dat",
         "vc":   "gta_vc.dat",
         "sa":   "gta.dat",
         "sol":  "gta_sol.dat",   # lives in sol/ or SOL/ subfolder
+        "iv":   "gta.dat",       # in common/data/
     }
 
     # Alternative DAT names
@@ -77,10 +86,20 @@ class GTAGame:
         "vc":   "default.dat",   # in data/
         "sa":   "default.dat",   # in data/
         "sol":  "special.dat",   # in sol/ or SOL/
+        "iv":   "default.dat",   # in common/data/
     }
 
     DATA_SUBDIR = "data"
     SOL_SUBDIRS = ("sol", "SOL")  # case variants to try on Linux
+
+    # IV path prefixes -> folder under game root
+    IV_DATA_SUBDIR = "common/data"
+    IV_PREFIXES = {
+        "common:/":      "common",
+        "platform:/":    "pc",
+        "commonimg:/":   "common",
+        "platformimg:/": "pc",
+    }
 
     IDE_SECTIONS = {
         "gta3": {"objs", "tobj", "weap", "hier", "anim", "cars", "peds", "path"},
@@ -89,6 +108,8 @@ class GTAGame:
                  "txdp", "2dfx", "tanm"},
         "sol":  {"objs", "tobj", "weap", "hier", "anim", "cars", "peds", "path",
                  "txdp", "2dfx", "tanm"},  # SA engine — same sections
+        "iv":   {"objs", "tobj", "tree", "path", "anim", "tanm", "mlo",
+                 "2dfx", "amat", "txdp", "cars", "peds", "weap", "hier", "agrps"},
     }
 
     IPL_SECTIONS = {
@@ -100,6 +121,9 @@ class GTAGame:
                  "zone", "occl", "mult", "grge", "tcyc", "scrn"},
         "sol":  {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
                  "zone", "occl", "mult", "grge", "tcyc", "scrn"},  # SA engine
+        "iv":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
+                 "zone", "mzon", "occl", "grge", "blok", "link", "mult",
+                 "tcyc", "lodm", "slow", "strbig", "lcul"},
     }
 
     ID_RANGES = {
@@ -107,6 +131,7 @@ class GTAGame:
         "vc":   (0,  5999),
         "sa":   (0, 19999),
         "sol":  (0, 65535),  # multi-city mod — expanded ID space
+        "iv":   (1, 65535),  # synthetic IDs, IV has none
     }
 
 
@@ -846,7 +871,7 @@ def _resolve_ci(base: str, rel_path: str) -> Optional[str]:
     return current if os.path.isfile(current) else None
 
 
-class DATParser: #vers 2
+class DATParser: #vers 3
     """Parses a single GTA .dat file — handles COLFILE island index and strips inline comments."""
 
     def __init__(self, game: str = GTAGame.GTA3):
@@ -856,10 +881,12 @@ class DATParser: #vers 2
         self.entries:  List[DATEntry] = []
         self.stats     = ParseStats()
 
-    def parse(self, dat_path: str, game_root: str = "") -> bool: #vers 2
+    def parse(self, dat_path: str, game_root: str = "") -> bool: #vers 3
         self.dat_path  = dat_path
+        # IV dat lives two levels down (common/data/)
+        up = ("..", "..") if self.game == GTAGame.IV else ("..",)
         self.game_root = game_root or os.path.normpath(
-            os.path.join(os.path.dirname(dat_path), ".."))
+            os.path.join(os.path.dirname(dat_path), *up))
         self.entries.clear()
         self.stats = ParseStats()
 
@@ -902,6 +929,10 @@ class DATParser: #vers 2
             if directive == "SPLASH":
                 continue   # no file path
 
+            if directive == "IMGLIST" and self.game == GTAGame.IV:
+                self._parse_iv_imglist(parts[1], dat_basename)
+                continue
+
             raw_path = parts[1]
             abs_path = self._resolve(raw_path)
             self.entries.append(DATEntry(
@@ -917,9 +948,55 @@ class DATParser: #vers 2
 
         return True
 
-    def _resolve(self, raw: str) -> str: #vers 3
+    def _parse_iv_imglist(self, raw_list: str, dat_basename: str): #vers 1
+        """Add IMG entries listed in an IV images.txt file."""
+        list_path = self._resolve(raw_list)
+        exists = os.path.isfile(list_path)
+        self.entries.append(DATEntry(
+            directive="IMGLIST", path=raw_list, abs_path=list_path,
+            exists=exists, source_dat=dat_basename))
+        if not exists:
+            self.stats.errors.append(f"IMGLIST not found: {raw_list}")
+            return
+        with open(list_path, "r", encoding="ascii", errors="ignore") as f:
+            lines = f.readlines()
+        for raw in lines:
+            line = raw.split("#")[0].strip()
+            if not line:
+                continue
+            parts = line.split()
+            img_raw = parts[0] + ".img"
+            abs_path = self._resolve(img_raw)
+            self.entries.append(DATEntry(
+                directive="IMG", path=img_raw, abs_path=abs_path,
+                exists=os.path.isfile(abs_path),
+                extra=parts[1] if len(parts) > 1 else "",
+                source_dat=os.path.basename(list_path)))
+            self.stats.img_files += 1
+
+    def _resolve_iv(self, raw: str) -> str: #vers 1
+        """Resolve IV prefixed path; IPL names map to binary .wpl."""
+        low = raw.lower()
+        prefix = next((p for p in GTAGame.IV_PREFIXES if low.startswith(p)), None)
+        if prefix is None:
+            return ""
+        rel = GTAGame.IV_PREFIXES[prefix] + "/" + raw[len(prefix):].lstrip("/")
+        found = _resolve_ci(self.game_root, rel)
+        if found:
+            return found
+        if low.endswith(".ipl"):
+            found = _resolve_ci(self.game_root, rel[:-4] + ".wpl")
+            if found:
+                return found
+        return os.path.normpath(os.path.join(self.game_root, rel))
+
+    def _resolve(self, raw: str) -> str: #vers 4
         """Resolve a Windows-style relative path to an absolute path.
         Uses case-insensitive fallback for Linux (needed for SOL's mixed-case paths)."""
+        if self.game == GTAGame.IV:
+            iv_path = self._resolve_iv(raw.strip())
+            if iv_path:
+                return iv_path
         norm = raw.strip().replace("\\", os.sep).replace("/", os.sep)
         if os.path.isabs(norm):
             return norm
@@ -956,7 +1033,7 @@ class DATParser: #vers 2
         return self.get_by_directive("IMG") + self.get_by_directive("CDIMAGE")
 
 
-class IDEParser: #vers 2
+class IDEParser: #vers 3
     """
     Parses a single GTA3 .ide file.
 
@@ -974,6 +1051,8 @@ class IDEParser: #vers 2
         self.ide_paths: List[IDEPathGroup] = []
         self.stats   = ParseStats()
         self._valid  = GTAGame.IDE_SECTIONS.get(game, GTAGame.IDE_SECTIONS[GTAGame.GTA3])
+        # IV only: next synthetic model ID to assign
+        self.next_id = 1
 
     def parse(self, ide_path: str) -> bool: #vers 3
         if not os.path.isfile(ide_path):
@@ -1065,7 +1144,90 @@ class IDEParser: #vers 2
         except (ValueError, IndexError):
             return None
 
-    def _parse_line(self, section: str, line: str, source: str, lineno: int) -> Optional[IDEObject]: #vers 2
+    def _parse_iv_line(self, section: str, line: str, source: str, lineno: int) -> Optional[IDEObject]: #vers 1
+        """Parse one IV IDE line; assigns synthetic sequential model IDs."""
+        parts = [p for p in re.split(r"[\s,]+", line) if p]
+        extra: Dict[str, Any] = {"synthetic_id": True}
+        try:
+            if section == "2dfx":
+                # name, offX, offY, offZ, type, quat... (resolved by name)
+                if len(parts) < 5:
+                    return None
+                extra.update(offset_x=float(parts[1]), offset_y=float(parts[2]),
+                             offset_z=float(parts[3]), effect_type=int(parts[4]))
+                return IDEObject(0, parts[0], "", "2dfx", section, extra, source, lineno)
+            if section in ("objs", "tobj", "anim", "tanm"):
+                # name, txd, [animDict], dist, flags, unk, bbox6, sphere4, wdd[, time]
+                i = 3 if section in ("anim", "tanm") else 2
+                if len(parts) < i + 1:
+                    return None
+                if i == 3:
+                    extra["anim_file"] = parts[2]
+                extra["draw_dist"] = float(parts[i])
+                if len(parts) > i + 1:
+                    extra["flags"] = int(parts[i + 1])
+                if len(parts) > i + 13:
+                    extra["bbox_min"] = tuple(float(v) for v in parts[i + 3:i + 6])
+                    extra["bbox_max"] = tuple(float(v) for v in parts[i + 6:i + 9])
+                    extra["radius"] = float(parts[i + 12])
+                    extra["wdd"] = parts[i + 13]
+                if len(parts) > i + 14:
+                    extra["time_flags"] = int(parts[i + 14])
+                obj_type = "object" if i == 2 else "hierarchy"
+                name, txd = parts[0], parts[1]
+            elif section == "weap":
+                # name, txd, anim, meshCount, dist, flags
+                if len(parts) < 5:
+                    return None
+                extra["anim_file"] = parts[2]
+                extra["draw_dist"] = float(parts[4])
+                if len(parts) > 5:
+                    extra["flags"] = int(parts[5])
+                obj_type, name, txd = "weapon", parts[0], parts[1]
+            elif section == "hier":
+                # [id,] name, txd, anim, dist
+                if parts and parts[0].isdigit():
+                    parts = parts[1:]
+                if len(parts) < 3:
+                    return None
+                extra["anim_file"] = parts[2]
+                if len(parts) > 3:
+                    extra["draw_dist"] = float(parts[3])
+                obj_type, name, txd = "hierarchy", parts[0], parts[1]
+            elif section == "cars":
+                # model, txd, type, handling, gameName, anim, anim2, freq, ...
+                if len(parts) < 5:
+                    return None
+                extra.update(veh_type=parts[2], handling=parts[3], game_name=parts[4])
+                if len(parts) > 5:
+                    extra["anim_file"] = parts[5]
+                if len(parts) > 7:
+                    extra["freq"] = int(parts[7])
+                obj_type, name, txd = "vehicle", parts[0], parts[1]
+            elif section == "peds":
+                # model, props, pedType, moveClip, ...
+                if len(parts) < 3:
+                    return None
+                extra.update(props=parts[1], ped_type=parts[2])
+                if len(parts) > 3:
+                    extra["anim_group"] = parts[3]
+                obj_type, name, txd = "ped", parts[0], ""
+            elif section == "txdp":
+                if len(parts) < 2:
+                    return None
+                obj_type, name, txd = "txdparent", parts[0], parts[1]
+            else:
+                return None
+        except (ValueError, IndexError):
+            self.stats.warnings.append(f"{source}:{lineno} - bad IV {section} line")
+            return None
+        obj = IDEObject(self.next_id, name, txd, obj_type, section, extra, source, lineno)
+        self.next_id += 1
+        return obj
+
+    def _parse_line(self, section: str, line: str, source: str, lineno: int) -> Optional[IDEObject]: #vers 3
+        if self.game == GTAGame.IV:
+            return self._parse_iv_line(section, line, source, lineno)
         try:
             parts = [p.strip() for p in line.split(",")]
 
@@ -1408,7 +1570,7 @@ def write_binary_ipl_inst_only(instances: List['IPLInstance']) -> bytes: #vers 1
     return bytes(header) + bytes(body)
 
 
-class IPLParser: #vers 2
+class IPLParser: #vers 3
     """
     Parses a single GTA3/VC/SA .ipl file.
     GTA3 inst: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw  (12 fields)
@@ -1447,7 +1609,7 @@ class IPLParser: #vers 2
                 return GTAGame.VC if len(line.split(",")) >= 13 else GTAGame.SOL
         return GTAGame.SOL
 
-    def parse(self, ipl_path: str, layout_override: str = None) -> bool: #vers 4
+    def parse(self, ipl_path: str, layout_override: str = None) -> bool: #vers 5
         """layout_override (Sep 5 2026); SOL auto-detects VC-format files."""
         if not os.path.isfile(ipl_path):
             self.stats.errors.append(f"IPL not found: {ipl_path}")
@@ -1493,7 +1655,8 @@ class IPLParser: #vers 2
                 if obj:
                     self.instances.append(obj)
                     self.stats.instances += 1
-            elif current_section == "zone":
+            elif current_section == "zone" or (
+                    current_section == "mzon" and self.game == GTAGame.IV):
                 z = self._parse_zone(line, basename, lineno)
                 if z:
                     self.zones.append(z)
@@ -1695,7 +1858,7 @@ class IPLParser: #vers 2
             pass
         return None
 
-    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 5
+    def _parse_cull(self, line: str, source: str, lineno: int) -> Optional[CullEntry]: #vers 6
         """Parse one "cull" section line.
 
         III/VC: CenterX/Y/Z, X1/Y1/Z1, X2/Y2/Z2, Flags,
@@ -1707,7 +1870,7 @@ class IPLParser: #vers 2
                 return None
             cx, cy, cz = float(p[0]), float(p[1]), float(p[2])
             #  fix (Aug 21 2026)
-            if self._current_inst_layout in (GTAGame.SA, GTAGame.SOL):
+            if self._current_inst_layout in (GTAGame.SA, GTAGame.SOL, GTAGame.IV):
                 xskew, length, bottom = float(p[3]), float(p[4]), float(p[5])
                 width, yskew, top = float(p[6]), float(p[7]), float(p[8])
                 corners = [
@@ -1790,7 +1953,132 @@ class IPLParser: #vers 2
         return None
 
 
-class IDEDatabase: #vers 1
+def iv_hash(name: str) -> int: #vers 1
+    """GTA IV name hash: Jenkins one-at-a-time, lowercase."""
+    h = 0
+    for c in name.lower().encode("ascii", errors="ignore"):
+        h = (h + c) & 0xFFFFFFFF
+        h = (h + (h << 10)) & 0xFFFFFFFF
+        h ^= h >> 6
+    h = (h + (h << 3)) & 0xFFFFFFFF
+    h ^= h >> 11
+    return (h + (h << 15)) & 0xFFFFFFFF
+
+
+class WPLParser: #vers 1
+    """
+    GTA IV binary .wpl parser (verified against all 41 PC wpl files).
+    Header: int32 version (3), then 16 int32 section counts.
+    Count slots: 1 inst, 3 grge, 4 cars, 5 cull, 9 strbig,
+                 10 lcul, 11 zone, 16 blok. Others always 0.
+    Sections follow header in slot order, fixed record sizes:
+      inst 48: pos 3f, quat 4f, u32 hash, u32 unk, i32 lod, u32 unk, f unk
+      grge 48: pos 3f, line 2f, cube 3f, i32 flags, i32 type, char[8]
+      cull 44: min 3f, max 3f, 3f unk, i32 flags, u32 hash
+      lcul 388, zone 24, blok 132 (counted, not decoded)
+    """
+
+    _HEADER_SIZE = 68
+    # slot -> (name, record size); None size = layout unknown
+    _SECTIONS = [(1, "inst", 48), (3, "grge", 48), (4, "cars", None),
+                 (5, "cull", 44), (9, "strbig", None), (10, "lcul", 388),
+                 (11, "zone", 24), (16, "blok", 132)]
+
+    def __init__(self, hash_names: Optional[Dict[int, Tuple[str, int]]] = None):
+        self.hash_names = hash_names or {}   # hash -> (name, model_id)
+        self.instances: List[IPLInstance] = []
+        self.paths:     List[PathGroup]   = []
+        self.grges:     List[GrgeEntry]   = []
+        self.enexes:    List[EnexEntry]   = []
+        self.zones:     List[Dict]        = []
+        self.culls:     List[CullEntry]   = []
+        self.occls:     List[OcclEntry]   = []
+        self.auzos:     List[AuzoEntry]   = []
+        self.counts:    Dict[str, int]    = {}
+        self.unresolved = 0
+        self.layout     = GTAGame.IV
+        self.stats      = ParseStats()
+
+    def parse(self, wpl_path: str) -> bool: #vers 1
+        """Parse a .wpl file; resolves inst hashes via hash_names."""
+        name = os.path.basename(wpl_path)
+        try:
+            with open(wpl_path, "rb") as f:
+                data = f.read()
+        except OSError as e:
+            self.stats.errors.append(f"Cannot read WPL {wpl_path}: {e}")
+            return False
+        if len(data) < self._HEADER_SIZE:
+            self.stats.errors.append(f"WPL too short: {name}")
+            return False
+        head = struct.unpack_from("<17i", data, 0)
+        if head[0] != 3:
+            self.stats.errors.append(f"WPL {name}: unknown version {head[0]}")
+            return False
+        off = self._HEADER_SIZE
+        for slot, sec, size in self._SECTIONS:
+            count = head[slot]
+            self.counts[sec] = count
+            if not count:
+                continue
+            if size is None or off + count * size > len(data):
+                self.stats.errors.append(
+                    f"WPL {name}: cannot read {count} {sec} records")
+                return False
+            if sec == "inst":
+                self._read_inst(data, off, count, name)
+            elif sec == "grge":
+                self._read_grge(data, off, count, name)
+            elif sec == "cull":
+                self._read_cull(data, off, count, name)
+            off += count * size
+        if off != len(data):
+            self.stats.warnings.append(
+                f"WPL {name}: {len(data) - off} trailing bytes")
+        if self.unresolved:
+            self.stats.warnings.append(
+                f"WPL {name}: {self.unresolved} inst hashes not in any IDE")
+        self.stats.instances = len(self.instances)
+        return True
+
+    def _read_inst(self, data: bytes, off: int, count: int, name: str): #vers 1
+        """Read inst records; unknown hashes become '#xxxxxxxx' names."""
+        for i in range(count):
+            px, py, pz, rx, ry, rz, rw, h, _u1, lod, _u2, _u3 = struct.unpack_from(
+                "<7fIIiIf", data, off + i * 48)
+            model_name, model_id = self.hash_names.get(h, (f"#{h:08x}", -1))
+            if model_id == -1:
+                self.unresolved += 1
+            self.instances.append(IPLInstance(
+                model_id=model_id, model_name=model_name, interior=0,
+                pos_x=px, pos_y=py, pos_z=pz,
+                rot_x=rx, rot_y=ry, rot_z=rz, rot_w=rw,
+                lod_index=lod, source_ipl=name, line_no=i))
+
+    def _read_grge(self, data: bytes, off: int, count: int, name: str): #vers 1
+        """Read grge records into GrgeEntry."""
+        for i in range(count):
+            rec = off + i * 48
+            v = struct.unpack_from("<8f2i", data, rec)
+            label = data[rec + 40:rec + 48].split(b"\x00")[0].decode("ascii", errors="ignore")
+            self.grges.append(GrgeEntry(
+                x1=v[0], y1=v[1], z1=v[2], front_x=v[3], front_y=v[4],
+                x2=v[5], y2=v[6], z2=v[7], door_type=v[8], garage_type=v[9],
+                name=label, source_ipl=name, line_no=i))
+
+    def _read_cull(self, data: bytes, off: int, count: int, name: str): #vers 1
+        """Read cull boxes into CullEntry (min/max corners)."""
+        for i in range(count):
+            v = struct.unpack_from("<9fiI", data, off + i * 44)
+            self.culls.append(CullEntry(
+                center_x=(v[0] + v[3]) / 2, center_y=(v[1] + v[4]) / 2,
+                center_z=(v[2] + v[5]) / 2,
+                x1=v[0], y1=v[1], z1=v[2], x2=v[3], y2=v[4], z2=v[5],
+                flags=v[9], wanted_level_drop=0,
+                source_ipl=name, line_no=i))
+
+
+class IDEDatabase: #vers 2
     """Lightweight standalone IDE database — loads all .ide files from a
     folder tree without requiring a full DAT/world load.
     Shared by Model Workshop (IDE lookup when DAT Browser not loaded),
@@ -1806,6 +2094,7 @@ class IDEDatabase: #vers 1
         GTAGame.VC:   32767,
         GTAGame.SA:   65535,
         GTAGame.SOL:  32767,   # VC engine base — safe limit
+        GTAGame.IV:   65535,   # synthetic IDs only
     }
 
     def __init__(self, game = None):
@@ -1938,7 +2227,7 @@ class IDEDatabase: #vers 1
                 f"| dup IDs={len(dups)}")
 
 
-class GTAWorldLoader: #vers 3
+class GTAWorldLoader: #vers 4
     """
     Orchestrates the full two-phase GTA3/VC/SA load chain in engine order:
       Phase 1: default.dat -> base IDEs (DEFAULT.IDE; SA also loads VEHICLES.IDE + PEDS.IDE)
@@ -2021,6 +2310,11 @@ class GTAWorldLoader: #vers 3
         # default (Sep 5 2026)
         self.vc_layout_ipl_stems: set = set()
         self.ipl_layouts: Dict[str, str] = {}   # lowercase stem -> layout used to parse
+        # IV: synthetic ID counter, name/hash lookups, WPL stats
+        self._iv_next_id = 1
+        self._iv_name_ids: Dict[str, Tuple[int, str]] = {}   # lower name -> (id, ide)
+        self._iv_hash_names: Dict[int, Tuple[str, int]] = {}  # hash -> (name, id)
+        self.iv_wpl_unresolved = 0
 
     def load(self, game_root: str, progress_cb=None) -> bool: #vers 5
         """Full load from a game root directory.
@@ -2060,7 +2354,7 @@ class GTAWorldLoader: #vers 3
         self.stats.instances      = len(self.instances)
         return True
 
-    def _inject_enforced_imgs(self, game_root: str): #vers 3
+    def _inject_enforced_imgs(self, game_root: str): #vers 4
         """Inject models/gta3.img which the game exe always loads directly —
         it never appears in any .dat file for GTA3, VC, SA or SOL.
         We deduplicate both by normalised abs-path and by basename so that
@@ -2069,6 +2363,8 @@ class GTAWorldLoader: #vers 3
         # Only gta3.img is exe-loaded and absent from every game's .dat.
         # radartex.img IS listed in gta_sol.dat so we don't enforce it;
         # the _process_dat() call will pick it up from the dat entries.
+        if self.game == GTAGame.IV:
+            return   # IV lists every IMG in images.txt
         rel = os.path.join("models", "gta3.img")
 
         # Build sets for fast dedup: normalised full path + basename
@@ -2093,13 +2389,14 @@ class GTAWorldLoader: #vers 3
             self.stats.img_files += 1
 
     def load_from_dat(self, dat_path: str, game_root: str = "",
-                      progress_cb=None) -> bool: #vers 1
+                      progress_cb=None) -> bool: #vers 2
         """Load from an explicit .dat path."""
         self.progress_cb = progress_cb
         self._reset()
         if not game_root:
+            up = ("..", "..") if self.game == GTAGame.IV else ("..",)
             game_root = os.path.normpath(
-                os.path.join(os.path.dirname(dat_path), ".."))
+                os.path.join(os.path.dirname(dat_path), *up))
         data_dir     = os.path.dirname(dat_path)
         default_name = GTAGame.DEFAULT_DAT.get(self.game)
         if default_name:
@@ -2114,6 +2411,8 @@ class GTAWorldLoader: #vers 3
         self._process_dat(self.main_dat, "main")
         self.stats.objects_loaded = len(self.objects)
         self.stats.instances      = len(self.instances)
+        if self.game == GTAGame.IV:
+            return True   # III/VC/SA extras below do not apply
         self.load_tracks_dat(data_dir)
         if self.game == GTAGame.SA:
             # SA-only (Aug 19 2026)
@@ -2446,14 +2745,18 @@ class GTAWorldLoader: #vers 3
         self.stats.col_files += len(dat.col_entries())
         self.stats.img_files += len(img_list)
 
-    def _load_ide(self, entry: DATEntry, phase: str): #vers 3
+    def _load_ide(self, entry: DATEntry, phase: str): #vers 4
         if not entry.exists:
             self.stats.warnings.append(f"[{phase}] IDE missing: {entry.path}")
             self.load_log.append((phase, "IDE", entry.abs_path, False))
             return
         parser = IDEParser(self.game)
+        parser.next_id = self._iv_next_id
         ok     = parser.parse(entry.abs_path)
         self.load_log.append((phase, "IDE", entry.abs_path, ok))
+        if self.game == GTAGame.IV:
+            self._iv_next_id = parser.next_id
+            self._index_iv_objects(parser.objects)
         for obj in parser.objects:
             if obj.section == "2dfx":
                 self.effects_2dfx.setdefault(obj.model_id, []).append(obj)
@@ -2465,7 +2768,42 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def load_ipl_by_name(self, ipl_stem: str) -> IPLLoadResult: #vers 3
+    def _index_iv_objects(self, objects: List[IDEObject]): #vers 1
+        """IV: index names/hashes, flag duplicates, link 2dfx by name."""
+        for obj in objects:
+            key = obj.model_name.lower()
+            if obj.section == "2dfx":
+                hit = self._iv_name_ids.get(key)
+                if hit is None:
+                    self.stats.warnings.append(
+                        f"{obj.source_ide}:{obj.line_no} - 2dfx for unknown model {obj.model_name}")
+                    continue
+                obj.model_id = hit[0]
+                continue
+            if obj.section == "txdp":
+                continue
+            prev = self._iv_name_ids.get(key)
+            if prev is not None:
+                self.stats.warnings.append(
+                    f"Duplicate model {obj.model_name} in {obj.source_ide} "
+                    f"(first in {prev[1]})")
+                continue
+            self._iv_name_ids[key] = (obj.model_id, obj.source_ide)
+            self._iv_hash_names[iv_hash(key)] = (obj.model_name, obj.model_id)
+
+    def _parse_ipl_entry(self, abs_path: str, ipl_stem: str): #vers 1
+        """Parse a text IPL or IV binary WPL; returns (parser, ok)."""
+        if self.game == GTAGame.IV and abs_path.lower().endswith(".wpl"):
+            parser = WPLParser(self._iv_hash_names)
+            ok = parser.parse(abs_path)
+            self.iv_wpl_unresolved += parser.unresolved
+            return parser, ok
+        parser = IPLParser(self.game)
+        layout_override = GTAGame.VC if ipl_stem in self.vc_layout_ipl_stems else None
+        ok = parser.parse(abs_path, layout_override=layout_override)
+        return parser, ok
+
+    def load_ipl_by_name(self, ipl_stem: str) -> IPLLoadResult: #vers 4
         """Actually parse and load one specific IPL's content."""
         if ipl_stem in self.loaded_ipls:
             return IPLLoadResult(success=True)   # already loaded, nothing to do
@@ -2476,9 +2814,7 @@ class GTAWorldLoader: #vers 3
             msg = f"IPL missing: {entry.path}"
             self.stats.warnings.append(msg)
             return IPLLoadResult(success=False, abs_path=entry.abs_path, errors=[msg])
-        parser = IPLParser(self.game)
-        layout_override = GTAGame.VC if ipl_stem.lower() in self.vc_layout_ipl_stems else None
-        ok = parser.parse(entry.abs_path, layout_override=layout_override)
+        parser, ok = self._parse_ipl_entry(entry.abs_path, ipl_stem.lower())
         self.ipl_layouts[ipl_stem.lower()] = parser.layout
         self.load_log.append(("on-demand", "IPL", entry.abs_path, ok))
         self.instances += parser.instances
@@ -2500,15 +2836,13 @@ class GTAWorldLoader: #vers 3
             errors=list(parser.stats.errors),
             warnings=list(parser.stats.warnings))
 
-    def _load_ipl(self, entry: DATEntry, phase: str): #vers 3
+    def _load_ipl(self, entry: DATEntry, phase: str): #vers 4
         if not entry.exists:
             self.stats.warnings.append(f"[{phase}] IPL missing: {entry.path}")
             self.load_log.append((phase, "IPL", entry.abs_path, False))
             return
-        parser = IPLParser(self.game)
         ipl_stem = os.path.splitext(os.path.basename(entry.abs_path))[0].lower()
-        layout_override = GTAGame.VC if ipl_stem in self.vc_layout_ipl_stems else None
-        ok     = parser.parse(entry.abs_path, layout_override=layout_override)
+        parser, ok = self._parse_ipl_entry(entry.abs_path, ipl_stem)
         self.ipl_layouts[ipl_stem] = parser.layout
         self.load_log.append((phase, "IPL", entry.abs_path, ok))
         self.instances += parser.instances
@@ -2522,8 +2856,11 @@ class GTAWorldLoader: #vers 3
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 7
+    def _reset(self): #vers 8
         self.ipl_layouts.clear()
+        self._iv_next_id = 1
+        self._iv_name_ids.clear(); self._iv_hash_names.clear()
+        self.iv_wpl_unresolved = 0
         self.objects.clear(); self.effects_2dfx.clear()
         self.timed_objects.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()
@@ -2645,7 +2982,15 @@ class GTAWorldLoader: #vers 3
                 return obj
         return None
 
-    def get_summary(self) -> str: #vers 2
+    def get_summary(self) -> str: #vers 3
+        iv_lines = []
+        if self.game == GTAGame.IV:
+            imgs = [ok for _, et, _, ok in self.load_log if et == "IMG"]
+            iv_lines = [
+                f"IMG files:   {len(imgs)} ({imgs.count(False)} missing)",
+                f"Model IDs:   synthetic (GTA IV IDEs have none)",
+                f"WPL unresolved hashes: {self.iv_wpl_unresolved}",
+            ]
         return "\n".join([
             f"Game:        {self.game.upper()}",
             f"default.dat: {os.path.basename(self.default_dat.dat_path) or '(not loaded)'}",
@@ -2658,7 +3003,7 @@ class GTAWorldLoader: #vers 3
             f"Zones:       {len(self.zones)}",
             f"Warnings:    {len(self.stats.warnings)}",
             f"Errors:      {len(self.stats.errors)}",
-        ])
+        ] + iv_lines)
 
 
 def _find_sol_dir(game_root: str) -> Optional[str]:
@@ -2670,7 +3015,19 @@ def _find_sol_dir(game_root: str) -> Optional[str]:
     return None
 
 
-def detect_game_from_dat_filename(dat_path: str) -> Optional[str]: #vers 1
+def _find_iv_data(game_root: str, name: str) -> Optional[str]: #vers 1
+    """Return common/data/<name> under an IV root (needs pc/), or None."""
+    try:
+        entries = os.listdir(game_root)
+    except OSError:
+        return None
+    if not any(e.lower() == "pc" and os.path.isdir(os.path.join(game_root, e))
+               for e in entries):
+        return None
+    return _resolve_ci(game_root, f"{GTAGame.IV_DATA_SUBDIR}/{name}")
+
+
+def detect_game_from_dat_filename(dat_path: str) -> Optional[str]: #vers 2
     """Detect which game a specific .dat file belongs to, purely from
     its own basename - for loading directly from an explicit .dat path
     (e.g. right-clicking one in the DAT Browser tree, or the standalone
@@ -2681,6 +3038,10 @@ def detect_game_from_dat_filename(dat_path: str) -> Optional[str]: #vers 1
     that exact filename and matching it would risk guessing the wrong
     game."""
     name = os.path.basename(dat_path).lower()
+    # IV gta.dat sits in <root>/common/data/
+    iv_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), "..", ".."))
+    if name == GTAGame.DAT_FILE[GTAGame.IV] and _find_iv_data(iv_root, name):
+        return GTAGame.IV
     for game, fname in GTAGame.DAT_FILE.items():
         if name == fname.lower():
             return game
@@ -2690,8 +3051,10 @@ def detect_game_from_dat_filename(dat_path: str) -> Optional[str]: #vers 1
     return None
 
 
-def detect_game(game_root: str) -> Optional[str]: #vers 4
+def detect_game(game_root: str) -> Optional[str]: #vers 5
     """Detect which GTA game lives at game_root. Checks SA data/ and SOL sol/ subfolder."""
+    if _find_iv_data(game_root, GTAGame.DAT_FILE[GTAGame.IV]):
+        return GTAGame.IV
     data = os.path.join(game_root, "data")
     # SOL: check sol/ or SOL/ for gta_sol.dat or gtasol.dat
     sol_dir = _find_sol_dir(game_root)
@@ -2720,9 +3083,11 @@ def prescan_dat_ipls(dat_path: str, game_root: str = "", game: str = GTAGame.GTA
     return [e for e in dat.entries if e.directive == "IPL"]
 
 
-def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 3
+def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 4
     """Return absolute path to the main .dat for the given game, or None.
     SOL: searches sol/ and SOL/ subfolders; tries alt name (gtasol.dat) if primary missing."""
+    if game == GTAGame.IV:
+        return _find_iv_data(game_root, GTAGame.DAT_FILE[game])
     if game == GTAGame.SOL:
         sol_dir = _find_sol_dir(game_root)
         if not sol_dir:
@@ -2746,11 +3111,13 @@ def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 3
     return None
 
 
-def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 2
+def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 3
     """Return absolute path to the phase-1 dat (default.dat / special.dat), or None."""
     name = GTAGame.DEFAULT_DAT.get(game)
     if not name:
         return None
+    if game == GTAGame.IV:
+        return _find_iv_data(game_root, name)
     if game == GTAGame.SOL:
         sol_dir = _find_sol_dir(game_root)
         if not sol_dir:
@@ -2765,13 +3132,13 @@ def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 2
     return c if os.path.isfile(c) else None
 
 
-def integrate_gta_dat_parser(main_window) -> bool: #vers 3
+def integrate_gta_dat_parser(main_window) -> bool: #vers 4
     try:
         main_window.gta_world_loader = GTAWorldLoader()
         main_window.detect_gta_game  = detect_game
         main_window.find_dat_file    = find_dat_file
         if hasattr(main_window, "log_message"):
-            main_window.log_message("GTA DAT/IDE/IPL parser integrated (v5, GTA3/VC/SA/SOL)")
+            main_window.log_message("GTA DAT/IDE/IPL parser integrated (v5, GTA3/VC/SA/SOL/IV)")
         return True
     except Exception as e:
         if hasattr(main_window, "log_message"):
@@ -2779,7 +3146,7 @@ def integrate_gta_dat_parser(main_window) -> bool: #vers 3
         return False
 
 
-class GTAWorldXRef: #vers 1
+class GTAWorldXRef: #vers 2
     """
     Cross-reference index built from a loaded GTAWorldLoader.
     Used to produce hover tooltips on IMG Factory table entries.
@@ -2801,21 +3168,33 @@ class GTAWorldXRef: #vers 1
         self.txd_stems:  set = set()                  # all txd_name.lower() values
         self.col_stems:  set = set()                  # col file stem.lower()
         self.img_stems:  set = set()                  # img/cdimage archive stems
+        self.wdd_stems:  set = set()                  # IV drawable dictionary stems
+        self.game:       str = ""
+
+    # Entry extensions per role (IV: wdr/wft model, wtd, wbd)
+    MODEL_EXTS = (".dff", ".wdr", ".wft")
+    TXD_EXTS   = (".txd", ".wtd")
+    COL_EXTS   = (".col", ".wbd")
 
     def find_in_imgs(self, stem: str, load_log: list,
-                     game_root: str = "") -> dict: #vers 1
+                     game_root: str = "") -> dict: #vers 2
         """Search all IMG archives in load_log for files matching stem.
         Returns dict with keys 'dff', 'txd', 'col' → abs path or None.
+        'dff_entry'/'txd_entry'/'col_entry' hold the matched entry names.
         stem should be the model name without extension (e.g. 'landstal').
         Also resolves the txd_name from model_map to find the TXD archive."""
         stem_lo = stem.lower()
-        result  = {'dff': None, 'txd': None, 'col': None, 'txd_name': None}
+        result  = {'dff': None, 'txd': None, 'col': None, 'txd_name': None,
+                   'dff_entry': None, 'txd_entry': None, 'col_entry': None}
 
         # Get txd_name from IDE xref
         obj = self.model_map.get(stem_lo)
         txd_stem = obj.txd_name.lower() if (obj and obj.txd_name
                    and obj.txd_name.lower() not in ('null', '')) else None
         result['txd_name'] = txd_stem
+        # IV: model may live in a drawable dictionary (.wdd)
+        wdd = (obj.extra.get('wdd', '') if obj else '').lower()
+        wdd_name = wdd + '.wdd' if wdd not in ('', 'null') else None
 
         # Scan IMG archives in load log
         try:
@@ -2835,18 +3214,23 @@ class GTAWorldXRef: #vers 1
                 for entry in arc.entries:
                     name_lo = entry.name.lower()
                     entry_stem = name_lo.rsplit('.', 1)[0]
-                    if not result['dff'] and entry_stem == stem_lo and name_lo.endswith('.dff'):
+                    if not result['dff'] and (
+                            (entry_stem == stem_lo and name_lo.endswith(self.MODEL_EXTS))
+                            or name_lo == wdd_name):
                         result['dff'] = img_path
-                    if not result['col'] and entry_stem == stem_lo and name_lo.endswith('.col'):
+                        result['dff_entry'] = entry.name
+                    if not result['col'] and entry_stem == stem_lo and name_lo.endswith(self.COL_EXTS):
                         result['col'] = img_path
-                    if not result['txd'] and txd_stem and entry_stem == txd_stem and name_lo.endswith('.txd'):
+                        result['col_entry'] = entry.name
+                    if not result['txd'] and txd_stem and entry_stem == txd_stem and name_lo.endswith(self.TXD_EXTS):
                         result['txd'] = img_path
+                        result['txd_entry'] = entry.name
             except Exception:
                 continue
 
         return result
 
-    def tooltip_for(self, filename: str) -> str: #vers 5
+    def tooltip_for(self, filename: str) -> str: #vers 6
         """Return a single-line hover tooltip for an IMG entry filename, or '' if nothing known.
 
         Covers all IDE section types: objs, tobj, cars, peds, weap, hier, anim, tanm, txdp, 2dfx.
@@ -2881,14 +3265,15 @@ class GTAWorldXRef: #vers 1
 
             #    TXD reference                                                 
             txd = obj.txd_name.lower() if obj.txd_name else ""
+            tx_ext = "wtd" if self.game == GTAGame.IV else "txd"
             if section == "txdp":
                 # txdp: model_name = child txd, txd_name = parent txd
-                parts.append(f"parent txd - {txd}.txd")
+                parts.append(f"parent txd - {txd}.{tx_ext}")
             elif txd and txd not in ("null", ""):
                 if txd in self.txd_stems:
-                    parts.append(f"has txd - {txd}.txd")
+                    parts.append(f"has txd - {txd}.{tx_ext}")
                 else:
-                    parts.append(f"missing {txd}.txd")
+                    parts.append(f"missing {txd}.{tx_ext}")
             elif section not in ("2dfx", "txdp"):
                 parts.append("no txd")
 
@@ -2951,7 +3336,12 @@ class GTAWorldXRef: #vers 1
             return ",  ".join(parts)
 
         #    No IDE entry found — check orphan status                          
-        if ext == "txd":
+        if ext == "wdd":
+            if stem in self.wdd_stems:
+                return "Drawable dictionary referenced by IDE"
+            return f"WARNING: Orphan WDD - {filename} not referenced by any .ide"
+
+        if ext in ("txd", "wtd"):
             if stem in self.txd_stems:
                 users = [o.model_name for o in self.model_map.values()
                          if o.txd_name and o.txd_name.lower() == stem][:5]
@@ -2966,7 +3356,7 @@ class GTAWorldXRef: #vers 1
                 return "COL listed in COLFILE directive"
             return f"WARNING: Orphan COL - {filename} not found in any COLFILE directive"
 
-        elif ext == "dff":
+        elif ext in ("dff", "wdr", "wft"):
             return f"WARNING: Orphan model - {filename} not found in any .ide file"
 
         return ""
@@ -3097,7 +3487,7 @@ def convert_inst_fields(parts, to_game, zero_scale_to_one=True): #vers 2
     return format_inst_record(rec, to_game, zero_scale_to_one) if rec else None
 
 
-def build_xref(loader: "GTAWorldLoader", game_root: str = "") -> GTAWorldXRef: #vers 2
+def build_xref(loader: "GTAWorldLoader", game_root: str = "") -> GTAWorldXRef: #vers 3
     """Build a cross-reference index from a fully loaded GTAWorldLoader.
 
     For SA/SOL also scans models/coll/ for external category COL archives
@@ -3105,6 +3495,7 @@ def build_xref(loader: "GTAWorldLoader", game_root: str = "") -> GTAWorldXRef: #
     so tooltip_for() can confirm COL presence for vehicle/ped/weapon DFFs.
     """
     xref = GTAWorldXRef()
+    xref.game = loader.game
 
     def _stem(path: str) -> str:
         """Extract lowercase filename stem, handling both / and \\ separators."""
@@ -3116,6 +3507,9 @@ def build_xref(loader: "GTAWorldLoader", game_root: str = "") -> GTAWorldXRef: #
         xref.model_map[obj.model_name.lower()] = obj
         if obj.txd_name and obj.txd_name.lower() not in ("null", ""):
             xref.txd_stems.add(obj.txd_name.lower())
+        wdd = obj.extra.get("wdd", "").lower()
+        if wdd not in ("", "null"):
+            xref.wdd_stems.add(wdd)
 
     # Index COLFILE stems from both dat parsers
     for dat in (loader.default_dat, loader.main_dat):
@@ -3167,7 +3561,7 @@ def build_xref(loader: "GTAWorldLoader", game_root: str = "") -> GTAWorldXRef: #
 __all__ = [
     "GTAGame", "DATEntry", "IDEObject", "IPLInstance", "ParseStats",
     "DATParser", "IDEParser", "IPLParser", "GTAWorldLoader",
-    "GTAWorldXRef", "build_xref",
+    "GTAWorldXRef", "build_xref", "WPLParser", "iv_hash",
     "detect_game", "find_dat_file", "find_default_dat",
     "_find_sol_dir", "_resolve_ci",
     "integrate_gta_dat_parser",

@@ -30,6 +30,7 @@ a = Analysis(
         'PIL.ImageEnhance',
         'PIL.ImageFilter',
         'numpy',
+        'Crypto.Cipher.AES',   # GTA IV encrypted IMGs
         'struct',
         'mmap',
     ] + qt_submodules,

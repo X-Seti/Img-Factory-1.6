@@ -1,4 +1,19 @@
-#this belongs in root /ChangeLog.md - Version: 219
+#this belongs in root /ChangeLog.md - Version: 225
+
+## Oct 06 2026 - Dat Browser GTA IV profile
+- GTA IV game/profile: gta.dat common:/platform:/ paths, images.txt IMG list, IV IDE objs (synthetic IDs), binary .wpl reader (hashes resolved).
+
+## Oct 05 2026 - GTA IV, Bully PC, shared TXD reader
+- GTA IV .wtd (RSC5): read, edit, save in place; xtd_textures IV reader fixed (was RSC7 guess, never loaded).
+- Bully PC Gamebryo .nft/.txd (DXT1/5, RGBA, RGB, PAL8): read, edit, save. New methods/nif_textures.py.
+- TXD Workshop opens .wtd/.nft entries inside IMGs (GTA IV map IMGs incl. encrypted); saves back without RW version prompt.
+- Fixed open crash (UnboundLocal QMessageBox) in open_txd_file. requirements: + pycryptodome.
+- IMG Factory open/drag/file list: .wtd .nft .xtx .chk route to TXD Workshop, not IMG loader (TEXTURE_EXTS in txd_reader).
+- TXD Workshop: Menu button left of Settings (docked and standalone); open dialogs start in last used folder, not exe folder.
+- pycryptodome added to startup dependency check, Windows launcher and imgfactory.spec.
+- GTA IV IMGs: missing pycryptodome now shows install message instead of empty archive; duplicate AES key removed.
+- Txd-Workshop spec v4: root settings/ copied beside exe; symlinked apps/ folders followed; utils bundled.
+- New methods/txd_reader.py: workshop parser + decoders moved out; Model, Map, Vehicle, viewers now read every platform (txd_parser wraps it).
 
 ## Oct 05 2026 - Mobile texture DB save
 - VC/SA Android and iOS texdb (.dat/.toc/.tmb, DXT/ETC/PVR/UNC): edits saved via Save button; unedited saves byte-identical.

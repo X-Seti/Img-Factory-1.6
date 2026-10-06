@@ -1,17 +1,41 @@
-"""
-apps/methods/xtd_textures.py  —  XTD texture dictionary reader
-Supports: GTA IV .wtd (RSC7 v13), GTA V .ytd (RSC8 v46/165), RDR2 .ytd
+#this belongs in apps/methods/xtd_textures.py - Version: 2
+# X-Seti - October05 2026 - IMG Factory 1.6 - XTD texture dictionaries
 
-READ-ONLY import source.  Never written back.  Completely undocumented.
-Textures extracted here are offered as import candidates inside TXD Workshop.
-
-Format notes:
-  RSC7: magic 0x52534337, GTA IV PC, version 13
-  RSC8: magic 0x52534338, GTA V / RDR2 PC, version 46 / 165
-  Both pack virtual+physical segments after an 8-byte RSC header.
-  Texture entries use grcTexturePC (IV) / grcTextureDX11 (V) layout.
-  Pixel data is DXT1 / DXT3 / DXT5 / A8R8G8B8 / BC4 / BC5 / BC7.
 """
+GTA IV .wtd (RSC5) read/write; GTA V / RDR2 .ytd (RSC8) read.
+"""
+
+##Methods list -
+# _565_to_rgb
+# _bc4_decode
+# _bc5_decode
+# _bc7_decode_fallback
+# _decode_pixels
+# _dxt1_decode
+# _dxt3_decode
+# _dxt5_decode
+# _extract_v_textures
+# get_xtd_game
+# is_xtd_file
+# _iv_decode
+# _iv_encode
+# _iv_entries
+# _iv_level_dims
+# open_xtd_dict
+# parse_iv_wtd
+# _parse_rsc5
+# _parse_rsc8
+# _physical_offset
+# _read_cstr
+# _read_v_string
+# _read_v_texture
+# _rsc5_sizes
+# _rsc8_seg_size
+# _v_scan_textures
+# write_iv_wtd
+
+##class XTDDict: -
+##class XTDTexture: -
 
 from __future__ import annotations
 import struct, zlib
@@ -40,7 +64,6 @@ _DXGI_FMT = {
 }
 
 #    RSC header                                                                  
-_RSC7_MAGIC = 0x52534337   # 'RSC7'
 _RSC8_MAGIC = 0x52534338   # 'RSC8'
 
 
@@ -74,8 +97,8 @@ def open_xtd_dict(path: str) -> XTDDict:
 
     magic = struct.unpack_from("<I", data, 0)[0]
 
-    if magic == _RSC7_MAGIC:
-        return _parse_rsc7(path, data)
+    if magic == _RSC5_MAGIC:
+        return _parse_rsc5(path, data)
     elif magic == _RSC8_MAGIC:
         return _parse_rsc8(path, data)
     else:
@@ -85,131 +108,165 @@ def open_xtd_dict(path: str) -> XTDDict:
                         error=f"Unknown magic 0x{magic:08X} — may be OODLE-compressed (unsupported)")
 
 
-#    RSC7 (GTA IV .wtd)                                                         
+#    RSC5 (GTA IV .wtd)                                                         
 
-def _parse_rsc7(path: str, data: bytes) -> XTDDict:
-    """GTA IV PC .wtd — RSC7 version 13."""
-    try:
-        magic, version, vflags, pflags = struct.unpack_from("<4I", data, 0)
-        vsize = (vflags & 0x7FF) << ((vflags >> 11) & 0xF)
-        psize = (pflags & 0x7FF) << ((pflags >> 11) & 0xF)
-
-        # Virtual segment starts at offset 16, physical right after
-        vdata = data[16 : 16 + vsize]
-        pdata = data[16 + vsize : 16 + vsize + psize]
-
-        rd = XTDDict(path=path, game="IV", version=version)
-        _extract_iv_textures(vdata, pdata, rd)
-        return rd
-    except Exception as e:
-        return XTDDict(path=path, game="IV", version=0, error=str(e))
+_RSC5_MAGIC = 0x05435352   # b'RSC\x05'
+_IV_FMT = {0x31545844: 'DXT1', 0x33545844: 'DXT3', 0x35545844: 'DXT5',
+           21: 'ARGB8888', 22: 'RGB888', 50: 'LUM8'}
+_IV_BPP = {'ARGB8888': 4, 'RGB888': 4, 'LUM8': 1}
 
 
-def _extract_iv_textures(vdata: bytes, pdata: bytes, rd: XTDDict):
-    """Walk pgDictionary<grcTexturePC> in GTA IV virtual segment."""
-    # pgDictionary starts at virtual address 0x50000000 = offset 0 in vdata
-    # Layout (offsets from dict base):
-    #   +0x00  pgBase (8 bytes: blockmap ptr, refcount)
-    #   +0x08  u32 count
-    #   +0x0C  hashes ptr  (30-bit virtual ptr)
-    #   +0x10  textures ptr (30-bit virtual ptr)
-    #   +0x14  u16 count2, u16 count3
+def _rsc5_sizes(flags: int) -> Tuple[int, int]: #vers 1
+    """Virtual and physical segment sizes from RSC5 flags."""
+    vs = (flags & 0x7FF) << (((flags >> 11) & 0xF) + 8)
+    ps = ((flags >> 15) & 0x7FF) << (((flags >> 26) & 0xF) + 8)
+    return vs, ps
 
-    BASE = 0x50000000  # IV virtual base
 
-    def _vptr(ptr: int) -> int:
-        """Convert 30-bit virtual pointer to vdata offset."""
-        if ptr == 0:
-            return -1
-        return (ptr & 0x0FFFFFFF) - (BASE & 0x0FFFFFFF)
+def _iv_entries(z: bytes, vs: int) -> List[dict]: #vers 1
+    """grcTexturePC records from the decompressed IV dictionary."""
+    tp, tc = struct.unpack_from('<IH', z, 0x18)
+    out = []
+    for i in range(tc):
+        o = struct.unpack_from('<I', z, (tp & 0xFFFFFFF) + 4 * i)[0] & 0xFFFFFFF
+        name_p = struct.unpack_from('<I', z, o + 0x14)[0] & 0xFFFFFFF
+        w, h, fcc = struct.unpack_from('<HHI', z, o + 0x1C)
+        levels = z[o + 0x27]
+        raw = struct.unpack_from('<I', z, o + 0x48)[0] & 0xFFFFFFF
+        name = z[name_p:z.index(b'\0', name_p)].decode('latin1')
+        name = name.split(':/', 1)[-1]
+        if name.lower().endswith('.dds'):
+            name = name[:-4]
+        fmt = _IV_FMT.get(fcc)
+        if fmt is None:
+            raise ValueError(f"{name}: unknown IV texture format {fcc:#x}")
+        out.append({'name': name, 'width': w, 'height': h, 'format': fmt,
+                    'levels': max(1, levels), 'offset': vs + raw})
+    return out
 
-    if len(vdata) < 0x18:
-        return
 
-    count = struct.unpack_from("<I", vdata, 0x08)[0]
-    tex_ptr_raw = struct.unpack_from("<I", vdata, 0x10)[0]
-    tex_arr_off = _vptr(tex_ptr_raw)
+def _iv_level_dims(e: dict) -> List[Tuple[int, int, int]]: #vers 1
+    """(width, height, byte size) per stored level."""
+    dims = []
+    w, h = e['width'], e['height']
+    for _ in range(e['levels']):
+        if e['format'] in _IV_BPP:
+            size = w * h * _IV_BPP[e['format']]
+        else:
+            size = ((w + 3) // 4) * ((h + 3) // 4) * (8 if e['format'] == 'DXT1' else 16)
+        dims.append((w, h, size))
+        w, h = max(1, w // 2), max(1, h // 2)
+    return dims
 
-    if tex_arr_off < 0 or tex_arr_off + count * 4 > len(vdata):
-        # Fallback: scan for texture signatures
-        _iv_scan_textures(vdata, pdata, rd)
-        return
 
-    for i in range(min(count, 512)):
-        entry_ptr = struct.unpack_from("<I", vdata, tex_arr_off + i * 4)[0]
-        entry_off = _vptr(entry_ptr)
-        if entry_off < 0 or entry_off + 0x58 > len(vdata):
+def _iv_decode(fmt: str, data: bytes, w: int, h: int) -> bytes: #vers 1
+    """One IV level to RGBA bytes."""
+    import numpy as np
+    from apps.methods.mobile_texture_decode import (decode_dxt, GL_DXT1A,
+                                                    GL_DXT3, GL_DXT5)
+    if fmt in ('DXT1', 'DXT3', 'DXT5'):
+        enc = {'DXT1': GL_DXT1A, 'DXT3': GL_DXT3, 'DXT5': GL_DXT5}[fmt]
+        return np.ascontiguousarray(decode_dxt(data, w, h, enc)).tobytes()
+    if fmt == 'LUM8':
+        a = np.frombuffer(data, np.uint8, w * h)
+        return np.stack([a, a, a, np.full_like(a, 255)], 1).tobytes()
+    a = np.frombuffer(data, np.uint8, w * h * 4).reshape(-1, 4)[:, [2, 1, 0, 3]].copy()
+    if fmt == 'RGB888':
+        a[:, 3] = 255
+    return a.tobytes()
+
+
+def _iv_encode(fmt: str, rgba: bytes, w: int, h: int) -> bytes: #vers 1
+    """RGBA bytes to one IV level."""
+    import numpy as np
+    from apps.methods.txd_dxt_encode import _encode_dxt1, _encode_dxt3, _encode_dxt5
+    a = np.frombuffer(rgba, np.uint8, w * h * 4).reshape(-1, 4)
+    if fmt == 'DXT1':
+        return _encode_dxt1(rgba, w, h, alpha=bool((a[:, 3] < 128).any()))
+    if fmt == 'DXT3':
+        return _encode_dxt3(rgba, w, h)
+    if fmt == 'DXT5':
+        return _encode_dxt5(rgba, w, h)
+    if fmt == 'LUM8':
+        return a[:, :3].mean(1).round().astype(np.uint8).tobytes()
+    out = a[:, [2, 1, 0, 3]].copy()
+    if fmt == 'RGB888':
+        out[:, 3] = 255
+    return out.tobytes()
+
+
+def parse_iv_wtd(data: bytes) -> List[dict]: #vers 1
+    """GTA IV .wtd to workshop texture dicts (all mip levels)."""
+    magic, _ver, flags = struct.unpack_from('<III', data, 0)
+    if magic != _RSC5_MAGIC:
+        raise ValueError("Not a GTA IV RSC5 resource")
+    z = zlib.decompress(data[12:])
+    vs, _ps = _rsc5_sizes(flags)
+    texs = []
+    for e in _iv_entries(z, vs):
+        lv, pos = [], e['offset']
+        for i, (w, h, size) in enumerate(_iv_level_dims(e)):
+            lv.append({'level': i, 'width': w, 'height': h,
+                       'rgba_data': _iv_decode(e['format'], z[pos:pos + size], w, h)})
+            pos += size
+        rgba = lv[0]['rgba_data']
+        alpha = e['format'] != 'RGB888' and e['format'] != 'LUM8' and \
+            any(b != 255 for b in rgba[3::4])
+        texs.append({'name': e['name'], 'width': e['width'], 'height': e['height'],
+                     'depth': 32 if e['format'] in ('ARGB8888', 'RGB888') else
+                     (8 if e['format'] == 'LUM8' else 4 if e['format'] == 'DXT1' else 8),
+                     'format': e['format'], 'has_alpha': alpha, 'alpha_name': '',
+                     'mipmaps': len(lv), 'rgba_data': rgba, 'mipmap_levels': lv,
+                     'raster_format_flags': 0, 'platform': 'GTA IV PC',
+                     'compressed_size': sum(s for _, _, s in _iv_level_dims(e))})
+    return texs
+
+
+def write_iv_wtd(original: bytes, textures: List[Optional[dict]]) -> bytes: #vers 1
+    """Rewrite edited textures in place; None keeps a texture unchanged."""
+    from apps.methods.txd_splice import _level_rgba
+    if all(t is None for t in textures):
+        return original
+    flags = struct.unpack_from('<I', original, 8)[0]
+    z = bytearray(zlib.decompress(original[12:]))
+    vs, _ps = _rsc5_sizes(flags)
+    ents = _iv_entries(z, vs)
+    if len(textures) != len(ents):
+        raise ValueError("GTA IV dictionaries can't add or remove textures")
+    for e, t in zip(ents, textures):
+        if t is None:
             continue
-        _read_iv_texture(vdata, pdata, entry_off, rd, BASE)
+        if (t['width'], t['height']) != (e['width'], e['height']):
+            raise ValueError(f"'{e['name']}': GTA IV textures keep their size")
+        if t.get('format') != e['format']:
+            raise ValueError(f"'{e['name']}': GTA IV textures keep their format")
+        pos, top = e['offset'], bytes(t['rgba_data'])
+        given = {l.get('level'): l for l in (t.get('mipmap_levels') or [])}
+        for i, (w, h, size) in enumerate(_iv_level_dims(e)):
+            old = bytes(z[pos:pos + size])
+            l = given.get(i)
+            src = top if i == 0 else None
+            if src is None and l and (l.get('width'), l.get('height')) == (w, h) and \
+                    bytes(l['rgba_data']) != _iv_decode(e['format'], old, w, h):
+                src = bytes(l['rgba_data'])
+            if src is None:
+                src = _level_rgba(top, e['width'], e['height'], w, h)
+            z[pos:pos + size] = _iv_encode(e['format'], src, w, h)
+            pos += size
+    return original[:12] + zlib.compress(bytes(z), 9)
 
 
-def _read_iv_texture(vdata: bytes, pdata: bytes, off: int, rd: XTDDict, BASE: int):
-    """Parse grcTexturePC entry at vdata[off]."""
+def _parse_rsc5(path: str, data: bytes) -> XTDDict: #vers 1
+    """GTA IV .wtd as an XTDDict (Asset Workshop import)."""
+    rd = XTDDict(path=path, game="IV", version=struct.unpack_from('<I', data, 4)[0])
     try:
-        # grcTexturePC layout (GTA IV PC):
-        # +00 pgBase (8 bytes)
-        # +08 u32 object_id / pad
-        # +0C ptr name
-        # +10 u8 depth, u8 stride_log2, u16 unknown
-        # +14 u32 d3dformat
-        # +18 u16 width, u16 height
-        # +1C u8 mips, u8 flags, u16 pad
-        # +20 ptr pixel_data  (physical segment ptr)
-        # ... more fields
-
-        name_ptr = struct.unpack_from("<I", vdata, off + 0x0C)[0]
-        d3dfmt   = struct.unpack_from("<I", vdata, off + 0x14)[0]
-        width    = struct.unpack_from("<H", vdata, off + 0x18)[0]
-        height   = struct.unpack_from("<H", vdata, off + 0x1A)[0]
-        mips     = vdata[off + 0x1C] if off + 0x1D < len(vdata) else 1
-        pix_ptr  = struct.unpack_from("<I", vdata, off + 0x20)[0]
-
-        # Read name
-        name = _read_iv_string(vdata, name_ptr, BASE)
-        if not name:
-            name = f"tex_{len(rd.textures):04d}"
-
-        # Physical pointer -> pdata offset
-        pix_off = _physical_offset(pix_ptr, pdata)
-        fmt = _D3D_FMT.get(d3dfmt, f"D3D_{d3dfmt:08X}")
-        raw, rgba = _decode_pixels(pdata, pix_off, width, height, fmt)
-
-        rd.textures.append(XTDTexture(
-            name=name, width=width, height=height,
-            fmt=fmt, mips=mips, rgba=rgba, raw=raw))
-    except Exception:
-        pass
-
-
-def _iv_scan_textures(vdata: bytes, pdata: bytes, rd: XTDDict):
-    """Brute-force scan for grcTexturePC signatures when dict parse fails."""
-    # Look for reasonable width/height pairs preceded by D3D format ID
-    BASE = 0x50000000
-    seen = set()
-    i = 0x50
-    while i < len(vdata) - 0x40:
-        d3dfmt = struct.unpack_from("<I", vdata, i)[0]
-        if d3dfmt in _D3D_FMT:
-            try:
-                w = struct.unpack_from("<H", vdata, i + 4)[0]
-                h = struct.unpack_from("<H", vdata, i + 6)[0]
-                if w in (16,32,64,128,256,512,1024,2048) and h in (16,32,64,128,256,512,1024,2048):
-                    key = (i, w, h)
-                    if key not in seen:
-                        seen.add(key)
-                        pix_ptr = struct.unpack_from("<I", vdata, i + 0x10)[0]
-                        pix_off = _physical_offset(pix_ptr, pdata)
-                        fmt = _D3D_FMT[d3dfmt]
-                        raw, rgba = _decode_pixels(pdata, pix_off, w, h, fmt)
-                        rd.textures.append(XTDTexture(
-                            name=f"tex_{len(rd.textures):04d}",
-                            width=w, height=h, fmt=fmt, mips=1,
-                            rgba=rgba, raw=raw))
-                        if len(rd.textures) >= 512:
-                            break
-            except Exception:
-                pass
-        i += 4
+        for t in parse_iv_wtd(data):
+            rd.textures.append(XTDTexture(name=t['name'], width=t['width'],
+                                          height=t['height'], fmt=t['format'],
+                                          mips=t['mipmaps'], rgba=t['rgba_data'], raw=b''))
+    except Exception as e:
+        rd.error = str(e)
+    return rd
 
 
 #    RSC8 (GTA V / RDR2 .ytd)                                                   
@@ -357,11 +414,6 @@ def _v_scan_textures(vdata: bytes, pdata: bytes, rd: XTDDict):
 
 
 #    Helpers                                                                     
-
-def _read_iv_string(vdata: bytes, ptr: int, BASE: int) -> str:
-    off = (ptr & 0x0FFFFFFF) - (BASE & 0x0FFFFFFF)
-    return _read_cstr(vdata, off)
-
 
 def _read_v_string(vdata: bytes, off: int) -> str:
     return _read_cstr(vdata, off)
@@ -677,7 +729,7 @@ def is_xtd_file(path: str) -> bool:
     try:
         with open(path, 'rb') as f:
             magic = struct.unpack("<I", f.read(4))[0]
-        return magic in (_RSC7_MAGIC, _RSC8_MAGIC)
+        return magic in (_RSC5_MAGIC, _RSC8_MAGIC)
     except Exception:
         return False
 
@@ -687,7 +739,7 @@ def get_xtd_game(path: str) -> str:
     try:
         with open(path, 'rb') as f:
             magic, version = struct.unpack("<II", f.read(8))
-        if magic == _RSC7_MAGIC:
+        if magic == _RSC5_MAGIC:
             return "IV"
         if magic == _RSC8_MAGIC:
             return "V" if version <= 46 else "RDR2"

@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 38
+#this belongs in apps/gui/gui_layout.py - Version: 39
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -4199,7 +4199,7 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message(f"Error refreshing directory files: {str(e)}")
 
 
-    def _on_directory_file_selected(self, item):  # vers 1
+    def _on_directory_file_selected(self, item):  # vers 2
         """Handle selection of a file in the same directory as the loaded IMG file"""
         try:
             # Get the file path from the item's user data
@@ -4219,14 +4219,15 @@ class IMGFactoryGUILayout:
                 # For now, we'll just open the file with the appropriate handler
                 # based on its extension, but in a real implementation you might want
                 # to have specific logic for different file types
+                from apps.methods.txd_reader import TEXTURE_EXTS
                 if file_ext == '.img':
                     # Open IMG file
                     if hasattr(self.main_window, 'open_img_file_from_path'):
                         self.main_window.open_img_file_from_path(file_path)
                     else:
                         self.main_window.log_message(f"Opening IMG file: {file_path}")
-                elif file_ext == '.txd':
-                    # Open TXD file with TXD Workshop
+                elif file_ext in TEXTURE_EXTS:
+                    # Open texture file with TXD Workshop
                     from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
                     workshop = open_txd_workshop(self.main_window, file_path)
                     if workshop:

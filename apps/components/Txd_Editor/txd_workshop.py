@@ -1515,17 +1515,18 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, S
 
 
 
-def open_txd_workshop(main_window, img_path=None): #vers 6
+def open_txd_workshop(main_window, img_path=None): #vers 7
     """Open TXD Workshop - embedded in tab if main_window has tab widget, standalone otherwise"""
     try:
         from PyQt6.QtWidgets import QVBoxLayout, QWidget
+        from apps.methods.txd_reader import TEXTURE_EXTS
 
         # Standalone mode - no main window or no tab widget
         if not main_window or not hasattr(main_window, 'main_tab_widget'):
             workshop = TXDWorkshop(None, main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
             if img_path:
-                if img_path.lower().endswith('.txd'):
+                if img_path.lower().endswith(TEXTURE_EXTS):
                     workshop.open_txd_file(img_path)
                 else:
                     workshop.load_from_img_archive(img_path)
@@ -1553,7 +1554,7 @@ def open_txd_workshop(main_window, img_path=None): #vers 6
         tab_layout.addWidget(workshop)
 
         if img_path:
-            if img_path.lower().endswith('.txd'):
+            if img_path.lower().endswith(TEXTURE_EXTS):
                 workshop.open_txd_file(img_path)
             else:
                 workshop.load_from_img_archive(img_path)
