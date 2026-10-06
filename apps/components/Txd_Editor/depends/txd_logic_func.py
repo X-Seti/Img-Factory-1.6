@@ -5923,7 +5923,7 @@ class TXDLogicMixin: #vers 1
         self._show_textures(texs, b'db', 'mobile_db',
                             f"{db.name} [{db.platform} texture DB, {len(texs)} textures]")
 
-    def _show_textures(self, textures, data: bytes, kind: str, title: str): #vers 1
+    def _show_textures(self, textures, data: bytes, kind: str, title: str): #vers 2
         """Fill the table from a parsed texture list of any format."""
         from apps.methods.txd_splice import tag_loaded_texture
         self.current_txd_data = data
@@ -5943,6 +5943,10 @@ class TXDLogicMixin: #vers 1
         if self.texture_list and hasattr(self, 'texture_table'):
             self.texture_table.selectRow(0)
         self._log(f"Opened {title}")
+        log = getattr(self.main_window, 'log_message', None) if self.main_window else None
+        for i, t in enumerate(self.texture_list, 1):
+            line = f"  {i:3d}  {t.get('name')}  {t.get('width')}x{t.get('height')}  {t.get('format')}"
+            log(line) if log else self._log(line)
 
     def _open_stories_file(self, file_path: str): #vers 1
         """Open a Stories .xtx/.chk texture list (PS2 or PSP)."""

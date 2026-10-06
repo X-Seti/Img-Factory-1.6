@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 228
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 229
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -11189,10 +11189,10 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                             txd_edit.setText(txd_guess)
                             break
 
-        def _pick_txd():  #vers 1
+        def _pick_txd():  #vers 2
             start = os.path.dirname(dff_edit.text()) or start_dir
             p, _ = QFileDialog.getOpenFileName(
-                dlg, "Open TXD", start, "TXD Files (*.txd);;All Files (*)")
+                dlg, "Open TXD", start, "Texture Files (*.txd *.wtd *.nft *.xtx *.chk);;TXD Files (*.txd);;All Files (*)")
             if p:
                 txd_edit.setText(p)
 
@@ -11980,12 +11980,12 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self._texlist_folder = ''
 
 
-    def _load_txd_into_workshop(self): #vers 1
+    def _load_txd_into_workshop(self): #vers 2
         """Open a TXD file and load its textures into Model Workshop."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Load TXD",
             os.path.dirname(getattr(self, '_current_dff_path', '')),
-            "TXD Files (*.txd);;All Files (*)")
+            "Texture Files (*.txd *.wtd *.nft *.xtx *.chk);;TXD Files (*.txd);;All Files (*)")
         if not path:
             return
         self._load_txd_file(path)
@@ -12648,7 +12648,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             _QTLBL.singleShot(50, fn)
         return obj
 
-    def _open_txd_smart(self): #vers 2
+    def _open_txd_smart(self): #vers 3
         """Open TXD — tries in order:
         1. IDE-linked TXD name → search current IMG (case-insensitive)
         2. DFF filename stem → search same folder as DFF (case-insensitive)
@@ -12727,11 +12727,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open TXD",
                 os.path.dirname(dff_path) if dff_path else '',
-                "TXD Files (*.txd);;All Files (*)")
+                "Texture Files (*.txd *.wtd *.nft *.xtx *.chk);;TXD Files (*.txd);;All Files (*)")
             if path:
                 _open(path)
 
-    def _open_linked_txd(self): #vers 1
+    def _open_linked_txd(self): #vers 2
 
         """Open the IDE-linked TXD in TXD Workshop."""
         obj = getattr(self, '_current_ide_obj', None)
@@ -12766,7 +12766,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         path, _ = QFileDialog.getOpenFileName(
             self, f"Open TXD for {obj.txd_name}",
             getattr(self, '_current_dff_path', ''),
-            "TXD Files (*.txd);;All Files (*)")
+            "Texture Files (*.txd *.wtd *.nft *.xtx *.chk);;TXD Files (*.txd);;All Files (*)")
         if path and mw and hasattr(mw, 'open_txd_workshop_docked'):
             mw.open_txd_workshop_docked(file_path=path)
         elif path:

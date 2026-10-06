@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 14
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 15
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -1143,7 +1143,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         if hasattr(mw, 'log_message'):
             mw.log_message(f"Cache updated: {key} = {os.path.basename(path)}")
 
-    def _make_table(self, headers): #vers 5
+    def _make_table(self, headers): #vers 6
         from apps.methods.populate_img_table import DragSelectTableWidget
         t = DragSelectTableWidget()
         t.setColumnCount(len(headers))
@@ -1160,8 +1160,49 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         # Double-click on Objects (IDE) table → open in Model Workshop
         t.cellDoubleClicked.connect(
             lambda row, col, tbl=t: self._on_ide_cell_double_click(tbl, row, col))
+        if "TXD" in headers:
+            t.setMouseTracking(True)
+            t.cellEntered.connect(
+                lambda row, col, tbl=t, c=headers.index("TXD"):
+                col == c and self._txd_cell_tooltip(tbl, row, col))
         t.viewport().setAutoFillBackground(True)
         return t
+
+    def _txd_cell_tooltip(self, table, row, col): #vers 1
+        """TXD cell tooltip lists texture names, read from the IMG."""
+        item = table.item(row, col)
+        if item is None or item.data(Qt.ItemDataRole.UserRole + 7):
+            return
+        item.setData(Qt.ItemDataRole.UserRole + 7, True)
+        found = self._get_row_xref(table, row)
+        img_path, entry_name = found.get('txd'), found.get('txd_entry')
+        if not img_path or not entry_name:
+            item.setToolTip(f"{item.text()}: not found in loaded IMGs")
+            return
+        cache = self.__dict__.setdefault('_txd_name_cache', {})
+        key = (img_path, entry_name.lower())
+        if key not in cache:
+            try:
+                from apps.methods.img_core_classes import IMGFile
+                from apps.methods.txd_reader import texture_names
+                imgs = self.__dict__.setdefault('_txd_img_cache', {})
+                if img_path not in imgs:
+                    arc = IMGFile(img_path)
+                    arc.open()
+                    imgs[img_path] = arc
+                arc = imgs[img_path]
+                entry = next(e for e in arc.entries if e.name.lower() == entry_name.lower())
+                cache[key] = texture_names(arc.read_entry_data(entry), entry.name)
+            except Exception as e:
+                cache[key] = None
+                self._log(f"TXD names {entry_name}: {e}")
+        names = cache[key]
+        if names is None:
+            item.setToolTip(f"{entry_name}: could not read")
+            return
+        shown = '\n'.join(names[:40]) + (f"\n... {len(names) - 40} more" if len(names) > 40 else '')
+        item.setToolTip(f"{entry_name} ({os.path.basename(img_path)})\n"
+                        f"{len(names)} textures:\n{shown}")
 
     #    Responsive toolbar                                                  
     _COMPACT_THRESHOLD = 520   # px width below which text→icon for all buttons
@@ -1496,7 +1537,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
 
         #    Browse / load                                                       
 
-    def _on_game_combo_changed(self, idx: int): #vers 3
+    def _on_game_combo_changed(self, idx: int): #vers 4
         """React immediately when the game combo selection changes.\n
         Index 6 = 'Game Root (Dir Tree)': grab the dir-tree path, auto-detect
         the game, switch the combo to the real entry, and start loading —
@@ -1515,7 +1556,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         path field as it was, same as selecting that entry always did
         before this - nothing forces a preset to exist.
         """
-        game_key_by_idx = {1: 'GTA3', 2: 'VC', 3: 'SA'}
+        game_key_by_idx = {1: 'GTA3', 2: 'VC', 3: 'SA', 5: 'IV'}
         if idx in game_key_by_idx:
             self._browse_btn.setVisible(True)
             self._load_btn.setVisible(True)
@@ -1524,7 +1565,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             path = presets.get(game_key_by_idx[idx])
             if path:
                 self._path_edit.setText(path)
-                names = {1: "GTA III", 2: "Vice City", 3: "San Andreas"}
+                names = {1: "GTA III", 2: "Vice City", 3: "San Andreas", 5: "GTA IV"}
                 self._status_lbl.setText(f"Preset: {names[idx]}")
                 self._load_btn.setEnabled(True)
                 if getattr(self, '_auto_load_on_root', False):
@@ -1659,12 +1700,14 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         loader.start()
         self._shared_txd_loader = loader  # keep reference
 
-    def _browse_game_root(self): #vers 4
+    def _browse_game_root(self): #vers 5
         path = QFileDialog.getExistingDirectory(
             self, "Select GTA game root folder",
             self._path_edit.text() or os.path.expanduser("~"))
         if not path:
             return
+        from apps.methods.gta_dat_parser import resolve_game_root
+        path = resolve_game_root(path)
         self._path_edit.setText(path)
         game = detect_game(path)
         if game:
@@ -1690,11 +1733,14 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             self._status_lbl.setText("Game not auto-detected — select manually.")
         self._load_btn.setEnabled(True)
 
-    def _start_load(self): #vers 5
+    def _start_load(self): #vers 6
         game_idx = self._game_combo.currentIndex()
         game_root = self._path_edit.text().strip()
         if not game_root:
             return
+        from apps.methods.gta_dat_parser import resolve_game_root
+        game_root = resolve_game_root(game_root)
+        self._path_edit.setText(game_root)
 
         game_map = {i: g for g, i in self._GAME_COMBO_IDX.items()}
         game = game_map.get(game_idx)
@@ -2152,7 +2198,8 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._tree.expandAll()
         self._refresh_img_loaded_indicators()
 
-    def _populate_objects(self, filter_text="", filter_type="All types"): #vers 2
+    def _populate_objects(self, filter_text="", filter_type="All types"): #vers 3
+        from apps.methods.xtd_textures import iv_hash
         table = self._obj_table
         table.setSortingEnabled(False)
         table.setRowCount(0)
@@ -2175,7 +2222,8 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                 item = QTableWidgetItem(val)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 if col == 0 and obj.extra.get("synthetic_id"):
-                    item.setToolTip("Synthetic ID - GTA IV IDEs have no model IDs")
+                    item.setToolTip(f"Synthetic ID - GTA IV has no model IDs\n"
+                                    f"Name hash: 0x{iv_hash(obj.model_name):08X} (engine key)")
                 table.setItem(row, col, item)
 
         table.setSortingEnabled(True)

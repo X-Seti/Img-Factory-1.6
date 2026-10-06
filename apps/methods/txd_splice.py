@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_splice.py - Version: 5
+#this belongs in apps/methods/txd_splice.py - Version: 6
 # X-Seti - October05 2026 - IMG Factory 1.6 - TXD splice rebuild
 
 """txd_splice.py - TXD writer. Rebuilds from the ORIGINAL file bytes so a
@@ -22,6 +22,7 @@ every PC raster format)."""
 # _patch_names
 # _platform_of
 # _set_versions
+# _spliceable
 # _with_ext
 # build_native_chunk
 # build_txd
@@ -463,7 +464,7 @@ def rebuild_txd(original: bytes, textures: List[Dict], target_ver: int = None,
 
 
 def txd_from_textures(textures: List[Dict], original: bytes = None,
-                      rw_ver: int = _SA_VER) -> bytes: #vers 1
+                      rw_ver: int = _SA_VER) -> bytes: #vers 2
     """TXD bytes for a plain texture list (Model/Map Workshop). Textures
     tagged from `original` keep their bytes; the rest are encoded."""
     norm = []
@@ -482,11 +483,18 @@ def txd_from_textures(textures: List[Dict], original: bytes = None,
             if same:                                  # unedited, only the format name differs
                 n['_src_sig'] = texture_signature(n)
         norm.append(n)
-    if original:
+    if original and _spliceable(original):
         data = rebuild_txd(original, norm)
         if data:
             return data
     return build_txd(norm, rw_ver)
+
+
+def _spliceable(original: bytes) -> bool: #vers 1
+    """True for PC/Xbox/PS2 RW TXDs; other sources build a new TXD."""
+    from apps.methods.txd_lc_android import detect_lc_android_txd
+    return (original[:4] == b'\x16\x00\x00\x00' and original[52:56] != b'PSP\0'
+            and not detect_lc_android_txd(original))
 
 
 def rebuild_inplace_txd(original: bytes, textures: List[Dict]) -> bytes: #vers 2

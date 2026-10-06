@@ -1,4 +1,4 @@
-#this belongs in gui/file_menu_integration.py - Version: 4
+#this belongs in gui/file_menu_integration.py - Version: 5
 # X-Seti - August10 2025 - IMG Factory 1.5 - File Menu Integration for Project System
 
 """
@@ -823,6 +823,7 @@ GAME_PATH_PRESET_GAMES = [
     ('GTA3', 'GTA III'),
     ('VC', 'Vice City'),
     ('SA', 'San Andreas'),
+    ('IV', 'GTA IV'),
 ]
 
 

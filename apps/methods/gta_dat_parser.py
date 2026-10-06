@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 9
+#this belongs in apps/methods/gta_dat_parser.py - Version: 10
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -2309,12 +2309,13 @@ class GTAWorldLoader: #vers 4
         self._iv_hash_names: Dict[int, Tuple[str, int]] = {}  # hash -> (name, id)
         self.iv_wpl_unresolved = 0
 
-    def load(self, game_root: str, progress_cb=None) -> bool: #vers 5
+    def load(self, game_root: str, progress_cb=None) -> bool: #vers 6
         """Full load from a game root directory.
         Always enforces models/gta3.img (called from game exe, not from any .dat)
         so TXD Workshop and the Dump TXDs feature can always find it.
         For SOL, also enforces models/radartex.img if present."""
         self.progress_cb = progress_cb
+        game_root = resolve_game_root(game_root)
         self._reset()
 
         #    Inject exe-loaded archives (not in any .dat)                   
@@ -3044,8 +3045,27 @@ def detect_game_from_dat_filename(dat_path: str) -> Optional[str]: #vers 2
     return None
 
 
-def detect_game(game_root: str) -> Optional[str]: #vers 5
+def resolve_game_root(path: str) -> str: #vers 1
+    """Game root from a folder or .dat path; finds the GTAIV subfolder."""
+    p = os.path.abspath(path or '')
+    if os.path.isfile(p):
+        p = os.path.dirname(p)
+    parts = p.replace('\\', '/').rstrip('/').split('/')
+    if len(parts) >= 2 and parts[-1].lower() == 'data' and parts[-2].lower() == 'common':
+        return os.path.dirname(os.path.dirname(p))
+    if parts and parts[-1].lower() == 'data' and os.path.isdir(os.path.dirname(p)):
+        return os.path.dirname(p)
+    if os.path.isdir(p) and not _find_iv_data(p, GTAGame.DAT_FILE[GTAGame.IV]):
+        for e in os.listdir(p):
+            sub = os.path.join(p, e)
+            if e.lower() == 'gtaiv' and _find_iv_data(sub, GTAGame.DAT_FILE[GTAGame.IV]):
+                return sub
+    return p
+
+
+def detect_game(game_root: str) -> Optional[str]: #vers 6
     """Detect which GTA game lives at game_root. Checks SA data/ and SOL sol/ subfolder."""
+    game_root = resolve_game_root(game_root)
     if _find_iv_data(game_root, GTAGame.DAT_FILE[GTAGame.IV]):
         return GTAGame.IV
     data = os.path.join(game_root, "data")
@@ -3076,11 +3096,11 @@ def prescan_dat_ipls(dat_path: str, game_root: str = "", game: str = GTAGame.GTA
     return [e for e in dat.entries if e.directive == "IPL"]
 
 
-def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 4
+def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 5
     """Return absolute path to the main .dat for the given game, or None.
     SOL: searches sol/ and SOL/ subfolders; tries alt name (gtasol.dat) if primary missing."""
     if game == GTAGame.IV:
-        return _find_iv_data(game_root, GTAGame.DAT_FILE[game])
+        return _find_iv_data(resolve_game_root(game_root), GTAGame.DAT_FILE[game])
     if game == GTAGame.SOL:
         sol_dir = _find_sol_dir(game_root)
         if not sol_dir:
@@ -3104,13 +3124,13 @@ def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 4
     return None
 
 
-def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 3
+def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 4
     """Return absolute path to the phase-1 dat (default.dat / special.dat), or None."""
     name = GTAGame.DEFAULT_DAT.get(game)
     if not name:
         return None
     if game == GTAGame.IV:
-        return _find_iv_data(game_root, name)
+        return _find_iv_data(resolve_game_root(game_root), name)
     if game == GTAGame.SOL:
         sol_dir = _find_sol_dir(game_root)
         if not sol_dir:
