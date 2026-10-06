@@ -78,6 +78,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _load_txd_textures
 # _log
 # _mark_as_modified
+# _match_iv_order
 # _normal_to_reflection
 # _normalize_vector
 # _on_texture_selected
@@ -3656,7 +3657,7 @@ class TXDLogicMixin: #vers 1
             self._log(f"Rebuild error: {e}")
             return None
 
-    def _rebuild_special(self) -> bytes: #vers 3
+    def _rebuild_special(self) -> bytes: #vers 4
         """Save bytes for mobile, PSP, Stories, GTA IV and Bully PC (layout kept)."""
         from apps.methods.txd_splice import texture_signature, rebuild_inplace_txd
         kind, data = self._txd_kind, self.current_txd_data
@@ -3670,12 +3671,15 @@ class TXDLogicMixin: #vers 1
         if kind in ('wtd', 'nif'):
             from apps.methods.xtd_textures import write_iv_wtd
             from apps.methods.nif_textures import write_nif_textures
-            for t in self.texture_list:
-                if t.get('name') != t.get('_src_name'):
-                    raise ValueError(f"'{t.get('name')}': this file type can't rename textures")
             edits = [None if t.get('_src_sig') == texture_signature(t) else t
                      for t in self.texture_list]
-            return (write_iv_wtd if kind == 'wtd' else write_nif_textures)(data, edits)
+            names = [t.get('name') if t.get('name') != t.get('_src_name') else None
+                     for t in self.texture_list]
+            if kind == 'wtd':
+                return write_iv_wtd(data, edits, names)
+            if any(names):
+                raise ValueError(f"'{next(n for n in names if n)}': Bully textures can't be renamed")
+            return write_nif_textures(data, edits)
         if kind == 'stories':
             from apps.methods.xtx_reader import write_stories_textures
             for t in self.texture_list:
@@ -3694,14 +3698,29 @@ class TXDLogicMixin: #vers 1
         ver = getattr(self, '_save_target_version', None) or self.txd_version_id or 0x1803FFFF
         return build_txd(self.texture_list, ver, getattr(self, '_save_target_device', None))
 
-    def _after_save(self, data: bytes): #vers 1
+    def _after_save(self, data: bytes): #vers 2
         """Saved bytes become the new original; textures re-tagged, flag cleared."""
         from apps.methods.txd_splice import tag_loaded_texture
+        renamed = any(t.get('name') != t.get('_src_name') for t in self.texture_list)
         self.current_txd_data = data
         self._detect_txd_info(data)
         for t in self.texture_list:
             tag_loaded_texture(t)
+        if getattr(self, '_txd_kind', 'rw') == 'wtd' and renamed:
+            self._match_iv_order(data)
         self._clear_modified()
+
+    def _match_iv_order(self, data: bytes): #vers 1
+        """List follows the saved GTA IV hash order; undo history reset."""
+        import struct, zlib
+        from apps.methods.xtd_textures import _iv_entries, _rsc5_sizes
+        z = zlib.decompress(data[12:])
+        order = [e['name'] for e in _iv_entries(z, _rsc5_sizes(struct.unpack_from('<I', data, 8)[0])[0])]
+        by_name = {t['name']: t for t in self.texture_list}
+        self.texture_list = [by_name[n] for n in order]
+        self._clear_undo()
+        if hasattr(self, 'texture_table'):
+            self._reload_texture_table()
 
     def _clear_modified(self): #vers 1
         """Clear unsaved-changes flag, save button and title star."""

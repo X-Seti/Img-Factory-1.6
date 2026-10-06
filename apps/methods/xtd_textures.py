@@ -1,4 +1,4 @@
-#this belongs in apps/methods/xtd_textures.py - Version: 2
+#this belongs in apps/methods/xtd_textures.py - Version: 3
 # X-Seti - October05 2026 - IMG Factory 1.6 - XTD texture dictionaries
 
 """
@@ -21,6 +21,7 @@ GTA IV .wtd (RSC5) read/write; GTA V / RDR2 .ytd (RSC8) read.
 # _iv_encode
 # _iv_entries
 # _iv_level_dims
+# _iv_rename
 # open_xtd_dict
 # parse_iv_wtd
 # _parse_rsc5
@@ -123,7 +124,7 @@ def _rsc5_sizes(flags: int) -> Tuple[int, int]: #vers 1
     return vs, ps
 
 
-def _iv_entries(z: bytes, vs: int) -> List[dict]: #vers 1
+def _iv_entries(z: bytes, vs: int) -> List[dict]: #vers 2
     """grcTexturePC records from the decompressed IV dictionary."""
     tp, tc = struct.unpack_from('<IH', z, 0x18)
     out = []
@@ -141,7 +142,8 @@ def _iv_entries(z: bytes, vs: int) -> List[dict]: #vers 1
         if fmt is None:
             raise ValueError(f"{name}: unknown IV texture format {fcc:#x}")
         out.append({'name': name, 'width': w, 'height': h, 'format': fmt,
-                    'levels': max(1, levels), 'offset': vs + raw})
+                    'levels': max(1, levels), 'offset': vs + raw, 'rec': o,
+                    'name_off': name_p, 'name_len': z.index(b'\0', name_p) - name_p})
     return out
 
 
@@ -222,10 +224,34 @@ def parse_iv_wtd(data: bytes) -> List[dict]: #vers 1
     return texs
 
 
-def write_iv_wtd(original: bytes, textures: List[Optional[dict]]) -> bytes: #vers 1
+def _iv_rename(z: bytearray, ents: List[dict], names: List[Optional[str]]): #vers 1
+    """Rename in place; name hashes re-sorted with the texture array."""
+    from apps.methods.gta_dat_parser import iv_hash
+    for e, new in zip(ents, names):
+        if not new or new == e['name']:
+            continue
+        raw = f"pack:/{new}.dds".encode('ascii')
+        if len(raw) > e['name_len']:
+            raise ValueError(f"'{new}': GTA IV name too long "
+                             f"(max {e['name_len'] - 10} characters)")
+        z[e['name_off']:e['name_off'] + e['name_len']] = raw.ljust(e['name_len'], b'\0')
+        e['name'] = new
+    hashes = [iv_hash(e['name']) for e in ents]
+    if len(set(hashes)) != len(hashes):
+        raise ValueError("Two GTA IV textures would share a name")
+    hp, tp = struct.unpack_from('<I', z, 0x10)[0], struct.unpack_from('<I', z, 0x18)[0]
+    ptrs = [struct.unpack_from('<I', z, (tp & 0xFFFFFFF) + 4 * i)[0] for i in range(len(ents))]
+    for i, (h, ptr) in enumerate(sorted(zip(hashes, ptrs))):
+        struct.pack_into('<I', z, (hp & 0xFFFFFFF) + 4 * i, h)
+        struct.pack_into('<I', z, (tp & 0xFFFFFFF) + 4 * i, ptr)
+
+
+def write_iv_wtd(original: bytes, textures: List[Optional[dict]],
+                 names: Optional[List[Optional[str]]] = None) -> bytes: #vers 2
     """Rewrite edited textures in place; None keeps a texture unchanged."""
     from apps.methods.txd_splice import _level_rgba
-    if all(t is None for t in textures):
+    renamed = names and any(names)
+    if all(t is None for t in textures) and not renamed:
         return original
     flags = struct.unpack_from('<I', original, 8)[0]
     z = bytearray(zlib.decompress(original[12:]))
@@ -253,6 +279,8 @@ def write_iv_wtd(original: bytes, textures: List[Optional[dict]]) -> bytes: #ver
                 src = _level_rgba(top, e['width'], e['height'], w, h)
             z[pos:pos + size] = _iv_encode(e['format'], src, w, h)
             pos += size
+    if renamed:
+        _iv_rename(z, ents, names)
     return original[:12] + zlib.compress(bytes(z), 9)
 
 

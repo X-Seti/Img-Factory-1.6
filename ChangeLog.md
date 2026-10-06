@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 226
+#this belongs in root /ChangeLog.md - Version: 227
+
+## Oct 06 2026 - Asset Workshop reader, GTA IV rename
+- Asset Workshop uses methods/txd_reader (old parser + 5 decoders removed, ~700 lines); output identical on 854 textures.
+- GTA IV .wtd textures can be renamed (name fits old slot; hashes re-sorted).
 
 ## Oct 06 2026 - Dat Browser GTA IV profile
 - GTA IV encrypted IMGs: last table name was garbage (e.g. radar.img hrFI_y); partial tail block is plain, not decrypted. Encrypt/decrypt tool same.
