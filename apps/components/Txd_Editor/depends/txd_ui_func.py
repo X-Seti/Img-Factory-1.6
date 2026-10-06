@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 10
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 11
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -463,7 +463,7 @@ class TXDUIMixin: #vers 1
 
         return self.toolbar
 
-    def _create_left_panel(self): #vers 5
+    def _create_left_panel(self): #vers 6
         """Create left panel - TXD file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -489,14 +489,14 @@ class TXDUIMixin: #vers 1
         self.txd_search_btn.setFixedSize(24, 24)
         self.txd_search_btn.setIcon(SVGIconFactory.search_icon(16, self._get_icon_color()))
         self.txd_search_btn.setIconSize(QSize(16, 16))
-        self.txd_search_btn.setToolTip("Search TXD files")
+        self.txd_search_btn.setToolTip("Search TXD or texture names")
         self.txd_search_btn.clicked.connect(self._show_txd_search)
         hdr_row.addWidget(self.txd_search_btn)
         layout.addLayout(hdr_row)
 
         # Search box (hidden by default)
         self.txd_search_box = QLineEdit()
-        self.txd_search_box.setPlaceholderText("Search TXD files...")
+        self.txd_search_box.setPlaceholderText("Search TXD or texture names...")
         self.txd_search_box.setVisible(False)
         self.txd_search_box.textChanged.connect(self._filter_txd_list)
         layout.addWidget(self.txd_search_box)
@@ -504,6 +504,8 @@ class TXDUIMixin: #vers 1
         self.txd_list_widget = QListWidget()
         self.txd_list_widget.setAlternatingRowColors(True)
         self.txd_list_widget.itemClicked.connect(self._on_txd_selected)
+        self.txd_list_widget.setMouseTracking(True)
+        self.txd_list_widget.itemEntered.connect(self._txd_item_tooltip)
         layout.addWidget(self.txd_list_widget)
 
         return panel
@@ -1513,12 +1515,17 @@ class TXDUIMixin: #vers 1
             else:
                 self.txd_search_box.clear()
 
-    def _filter_txd_list(self, text: str): #vers 1
-        """Filter TXD list by search text."""
+    def _filter_txd_list(self, text: str): #vers 2
+        """Filter TXD list by file name or texture name inside."""
         if not hasattr(self, 'txd_list_widget'): return
+        low = text.lower()
         for i in range(self.txd_list_widget.count()):
             item = self.txd_list_widget.item(i)
-            item.setHidden(bool(text) and text.lower() not in item.text().lower())
+            hit = not low or low in item.text().lower()
+            if not hit and len(low) >= 2:
+                entry = item.data(Qt.ItemDataRole.UserRole)
+                hit = any(low in n.lower() for n in self._entry_texture_names(entry))
+            item.setHidden(not hit)
 
     def _update_table_display(self): #vers 2
         """Update the middle panel table display after edits"""

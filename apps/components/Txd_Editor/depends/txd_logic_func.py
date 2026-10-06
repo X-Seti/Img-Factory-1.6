@@ -54,6 +54,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _export_alpha_only
 # _export_bumpmap
 # export_selected_texture
+# _entry_texture_names
 # _extract_alpha_channel
 # _extract_txd_from_img
 # _flip_horizontal
@@ -150,6 +151,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _texture_statistics
 # _toggle_alpha_invert
 # _transform_selection
+# _txd_item_tooltip
 # _uncompress_texture
 # _undo_last_action
 # _upscale_texture
@@ -2567,6 +2569,31 @@ class TXDLogicMixin: #vers 1
         if data[:4] == b'\x16\x00\x00\x00':
             self._detect_txd_info(data)
         self._show_textures(texs, data, kind, f"{name} [{len(texs)} textures]")
+
+    def _entry_texture_names(self, entry) -> list: #vers 1
+        """Texture names inside an IMG entry, cached per open IMG."""
+        cache = self.__dict__.setdefault('_entry_names', {})
+        key = (id(self.current_img), getattr(entry, 'name', ''))
+        if key not in cache:
+            try:
+                from apps.methods.txd_reader import texture_names
+                data = self._extract_txd_from_img(entry)
+                cache[key] = texture_names(data, entry.name) if data else []
+            except Exception as e:
+                print(f"[TXDWorkshop] names for {getattr(entry, 'name', '?')}: {e}")
+                cache[key] = []
+        return cache[key]
+
+    def _txd_item_tooltip(self, item): #vers 1
+        """Hover tooltip lists the textures inside the TXD entry."""
+        if item is None or item.data(Qt.ItemDataRole.UserRole + 1):
+            return
+        entry = item.data(Qt.ItemDataRole.UserRole)
+        names = self._entry_texture_names(entry)
+        shown = '\n'.join(names[:40]) + (f"\n... {len(names) - 40} more" if len(names) > 40 else '')
+        item.setToolTip(f"{entry.name}\nSize: {entry.size / 1024:.1f} KB\n"
+                        f"{len(names)} textures:\n{shown}")
+        item.setData(Qt.ItemDataRole.UserRole + 1, True)
 
     def _extract_txd_from_img(self, entry): #vers 2
         """Extract TXD data from IMG entry"""

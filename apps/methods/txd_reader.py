@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_reader.py - Version: 2
+#this belongs in apps/methods/txd_reader.py - Version: 3
 # X-Seti - October05 2026 - IMG Factory 1.6 - Shared texture file reader
 
 """
@@ -14,6 +14,8 @@ One reader for every texture file type: TXD Workshop, Model, Map and viewers.
 # read_rw_txd
 # read_texture_file
 # _rgba_out
+# _rw_native_names
+# texture_names
 
 import struct
 from typing import Callable, Dict, List, Optional, Tuple
@@ -556,3 +558,44 @@ def read_texture_file(data: bytes, name: str = '', levels: bool = True) -> Tuple
     if detect_ps2_txd(data[:64]):
         return 'rw', [ps2_entry(t) for t in parse_ps2_txd(data)]
     return 'rw', read_rw_txd(data, levels)
+
+
+def _rw_native_names(data: bytes) -> List[str]: #vers 1
+    """Names from RW natives (PC, Xbox, PS2, PSP) without pixel decode."""
+    count = struct.unpack_from('<H', data, 24)[0]
+    off, out = 24 + struct.unpack_from('<I', data, 16)[0], []
+    for _ in range(count):
+        if off + 24 > len(data):
+            break
+        ctype, csize = struct.unpack_from('<II', data, off)
+        if ctype == 0x15:
+            stype, ssize = struct.unpack_from('<II', data, off + 12)
+            plat = struct.unpack_from('<I', data, off + 24)[0]
+            if stype == 0x01 and ssize >= 88 and plat in (5, 8, 9):
+                raw = data[off + 32:off + 64]
+            else:
+                q = off + 24 + ssize
+                raw = data[q + 12:q + 12 + struct.unpack_from('<I', data, q + 4)[0]]
+            out.append(raw.split(b'\0', 1)[0].decode('latin-1'))
+        if data[52:56] == b'PSP\0' and ctype == 0x15:
+            from apps.methods.txd_platform_psp import psp_native_end
+            off = psp_native_end(data, off)
+        else:
+            off += 12 + csize
+    return out
+
+
+def texture_names(data: bytes, name: str = '') -> List[str]: #vers 1
+    """Texture names in any supported texture file, fast for RW."""
+    from apps.methods.txd_lc_android import detect_lc_android_txd
+    if data[:4] == b'\x16\x00\x00\x00' and not detect_lc_android_txd(data):
+        return _rw_native_names(data)
+    if data[:4] == b'RSC\x05':
+        import zlib
+        from apps.methods.xtd_textures import _iv_entries, _rsc5_sizes
+        vs = _rsc5_sizes(struct.unpack_from('<I', data, 8)[0])[0]
+        return [e['name'] for e in _iv_entries(zlib.decompress(data[12:]), vs)]
+    from apps.methods.nif_textures import is_nif_textures, _source_textures
+    if is_nif_textures(data):
+        return [n for n, _ref in _source_textures(data)[2]]
+    return [t['name'] for t in read_texture_file(data, name, levels=False)[1]]

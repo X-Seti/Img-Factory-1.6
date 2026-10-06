@@ -1,4 +1,4 @@
-#this belongs in core/rebuild.py - Version: 8
+#this belongs in core/rebuild.py - Version: 9
 # X-Seti - November19 2025 - IMG Factory 1.5 - Native Rebuild Functions
 """
 Native IMG rebuild using imgfactory objects directly - NO conversion needed
@@ -127,7 +127,7 @@ def show_rebuild_mode_dialog(main_window) -> bool:
         return rebuild_current_img_native(main_window)
 
 
-def _perform_native_rebuild(img_file, mode: str, main_window) -> bool:
+def _perform_native_rebuild(img_file, mode: str, main_window) -> bool: #vers 2
     """Core native rebuild — handles V1 (DIR+IMG pair) and V2/V3 (single file)."""
     try:
         from apps.methods.img_core_classes import IMGVersion
@@ -147,6 +147,10 @@ def _perform_native_rebuild(img_file, mode: str, main_window) -> bool:
 
         if is_v1:
             return _rebuild_v1_pair(img_file, entries, progress_callback, main_window)
+        if getattr(img_file, 'version', None) in (IMGVersion.VERSION_3, IMGVersion.VERSION_3_ENC):
+            ok = img_file.rebuild_img_file()     # GTA IV writer keeps V3 layout
+            progress_callback(100, "Rebuild complete" if ok else "Rebuild failed")
+            return ok
         else:
             return _rebuild_single_file(img_file, entries, version_info,
                                         progress_callback, main_window)

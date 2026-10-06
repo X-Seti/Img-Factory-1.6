@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_core_classes.py - Version: 15
+#this belongs in apps/methods/img_core_classes.py - Version: 17
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -1039,13 +1039,15 @@ class IMGFile:
             self.last_error = f"Save As failed: {e}"
             return False
 
-    def rebuild_img_file(self) -> bool: #vers 1
+    def rebuild_img_file(self) -> bool: #vers 2
         """Rebuild IMG file based on version"""
         try:
             if self.version == IMGVersion.VERSION_1:
                 return self._rebuild_version1()
             elif self.version == IMGVersion.VERSION_2:
                 return self._rebuild_version2()
+            elif self.version in (IMGVersion.VERSION_3, IMGVersion.VERSION_3_ENC):
+                return self._rebuild_version3()
             else:
                 return False
 
@@ -1073,6 +1075,57 @@ class IMGFile:
         except Exception:
             return f"file_{len(self.entries):04d}.dat"
 
+
+    def _rebuild_version3(self) -> bool: #vers 1
+        """Rebuild GTA IV IMG (V3); table re-encrypted when it was."""
+        import struct
+        _out = getattr(self, '_rebuild_target', None) or self.file_path
+        _tmp_img = _out + '.rebuild.tmp'
+        try:
+            datas = [self.read_entry_data(e) for e in self.entries]
+            plain_types = [getattr(e, 'v3_type', 0) for e, d in zip(self.entries, datas)
+                           if d[:4] != b'RSC\x05']
+            plain_type = max(set(plain_types), key=plain_types.count) if plain_types else 0
+            names = b''.join(e.name.encode('ascii', 'replace') + b'\0' for e in self.entries)
+            table_size = len(self.entries) * 16 + len(names)
+            pos = (20 + table_size + 2047) // 2048
+            table = bytearray()
+            for e, d in zip(self.entries, datas):
+                blocks = (len(d) + 2047) // 2048
+                pad = blocks * 2048 - len(d)
+                if d[:4] == b'RSC\x05':
+                    flags, rtype = struct.unpack_from('<I', d, 8)[0], struct.unpack_from('<I', d, 4)[0]
+                    pad |= 0x2000
+                else:
+                    flags, rtype = len(d), getattr(e, 'v3_type', plain_type) or plain_type
+                table += struct.pack('<IIIHH', flags, rtype, pos, blocks, pad)
+                e.offset, e.size = pos * 2048, len(d)
+                pos += blocks
+            table += names
+            header = struct.pack('<IIIIHH', 0xA94E2A52, 3, len(self.entries), table_size,
+                                 16, getattr(self, '_v3_unknown', 0))
+            if self.version == IMGVersion.VERSION_3_ENC:
+                from apps.core.img_encryption import _aes_encrypt_block, _process_buffer
+                header = _aes_encrypt_block(header[:16]) + header[16:]
+                table = _process_buffer(bytes(table), encrypt=True)
+            with open(_tmp_img, 'wb') as f:
+                f.write(header)
+                f.write(table)
+                for e, d in zip(self.entries, datas):
+                    f.seek(e.offset)
+                    f.write(d)
+                end = f.tell()
+                f.write(b'\0' * (((end + 2047) // 2048) * 2048 - end))
+            os.replace(_tmp_img, _out)
+            for e, d in zip(self.entries, datas):
+                e.__dict__.pop('data', None)
+                e._cached_data = None
+            return True
+        except Exception as e:
+            self.last_error = f"Rebuild failed: {e}"
+            if os.path.exists(_tmp_img):
+                os.unlink(_tmp_img)
+            return False
 
     def _rebuild_version2(self) -> bool: #vers 1
         """Rebuild Version 2 IMG file (SA format)"""
@@ -1851,7 +1904,7 @@ class IMGFile:
         except Exception as e:
             return False
 
-    def _open_version_3(self) -> bool: #vers 2
+    def _open_version_3(self) -> bool: #vers 3
         """Open IMG version 3 - GTA IV (plain or AES-encrypted table)."""
         import struct as _struct
         try:
@@ -1873,6 +1926,7 @@ class IMGFile:
 
             if version != 3 or item_size != 16:
                 return False
+            self._v3_unknown = unknown
 
             # Table and names are one stream; last partial block is plain
             with open(self.file_path, 'rb') as f:
@@ -1900,11 +1954,14 @@ class IMGFile:
                 item = table_data[i*16:(i+1)*16]
                 if len(item) < 16:
                     break
-                size_bytes, resource_type, position, size_blocks, _unk =                     _struct.unpack('<IIIHH', item)
+                size_bytes, resource_type, position, size_blocks, pad = \
+                    _struct.unpack('<IIIHH', item)
                 entry = IMGEntry()
                 entry.name        = names[i] if i < len(names) else f'entry_{i}'
                 entry.offset      = position * 2048
-                entry.size        = size_bytes
+                entry.size        = size_blocks * 2048 - (pad & 0x7FF)
+                entry.v3_flags    = size_bytes      # resource flags or plain size
+                entry.v3_type     = resource_type
                 entry.set_img_file(self)
                 self.entries.append(entry)
 
@@ -2095,8 +2152,11 @@ class IMGFile:
         except Exception:
             return False
 
-    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 3
-        """Read data for a specific entry, transparently decompressing Xbox LZO if needed."""
+    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 4
+        """Entry bytes: pending replacement data first, else read from file."""
+        pending = entry.__dict__.get('data')
+        if pending:
+            return bytes(pending)
         try:
             # DIR+IMG pair formats: V1, V1_5, SOL, Xbox all use .dir + .img
             if self.version in (IMGVersion.VERSION_1,

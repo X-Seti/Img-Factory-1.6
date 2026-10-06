@@ -1,4 +1,10 @@
-#this belongs in root /ChangeLog.md - Version: 229
+#this belongs in root /ChangeLog.md - Version: 230
+
+## Oct 06 2026 - GTA IV IMG save, texture names
+- GTA IV IMG entry sizes were resource flags (reads ran to file end); now blocks*2048-pad.
+- GTA IV IMGs save/rebuild as V3 (re-encrypted); unedited rebuild byte-identical. Rebuild no longer writes them as VER2.
+- Pending entry.data (TXD/Asset save to IMG) now used by every rebuild; was ignored.
+- TXD Workshop IMG list: hover shows texture names; search matches texture names. methods/txd_reader texture_names().
 
 ## Oct 06 2026 - Asset Workshop reader, GTA IV rename
 - Asset Workshop uses methods/txd_reader (old parser + 5 decoders removed, ~700 lines); output identical on 854 textures.
