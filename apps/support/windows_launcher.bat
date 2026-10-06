@@ -1,5 +1,5 @@
 @echo off
-REM #this belongs in root /windows_launcher.bat - version 2
+REM #this belongs in root /windows_launcher.bat - version 3
 REM IMG Factory 1.5 - Modern Windows Launcher
 REM X-Seti - July03 2025
 
@@ -84,6 +84,13 @@ if exist "gui\" (
     echo %GREEN%Found gui directory%NC%
 ) else (
     echo %YELLOW%Warning: gui directory not found%NC%
+)
+
+REM GTA IV encrypted IMGs need pycryptodome
+python -c "import Crypto" 2>nul
+if errorlevel 1 (
+    echo %YELLOW%Installing pycryptodome (GTA IV IMGs)...%NC%
+    python -m pip install pycryptodome
 )
 
 REM Check PyQt6 installation

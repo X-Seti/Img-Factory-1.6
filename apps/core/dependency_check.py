@@ -1,5 +1,5 @@
-#this belongs in core/dependency_check.py - Version: 1
-# X-Seti - June22 2026 - IMG Factory 1.6 - Dependency Check
+#this belongs in core/dependency_check.py - Version: 2
+# X-Seti - October06 2026 - IMG Factory 1.6 - Dependency Check
 
 """
 Dependency Check - Verifies required Python modules are installed and
@@ -21,6 +21,7 @@ REQUIRED_MODULES = [
     ("PIL", "Pillow"),
     ("numpy", "numpy"),
     ("send2trash", "send2trash"),
+    ("Crypto", "pycryptodome"),      # GTA IV encrypted IMGs
 ]
 
 

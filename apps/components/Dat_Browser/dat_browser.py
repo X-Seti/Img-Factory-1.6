@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 13
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 14
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -105,7 +105,7 @@ class TXDDumpDialog(QDialog): #vers 1
         ('generics', 'Generics (SA/SOL)',   'Prop TXDs from generic.ide/generics.ide'),
     ]
 
-    def _build_ui(self): #vers 3
+    def _build_ui(self): #vers 4
         from apps.methods.gta_dat_parser import GTAGame
         import json
         game = self.loader.game
@@ -116,7 +116,8 @@ class TXDDumpDialog(QDialog): #vers 1
 
         #    Game info                                                      
         game_names = {GTAGame.GTA3:"GTA III (LC)", GTAGame.VC:"Vice City (VC)",
-                      GTAGame.SA:"San Andreas (SA)", GTAGame.SOL:"GTA SOL (multi-city)"}
+                      GTAGame.SA:"San Andreas (SA)", GTAGame.SOL:"GTA SOL (multi-city)",
+                      GTAGame.IV:"GTA IV (PC)"}
         info = QLabel(f"Game: <b>{game_names.get(game,str(game))}</b>"
                       f"  —  {len(self.loader.objects)} IDE objects loaded")
         info.setTextFormat(Qt.TextFormat.RichText)
@@ -711,6 +712,14 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
     open_img_requested = pyqtSignal(str)          # emits abs path to .img
     xref_ready         = pyqtSignal(object)        # emits GTAWorldXRef after load
 
+    # Game combo index / label per game; Dir Tree is last
+    _GAME_COMBO_IDX = {GTAGame.GTA3: 1, GTAGame.VC: 2, GTAGame.SA: 3,
+                       GTAGame.SOL: 4, GTAGame.IV: 5}
+    _GAME_COMBO_NAMES = {GTAGame.GTA3: "GTA III", GTAGame.VC: "Vice City",
+                         GTAGame.SA: "San Andreas", GTAGame.SOL: "GTASOL",
+                         GTAGame.IV: "GTA IV"}
+    _DIR_TREE_IDX = 6
+
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
         self.main_window = main_window
@@ -731,7 +740,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         from apps.methods.ui_color import get_ui_color
         return get_ui_color(self, key)
 
-    def _setup_ui(self): #vers 3
+    def _setup_ui(self): #vers 4
         # Ensure opaque background — prevents content bleeding from widgets beneath
         self.setAutoFillBackground(True)
         from PyQt6.QtCore import Qt as _Qt
@@ -754,7 +763,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._game_combo = QComboBox()
         self._game_combo.addItems([
             "Auto-detect", "GTA III", "Vice City", "San Andreas", "GTASOL",
-            "Game Root (Dir Tree)",
+            "GTA IV", "Game Root (Dir Tree)",
         ])
         # GTA III/Vice City/San Andreas entries ARE the presets now
         # (Aug 20 2026,  "should be the presets. so merge
@@ -770,7 +779,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._game_combo.currentIndexChanged.connect(self._on_game_combo_changed)
 
         self._path_edit = QLineEdit()
-        self._path_edit.setPlaceholderText("Game root folder (contains data/gta3.dat, gta_vc.dat or gta.dat)")
+        self._path_edit.setPlaceholderText("Game root folder (data/gta3.dat, gta_vc.dat, gta.dat; IV: common/ + pc/)")
         self._path_edit.setReadOnly(True)
 
         browse_btn = QPushButton("Browse…")
@@ -1487,9 +1496,9 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
 
         #    Browse / load                                                       
 
-    def _on_game_combo_changed(self, idx: int): #vers 2
+    def _on_game_combo_changed(self, idx: int): #vers 3
         """React immediately when the game combo selection changes.\n
-        Index 5 = 'Game Root (Dir Tree)': grab the dir-tree path, auto-detect
+        Index 6 = 'Game Root (Dir Tree)': grab the dir-tree path, auto-detect
         the game, switch the combo to the real entry, and start loading —
         no Browse or Load click required.
 
@@ -1523,7 +1532,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                     QTimer.singleShot(300, self._start_load)
             return
 
-        if idx != 5:
+        if idx != self._DIR_TREE_IDX:
             # Show Browse/Load normally for all other entries
             self._browse_btn.setVisible(True)
             self._load_btn.setVisible(True)
@@ -1552,13 +1561,11 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         if game:
             # Switch combo to the detected game (suppresses re-entrant signal)
             self._game_combo.blockSignals(True)
-            real_idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
-                        GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            real_idx = self._GAME_COMBO_IDX.get(game, 0)
             self._game_combo.setCurrentIndex(real_idx)
             self._game_combo.blockSignals(False)
-            names = {1: "GTA III", 2: "Vice City", 3: "San Andreas", 4: "GTASOL"}
             self._status_lbl.setText(
-                f"Dir Tree: {names.get(real_idx, 'unknown')} — loading…")
+                f"Dir Tree: {self._GAME_COMBO_NAMES.get(game, 'unknown')} — loading…")
         else:
             # Keep at 0 (Auto-detect) and let _start_load try
             self._game_combo.blockSignals(True)
@@ -1652,7 +1659,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         loader.start()
         self._shared_txd_loader = loader  # keep reference
 
-    def _browse_game_root(self): #vers 3
+    def _browse_game_root(self): #vers 4
         path = QFileDialog.getExistingDirectory(
             self, "Select GTA game root folder",
             self._path_edit.text() or os.path.expanduser("~"))
@@ -1661,7 +1668,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._path_edit.setText(path)
         game = detect_game(path)
         if game:
-            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2, GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            idx = self._GAME_COMBO_IDX.get(game, 0)
             # Signals blocked here (Aug 20 2026) - setting the combo
             # programmatically after a real folder browse must NOT
             # re-trigger _on_game_combo_changed's own new preset-
@@ -1675,8 +1682,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             self._game_combo.blockSignals(True)
             self._game_combo.setCurrentIndex(idx)
             self._game_combo.blockSignals(False)
-            names = {1: "GTA III", 2: "Vice City", 3: "San Andreas", 4: "GTASOL"}
-            self._status_lbl.setText(f"Detected: {names.get(idx, 'unknown')}")
+            self._status_lbl.setText(f"Detected: {self._GAME_COMBO_NAMES.get(game, 'unknown')}")
             if getattr(self, '_auto_load_on_root', False):
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(300, self._start_load)
@@ -1684,14 +1690,13 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             self._status_lbl.setText("Game not auto-detected — select manually.")
         self._load_btn.setEnabled(True)
 
-    def _start_load(self): #vers 4
+    def _start_load(self): #vers 5
         game_idx = self._game_combo.currentIndex()
         game_root = self._path_edit.text().strip()
         if not game_root:
             return
 
-        game_map = {0: None, 1: GTAGame.GTA3, 2: GTAGame.VC,
-                    3: GTAGame.SA, 4: GTAGame.SOL}
+        game_map = {i: g for g, i in self._GAME_COMBO_IDX.items()}
         game = game_map.get(game_idx)
         if game is None:
             game = detect_game(game_root)
@@ -2147,7 +2152,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._tree.expandAll()
         self._refresh_img_loaded_indicators()
 
-    def _populate_objects(self, filter_text="", filter_type="All types"): #vers 1
+    def _populate_objects(self, filter_text="", filter_type="All types"): #vers 2
         table = self._obj_table
         table.setSortingEnabled(False)
         table.setRowCount(0)
@@ -2169,6 +2174,8 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             ]):
                 item = QTableWidgetItem(val)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if col == 0 and obj.extra.get("synthetic_id"):
+                    item.setToolTip("Synthetic ID - GTA IV IDEs have no model IDs")
                 table.setItem(row, col, item)
 
         table.setSortingEnabled(True)
@@ -2764,7 +2771,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             # Any other column — open Model Workshop with DFF + TXD
             self._on_ide_row_double_click(table, row)
 
-    def _open_txd_only_from_row(self, table, row): #vers 1
+    def _open_txd_only_from_row(self, table, row): #vers 2
         """Open TXD Workshop for the TXD referenced by this IDE row."""
         txd_name = table.item(row, 2).text().strip() if table.item(row, 2) else ''
         found    = self._get_row_xref(table, row)
@@ -2775,13 +2782,13 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"TXD not found: {txd_stem}.txd")
             return
-        txd_tmp = self._extract_entry_to_temp(txd_img, txd_stem + '.txd')
+        txd_tmp = self._extract_entry_to_temp(txd_img, found['txd_entry'])
         if not txd_tmp:
             return
         try:
             from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
             open_txd_workshop(mw, txd_tmp)
-            self._log(f"TXD Workshop: {txd_stem}.txd")
+            self._log(f"TXD Workshop: {found['txd_entry']}")
         except ImportError:
             # Fallback: open in Model Workshop texture panel
             self._open_model_workshop_for_row(table, row)
@@ -3156,7 +3163,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             mw._gl_viewer_wins.append(win)
         self._log(f"Model Viewer: {model_name}.dff")
 
-    def _export_dff_from_row(self, table, row): #vers 1
+    def _export_dff_from_row(self, table, row): #vers 2
         """Export model's DFF from IMG to a user-chosen location."""
         model_name = table.item(row, 1).text().strip() if table.item(row, 1) else ''
         found = self._get_row_xref(table, row)
@@ -3165,16 +3172,17 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             QMessageBox.warning(self, "Not found",
                 f"{model_name}.dff not found in any loaded IMG.")
             return
+        entry_name = found['dff_entry']
         out_path, _ = QFileDialog.getSaveFileName(
-            self, "Export DFF", model_name + '.dff',
-            "RenderWare DFF (*.dff);;All files (*)")
+            self, "Export DFF", entry_name,
+            "RenderWare DFF (*.dff);;GTA IV model (*.wdr *.wft *.wdd);;All files (*)")
         if not out_path:
             return
         try:
             from apps.methods.img_core_classes import IMGFile
             arc = IMGFile(dff_img); arc.open()
             entry = next((e for e in arc.entries
-                          if e.name.lower() == model_name.lower() + '.dff'), None)
+                          if e.name.lower() == entry_name.lower()), None)
             if not entry:
                 QMessageBox.warning(self, "Not found", f"DFF entry not in IMG.")
                 return
@@ -3185,7 +3193,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
-    def _export_txd_from_row(self, table, row): #vers 1
+    def _export_txd_from_row(self, table, row): #vers 2
         """Export TXD from IMG to a user-chosen location."""
         txd_name = table.item(row, 2).text().strip() if table.item(row, 2) else ''
         found = self._get_row_xref(table, row)
@@ -3195,16 +3203,17 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             QMessageBox.warning(self, "Not found",
                 f"{txd_stem}.txd not found in any loaded IMG.")
             return
+        entry_name = found['txd_entry']
         out_path, _ = QFileDialog.getSaveFileName(
-            self, "Export TXD", txd_stem + '.txd',
-            "TXD (*.txd);;All files (*)")
+            self, "Export TXD", entry_name,
+            "TXD (*.txd);;GTA IV WTD (*.wtd);;All files (*)")
         if not out_path:
             return
         try:
             from apps.methods.img_core_classes import IMGFile
             arc = IMGFile(txd_img); arc.open()
             entry = next((e for e in arc.entries
-                          if e.name.lower() == txd_stem + '.txd'), None)
+                          if e.name.lower() == entry_name.lower()), None)
             if not entry:
                 QMessageBox.warning(self, "Not found", "TXD entry not in IMG.")
                 return
@@ -4079,12 +4088,11 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                 self.main_window.log_message(f"DAT Browser autoload error: {e}")
 
     def load_from_game_root(self, game_root: str,
-                             game: Optional[str] = None): #vers 2
+                             game: Optional[str] = None): #vers 3
         """Programmatic load (e.g. triggered when user opens a known game IMG)."""
         self._path_edit.setText(game_root)
         if game:
-            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
-                   GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            idx = self._GAME_COMBO_IDX.get(game, 0)
             self._game_combo.setCurrentIndex(idx)
         self._load_btn.setEnabled(True)
         self._start_load()
@@ -4097,7 +4105,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
 
     #    Asset Database panel                                                 
 
-    _BUILTIN_PROFILES = ['GTASOL', 'GTA3', 'VC', 'SA']
+    _BUILTIN_PROFILES = ['GTASOL', 'GTA3', 'VC', 'SA', 'GTAIV']
 
     def _build_db_panel(self): #vers 2
         """Build the collapsible Asset DB panel widget.
@@ -4691,7 +4699,7 @@ def show_dat_browser(main_window) -> bool: #vers 2
         return False
 
 
-def _auto_fill_game_root(widget: "DATBrowserWidget", main_window) -> None: #vers 1
+def _auto_fill_game_root(widget: "DATBrowserWidget", main_window) -> None: #vers 2
     """Silently pre-fill the DAT Browser path field from the directory tree.\n
     Only updates the field if it is currently empty — never overwrites a path
     the user already set manually.  Does not trigger a load.
@@ -4713,12 +4721,10 @@ def _auto_fill_game_root(widget: "DATBrowserWidget", main_window) -> None: #vers
 
         widget._path_edit.setText(game_root)
         if game:
-            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
-                   GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            idx = DATBrowserWidget._GAME_COMBO_IDX.get(game, 0)
             widget._game_combo.setCurrentIndex(idx)
             if hasattr(main_window, "log_message"):
-                names = {GTAGame.GTA3: "GTA III", GTAGame.VC: "Vice City",
-                         GTAGame.SA: "San Andreas", GTAGame.SOL: "GTASOL"}
+                names = DATBrowserWidget._GAME_COMBO_NAMES
                 main_window.log_message(
                     f"DAT Browser: auto-detected {names[game]} at {game_root}")
         widget._load_btn.setEnabled(True)
@@ -4726,7 +4732,7 @@ def _auto_fill_game_root(widget: "DATBrowserWidget", main_window) -> None: #vers
         pass  # Auto-fill is best-effort; never crash on it
 
 
-def set_game_root_from_dir_tree(main_window) -> bool: #vers 1
+def set_game_root_from_dir_tree(main_window) -> bool: #vers 2
     """Read current_path from the directory tree and pass it to the DAT Browser."""
     try:
         widget = getattr(main_window, "dat_browser", None)
@@ -4752,13 +4758,11 @@ def set_game_root_from_dir_tree(main_window) -> bool: #vers 1
         from apps.methods.gta_dat_parser import detect_game, GTAGame
         game = detect_game(game_root)
         if game:
-            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
-                   GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            idx = DATBrowserWidget._GAME_COMBO_IDX.get(game, 0)
             widget._game_combo.setCurrentIndex(idx)
         widget._load_btn.setEnabled(True)
         if hasattr(main_window, "log_message"):
-            names = {GTAGame.GTA3: "GTA III", GTAGame.VC: "Vice City",
-                     GTAGame.SA: "San Andreas", GTAGame.SOL: "GTASOL"}
+            names = DATBrowserWidget._GAME_COMBO_NAMES
             main_window.log_message(
                 f"DAT Browser: game root set to {game_root}"
                 + (f"  [{names[game]}]" if game else " [undetected]"))

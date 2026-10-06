@@ -7972,8 +7972,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             return
         self._load_txd_file(path)
 
-    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 4
-        """Parse TXD data. Uses txd_parser.py — supports VC/III/SA PC formats."""
+    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 5
+        """Parse TXD data via txd_parser (all platforms, TXD Workshop reader)."""
         try:
             from apps.methods.txd_parser import parse_txd
             return parse_txd(data)

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 9
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 10
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -61,7 +61,7 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 
 from PyQt6.QtCore import QSize, Qt, QTimer
 from PyQt6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPixmap
-from PyQt6.QtWidgets import QAbstractItemView, QColorDialog, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMenu, QMessageBox, QPushButton, QTabWidget, QTableWidget, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QAbstractItemView, QColorDialog, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMenu, QMessageBox, QPushButton, QTabWidget, QTableWidget, QToolButton, QVBoxLayout, QWidget
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.txd_dialogs import ZoomablePreview
@@ -278,7 +278,7 @@ class TXDUIMixin: #vers 1
         from apps.methods.button_mode import apply_button_mode_to_button
         apply_button_mode_to_button(button, text, self.button_display_mode)
 
-    def _create_toolbar(self): #vers 14
+    def _create_toolbar(self): #vers 15
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
         self.titlebar = QFrame()
         self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -304,6 +304,20 @@ class TXDUIMixin: #vers 1
         layout = QHBoxLayout(self.toolbar)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
+
+        # Menu button (all commands), left of Settings - docked and standalone
+        self.menu_btn = QToolButton()
+        self.menu_btn.setFont(self.button_font)
+        self.menu_btn.setText("Menu")
+        self.menu_btn.setIcon(self.icon_factory.menu_m_icon(color=icon_color))
+        self.menu_btn.setIconSize(QSize(20, 20))
+        self.menu_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.menu_btn.setMenu(QMenu(self.menu_btn))
+        self.menu_btn.menu().aboutToShow.connect(
+            lambda: (self.menu_btn.menu().clear(), self._build_menus_into_qmenu(self.menu_btn.menu())))
+        self.menu_btn.setToolTip("All TXD Workshop commands")
+        layout.addWidget(self.menu_btn)
 
         # Settings button
         self.settings_btn = QPushButton()
@@ -1075,7 +1089,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 14
+    def _refresh_icons(self): #vers 15
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1089,6 +1103,7 @@ class TXDUIMixin: #vers 1
             ('export_all_btn',      'package_icon'),
             ('undo_btn',            'undo_icon'),
             ('info_btn',            'info_icon'),
+            ('menu_btn',            'menu_m_icon'),
             ('settings_btn',        'settings_icon'),
             ('minimize_btn',        'minimize_icon'),
             ('maximize_btn',        'maximize_icon'),

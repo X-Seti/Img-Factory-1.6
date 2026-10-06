@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 10
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 11
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -36,9 +36,6 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _create_new_txd
 # _create_thumbnail
 # _decode_bumpmap
-# _decompress_dxt1
-# _decompress_dxt3
-# _decompress_dxt5
 # _decompress_texture
 # _decompress_uncompressed
 # _delete_bumpmap
@@ -90,9 +87,11 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _open_colour_adjust
 # _open_filters_dialog
 # open_img_archive
+# _open_iv_wtd
 # _open_lc_mobile_txd
 # _open_mipmap_manager
 # _open_mobile_texture_db
+# _open_nif_textures
 # _open_paint_editor
 # _open_ps2_txd
 # _open_psp_txd
@@ -112,6 +111,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _rebuild_special
 # _rebuild_txd_data
 # _reload_texture_table
+# _remember_dir
 # _remove_mipmaps
 # _rename_texture
 # _rename_texture_shortcut
@@ -139,6 +139,8 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _set_save_enabled
 # _set_undo_enabled
 # show_properties
+# _show_img_entry_textures
+# _start_dir
 # _show_textures
 # _show_txd_info
 # _show_version_selector_dialog
@@ -162,7 +164,7 @@ from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow
 from apps.methods.txd_versions import detect_txd_version, get_game_from_version, get_platform_name, get_version_capabilities, is_bumpmap_supported, validate_txd_format
 from apps.methods.img_factory_settings import get_user_config_dir
 
-_DROP_EXTS = ('.txd', '.img', '.png', '.jpg', '.jpeg', '.bmp', '.tga', '.dds', '.gif', '.tiff', '.webp')
+_DROP_EXTS = ('.txd', '.wtd', '.nft', '.xtx', '.chk', '.img', '.png', '.jpg', '.jpeg', '.bmp', '.tga', '.dds', '.gif', '.tiff', '.webp')
 
 class TXDLogicMixin: #vers 1
     """logic methods for TXDWorkshop."""
@@ -1149,10 +1151,10 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to generate mipmaps: {str(e)}")
 
-    def _import_normal_texture(self): #vers 1
+    def _import_normal_texture(self): #vers 2
         """Import normal texture (RGB/RGBA)"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Import Normal Texture", "",
+            self, "Import Normal Texture", self._start_dir(),
             "Image Files (*.png *.jpg *.bmp *.tga);;All Files (*)"
         )
 
@@ -1207,10 +1209,10 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Import Error", f"Failed to import: {str(e)}")
 
-    def _import_alpha_texture(self): #vers 3
+    def _import_alpha_texture(self): #vers 4
         """Import alpha channel - creates alpha if doesn't exist"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Import Alpha Channel", "",
+            self, "Import Alpha Channel", self._start_dir(),
             "Image Files (*.png *.jpg *.bmp *.tga);;All Files (*)"
         )
 
@@ -1313,8 +1315,8 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Import Error", f"Failed to import alpha: {str(e)}")
 
-    def _load_img_txd_list(self): #vers 2
-        """Load TXD files from IMG archive"""
+    def _load_img_txd_list(self): #vers 3
+        """Load texture entries (.txd, .wtd, .nft) from IMG archive"""
         try:
             # Safety check for standalone mode
             if self.standalone_mode or not hasattr(self, 'txd_list_widget') or self.txd_list_widget is None:
@@ -1327,7 +1329,7 @@ class TXDLogicMixin: #vers 1
                 return
 
             for entry in self.current_img.entries:
-                if entry.name.lower().endswith('.txd'):
+                if entry.name.lower().endswith(('.txd', '.wtd', '.nft')):
                     self.txd_list.append(entry)
                     item = QListWidgetItem(entry.name)
                     item.setData(Qt.ItemDataRole.UserRole, entry)
@@ -2504,8 +2506,8 @@ class TXDLogicMixin: #vers 1
 
         dialog.exec()
 
-    def _on_txd_selected(self, item): #vers 3
-        """Handle TXD file selection"""
+    def _on_txd_selected(self, item): #vers 4
+        """Load the selected IMG texture entry (any supported format)"""
         try:
             entry = item.data(Qt.ItemDataRole.UserRole)
             if entry and self._confirm_discard():
@@ -2521,10 +2523,49 @@ class TXDLogicMixin: #vers 1
                             self.main_window.log_message(f"TXD header type: 0x{header_type:08X}")
                     self.current_txd_data = txd_data
                     self.current_txd_name = entry.name
-                    self._load_txd_textures(txd_data, entry.name)
+                    from apps.methods.txd_ps2_parser import detect_ps2_txd
+                    if txd_data[:4] == b'\x16\x00\x00\x00' and not detect_ps2_txd(txd_data[:64]) \
+                            and txd_data[52:56] != b'PSP\0':
+                        self._load_txd_textures(txd_data, entry.name)
+                    else:
+                        self._show_img_entry_textures(txd_data, entry.name)
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error selecting TXD: {str(e)}")
+
+    def _start_dir(self) -> str: #vers 1
+        """Last used folder (txd_workshop.json), else home folder."""
+        import json
+        from pathlib import Path
+        try:
+            d = json.loads(self._ribbon_config_path().read_text()).get('last_dir', '')
+            if d and os.path.isdir(d):
+                return d
+        except Exception:
+            pass
+        return str(Path.home())
+
+    def _remember_dir(self, file_path: str): #vers 1
+        """Store the folder of an opened file as last_dir."""
+        import json
+        path = self._ribbon_config_path()
+        try:
+            data = json.loads(path.read_text()) if path.exists() else {}
+        except Exception:
+            data = {}
+        data['last_dir'] = os.path.dirname(os.path.abspath(file_path))
+        try:
+            path.write_text(json.dumps(data, indent=2))
+        except Exception as e:
+            print(f"[TXDWorkshop] last_dir not saved: {e}")
+
+    def _show_img_entry_textures(self, data: bytes, name: str): #vers 1
+        """Show a non-PC IMG texture entry (PS2, PSP, mobile, IV, Bully)."""
+        from apps.methods.txd_reader import read_texture_file
+        kind, texs = read_texture_file(data, name)
+        if data[:4] == b'\x16\x00\x00\x00':
+            self._detect_txd_info(data)
+        self._show_textures(texs, data, kind, f"{name} [{len(texs)} textures]")
 
     def _extract_txd_from_img(self, entry): #vers 2
         """Extract TXD data from IMG entry"""
@@ -3615,8 +3656,8 @@ class TXDLogicMixin: #vers 1
             self._log(f"Rebuild error: {e}")
             return None
 
-    def _rebuild_special(self) -> bytes: #vers 1
-        """Save bytes for mobile, PSP and Stories files (layout kept)."""
+    def _rebuild_special(self) -> bytes: #vers 3
+        """Save bytes for mobile, PSP, Stories, GTA IV and Bully PC (layout kept)."""
         from apps.methods.txd_splice import texture_signature, rebuild_inplace_txd
         kind, data = self._txd_kind, self.current_txd_data
         if kind == 'lc_mobile':
@@ -3626,6 +3667,15 @@ class TXDLogicMixin: #vers 1
             return rebuild_inplace_txd(data, self.texture_list)
         if kind == 'mobile_db':
             raise ValueError("Texture databases save with Save (Ctrl+S), not Save As")
+        if kind in ('wtd', 'nif'):
+            from apps.methods.xtd_textures import write_iv_wtd
+            from apps.methods.nif_textures import write_nif_textures
+            for t in self.texture_list:
+                if t.get('name') != t.get('_src_name'):
+                    raise ValueError(f"'{t.get('name')}': this file type can't rename textures")
+            edits = [None if t.get('_src_sig') == texture_signature(t) else t
+                     for t in self.texture_list]
+            return (write_iv_wtd if kind == 'wtd' else write_nif_textures)(data, edits)
         if kind == 'stories':
             from apps.methods.xtx_reader import write_stories_textures
             for t in self.texture_list:
@@ -4413,23 +4463,22 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save TXD:\n\n{str(e)}")
 
-    def _save_txd_to_img_with_version_selector(self): #vers 2
-        """Save TXD back to IMG with version selector"""
+    def _save_txd_to_img_with_version_selector(self): #vers 3
+        """Save TXD back to IMG; version selector for PC RW only"""
         from PyQt6.QtWidgets import QMessageBox
 
         if not self.current_img or not self.current_txd_name:
             QMessageBox.warning(self, "Cannot Save", "No IMG archive or TXD loaded")
             return
 
-        # Show version selector
-        version_info = self._show_version_selector_dialog()
-        if not version_info:
-            return  # User cancelled
-
-        target_version, target_device, game_idx = version_info
-
-        # Strip unsupported features
-        self._strip_unsupported_features_for_version(game_idx)
+        if getattr(self, '_txd_kind', 'rw') == 'rw':
+            version_info = self._show_version_selector_dialog()
+            if not version_info:
+                return  # User cancelled
+            target_version, target_device, game_idx = version_info
+            self._strip_unsupported_features_for_version(game_idx)
+        else:
+            target_version = target_device = None   # layout kept, no conversion
 
         try:
             # Store target version for rebuild
@@ -4468,11 +4517,13 @@ class TXDLogicMixin: #vers 1
 
                 if hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Updated {self.current_txd_name} in IMG")
-                    self.main_window.log_message(f"   Version: 0x{target_version:08X}, Device: 0x{target_device:02X}")
+                    if target_version is not None:
+                        self.main_window.log_message(f"   Version: 0x{target_version:08X}, Device: 0x{target_device:02X}")
                     self.main_window.log_message(f"   Size: {len(modified_txd_data)} bytes")
 
+            ver = f"\nVersion: 0x{target_version:08X}" if target_version is not None else ""
             QMessageBox.information(self, "Success",
-                f"TXD updated in IMG archive!\n\n{self.current_txd_name}\nVersion: 0x{target_version:08X}")
+                f"Texture file updated in IMG archive!\n\n{self.current_txd_name}{ver}")
 
             self._after_save(modified_txd_data)
 
@@ -4590,682 +4641,22 @@ class TXDLogicMixin: #vers 1
 
         QMessageBox.information(self, "Alpha Validity Check", result_text)
 
-    def _parse_single_texture(self, txd_data, offset, index, rw_version=0x1803FFFF): #vers 7
-        """
-        Parse single texture from TXD with bumpmap and reflection support
-        ADDED: Extract separate alpha mask for display switching
-        """
-        import struct
-
-        tex = {
-            'name': f'texture_{index}',
-            'width': 0,
-            'height': 0,
-            'depth': 32,
-            'format': 'DXT1',
-            'has_alpha': False,
-            'mipmaps': 1,
-            'rgba_data': b'',
-            'alpha_mask': b'',              # NEW: Separate grayscale alpha channel
-            'compressed_data': b'',
-            'original_bgra_data': b'',
-            'mipmap_levels': [],
-            'bumpmap_data': b'',
-            'bumpmap_type': 0,
-            'has_bumpmap': False,
-            'reflection_map': b'',
-            'fresnel_map': b'',
-            'has_reflection': False,
-            'raster_format_flags': 0
-        }
-
-        try:
-            # TextureNative structure
-            parent_type, parent_size, parent_version = struct.unpack('<III', txd_data[offset:offset+12])
-
-            if parent_type != 0x15:
-                return tex
-
-            # Struct section
-            struct_offset = offset + 12
-            struct_type, struct_size, struct_version = struct.unpack('<III', txd_data[struct_offset:struct_offset+12])
-
-            if struct_type != 0x01:
-                return tex
-
-            pos = struct_offset + 12
-            struct_end = pos + struct_size
-
-            # Read 88-byte header
-            platform_id, filter_mode, uv_addressing = struct.unpack('<I2B', txd_data[pos:pos+6])[:3]
-            tex['platform_id'] = platform_id
-            tex['filter_flags'] = struct.unpack_from('<I', txd_data, pos + 4)[0]
-
-            #    Xbox (platform_id == 5): delegate to Xbox parser               
-            if platform_id == 5:
-                try:
-                    from apps.methods.txd_platform_xbox import parse_xbox_nativetex
-                    xbox_tex = parse_xbox_nativetex(txd_data, offset, index)
-                    if xbox_tex:
-                        # Decode compressed data to RGBA for display
-                        if xbox_tex.get('compressed_data') and not xbox_tex.get('rgba_data'):
-                            fmt = xbox_tex.get('format', 'DXT1')
-                            w   = xbox_tex.get('width', 0)
-                            h   = xbox_tex.get('height', 0)
-                            if w > 0 and h > 0 and 'DXT' in fmt:
-                                xbox_tex['rgba_data'] = self._decompress_texture(
-                                    xbox_tex['compressed_data'], w, h, fmt)
-                        return xbox_tex
-                except Exception as _xe:
-                    print(f"[Xbox TXD] Texture {index}: {_xe}")
-                return tex  # return empty rather than crash
-            #    End Xbox                                                      
-
-            pos += 8  # Skip padding
-
-            name_bytes = txd_data[pos:pos+32]
-            # Use first-null termination (like C strlen) not rstrip — DragonFF does this too
-            _null = name_bytes.find(b'\x00')
-            tex['name'] = (name_bytes[:_null] if _null >= 0 else name_bytes).decode('ascii', errors='ignore') or f'texture_{index}'
-            pos += 32
-
-            mask_bytes = txd_data[pos:pos+32]
-            _null2 = mask_bytes.find(b'\x00')
-            alpha_name = (mask_bytes[:_null2] if _null2 >= 0 else mask_bytes).decode('ascii', errors='ignore')
-            if alpha_name:
-                tex['alpha_name'] = alpha_name
-                tex['has_alpha'] = True
-            pos += 32
-
-            raster_format_flags, d3d_format, width, height, depth, num_levels, raster_type = struct.unpack('<IIHHBBB', txd_data[pos:pos+15])
-            tex['width'] = width
-            tex['height'] = height
-            tex['depth'] = depth
-            tex['mipmaps'] = num_levels
-            tex['raster_format_flags'] = raster_format_flags
-
-            # Check for bumpmap flag (bit 0x10)
-            if raster_format_flags & 0x10:
-                tex['has_bumpmap'] = True
-
-            pos += 15
-
-            platform_prop = struct.unpack('<B', txd_data[pos:pos+1])[0]
-            pos += 1
-
-            # Format detection - version-aware
-            is_pal8     = bool(raster_format_flags & 0x2000)  # FORMAT_EXT_PAL8
-            is_pal4     = bool(raster_format_flags & 0x4000)  # FORMAT_EXT_PAL4
-            pixel_fmt   = raster_format_flags & 0x0F00  # bits 8-11 only, excludes PAL flags
-            is_sa_plus  = (rw_version >= 0x1803FFFF)
-            # GTA3/VC: RGBA palette (no swap); SA: BGRA palette (swap B<->R)
-            tex['palette_is_bgra'] = is_sa_plus
-
-            raster_pixel_map = {
-                0x0100: 'ARGB1555', 0x0200: 'RGB565',
-                0x0300: 'ARGB4444', 0x0400: 'LUM8',
-                0x0500: 'ARGB8888', 0x0600: 'RGB888',
-                0x0A00: 'RGB555',
-            }
-
-            # Xbox (platform_id=5): compression byte 0x0C/0x0E/0x10 = DXT1/3/5
-            # D3D8 GTA3/VC: platform_prop 1/3/5 = DXT1/3/5
-            # SA D3D9: use d3d_format FourCC
-            is_xbox = (platform_id == 5)
-            if is_pal8:
-                tex['format'] = 'PAL8'
-            elif is_pal4:
-                tex['format'] = 'PAL4'
-            elif is_xbox and platform_prop == 0x00:
-                # Raw ARGB8888 - use raster_format pixel bits
-                tex['format'] = {0x0500:'ARGB8888',0x0600:'RGB888'}.get(pixel_fmt, 'ARGB8888')
-            elif is_xbox and platform_prop in (0x0B, 0x0C):
-                # 0x0B = LIN_DXT1 (linear/standard), 0x0C = DXT1 (swizzled)
-                # Both decode identically via PIL DDS
-                tex['format'] = 'DXT1'
-            elif is_xbox and platform_prop in (0x0E, 0x0F):
-                # 0x0E = DXT3 (swizzled), 0x0F = LIN_DXT3 (linear/standard)
-                tex['format'] = 'DXT3'
-                tex['has_alpha'] = True
-            elif is_xbox and platform_prop in (0x10, 0x11):
-                # 0x10 = DXT5 (swizzled), 0x11 = LIN_DXT5 (linear/standard)
-                tex['format'] = 'DXT5'
-                tex['has_alpha'] = True
-            elif d3d_format == 0x31545844:
-                tex['format'] = 'DXT1'
-            elif d3d_format == 0x33545844:
-                tex['format'] = 'DXT3'
-                tex['has_alpha'] = True
-            elif d3d_format == 0x35545844:
-                tex['format'] = 'DXT5'
-                tex['has_alpha'] = True
-            elif not is_xbox and platform_id == 8 and platform_prop == 1:
-                # D3D8 only: platform_prop 1/3/5 = DXT type
-                # D3D9 uses d3d_format field — platform_prop is alpha/cube/mip/compressed flags
-                tex['format'] = 'DXT1'
-            elif not is_xbox and platform_id == 8 and platform_prop == 3:
-                tex['format'] = 'DXT3'
-                tex['has_alpha'] = True
-            elif not is_xbox and platform_id == 8 and platform_prop == 5:
-                tex['format'] = 'DXT5'
-                tex['has_alpha'] = True
-            elif is_sa_plus:
-                d3d_fmt_map = {
-                    # D3D9 format enum -> internal format name
-                    21: 'ARGB8888',  # D3DFMT_A8R8G8B8 - stored BGRA 4bpp
-                    22: 'ARGB8888',  # D3DFMT_X8R8G8B8 - stored BGRX 4bpp, treat as ARGB8888 (alpha=255)
-                    32: 'ARGB8888',  # D3DFMT_A8B8G8R8
-                    20: 'RGB888',    # D3DFMT_R8G8B8   - true 24-bit, rare
-                    23: 'RGB565',    # D3DFMT_R5G6B5
-                    25: 'ARGB1555',  # D3DFMT_A1R5G5B5
-                    26: 'ARGB4444',  # D3DFMT_A4R4G4B4
-                    24: 'RGB555',    # D3DFMT_X1R5G5B5
-                    50: 'LUM8',      # D3DFMT_L8
-                    51: 'A8L8',      # D3DFMT_A8L8
-                    41: 'PAL8',      # D3DFMT_P8
-                }
-                tex['format'] = d3d_fmt_map.get(d3d_format,
-                    raster_pixel_map.get(pixel_fmt, f'UNKNOWN_{raster_format_flags:08X}'))
-            else:
-                tex['format'] = raster_pixel_map.get(pixel_fmt,
-                    f'UNKNOWN_{raster_format_flags:08X}')
-
-            # D3DFMT_X8R8G8B8 (22): stored BGRX, X channel is padding not alpha
-            if d3d_format == 22:
-                tex['force_opaque'] = True  # force alpha=255 when decoding
-
-            if tex['format'] in ('ARGB8888', 'ARGB1555', 'ARGB4444', 'DXT3', 'DXT5', 'PAL8', 'A8L8'):
-                if not tex.get('has_alpha') and not tex.get('force_opaque'):
-                    tex['has_alpha'] = True
-
-            # Read mipmap data
-            # SA (D3D9, RW >= 0x1803FFFF): ALL formats have a 4-byte data_size field PER mipmap level
-            # GTA3/VC (D3D8): ONLY DXT formats have data_size per level; raw/PAL data follows directly
-            # Xbox (platform_id=5): ONE total data_size field covers ALL mipmap levels combined
-            fmt = tex['format']
-            is_dxt = 'DXT' in fmt
-            is_xbox = (platform_id == 5)
-            has_data_size_field = (is_dxt or is_sa_plus) and not is_xbox
-
-            # Xbox: read single total size, then consume all levels from that block
-            if is_xbox and pos + 4 <= len(txd_data):
-                xbox_total_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
-                pos += 4
-                xbox_data_block = txd_data[pos:pos+xbox_total_size]
-                pos += xbox_total_size
-                # Split into per-level chunks using calculated sizes
-                block_pos = 0
-                w, h = width, height
-                for level in range(num_levels):
-                    if 'DXT1' in fmt:
-                        lsize = max(1,(w+3)//4)*max(1,(h+3)//4)*8
-                    elif 'DXT' in fmt:
-                        lsize = max(1,(w+3)//4)*max(1,(h+3)//4)*16
-                    elif fmt == 'RGB888':
-                        lsize = w*h*(4 if depth==32 else 3)
-                    elif fmt in ('RGB565','ARGB1555','ARGB4444','RGB555'):
-                        lsize = w*h*2
-                    else:  # ARGB8888, LUM8, etc
-                        lsize = w*h*(depth//8)
-                    level_data = xbox_data_block[block_pos:block_pos+lsize]
-                    block_pos += lsize
-                    lw, lh = w, h
-                    if 'DXT' in fmt:
-                        rgba_data = self._decompress_texture(level_data, lw, lh, fmt)
-                    else:
-                        rgba_data = self._decompress_uncompressed(
-                            level_data, lw, lh, fmt, depth=depth,
-                            force_opaque=tex.get('force_opaque', False))
-                    mipmap_level = {'level': level, 'width': lw, 'height': lh,
-                        'rgba_data': rgba_data, 'compressed_data': level_data if is_dxt else None,
-                        'compressed_size': len(level_data)}
-                    tex['mipmap_levels'].append(mipmap_level)
-                    if level == 0:
-                        tex['rgba_data'] = rgba_data
-                        if tex['has_alpha'] and rgba_data and len(rgba_data) == width*height*4:
-                            alpha_mask = bytearray(width*height)
-                            for i in range(width*height):
-                                alpha_mask[i] = rgba_data[i*4+3]
-                            tex['alpha_mask'] = bytes(alpha_mask)
-                    w = max(1, w//2); h = max(1, h//2)
-            else:
-                # PC (D3D8/D3D9): palette once, then per level u32 size + data
-                pal_data = b''
-                if fmt in ('PAL8', 'PAL4'):
-                    pal_size = 1024 if fmt == 'PAL8' else (64 if depth == 4 else 128)
-                    pal_data = txd_data[pos:pos + pal_size]
-                    pos += pal_size
-                w, h = width, height
-                for level in range(num_levels):
-                    if 'DXT1' in fmt:
-                        expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 8
-                    elif 'DXT' in fmt:
-                        expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 16
-                    elif fmt in ('ARGB8888', 'A8L8'):
-                        expected = w * h * (4 if fmt == 'ARGB8888' else 2)
-                    elif fmt == 'RGB888':
-                        expected = w * h * (4 if tex.get('depth', 0) == 32 else 3)
-                    elif fmt == 'LUM8' or fmt == 'PAL8':
-                        expected = w * h
-                    elif fmt == 'PAL4':
-                        expected = (w * h + 1) // 2
-                    else:
-                        expected = w * h * 2
-                    if pos + 4 > struct_end:
-                        break
-                    declared = struct.unpack('<I', txd_data[pos:pos+4])[0]
-                    pos += 4
-                    size = declared if 0 < declared and pos + declared <= struct_end else expected
-                    if pos + size > len(txd_data):
-                        break
-                    level_data = txd_data[pos:pos+size]
-                    pos += size
-
-                    lw = max(1, width >> level)
-                    lh = max(1, height >> level)
-                    if 'DXT' in fmt:
-                        rgba_data = self._decompress_texture(level_data, lw, lh, fmt)
-                    elif fmt in ('PAL8', 'PAL4'):
-                        # GTA3/VC palettes are RGBA; SA (>=0x1803FFFF) palettes are BGRA
-                        _NO_ALPHA_TYPES = {0x0600, 0x0200, 0x0A00, 0x0400}  # 888,565,555,LUM
-                        force_opaque_pal = (raster_format_flags & 0x0F00) in _NO_ALPHA_TYPES
-                        rgba_data = self._decompress_uncompressed(
-                            level_data, lw, lh, fmt,
-                            palette=pal_data,
-                            palette_entry_fmt=tex.get('palette_entry_format', 'ARGB8888'),
-                            palette_is_bgra=tex.get('palette_is_bgra', True),
-                            force_opaque=force_opaque_pal)
-                    else:
-                        rgba_data = self._decompress_uncompressed(
-                            level_data, lw, lh, fmt,
-                            depth=tex.get('depth', 0),
-                            force_opaque=tex.get('force_opaque', False))
-
-                    mipmap_level = {
-                        'level': level,
-                        'width': max(1, width >> level),
-                        'height': max(1, height >> level),
-                        'rgba_data': rgba_data,
-                        'compressed_data': level_data if 'DXT' in tex['format'] else None,
-                        'compressed_size': len(level_data)
-                    }
-                    tex['mipmap_levels'].append(mipmap_level)
-
-                    # Store main texture data
-                    if level == 0:
-                        if rgba_data is None:
-                            rgba_data = b'\x00' * (lw * lh * 4)
-                        tex['rgba_data'] = rgba_data
-
-                        # NEW: Extract alpha channel as separate grayscale mask
-                        if tex['has_alpha'] and rgba_data and len(rgba_data) == width * height * 4:
-                            alpha_mask = bytearray(width * height)
-                            for i in range(width * height):
-                                alpha_mask[i] = rgba_data[i * 4 + 3]  # Extract alpha byte
-                            tex['alpha_mask'] = bytes(alpha_mask)
-
-                    # Advance mipmap dimensions
-                    w = max(1, w // 2)
-                    h = max(1, h // 2)
-
-            # Legacy IMG Factory bumpmap inside the struct (old saves)
-            if tex['has_bumpmap'] and pos + 5 <= struct_end:
-                try:
-                    bumpmap_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
-                    pos += 4
-
-                    bumpmap_type = struct.unpack('<B', txd_data[pos:pos+1])[0]
-                    pos += 1
-
-                    if pos + bumpmap_size <= struct_end:
-                        tex['bumpmap_data'] = txd_data[pos:pos+bumpmap_size]
-                        tex['bumpmap_type'] = bumpmap_type
-                        pos += bumpmap_size
-
-                        if self.main_window and hasattr(self.main_window, 'log_message'):
-                            type_names = ['Height Map', 'Normal Map', 'Both']
-                            type_name = type_names[bumpmap_type] if bumpmap_type < 3 else 'Unknown'
-                            self.main_window.log_message(
-                                f"  Bumpmap: {type_name} ({bumpmap_size} bytes)"
-                            )
-                except Exception as e:
-                    if self.main_window and hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message(f"  Bumpmap read error: {str(e)}")
-
-            # Legacy reflection map inside the struct (old saves)
-            if pos + 8 <= struct_end:
-                try:
-                    reflection_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
-                    pos += 4
-
-                    expected_reflection_size = width * height * 3
-                    if reflection_size == expected_reflection_size and pos + reflection_size <= struct_end:
-                        tex['reflection_map'] = txd_data[pos:pos+reflection_size]
-                        tex['has_reflection'] = True
-                        pos += reflection_size
-
-                        if pos + 4 <= len(txd_data):
-                            fresnel_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
-                            pos += 4
-
-                            expected_fresnel_size = width * height
-                            if fresnel_size == expected_fresnel_size and pos + fresnel_size <= struct_end:
-                                tex['fresnel_map'] = txd_data[pos:pos+fresnel_size]
-                                pos += fresnel_size
-
-                                if self.main_window and hasattr(self.main_window, 'log_message'):
-                                    self.main_window.log_message(
-                                        f"  Reflection maps: "
-                                        f"Vector ({reflection_size}B) + Fresnel ({fresnel_size}B)"
-                                    )
-                except Exception as e:
-                    pass
-
-            # IMG Factory bumpmap/reflection plugin in the extension chunk
-            if struct_end + 12 <= len(txd_data) and \
-                    struct.unpack_from('<I', txd_data, struct_end)[0] == 0x03:
-                from apps.methods.txd_splice import read_bump_ext
-                ext_size = struct.unpack_from('<I', txd_data, struct_end + 4)[0]
-                tex.update(read_bump_ext(txd_data[struct_end + 12:struct_end + 12 + ext_size]))
-            tex['has_bumpmap'] = bool(tex.get('bumpmap_data'))
-
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Texture parse error: {str(e)}")
-
-        return tex
-
-    def _decompress_texture(self, compressed_data, width, height, format_str): #vers 3
-        """
-        Decompress DXT texture data to RGBA using PIL (fast) with pure-Python fallback.
-        """
-        import struct, io
-        fmt = 'DXT1' if 'DXT1' in format_str else 'DXT3' if 'DXT3' in format_str else 'DXT5' if 'DXT5' in format_str else None
-        if fmt is None:
-            return compressed_data
-
-        # --- PIL/DDS path (fast, accurate) ---
-        try:
-            from PIL import Image
-            fourcc = fmt.encode('ascii')
-            pitch = max(1, (width + 3) // 4) * (8 if fmt == 'DXT1' else 16)
-            hdr = bytearray(128)
-            struct.pack_into('<I', hdr,  0, 0x20534444)        # 'DDS '
-            struct.pack_into('<I', hdr,  4, 124)               # header size
-            struct.pack_into('<I', hdr,  8, 0x1|0x2|0x4|0x1000)
-            struct.pack_into('<I', hdr, 12, height)
-            struct.pack_into('<I', hdr, 16, width)
-            struct.pack_into('<I', hdr, 20, pitch * max(1, (height + 3) // 4))
-            struct.pack_into('<I', hdr, 28, 1)
-            struct.pack_into('<I', hdr, 76, 32)                # pixel format size
-            struct.pack_into('<I', hdr, 80, 0x4)               # DDPF_FOURCC
-            hdr[84:88] = fourcc
-            dds = bytes(hdr) + compressed_data
-            img = Image.open(io.BytesIO(dds)).convert('RGBA')
-            return bytes(img.tobytes())
-        except Exception:
-            pass
-
-        # --- Pure Python fallback ---
-        if fmt == 'DXT1':
-            return self._decompress_dxt1(compressed_data, width, height)
-        elif fmt == 'DXT3':
-            return self._decompress_dxt3(compressed_data, width, height)
-        else:
-            return self._decompress_dxt5(compressed_data, width, height)
-
-    def _decompress_dxt1(self, dxt_data, width, height): #vers 1
-        """DXT1 decompression"""
-        try:
-            import struct
-            rgba = bytearray(width * height * 4)
-            blocks_x = (width + 3) // 4
-            blocks_y = (height + 3) // 4
-
-            for by in range(blocks_y):
-                for bx in range(blocks_x):
-                    block_offset = (by * blocks_x + bx) * 8
-                    if block_offset + 8 > len(dxt_data):
-                        break
-
-                    c0, c1 = struct.unpack('<HH', dxt_data[block_offset:block_offset+4])
-                    indices = struct.unpack('<I', dxt_data[block_offset+4:block_offset+8])[0]
-
-                    colors = []
-                    for c in [c0, c1]:
-                        r = ((c >> 11) & 0x1F) << 3
-                        g = ((c >> 5) & 0x3F) << 2
-                        b = (c & 0x1F) << 3
-                        colors.append((r, g, b, 255))
-
-                    if c0 > c1:
-                        colors.append(((2*colors[0][0]+colors[1][0])//3, (2*colors[0][1]+colors[1][1])//3, (2*colors[0][2]+colors[1][2])//3, 255))
-                        colors.append(((colors[0][0]+2*colors[1][0])//3, (colors[0][1]+2*colors[1][1])//3, (colors[0][2]+2*colors[1][2])//3, 255))
-                    else:
-                        colors.append(((colors[0][0]+colors[1][0])//2, (colors[0][1]+colors[1][1])//2, (colors[0][2]+colors[1][2])//2, 255))
-                        colors.append((0, 0, 0, 0))
-
-                    for py in range(4):
-                        for px in range(4):
-                            if (bx*4+px < width) and (by*4+py < height):
-                                index = (indices >> ((py*4+px)*2)) & 0x03
-                                pixel_offset = ((by*4+py)*width+(bx*4+px))*4
-                                rgba[pixel_offset:pixel_offset+4] = colors[index]
-            return bytes(rgba)
-        except:
-            return None
-
-    def _decompress_dxt3(self, dxt_data, width, height): #vers 1
-        """DXT3 decompression"""
-        try:
-            import struct
-            rgba = bytearray(width * height * 4)
-            blocks_x = (width + 3) // 4
-            blocks_y = (height + 3) // 4
-
-            for by in range(blocks_y):
-                for bx in range(blocks_x):
-                    block_offset = (by * blocks_x + bx) * 16
-                    if block_offset + 16 > len(dxt_data):
-                        break
-
-                    alpha_data = struct.unpack('<Q', dxt_data[block_offset:block_offset+8])[0]
-                    c0, c1 = struct.unpack('<HH', dxt_data[block_offset+8:block_offset+12])
-                    indices = struct.unpack('<I', dxt_data[block_offset+12:block_offset+16])[0]
-
-                    colors = []
-                    for c in [c0, c1]:
-                        r = ((c >> 11) & 0x1F) << 3
-                        g = ((c >> 5) & 0x3F) << 2
-                        b = (c & 0x1F) << 3
-                        colors.append((r, g, b))
-
-                    colors.append(((2*colors[0][0]+colors[1][0])//3, (2*colors[0][1]+colors[1][1])//3, (2*colors[0][2]+colors[1][2])//3))
-                    colors.append(((colors[0][0]+2*colors[1][0])//3, (colors[0][1]+2*colors[1][1])//3, (colors[0][2]+2*colors[1][2])//3))
-
-                    for py in range(4):
-                        for px in range(4):
-                            if (bx*4+px < width) and (by*4+py < height):
-                                color_index = (indices >> ((py*4+px)*2)) & 0x03
-                                alpha_index = py*4 + px
-                                alpha = ((alpha_data >> (alpha_index*4)) & 0x0F) * 17
-                                pixel_offset = ((by*4+py)*width+(bx*4+px))*4
-                                rgba[pixel_offset:pixel_offset+3] = colors[color_index]
-                                rgba[pixel_offset+3] = alpha
-            return bytes(rgba)
-        except:
-            return None
-
-    def _decompress_dxt5(self, dxt_data, width, height): #vers 1
-        """DXT5 decompression"""
-        try:
-            import struct
-            rgba = bytearray(width * height * 4)
-            blocks_x = (width + 3) // 4
-            blocks_y = (height + 3) // 4
-
-            for by in range(blocks_y):
-                for bx in range(blocks_x):
-                    block_offset = (by * blocks_x + bx) * 16
-                    if block_offset + 16 > len(dxt_data):
-                        break
-
-                    a0 = dxt_data[block_offset]
-                    a1 = dxt_data[block_offset + 1]
-                    alpha_indices = struct.unpack('<Q', dxt_data[block_offset:block_offset+8])[0] >> 16
-                    alpha_palette = [a0, a1]
-                    if a0 > a1:
-                        # 6 interpolated values: weighted blend a0..a1 in 7 steps
-                        for i in range(1, 7):
-                            alpha_palette.append(round(a0 * ((7-i)/7) + a1 * (i/7)))
-                    else:
-                        # 4 interpolated + hard 0 and 255
-                        for i in range(1, 5):
-                            alpha_palette.append(round(a0 * ((5-i)/5) + a1 * (i/5)))
-                        alpha_palette.extend([0, 255])
-
-                    c0, c1 = struct.unpack('<HH', dxt_data[block_offset+8:block_offset+12])
-                    indices = struct.unpack('<I', dxt_data[block_offset+12:block_offset+16])[0]
-
-                    colors = []
-                    for c in [c0, c1]:
-                        r = ((c >> 11) & 0x1F) << 3
-                        g = ((c >> 5) & 0x3F) << 2
-                        b = (c & 0x1F) << 3
-                        colors.append((r, g, b))
-
-                    colors.append(((2*colors[0][0]+colors[1][0])//3, (2*colors[0][1]+colors[1][1])//3, (2*colors[0][2]+colors[1][2])//3))
-                    colors.append(((colors[0][0]+2*colors[1][0])//3, (colors[0][1]+2*colors[1][1])//3, (colors[0][2]+2*colors[1][2])//3))
-
-                    for py in range(4):
-                        for px in range(4):
-                            if (bx*4+px < width) and (by*4+py < height):
-                                color_index = (indices >> ((py*4+px)*2)) & 0x03
-                                alpha_index = (alpha_indices >> ((py*4+px)*3)) & 0x07
-                                pixel_offset = ((by*4+py)*width+(bx*4+px))*4
-                                rgba[pixel_offset:pixel_offset+3] = colors[color_index]
-                                rgba[pixel_offset+3] = alpha_palette[alpha_index]
-            return bytes(rgba)
-        except:
-            return None
-
-    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888', depth=0, force_opaque=False, palette_is_bgra=True): #vers 7
-        """Decompress all RenderWare uncompressed/palettized formats to RGBA"""
-        try:
-            import struct
-            pixel_count = width * height
-            rgba = bytearray(pixel_count * 4)
-
-            if format_type == 'PAL8':
-                # 8-bit indexed, 256 x 4-byte palette entries
-                # GTA3/VC: palette is RGBA (no swap needed)
-                # SA:       palette is BGRA (swap B<->R)
-                if not palette or len(palette) < 1024:
-                    return None
-                force_opaque = (palette_entry_fmt == 'RGB888')
-                for i in range(min(pixel_count, len(data))):
-                    p = data[i] * 4
-                    if p + 3 < len(palette):
-                        if palette_is_bgra:
-                            b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
-                        else:
-                            r, g, b, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
-                        rgba[i*4:i*4+4] = [r, g, b, 255 if force_opaque else a]
-
-            elif format_type == 'PAL4':
-                # 4-bit indexed, 16 x 4-byte palette entries
-                # GTA3/VC: palette is RGBA; SA: palette is BGRA
-                # CRITICAL: high nibble = first pixel, low nibble = second (DragonFF)
-                if not palette or len(palette) < 64:
-                    return None
-                force_opaque = (palette_entry_fmt == 'RGB888')
-                pixel = 0
-                for i in range(len(data)):
-                    for idx in ((data[i] >> 4) & 0x0F, data[i] & 0x0F):
-                        if pixel >= pixel_count:
-                            break
-                        p = idx * 4
-                        if p + 3 < len(palette):
-                            if palette_is_bgra:
-                                b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
-                            else:
-                                r, g, b, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
-                            rgba[pixel*4:pixel*4+4] = [r, g, b, 255 if force_opaque else a]
-                        pixel += 1
-
-            elif 'ARGB8888' in format_type or 'ARGB32' in format_type:
-                # RenderWare stores as BGRA; X8R8G8B8 (force_opaque) has padding not alpha
-                for i in range(pixel_count):
-                    if i*4+4 <= len(data):
-                        b, g, r, a = data[i*4], data[i*4+1], data[i*4+2], data[i*4+3]
-                        rgba[i*4:i*4+4] = [r, g, b, 255 if force_opaque else a]
-
-            elif 'RGB888' in format_type:
-                # Stored as BGR (3 bpp) or BGRX (4 bpp when depth==32)
-                stride = 4 if depth == 32 else 3
-                for i in range(pixel_count):
-                    if i*stride+stride <= len(data):
-                        b, g, r = data[i*stride], data[i*stride+1], data[i*stride+2]
-                        rgba[i*4:i*4+4] = [r, g, b, 255]
-
-            elif 'RGB565' in format_type:
-                for i in range(pixel_count):
-                    if i*2+2 <= len(data):
-                        pixel = struct.unpack('<H', data[i*2:i*2+2])[0]
-                        r = ((pixel >> 11) & 0x1F) << 3
-                        g = ((pixel >> 5) & 0x3F) << 2
-                        b = (pixel & 0x1F) << 3
-                        rgba[i*4:i*4+4] = [r, g, b, 255]
-
-            elif 'ARGB1555' in format_type:
-                for i in range(pixel_count):
-                    if i*2+2 <= len(data):
-                        pixel = struct.unpack('<H', data[i*2:i*2+2])[0]
-                        a = 255 if (pixel & 0x8000) else 0
-                        r = ((pixel >> 10) & 0x1F) << 3
-                        g = ((pixel >> 5) & 0x1F) << 3
-                        b = (pixel & 0x1F) << 3
-                        rgba[i*4:i*4+4] = [r, g, b, a]
-
-            elif 'ARGB4444' in format_type:
-                for i in range(pixel_count):
-                    if i*2+2 <= len(data):
-                        pixel = struct.unpack('<H', data[i*2:i*2+2])[0]
-                        a = ((pixel >> 12) & 0x0F) * 17
-                        r = ((pixel >> 8) & 0x0F) * 17
-                        g = ((pixel >> 4) & 0x0F) * 17
-                        b = (pixel & 0x0F) * 17
-                        rgba[i*4:i*4+4] = [r, g, b, a]
-
-            elif 'RGB555' in format_type:
-                for i in range(pixel_count):
-                    if i*2+2 <= len(data):
-                        pixel = struct.unpack('<H', data[i*2:i*2+2])[0]
-                        r = ((pixel >> 10) & 0x1F) << 3
-                        g = ((pixel >> 5) & 0x1F) << 3
-                        b = (pixel & 0x1F) << 3
-                        rgba[i*4:i*4+4] = [r, g, b, 255]
-
-            elif 'A8L8' in format_type:
-                for i in range(pixel_count):
-                    if i*2+2 <= len(data):
-                        lum, a = data[i*2], data[i*2+1]
-                        rgba[i*4:i*4+4] = [lum, lum, lum, a]
-
-            elif 'LUM8' in format_type or 'L8' in format_type:
-                for i in range(pixel_count):
-                    if i < len(data):
-                        lum = data[i]
-                        rgba[i*4:i*4+4] = [lum, lum, lum, 255]
-
-            else:
-                # Unknown format - render as grey so it at least shows something
-                for i in range(pixel_count):
-                    rgba[i*4:i*4+4] = [128, 128, 128, 255]
-
-            return bytes(rgba)
-        except Exception as e:
-            return None
+    def _parse_single_texture(self, txd_data, offset, index, rw_version=0x1803FFFF): #vers 8
+        """One texture native; parsing lives in methods/txd_reader."""
+        from apps.methods.txd_reader import parse_native_texture
+        log = getattr(self.main_window, 'log_message', None) if self.main_window else None
+        return parse_native_texture(txd_data, offset, index, rw_version, True, log)
+
+    def _decompress_texture(self, compressed_data, width, height, format_str): #vers 4
+        """DXT to RGBA via methods/txd_reader."""
+        from apps.methods.txd_reader import decompress_dxt
+        return decompress_dxt(compressed_data, width, height, format_str)
+
+    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888', depth=0, force_opaque=False, palette_is_bgra=True): #vers 8
+        """Uncompressed/palettised RW formats to RGBA via methods/txd_reader."""
+        from apps.methods.txd_reader import decompress_raw
+        return decompress_raw(data, width, height, format_type, palette, palette_entry_fmt,
+                              depth, force_opaque, palette_is_bgra)
 
     def _create_thumbnail(self, rgba_data, width, height): #vers 2
         """Create thumbnail from RGBA data"""
@@ -5755,7 +5146,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
 
-    def _import_bumpmap(self): #vers 2
+    def _import_bumpmap(self): #vers 3
         """Import bumpmap from image file"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection",
@@ -5772,7 +5163,7 @@ class TXDLogicMixin: #vers 1
         try:
             file_path, _ = QFileDialog.getOpenFileName(
                 self, "Import Bumpmap",
-                "",
+                self._start_dir(),
                 "Image Files (*.png *.jpg *.bmp *.tga);;All Files (*)"
             )
 
@@ -5927,26 +5318,28 @@ class TXDLogicMixin: #vers 1
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Texture renamed: {current_name} -> {new_name}")
 
-    def open_img_archive(self): #vers 1
+    def open_img_archive(self): #vers 2
         """Open IMG archive and load TXD file list"""
         try:
-            file_path, _ = QFileDialog.getOpenFileName(self, "Open IMG Archive", "", "IMG Files (*.img);;All Files (*)")
+            file_path, _ = QFileDialog.getOpenFileName(self, "Open IMG Archive", self._start_dir(), "IMG Files (*.img);;All Files (*)")
             if file_path:
+                self._remember_dir(file_path)
                 self.load_from_img_archive(file_path)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open IMG: {str(e)}")
 
-    def open_txd_file(self, file_path=None): #vers 5
+    def open_txd_file(self, file_path=None): #vers 8
         """Open standalone TXD file with version detection"""
         try:
             if not self._confirm_discard():
                 return
             if not file_path:
                 file_path, _ = QFileDialog.getOpenFileName(
-                    self, "Open TXD File", "",
-                    "All Texture Files (*.txd *.xtx *.txt *.dat *.toc *.tmb *.chk *.wtd *.ytd);;TXD Files (*.txd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;PS2 Splash (*.chk);;All Files (*)"
+                    self, "Open TXD File", self._start_dir(),
+                    "All Texture Files (*.txd *.nft *.xtx *.txt *.dat *.toc *.tmb *.chk *.wtd *.ytd);;TXD Files (*.txd);;Bully PC (*.nft *.txd);;GTA IV (*.wtd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;PS2 Splash (*.chk);;All Files (*)"
                 )
             if file_path:
+                self._remember_dir(file_path)
                 self.current_txd_path = file_path  # Store the full path
                 self.current_txd_name = os.path.basename(file_path)
 
@@ -5963,7 +5356,6 @@ class TXDLogicMixin: #vers 1
                         if _detected:
                             self._open_mobile_texture_db(file_path)
                         else:
-                            from PyQt6.QtWidgets import QMessageBox
                             QMessageBox.warning(
                                 self, "Unsupported File",
                                 f"{os.path.basename(file_path)} is a mobile texture sidecar "
@@ -5997,6 +5389,10 @@ class TXDLogicMixin: #vers 1
                 with open(file_path, 'rb') as _f:
                     _all = _f.read()
                 from apps.methods.txd_lc_android import detect_lc_android_txd
+                from apps.methods.nif_textures import is_nif_textures
+                if is_nif_textures(_all):
+                    self._open_nif_textures(file_path, _all)
+                    return
                 if detect_lc_android_txd(_all):
                     self._open_lc_mobile_txd(file_path, _all)
                     return
@@ -6313,11 +5709,8 @@ class TXDLogicMixin: #vers 1
                 coverage, new_cov, target)
             if hasattr(self, 'status_label'): self.status_label.setText(msg)
 
-    def _open_xtd_file(self, file_path: str): #vers 2
-        """Open a XTD texture dictionary (.wtd GTA IV / .ytd GTA V/RDR2).
-        Read-only import source — textures appear in the list for export or
-        transfer into a regular TXD session.  Completely unsupported/undocumented.
-        """
+    def _open_xtd_file(self, file_path: str): #vers 4
+        """Open .wtd (GTA IV, editable) or .ytd (GTA V/RDR2, read-only)."""
         try:
             from apps.methods.xtd_textures import open_xtd_dict, get_xtd_game
             from PyQt6.QtWidgets import QProgressDialog
@@ -6326,6 +5719,8 @@ class TXDLogicMixin: #vers 1
 
             game = get_xtd_game(file_path)
             name = os.path.basename(file_path)
+            if game == "IV":
+                return self._open_iv_wtd(file_path)
 
             prog = QProgressDialog(f"Reading {name}…", None, 0, 0, self)
             prog.setWindowModality(Qt.WindowModality.WindowModal)
@@ -6338,13 +5733,11 @@ class TXDLogicMixin: #vers 1
             prog.close()
 
             if rd.error:
-                from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.warning(self, "Cannot open",
                     f"{name}\n\n{rd.error}")
                 return
 
             if not rd.textures:
-                from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.information(self, "No textures",
                     f"No textures found in {name}.")
                 return
@@ -6401,9 +5794,24 @@ class TXDLogicMixin: #vers 1
 
         except Exception as e:
             import traceback
-            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Error", f"Failed to open XTD dict:\n{e}")
             traceback.print_exc()
+
+    def _open_iv_wtd(self, file_path: str): #vers 1
+        """Open a GTA IV .wtd for editing."""
+        from apps.methods.xtd_textures import parse_iv_wtd
+        name = os.path.basename(file_path)
+        try:
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            texs = parse_iv_wtd(data)
+        except Exception as e:
+            QMessageBox.warning(self, "GTA IV Texture", f"Failed to read {name}:\n{e}")
+            return
+        self.current_txd_path, self.current_txd_name = file_path, name
+        self.txd_version_str, self.txd_game = "RSC5 v8", "GTA IV"
+        self.txd_platform_name = "GTA IV PC"
+        self._show_textures(texs, data, 'wtd', f"{name} [GTA IV, {len(texs)} textures]")
 
     def _log(self, msg: str):  #vers 1
         """Safe logging — uses print() since TXDWorkshop has no log_message."""
@@ -6506,6 +5914,20 @@ class TXDLogicMixin: #vers 1
         self._show_textures(texs, data, 'stories',
                             f"{name} [{texs[0].get('platform', '')} Stories, {len(texs)} textures]")
 
+    def _open_nif_textures(self, file_path: str, data: bytes): #vers 1
+        """Open a Bully PC Gamebryo texture pack (.nft / .txd)."""
+        from apps.methods.nif_textures import parse_nif_textures
+        name = os.path.basename(file_path)
+        try:
+            texs = parse_nif_textures(data)
+        except Exception as e:
+            QMessageBox.warning(self, "Bully Texture", f"Failed to read {name}:\n{e}")
+            return
+        self.current_txd_path, self.current_txd_name = file_path, name
+        self.txd_version_str, self.txd_game = "Gamebryo 20.3", "Bully SE"
+        self.txd_platform_name = "Bully PC"
+        self._show_textures(texs, data, 'nif', f"{name} [Bully PC, {len(texs)} textures]")
+
     def _open_lc_mobile_txd(self, file_path: str, data: bytes): #vers 1
         """Open a War Drum GTA III mobile TXD (UNC / PVR)."""
         from apps.methods.txd_lc_android import parse_lc_android_txd
@@ -6516,38 +5938,15 @@ class TXDLogicMixin: #vers 1
         kind = 'UNC' if texs and texs[0].get('platform_id') == 12 else 'PVR'
         self._show_textures(texs, data, 'lc_mobile', f"{name} [III mobile {kind}, {len(texs)} textures]")
 
-    def _ps2_entry(self, tex: dict) -> dict: #vers 1
-        """PS2 parser dict to a workshop texture entry."""
-        from apps.methods.txd_ps2_parser import ps2_tex_to_rgba
-        rgba = ps2_tex_to_rgba(tex) or bytes(tex['width'] * tex['height'] * 4)
-        d = tex['depth']
-        fmt = {4: "PSMT4", 8: "PSMT8", 16: "PSMCT16", 32: "PSMCT32"}.get(d, f"{d}bpp")
-        pal_type = (tex['raster_format_flags'] >> 13) & 0x3
-        if pal_type in (1, 2):
-            fmt += f"-PAL{'8' if pal_type == 1 else '4'}"
-        return {'name': tex['name'], 'width': tex['width'], 'height': tex['height'],
-                'depth': d, 'format': fmt, 'has_alpha': True,
-                'alpha_name': tex.get('mask', ''), 'mipmaps': 1, 'rgba_data': rgba,
-                'raster_format_flags': tex['raster_format_flags'], 'is_swizzled': False,
-                'platform': 'PS2', 'compressed_size': tex.get('pixels_size', 0)}
+    def _ps2_entry(self, tex: dict) -> dict: #vers 2
+        """PS2 parser dict to a workshop entry (methods/txd_reader)."""
+        from apps.methods.txd_reader import ps2_entry
+        return ps2_entry(tex)
 
-    def _open_psp_txd(self, file_path: str, data: bytes): #vers 1
+    def _open_psp_txd(self, file_path: str, data: bytes): #vers 2
         """Open a TXD with PSP natives (LCS iOS); PS2 natives allowed too."""
-        import struct
-        from apps.methods.txd_platform_psp import parse_psp_nativetex, psp_native_end
-        from apps.methods.txd_ps2_parser import _parse_native
-        count = struct.unpack_from('<H', data, 24)[0]
-        texs, off = [], 28
-        for i in range(count):
-            if data[off + 24:off + 28] == b'PSP\0':
-                t = parse_psp_nativetex(data, off, i)
-                end = psp_native_end(data, off)
-            else:
-                t = self._ps2_entry(_parse_native(data, off))
-                end = off + 12 + struct.unpack_from('<I', data, off + 4)[0]
-            t['_chunk_off'], t['_chunk_end'] = off, end
-            texs.append(t)
-            off = end
+        from apps.methods.txd_reader import read_psp_txd
+        texs = read_psp_txd(data)
         name = os.path.basename(file_path)
         self.current_txd_path, self.current_txd_name = file_path, name
         self._detect_txd_info(data)
@@ -6608,11 +6007,11 @@ class TXDLogicMixin: #vers 1
             QMessageBox.critical(self, "PS2 TXD Error",
                 f"Failed to open PS2 TXD:\n{e}")
 
-    def _import_textures(self): #vers 8
+    def _import_textures(self): #vers 9
         """Pick image file(s) and import them as textures."""
         from PyQt6.QtWidgets import QFileDialog
         file_paths, _ = QFileDialog.getOpenFileNames(
-            self, "Import Texture(s)", "",
+            self, "Import Texture(s)", self._start_dir(),
             "Image Files (*.png *.jpg *.jpeg *.bmp *.tga *.dds *.gif *.tiff *.webp);;"
             "All Files (*.*)")
         if file_paths:
@@ -7054,7 +6453,7 @@ class TXDLogicMixin: #vers 1
 
         QMessageBox.information(self, "TXD Statistics", stats)
 
-    def _check_txd_vs_dff(self): #vers 3
+    def _check_txd_vs_dff(self): #vers 4
         """Check TXD texture names against DFF model - ENHANCED"""
         if not self.texture_list:
             QMessageBox.warning(self, "No Textures", "No textures loaded in TXD")
@@ -7062,7 +6461,7 @@ class TXDLogicMixin: #vers 1
 
         # Select DFF file
         dff_path, _ = QFileDialog.getOpenFileName(
-            self, "Select DFF Model File", "",
+            self, "Select DFF Model File", self._start_dir(),
             "DFF Files (*.dff);;All Files (*)"
         )
 
@@ -7127,11 +6526,11 @@ class TXDLogicMixin: #vers 1
             return []
         return list(dict.fromkeys(n for n in names if n))
 
-    def _build_txd_from_dff(self): #vers 3
+    def _build_txd_from_dff(self): #vers 4
         """Build TXD structure from DFF material names with version/platform selection"""
         # Select DFF file
         dff_path, _ = QFileDialog.getOpenFileName(
-            self, "Select DFF File", "",
+            self, "Select DFF File", self._start_dir(),
             "DFF Files (*.dff);;All Files (*)"
         )
 
@@ -7266,8 +6665,8 @@ class TXDLogicMixin: #vers 1
         """Keep accepting while over the workshop."""
         self.dragEnterEvent(event)
 
-    def dropEvent(self, event): #vers 1
-        """Images import into the open TXD; .txd/.img open here or in a new tab."""
+    def dropEvent(self, event): #vers 2
+        """Images import into the open TXD; texture files/.img open here or in a new tab."""
         import sys
         open_txd_workshop = sys.modules[type(self).__module__].open_txd_workshop  # avoids circular import
         paths = self._dropped_files(event)
@@ -7275,8 +6674,10 @@ class TXDLogicMixin: #vers 1
             event.ignore()
             return
         event.acceptProposedAction()
-        images = [p for p in paths if not p.lower().endswith(('.txd', '.img'))]
-        archives = [p for p in paths if p.lower().endswith(('.txd', '.img'))]
+        from apps.methods.txd_reader import TEXTURE_EXTS
+        opens = TEXTURE_EXTS + ('.img',)
+        images = [p for p in paths if not p.lower().endswith(opens)]
+        archives = [p for p in paths if p.lower().endswith(opens)]
         if images:
             self._import_texture_files(images)
         if not archives:

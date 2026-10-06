@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_core_classes.py - Version: 13
+#this belongs in apps/methods/img_core_classes.py - Version: 14
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -55,6 +55,7 @@ def _find_companion(base_path: str, new_ext: str) -> str:
 # detect_img_version
 # format_file_size
 # integrate_filtering
+# _is_v3_encrypted
 # populate_table_with_sample_data
 # rebuild_img_file
 
@@ -73,25 +74,15 @@ def _find_companion(base_path: str, new_ext: str) -> str:
 # TabFilterWidget
 # ValidationResult
 
-def _is_v3_encrypted(first16: bytes) -> bool:
-    """Return True if first 16 bytes decrypt (AES-256 ECB, 16 rounds) to a valid V3 header start."""
+def _is_v3_encrypted(first16: bytes): #vers 2
+    """True if bytes decrypt to a GTA IV V3 header; None without pycryptodome."""
     try:
-        from Crypto.Cipher import AES
-        import struct as _struct
-        GTAIV_KEY = bytes([
-            0x1a,0xb5,0x6f,0xed,0x7e,0xc3,0xff,0x01,
-            0x22,0x7b,0x69,0x15,0x33,0x97,0x5d,0xce,
-            0x47,0xd7,0x69,0x65,0x3f,0xf7,0x75,0x42,
-            0x6a,0x96,0xcd,0x6d,0x53,0x07,0x56,0x5d,
-        ])
-        data = first16
-        for _ in range(16):
-            data = AES.new(GTAIV_KEY, AES.MODE_ECB).decrypt(data)
-        # After decryption, bytes 4-7 should be Version = 3
-        ver = _struct.unpack('<I', data[4:8])[0]
-        return ver == 3
-    except Exception:
-        return False
+        import Crypto.Cipher  # noqa: F401  pycryptodome
+    except ImportError:
+        return None
+    import struct as _struct
+    from apps.core.img_encryption import _aes_decrypt_block
+    return _struct.unpack('<I', _aes_decrypt_block(first16)[4:8])[0] == 3
 
 
 def _detect_v1_or_v1_5(dir_path: str, img_path: str) -> str:
@@ -1437,7 +1428,7 @@ class IMGFile:
             return 0
 
 
-    def detect_version(self) -> IMGVersion: #vers 4
+    def detect_version(self) -> IMGVersion: #vers 5
         """Detect IMG version and platform from file"""
         try:
             if not os.path.exists(self.file_path):
@@ -1553,7 +1544,9 @@ class IMGFile:
                         # Check if V3 encrypted: read next 16 bytes, try AES decrypt, check Version==3
                         f.seek(0)
                         first16 = f.read(16)
-                        if _is_v3_encrypted(first16):
+                        _enc = _is_v3_encrypted(first16)
+                        self._crypto_missing = _enc is None
+                        if _enc:
                             self.version = IMGVersion.VERSION_3_ENC
                             return IMGVersion.VERSION_3_ENC
                         dir_path = _find_companion(self.file_path, '.dir')
@@ -1641,7 +1634,7 @@ class IMGFile:
         self.version = IMGVersion.UNKNOWN
         return IMGVersion.UNKNOWN
 
-    def open(self) -> bool: #vers 5
+    def open(self) -> bool: #vers 6
         """Open and parse IMG file - FIXED WITH PROPER ENTRY PARSING"""
         try:
             if self.is_open:
@@ -1722,7 +1715,15 @@ class IMGFile:
                 self.is_open = True
                 # FIXED: Parse file types and versions for all entries
                 self._parse_all_entries()
-            
+
+            if getattr(self, '_crypto_missing', False) and not self.entries and \
+                    not _find_companion(self.file_path, '.dir'):
+                self._streaming_segment_error = (
+                    f"{os.path.basename(self.file_path)} may be an encrypted GTA IV IMG.\n\n"
+                    "Install pycryptodome to open it:\n  pip install pycryptodome")
+                self.is_open = False
+                return False
+
             return success
 
         except Exception as e:

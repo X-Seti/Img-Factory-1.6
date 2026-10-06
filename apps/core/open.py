@@ -1,4 +1,4 @@
-#this belongs in core/ open.py - Version: 9
+#this belongs in core/ open.py - Version: 10
 # X-Seti - November10 2025 - IMG Factory 1.5 - Open Functions with Tab System
 
 """
@@ -7,6 +7,7 @@ Uses unified tab system from apps.methods.tab_system.py
 """
 
 import os
+from apps.methods.txd_reader import TEXTURE_EXTS
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 ##Methods list -
@@ -17,19 +18,19 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 # _load_txd_file
 # open_file_dialog
 
-def open_file_dialog(main_window): #vers 14
+def open_file_dialog(main_window): #vers 15
     """Unified file dialog for IMG, COL, TXD, CST, 3DS, HXD, MXD, AGR files"""
     file_paths, _ = QFileDialog.getOpenFileNames(
         main_window,
         "Open Archive",
         "",
-        "All Supported (*.img *.col *.txd *.cst *.3ds *.hxd *.mxd *.agr *.lvz);;IMG Archives (*.img);;COL Archives (*.col);;TXD Textures (*.txd);;CST Files (*.cst);;3DS Models (*.3ds);;Bully Anim (*.hxd *.mxd *.agr);;LVZ Archives (*.lvz);;All Files (*)"
+        "All Supported (*.img *.col *.txd *.wtd *.nft *.xtx *.chk *.cst *.3ds *.hxd *.mxd *.agr *.lvz);;IMG Archives (*.img);;COL Archives (*.col);;Textures (*.txd *.wtd *.nft *.xtx *.chk);;CST Files (*.cst);;3DS Models (*.3ds);;Bully Anim (*.hxd *.mxd *.agr);;LVZ Archives (*.lvz);;All Files (*)"
     )
 
     if file_paths:
         for file_path in file_paths:
             file_ext = os.path.splitext(file_path)[1].lower()
-            if file_ext == '.txd':
+            if file_ext in TEXTURE_EXTS:
                 _load_txd_file(main_window, file_path)
             elif file_ext == '.col':
                 _load_col_file(main_window, file_path)
@@ -250,7 +251,7 @@ def _load_txd_file(main_window, file_path): #vers 3
         main_window.log_message(f"Error loading TXD: {str(e)}")
 
 
-def _detect_and_open_file(main_window, file_path): #vers 9
+def _detect_and_open_file(main_window, file_path): #vers 10
     """Detect file type and open with appropriate handler"""
     try:
         file_ext = os.path.splitext(file_path)[1].lower()
@@ -261,7 +262,7 @@ def _detect_and_open_file(main_window, file_path): #vers 9
         elif file_ext == '.col':
             _load_col_file(main_window, file_path)
             return True
-        elif file_ext == '.txd':
+        elif file_ext in TEXTURE_EXTS:
             _load_txd_file(main_window, file_path)
             return True
         elif file_ext == '.cst':
@@ -285,7 +286,7 @@ def _detect_and_open_file(main_window, file_path): #vers 9
             main_window.log_message("Detected COL file by signature")
             _load_col_file(main_window, file_path)
             return True
-        elif header[:4] == b'\x16\x00\x00\x00':
+        elif header[:4] in (b'\x16\x00\x00\x00', b'RSC\x05') or header.startswith(b'Gamebryo'):
             main_window.log_message("Detected TXD file by signature")
             _load_txd_file(main_window, file_path)
             return True
@@ -300,7 +301,7 @@ def _detect_and_open_file(main_window, file_path): #vers 9
         return False
 
 
-def _detect_file_type(main_window, file_path): #vers 7
+def _detect_file_type(main_window, file_path): #vers 8
     """Detect file type by extension and content"""
     try:
         file_ext = os.path.splitext(file_path)[1].lower()
@@ -309,7 +310,7 @@ def _detect_file_type(main_window, file_path): #vers 7
             return "IMG"
         elif file_ext == '.col':
             return "COL"
-        elif file_ext == '.txd':
+        elif file_ext in TEXTURE_EXTS:
             return "TXD"
         elif file_ext == '.cst':
             return "CST"
