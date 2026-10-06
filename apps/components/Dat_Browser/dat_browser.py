@@ -2006,7 +2006,16 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         if self.loader and self.loader.load_log:
             self._populate_tree()
 
-    def _make_entry_child(self, phase, entry_type, path, success): #vers 1
+    def _ipl_instance_counts(self) -> dict: #vers 1
+        """Instances per source IPL, cached per loaded instance list."""
+        import collections
+        key = (id(self.loader.instances), len(self.loader.instances))
+        if getattr(self, '_ipl_counts_key', None) != key:
+            self._ipl_counts = collections.Counter(i.source_ipl for i in self.loader.instances)
+            self._ipl_counts_key = key
+        return self._ipl_counts
+
+    def _make_entry_child(self, phase, entry_type, path, success): #vers 2
         """Build a QTreeWidgetItem for one load_log entry."""
         bname = os.path.basename(path)
         count = 0
@@ -2017,8 +2026,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                         if o.source_ide == bname)
             count_str = str(count)
         elif entry_type == "IPL":
-            count = sum(1 for i in self.loader.instances
-                        if i.source_ipl == bname)
+            count = self._ipl_instance_counts().get(bname, 0)
             count_str = str(count)
         elif entry_type in ("IMG", "CDIMAGE"):
             try:

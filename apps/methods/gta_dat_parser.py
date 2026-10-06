@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 10
+#this belongs in apps/methods/gta_dat_parser.py - Version: 11
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -1056,7 +1056,7 @@ class IDEParser: #vers 3
         # IV only: next synthetic model ID to assign
         self.next_id = 1
 
-    def parse(self, ide_path: str) -> bool: #vers 3
+    def parse(self, ide_path: str) -> bool: #vers 4
         if not os.path.isfile(ide_path):
             self.stats.errors.append(f"IDE not found: {ide_path}")
             return False
@@ -1080,6 +1080,12 @@ class IDEParser: #vers 3
             if low == "end":
                 current_section = None
                 current_ide_path_group = None
+                continue
+            if current_section == "mlo" and self.game == GTAGame.IV:
+                obj = self._parse_iv_mlo(raw, line, low, basename, lineno)
+                if obj:
+                    self.objects.append(obj)
+                    self.stats.objects_loaded += 1
                 continue
             if low in self._valid or (re.match(r'^[a-z0-9_]{2,8}$', low) and "," not in line):
                 current_section = low
@@ -1145,6 +1151,25 @@ class IDEParser: #vers 3
                 right=int(float(p[8])) if len(p) > 8 else 0)
         except (ValueError, IndexError):
             return None
+
+    _MLO_MARKERS = ("mloroomstart", "roomend", "mloportalstart", "mloend")
+
+    def _parse_iv_mlo(self, raw: str, line: str, low: str, source: str,
+                      lineno: int) -> Optional[IDEObject]: #vers 1
+        """IV interior (MLO) header: name, flags, entities, rooms, portals."""
+        if low in self._MLO_MARKERS or raw[:1] in ('\t', ' ') or "," not in line:
+            return None
+        parts = [p for p in re.split(r"[\s,]+", line) if p]
+        extra: Dict[str, Any] = {"synthetic_id": True}
+        try:
+            extra.update(flags=int(parts[1]), entities=int(parts[2]),
+                         rooms=int(parts[3]), portals=int(parts[4]))
+        except (ValueError, IndexError):
+            self.stats.warnings.append(f"{source}:{lineno} - bad IV mlo header")
+            return None
+        obj = IDEObject(self.next_id, parts[0], "", "interior", "mlo", extra, source, lineno)
+        self.next_id += 1
+        return obj
 
     def _parse_iv_line(self, section: str, line: str, source: str, lineno: int) -> Optional[IDEObject]: #vers 1
         """Parse one IV IDE line; assigns synthetic sequential model IDs."""
@@ -1958,7 +1983,7 @@ class IPLParser: #vers 3
 
 
 
-class WPLParser: #vers 1
+class WPLParser: #vers 2
     """
     GTA IV binary .wpl parser (verified against all 41 PC wpl files).
     Header: int32 version (3), then 16 int32 section counts.
@@ -1968,13 +1993,14 @@ class WPLParser: #vers 1
       inst 48: pos 3f, quat 4f, u32 hash, u32 unk, i32 lod, u32 unk, f unk
       grge 48: pos 3f, line 2f, cube 3f, i32 flags, i32 type, char[8]
       cull 44: min 3f, max 3f, 3f unk, i32 flags, u32 hash
-      lcul 388, zone 24, blok 132 (counted, not decoded)
+      cars 56, strbig 64, lcul 388, zone 24, blok 132 (counted only)
+      Streamed *.wpl entries in map IMGs use the same format.
     """
 
     _HEADER_SIZE = 68
     # slot -> (name, record size); None size = layout unknown
-    _SECTIONS = [(1, "inst", 48), (3, "grge", 48), (4, "cars", None),
-                 (5, "cull", 44), (9, "strbig", None), (10, "lcul", 388),
+    _SECTIONS = [(1, "inst", 48), (3, "grge", 48), (4, "cars", 56),
+                 (5, "cull", 44), (9, "strbig", 64), (10, "lcul", 388),
                  (11, "zone", 24), (16, "blok", 132)]
 
     def __init__(self, hash_names: Optional[Dict[int, Tuple[str, int]]] = None):
@@ -1992,15 +2018,18 @@ class WPLParser: #vers 1
         self.layout     = GTAGame.IV
         self.stats      = ParseStats()
 
-    def parse(self, wpl_path: str) -> bool: #vers 1
+    def parse(self, wpl_path: str) -> bool: #vers 2
         """Parse a .wpl file; resolves inst hashes via hash_names."""
-        name = os.path.basename(wpl_path)
         try:
             with open(wpl_path, "rb") as f:
                 data = f.read()
         except OSError as e:
             self.stats.errors.append(f"Cannot read WPL {wpl_path}: {e}")
             return False
+        return self.parse_bytes(data, os.path.basename(wpl_path))
+
+    def parse_bytes(self, data: bytes, name: str) -> bool: #vers 1
+        """Parse WPL bytes (file or streamed IMG entry)."""
         if len(data) < self._HEADER_SIZE:
             self.stats.errors.append(f"WPL too short: {name}")
             return False
@@ -2309,7 +2338,7 @@ class GTAWorldLoader: #vers 4
         self._iv_hash_names: Dict[int, Tuple[str, int]] = {}  # hash -> (name, id)
         self.iv_wpl_unresolved = 0
 
-    def load(self, game_root: str, progress_cb=None) -> bool: #vers 6
+    def load(self, game_root: str, progress_cb=None) -> bool: #vers 7
         """Full load from a game root directory.
         Always enforces models/gta3.img (called from game exe, not from any .dat)
         so TXD Workshop and the Dump TXDs feature can always find it.
@@ -2343,6 +2372,8 @@ class GTAWorldLoader: #vers 4
         self._progress(0, 1, f"Phase 2: {os.path.basename(main_path)}")
         self.main_dat.parse(main_path, game_root)
         self._process_dat(self.main_dat, "main")
+        if self.game == GTAGame.IV:
+            self._load_iv_streamed_wpls()
 
         self.stats.objects_loaded = len(self.objects)
         self.stats.instances      = len(self.instances)
@@ -2785,6 +2816,38 @@ class GTAWorldLoader: #vers 4
             self._iv_name_ids[key] = (obj.model_id, obj.source_ide)
             self._iv_hash_names[iv_hash(key)] = (obj.model_name, obj.model_id)
 
+    def _load_iv_streamed_wpls(self): #vers 1
+        """IV city placements: *.wpl entries inside the loaded map IMGs."""
+        from apps.methods.img_core_classes import IMGFile
+        imgs = [p for _s, et, p, ok in self.load_log if et == "IMG" and ok]
+        for n, img_path in enumerate(imgs):
+            self._progress(n, len(imgs), f"Streamed WPLs: {os.path.basename(img_path)}")
+            try:
+                arc = IMGFile(img_path)
+                if not arc.open():
+                    continue
+            except Exception as e:
+                self.stats.warnings.append(f"Cannot open {img_path}: {e}")
+                continue
+            for e in arc.entries:
+                if not e.name.lower().endswith(".wpl"):
+                    continue
+                parser = WPLParser(self._iv_hash_names)
+                try:
+                    ok = parser.parse_bytes(arc.read_entry_data(e),
+                                            f"{os.path.basename(img_path)}:{e.name}")
+                except Exception as ex:
+                    ok = False
+                    parser.stats.errors.append(f"{e.name}: {ex}")
+                self.load_log.append(("stream", "IPL", f"{img_path}:{e.name}", ok))
+                self.iv_wpl_unresolved += parser.unresolved
+                self.instances += parser.instances
+                self.grges     += parser.grges
+                self.culls     += parser.culls
+                self.stats.errors   += parser.stats.errors
+                self.stats.warnings += parser.stats.warnings
+                self.iv_streamed_wpls += 1
+
     def _parse_ipl_entry(self, abs_path: str, ipl_stem: str): #vers 1
         """Parse a text IPL or IV binary WPL; returns (parser, ok)."""
         if self.game == GTAGame.IV and abs_path.lower().endswith(".wpl"):
@@ -2855,6 +2918,7 @@ class GTAWorldLoader: #vers 4
         self._iv_next_id = 1
         self._iv_name_ids.clear(); self._iv_hash_names.clear()
         self.iv_wpl_unresolved = 0
+        self.iv_streamed_wpls = 0
         self.objects.clear(); self.effects_2dfx.clear()
         self.timed_objects.clear(); self.instances.clear()
         self.zones.clear();   self.culls.clear()
@@ -2983,6 +3047,7 @@ class GTAWorldLoader: #vers 4
             iv_lines = [
                 f"IMG files:   {len(imgs)} ({imgs.count(False)} missing)",
                 f"Model IDs:   synthetic (GTA IV IDEs have none)",
+                f"Streamed WPLs: {self.iv_streamed_wpls} (in map IMGs)",
                 f"WPL unresolved hashes: {self.iv_wpl_unresolved}",
             ]
         return "\n".join([

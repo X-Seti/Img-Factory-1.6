@@ -1,4 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 231
+#this belongs in root /ChangeLog.md - Version: 232
+
+## Oct 06 2026 - GTA IV city placements
+- Dat Browser GTA IV: streamed *.wpl in map IMGs loaded (432 files, 157k placements); cars 56 / strbig 64 byte records.
+- IV IDE mlo (interior) headers indexed; all placements resolve, 0 warnings/errors.
 
 ## Oct 06 2026 - GTA IV IMG save, texture names
 - GTA IV IMG entry sizes were resource flags (reads ran to file end); now blocks*2048-pad.
