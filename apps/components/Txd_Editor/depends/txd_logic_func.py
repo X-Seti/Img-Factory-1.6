@@ -3657,7 +3657,7 @@ class TXDLogicMixin: #vers 1
             self._log(f"Rebuild error: {e}")
             return None
 
-    def _rebuild_special(self) -> bytes: #vers 4
+    def _rebuild_special(self) -> bytes: #vers 5
         """Save bytes for mobile, PSP, Stories, GTA IV and Bully PC (layout kept)."""
         from apps.methods.txd_splice import texture_signature, rebuild_inplace_txd
         kind, data = self._txd_kind, self.current_txd_data
@@ -3677,9 +3677,7 @@ class TXDLogicMixin: #vers 1
                      for t in self.texture_list]
             if kind == 'wtd':
                 return write_iv_wtd(data, edits, names)
-            if any(names):
-                raise ValueError(f"'{next(n for n in names if n)}': Bully textures can't be renamed")
-            return write_nif_textures(data, edits)
+            return write_nif_textures(data, edits, names)
         if kind == 'stories':
             from apps.methods.xtx_reader import write_stories_textures
             for t in self.texture_list:

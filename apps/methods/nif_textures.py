@@ -1,4 +1,4 @@
-#this belongs in apps/methods/nif_textures.py - Version: 1
+#this belongs in apps/methods/nif_textures.py - Version: 2
 # X-Seti - October05 2026 - IMG Factory 1.6 - Gamebryo texture packs
 
 """
@@ -12,7 +12,9 @@ Bully PC Gamebryo texture packs (.nft / .txd, NIF 20.3): read and write.
 # _level_size
 # _pal_block
 # _pixel_block
+# _rename_nif
 # _source_textures
+# _string_table
 # is_nif_textures
 # parse_nif_textures
 # write_nif_textures
@@ -162,10 +164,12 @@ def parse_nif_textures(data: bytes) -> List[Dict]: #vers 1
     return texs
 
 
-def write_nif_textures(original: bytes, textures: List[Optional[Dict]]) -> bytes: #vers 1
+def write_nif_textures(original: bytes, textures: List[Optional[Dict]],
+                       names: Optional[List[Optional[str]]] = None) -> bytes: #vers 2
     """Rewrite edited textures in place; None keeps a texture unchanged."""
     from apps.methods.txd_splice import _level_rgba, _palette
-    if all(t is None for t in textures):
+    renamed = names and any(names)
+    if all(t is None for t in textures) and not renamed:
         return original
     out = bytearray(original)
     types, offs, srcs = _source_textures(original)
@@ -213,4 +217,59 @@ def write_nif_textures(original: bytes, textures: List[Optional[Dict]]) -> bytes
                 src = _level_rgba(top, w0, h0, w, h)
             enc = _encode(px['fmt'], src, w, h, pal)
             out[pos:pos + len(enc)] = enc
-    return bytes(out)
+    return _rename_nif(bytes(out), names) if renamed else bytes(out)
+
+
+def _string_table(d: bytes): #vers 1
+    """(start, end) byte span of the header string table."""
+    i = d.index(b'\n') + 1
+    p = i + 9
+    nb = struct.unpack_from('<I', d, p)[0]; p += 4
+    nt = struct.unpack_from('<H', d, p)[0]; p += 2
+    for _ in range(nt):
+        p += 4 + struct.unpack_from('<I', d, p)[0]
+    p += 6 * nb
+    start, ns = p, struct.unpack_from('<I', d, p)[0]
+    p += 8
+    for _ in range(ns):
+        p += 4 + struct.unpack_from('<I', d, p)[0]
+    return start, p
+
+
+def _rename_nif(data: bytes, names: List[Optional[str]]) -> bytes: #vers 1
+    """New texture names: file name and Filename extra string stems."""
+    types, offs, _sizes, strs = _blocks(data)
+    strs = list(strs)
+    owner = {}
+    k = 0
+    for t, o in zip(types, offs):
+        if t != 'NiSourceTexture':
+            continue
+        p = o + 4
+        nx = struct.unpack_from('<I', data, p)[0]
+        extras = struct.unpack_from(f'<{nx}i', data, p + 4)
+        p += 4 + 4 * nx + 4
+        if data[p]:
+            continue
+        idxs = [struct.unpack_from('<i', data, p + 1)[0]]
+        for ref in extras:
+            if 0 <= ref < len(types) and types[ref] == 'NiStringExtraData':
+                idxs.append(struct.unpack_from('<i', data, offs[ref] + 4)[0])
+        new = names[k] if k < len(names) else None
+        k += 1
+        for si in set(i for i in idxs if 0 <= i < len(strs)):
+            if si in owner and owner[si] != k and new:
+                raise ValueError(f"'{new}': name string shared with another texture")
+            owner[si] = k
+            if not new:
+                continue
+            path = strs[si].replace('\\', '/')
+            head, base = (path.rsplit('/', 1) if '/' in path else ('', path))
+            ext = base[base.rfind('.'):] if '.' in base else ''
+            sep = '\\' if '\\' in strs[si] else '/'
+            strs[si] = (head.replace('/', sep) + sep if head else '') + new + ext
+    start, end = _string_table(data)
+    raw = [x.encode('latin1') for x in strs]
+    table = struct.pack('<II', len(raw), max((len(x) for x in raw), default=0))
+    table += b''.join(struct.pack('<I', len(x)) + x for x in raw)
+    return data[:start] + table + data[end:]
