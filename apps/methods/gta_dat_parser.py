@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 8
+#this belongs in apps/methods/gta_dat_parser.py - Version: 9
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -56,6 +56,8 @@ import struct
 import math
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
+
+from apps.methods.xtd_textures import iv_hash  # shared GTA IV name hash
 
 
 class GTAGame:
@@ -1953,16 +1955,7 @@ class IPLParser: #vers 3
         return None
 
 
-def iv_hash(name: str) -> int: #vers 1
-    """GTA IV name hash: Jenkins one-at-a-time, lowercase."""
-    h = 0
-    for c in name.lower().encode("ascii", errors="ignore"):
-        h = (h + c) & 0xFFFFFFFF
-        h = (h + (h << 10)) & 0xFFFFFFFF
-        h ^= h >> 6
-    h = (h + (h << 3)) & 0xFFFFFFFF
-    h ^= h >> 11
-    return (h + (h << 15)) & 0xFFFFFFFF
+
 
 
 class WPLParser: #vers 1

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/xtd_textures.py - Version: 3
+#this belongs in apps/methods/xtd_textures.py - Version: 4
 # X-Seti - October05 2026 - IMG Factory 1.6 - XTD texture dictionaries
 
 """
@@ -17,6 +17,7 @@ GTA IV .wtd (RSC5) read/write; GTA V / RDR2 .ytd (RSC8) read.
 # _extract_v_textures
 # get_xtd_game
 # is_xtd_file
+# iv_hash
 # _iv_decode
 # _iv_encode
 # _iv_entries
@@ -224,9 +225,20 @@ def parse_iv_wtd(data: bytes) -> List[dict]: #vers 1
     return texs
 
 
+def iv_hash(name: str) -> int: #vers 1
+    """GTA IV name hash: Jenkins one-at-a-time, lowercase."""
+    h = 0
+    for c in name.lower().encode("ascii", errors="ignore"):
+        h = (h + c) & 0xFFFFFFFF
+        h = (h + (h << 10)) & 0xFFFFFFFF
+        h ^= h >> 6
+    h = (h + (h << 3)) & 0xFFFFFFFF
+    h ^= h >> 11
+    return (h + (h << 15)) & 0xFFFFFFFF
+
+
 def _iv_rename(z: bytearray, ents: List[dict], names: List[Optional[str]]): #vers 1
     """Rename in place; name hashes re-sorted with the texture array."""
-    from apps.methods.gta_dat_parser import iv_hash
     for e, new in zip(ents, names):
         if not new or new == e['name']:
             continue
