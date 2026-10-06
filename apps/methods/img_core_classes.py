@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-#this belongs in apps/methods/img_core_classes.py - Version: 14
-=======
 #this belongs in apps/methods/img_core_classes.py - Version: 15
->>>>>>> 23f56b361b9b1095316782f0150568f143dc0f73
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
