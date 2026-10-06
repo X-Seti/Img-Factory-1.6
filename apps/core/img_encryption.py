@@ -1,4 +1,4 @@
-#this belongs in core/img_encryption.py - Version: 2
+#this belongs in core/img_encryption.py - Version: 3
 # X-Seti - March04 2026 - IMG Factory 1.6 - IMG Encryption Functions
 """
 IMG Encryption - GTA IV Version 3 AES-256 ECB encrypt/decrypt support.
@@ -53,13 +53,11 @@ def _aes_decrypt_block(block: bytes) -> bytes: #vers 1
     return data
 
 
-def _process_buffer(buf: bytes, encrypt: bool) -> bytes: #vers 1
-    """Process buffer in 16-byte blocks; pad, process, trim."""
-    pad = (16 - len(buf) % 16) % 16
-    padded = buf + b'\x00' * pad
+def _process_buffer(buf: bytes, encrypt: bool) -> bytes: #vers 2
+    """AES full 16-byte blocks; trailing partial block stays plain."""
+    full = len(buf) // 16 * 16
     fn = _aes_encrypt_block if encrypt else _aes_decrypt_block
-    result = b''.join(fn(padded[i:i+16]) for i in range(0, len(padded), 16))
-    return result[:len(buf)]
+    return b''.join(fn(buf[i:i+16]) for i in range(0, full, 16)) + bytes(buf[full:])
 
 
 def detect_v3_encryption(img_path: str) -> Optional[bool]: #vers 1
