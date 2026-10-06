@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_core_classes.py - Version: 14
+#this belongs in apps/methods/img_core_classes.py - Version: 15
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -1851,16 +1851,9 @@ class IMGFile:
         except Exception as e:
             return False
 
-    def _open_version_3(self) -> bool: #vers 1
-        """Open IMG version 3 - GTA IV format (unencrypted or AES-256 ECB encrypted header)."""
+    def _open_version_3(self) -> bool: #vers 2
+        """Open IMG version 3 - GTA IV (plain or AES-encrypted table)."""
         import struct as _struct
-        GTAIV_MAGIC  = 0xA94E2A52
-        GTAIV_KEY = bytes([
-            0x1a,0xb5,0x6f,0xed,0x7e,0xc3,0xff,0x01,
-            0x22,0x7b,0x69,0x15,0x33,0x97,0x5d,0xce,
-            0x47,0xd7,0x69,0x65,0x3f,0xf7,0x75,0x42,
-            0x6a,0x96,0xcd,0x6d,0x53,0x07,0x56,0x5d,
-        ])
         try:
             with open(self.file_path, 'rb') as f:
                 raw_header = f.read(20)
@@ -1868,51 +1861,27 @@ class IMGFile:
             if len(raw_header) < 20:
                 return False
 
-            # Decrypt header if encrypted (16 rounds AES-256 ECB on first 16 bytes)
-            if self.version == IMGVersion.VERSION_3_ENC:
-                try:
-                    from Crypto.Cipher import AES
-                    block = raw_header[:16]
-                    for _ in range(16):
-                        block = AES.new(GTAIV_KEY, AES.MODE_ECB).decrypt(block)
-                    header_data = block + raw_header[16:]
-                except ImportError:
-                    return False
+            encrypted = self.version == IMGVersion.VERSION_3_ENC
+            if encrypted:
+                from apps.core.img_encryption import _aes_decrypt_block, _process_buffer
+                header_data = _aes_decrypt_block(raw_header[:16]) + raw_header[16:]
             else:
                 header_data = raw_header
 
-            magic, version, num_items, table_size, item_size, unknown =                 _struct.unpack('<IIIIHH', header_data[:20])
+            magic, version, num_items, table_size, item_size, unknown = \
+                _struct.unpack('<IIIIHH', header_data[:20])
 
             if version != 3 or item_size != 16:
                 return False
 
-            # Read table (num_items * 16 bytes) + filenames block
-            names_size = table_size - (num_items * 16)
+            # Table and names are one stream; last partial block is plain
             with open(self.file_path, 'rb') as f:
                 f.seek(20)
-                table_data  = f.read(num_items * 16)
-                names_data  = f.read(names_size)
-
-            # Decrypt table + names if encrypted
-            if self.version == IMGVersion.VERSION_3_ENC:
-                try:
-                    from Crypto.Cipher import AES
-                    # Decrypt in 16-byte blocks, 16 rounds each
-                    def _decrypt_block(b):
-                        for _ in range(16):
-                            b = AES.new(GTAIV_KEY, AES.MODE_ECB).decrypt(b)
-                        return b
-                    # Pad to 16-byte boundary, decrypt, trim
-                    def _decrypt_buf(buf):
-                        pad = (16 - len(buf) % 16) % 16
-                        padded = buf + b'\x00' * pad
-                        result = b''.join(_decrypt_block(padded[i:i+16])
-                                          for i in range(0, len(padded), 16))
-                        return result[:len(buf)]
-                    table_data = _decrypt_buf(table_data)
-                    names_data = _decrypt_buf(names_data)
-                except ImportError:
-                    return False
+                table_all = f.read(table_size)
+            if encrypted:
+                table_all = _process_buffer(table_all, encrypt=False)
+            table_data = table_all[:num_items * 16]
+            names_data = table_all[num_items * 16:]
 
             # Parse names (null-separated)
             names = []

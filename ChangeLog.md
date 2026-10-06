@@ -1,6 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 225
+#this belongs in root /ChangeLog.md - Version: 226
 
 ## Oct 06 2026 - Dat Browser GTA IV profile
+- GTA IV encrypted IMGs: last table name was garbage (e.g. radar.img hrFI_y); partial tail block is plain, not decrypted. Encrypt/decrypt tool same.
 - GTA IV game/profile: gta.dat common:/platform:/ paths, images.txt IMG list, IV IDE objs (synthetic IDs), binary .wpl reader (hashes resolved).
 
 ## Oct 05 2026 - GTA IV, Bully PC, shared TXD reader
