@@ -1,4 +1,4 @@
-#this belongs in apps/methods/xtd_textures.py - Version: 4
+#this belongs in apps/methods/xtd_textures.py - Version: 5
 # X-Seti - October05 2026 - IMG Factory 1.6 - XTD texture dictionaries
 
 """
@@ -198,7 +198,7 @@ def _iv_encode(fmt: str, rgba: bytes, w: int, h: int) -> bytes: #vers 1
     return out.tobytes()
 
 
-def parse_iv_wtd(data: bytes) -> List[dict]: #vers 1
+def parse_iv_wtd(data: bytes) -> List[dict]: #vers 2
     """GTA IV .wtd to workshop texture dicts (all mip levels)."""
     magic, _ver, flags = struct.unpack_from('<III', data, 0)
     if magic != _RSC5_MAGIC:
@@ -216,8 +216,7 @@ def parse_iv_wtd(data: bytes) -> List[dict]: #vers 1
         alpha = e['format'] != 'RGB888' and e['format'] != 'LUM8' and \
             any(b != 255 for b in rgba[3::4])
         texs.append({'name': e['name'], 'width': e['width'], 'height': e['height'],
-                     'depth': 32 if e['format'] in ('ARGB8888', 'RGB888') else
-                     (8 if e['format'] == 'LUM8' else 4 if e['format'] == 'DXT1' else 8),
+                     'depth': {'ARGB8888': 32, 'RGB888': 32, 'LUM8': 8}.get(e['format'], 16),
                      'format': e['format'], 'has_alpha': alpha, 'alpha_name': '',
                      'mipmaps': len(lv), 'rgba_data': rgba, 'mipmap_levels': lv,
                      'raster_format_flags': 0, 'platform': 'GTA IV PC',

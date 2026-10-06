@@ -1,4 +1,4 @@
-#this belongs in methods/populate_img_table.py - Version: 11
+#this belongs in methods/populate_img_table.py - Version: 12
 # X-Seti - November18 2025 - IMG Factory 1.5
 """
 IMG Table Population
@@ -91,12 +91,14 @@ class DragSelectTableWidget(QTableWidget): #vers 1
 # setup_table_structure
 ##Methods list -
 # create_img_table_item
+# _gamebryo_version
 # format_img_entry_size
 # get_img_entry_type
 # populate_table_row_minimal
 # populate_table_with_img_data_minimal
 # refresh_img_table
 # update_img_table_selection_info
+# _version_headers
 
 def reset_table_styling(main_window): #vers 2
     """Completely reset table styling to default using IMG debug system"""
@@ -184,7 +186,7 @@ class IMGTablePopulator:
         from apps.methods.ui_color import get_ui_color
         return get_ui_color(self, key)
 
-    def populate_table_with_img_data(self, img_file: Any) -> bool: #vers 9
+    def populate_table_with_img_data(self, img_file: Any) -> bool: #vers 10
         """Populate table with IMG entry data - MINIMAL VERSION to prevent freezing"""
         try:
             if not img_file or not hasattr(img_file, 'entries'):
@@ -214,6 +216,7 @@ class IMGTablePopulator:
             header.setStretchLastSection(True)
             for col in range(10):
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+            self._version_headers(table, img_file)
             entries = img_file.entries
             if not entries:
                 img_debugger.info("No entries found in IMG file")
@@ -344,9 +347,11 @@ class IMGTablePopulator:
         except Exception:
             return "0 B"
 
-    def get_rw_address_light(self, entry: Any) -> str: #vers 4
+    def get_rw_address_light(self, entry: Any) -> str: #vers 5
         """Get RW address — shows the raw RW version value as a hex address."""
         try:
+            if getattr(entry, 'v3_resource', False):
+                return f"0x{entry.v3_flags:08X}"     # GTA IV resource flags
             from apps.methods.rw_versions import is_valid_rw_version
             entry_type = self.get_img_entry_type_simple(entry)
             if entry_type in ['DFF', 'TXD'] and hasattr(entry, 'size') and entry.size == 0:
@@ -360,12 +365,16 @@ class IMGTablePopulator:
         except Exception:
             return "N/A"
 
-    def get_rw_version_light(self, entry: Any) -> str: #vers 6
+    def get_rw_version_light(self, entry: Any) -> str: #vers 7
         """Get RW version - validates version is in known RW range before accepting"""
         try:
             from apps.methods.rw_versions import get_rw_version_name, is_valid_rw_version, parse_rw_version
-            # 0-byte entries have no data to parse - show as Empty, not Unknown
             entry_type = self.get_img_entry_type_simple(entry)
+            if hasattr(entry, 'v3_type'):           # GTA IV IMG entry
+                from apps.methods.rw_versions import rage_version_text
+                return rage_version_text(entry.v3_type) if entry.v3_resource else f"{entry_type} File"
+            if entry_type in ('NFT', 'NIF'):
+                return self._gamebryo_version(entry)
             if entry_type in ['DFF', 'TXD']:
                 if hasattr(entry, 'size') and entry.size == 0:
                     return "Empty"
@@ -413,6 +422,26 @@ class IMGTablePopulator:
                 return "Unknown"
         except Exception:
             return "Unknown"
+
+    def _gamebryo_version(self, entry: Any) -> str: #vers 1
+        """Bully PC Gamebryo entry version from its header line."""
+        from apps.methods.rw_versions import gamebryo_version_text
+        img_file = getattr(entry, '_img_file', None)
+        try:
+            head = img_file.read_entry_data(entry)[:64] if img_file else b''
+        except Exception:
+            head = b''
+        ver = gamebryo_version_text(head)
+        return f"Gamebryo {ver}" if ver else "Unknown"
+
+    def _version_headers(self, table: Any, img_file: Any): #vers 1
+        """Rage column labels for GTA IV IMGs, RW labels otherwise."""
+        from apps.methods.img_core_classes import IMGVersion
+        rage = getattr(img_file, 'version', None) in (IMGVersion.VERSION_3, IMGVersion.VERSION_3_ENC)
+        for col, rw, rg in ((4, "RW Address", "Rage Flags"), (5, "RW Version", "Rage Version")):
+            item = table.horizontalHeaderItem(col)
+            if item:
+                item.setText(rg if rage else rw)
 
     def get_compression_info(self, entry: Any) -> str: #vers 3
         """Get encoding info - compression + encryption"""

@@ -1,5 +1,5 @@
 
-#this belongs in methods.rw_versions.py - Version: 7
+#this belongs in methods.rw_versions.py - Version: 8
 # X-Seti - November18 2025 - IMG Factory 1.5 - RenderWare Version Constants
 """
 RenderWare Version Constants - Expanded
@@ -66,6 +66,8 @@ from typing import Dict, Optional, Tuple
 # get_model_format_version
 # is_dff_compatible_version
 # get_mdl_version_info
+# rage_version_text
+# gamebryo_version_text
 
 class RWVersion(Enum):
     RW_VERSION_3_0_0_0 = 0x30000
@@ -273,10 +275,27 @@ def get_mdl_version_info(mdl_version: int) -> str: #vers 2
     }
     return mdl_versions.get(mdl_version, f"Unknown GTA Stories MDL (0x{mdl_version:X})")
 
+
+RAGE_TYPES = {1: "Generic", 7: "Texture Dict", 8: "Texture Dict", 32: "Bounds",
+              110: "Drawable", 112: "Fragment"}
+
+
+def rage_version_text(rsc_version: int) -> str: #vers 1
+    """GTA IV RSC5 resource version label, e.g. 'v110 Drawable'."""
+    return f"v{rsc_version} {RAGE_TYPES.get(rsc_version, 'Resource')}"
+
+
+def gamebryo_version_text(data: bytes) -> str: #vers 1
+    """Version from a Gamebryo header line, e.g. '20.3.0.9'; '' if none."""
+    if not data.startswith(b"Gamebryo File Format, Version "):
+        return ""
+    return data[30:data.find(b"\n", 30)].decode("latin-1", "ignore").strip()
+
 __all__ = [
     'RWVersion', 'RWSection', 'ModelFormat', 'DFFVersion', 'MDLVersion',
     'get_rw_version_name', 'is_valid_rw_version', 'get_default_version_for_game',
     'get_version_info', 'parse_rw_version', 'get_model_format_version',
-    'is_dff_compatible_version', 'get_mdl_version_info'
+    'is_dff_compatible_version', 'get_mdl_version_info',
+    'rage_version_text', 'gamebryo_version_text', 'RAGE_TYPES'
 ]
 

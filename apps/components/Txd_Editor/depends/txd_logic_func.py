@@ -5842,7 +5842,7 @@ class TXDLogicMixin: #vers 1
             QMessageBox.critical(self, "Error", f"Failed to open XTD dict:\n{e}")
             traceback.print_exc()
 
-    def _open_iv_wtd(self, file_path: str): #vers 1
+    def _open_iv_wtd(self, file_path: str): #vers 2
         """Open a GTA IV .wtd for editing."""
         from apps.methods.xtd_textures import parse_iv_wtd
         name = os.path.basename(file_path)
@@ -5854,7 +5854,10 @@ class TXDLogicMixin: #vers 1
             QMessageBox.warning(self, "GTA IV Texture", f"Failed to read {name}:\n{e}")
             return
         self.current_txd_path, self.current_txd_name = file_path, name
-        self.txd_version_str, self.txd_game = "RSC5 v8", "GTA IV"
+        import struct
+        from apps.methods.rw_versions import rage_version_text
+        self.txd_version_str = f"RSC5 {rage_version_text(struct.unpack_from('<I', data, 4)[0])}"
+        self.txd_game = "GTA IV"
         self.txd_platform_name = "GTA IV PC"
         self._show_textures(texs, data, 'wtd', f"{name} [GTA IV, {len(texs)} textures]")
 
@@ -5963,7 +5966,7 @@ class TXDLogicMixin: #vers 1
         self._show_textures(texs, data, 'stories',
                             f"{name} [{texs[0].get('platform', '')} Stories, {len(texs)} textures]")
 
-    def _open_nif_textures(self, file_path: str, data: bytes): #vers 1
+    def _open_nif_textures(self, file_path: str, data: bytes): #vers 2
         """Open a Bully PC Gamebryo texture pack (.nft / .txd)."""
         from apps.methods.nif_textures import parse_nif_textures
         name = os.path.basename(file_path)
@@ -5973,7 +5976,8 @@ class TXDLogicMixin: #vers 1
             QMessageBox.warning(self, "Bully Texture", f"Failed to read {name}:\n{e}")
             return
         self.current_txd_path, self.current_txd_name = file_path, name
-        self.txd_version_str, self.txd_game = "Gamebryo 20.3", "Bully SE"
+        from apps.methods.rw_versions import gamebryo_version_text
+        self.txd_version_str, self.txd_game = gamebryo_version_text(data[:64]), "Bully SE"
         self.txd_platform_name = "Bully PC"
         self._show_textures(texs, data, 'nif', f"{name} [Bully PC, {len(texs)} textures]")
 
@@ -6183,7 +6187,7 @@ class TXDLogicMixin: #vers 1
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(msg)
 
-    def show_properties(self): #vers 5
+    def show_properties(self): #vers 6
         """Show TXD properties or detailed texture information"""
         # If a texture is selected, show texture details
         if self.selected_texture:
@@ -6247,7 +6251,9 @@ class TXDLogicMixin: #vers 1
 
             # Version information
             layout.addRow("", QLabel(""))  # Spacer
-            layout.addRow("RenderWare Version:", QLabel(self.txd_version_str))
+            kind = getattr(self, '_txd_kind', 'rw')
+            ver_label = {'wtd': "Rage Version:", 'nif': "Gamebryo Version:"}.get(kind, "RenderWare Version:")
+            layout.addRow(ver_label, QLabel(self.txd_version_str))
             layout.addRow("Platform:", QLabel(self.txd_platform_name))
             layout.addRow("Game:", QLabel(self.txd_game))
             layout.addRow("Format:", QLabel(self._get_format_description()))

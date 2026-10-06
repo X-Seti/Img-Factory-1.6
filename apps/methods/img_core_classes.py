@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_core_classes.py - Version: 17
+#this belongs in apps/methods/img_core_classes.py - Version: 18
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -659,9 +659,17 @@ class IMGEntry:
             return None
 
 
-    def get_version_text(self) -> str: #vers 3
-        """Get human-readable version text"""
+    def get_version_text(self) -> str: #vers 4
+        """Get human-readable version text (RW, Rage or Gamebryo)"""
         try:
+            if hasattr(self, 'v3_type'):
+                from apps.methods.rw_versions import rage_version_text
+                return (f"Rage {rage_version_text(self.v3_type)}" if self.v3_resource
+                        else f"{self.extension} File")
+            if self.extension in ('NFT', 'NIF'):
+                from apps.methods.rw_versions import gamebryo_version_text
+                ver = gamebryo_version_text(self._read_header_data(64) or b'')
+                return f"Gamebryo {ver}" if ver else "Unknown"
             if self.extension in ['DFF', 'TXD']:
                 if self.size == 0:
                     return "Empty"
@@ -1904,7 +1912,7 @@ class IMGFile:
         except Exception as e:
             return False
 
-    def _open_version_3(self) -> bool: #vers 3
+    def _open_version_3(self) -> bool: #vers 4
         """Open IMG version 3 - GTA IV (plain or AES-encrypted table)."""
         import struct as _struct
         try:
@@ -1962,6 +1970,7 @@ class IMGFile:
                 entry.size        = size_blocks * 2048 - (pad & 0x7FF)
                 entry.v3_flags    = size_bytes      # resource flags or plain size
                 entry.v3_type     = resource_type
+                entry.v3_resource = bool(pad & 0x2000)
                 entry.set_img_file(self)
                 self.entries.append(entry)
 

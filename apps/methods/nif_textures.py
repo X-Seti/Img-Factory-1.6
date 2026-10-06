@@ -1,4 +1,4 @@
-#this belongs in apps/methods/nif_textures.py - Version: 2
+#this belongs in apps/methods/nif_textures.py - Version: 3
 # X-Seti - October05 2026 - IMG Factory 1.6 - Gamebryo texture packs
 
 """
@@ -134,7 +134,7 @@ def _encode(fmt: int, rgba: bytes, w: int, h: int, pal: Optional[np.ndarray]) ->
     return _palette_index(rgba, pal.tobytes()).astype(np.uint8).tobytes()
 
 
-def parse_nif_textures(data: bytes) -> List[Dict]: #vers 1
+def parse_nif_textures(data: bytes) -> List[Dict]: #vers 2
     """Gamebryo texture pack to workshop texture dicts."""
     types, offs, srcs = _source_textures(data)
     texs = []
@@ -156,7 +156,7 @@ def parse_nif_textures(data: bytes) -> List[Dict]: #vers 1
         w, h = px['mips'][0][:2]
         fmt = _FMT[px['fmt']]
         texs.append({'name': name, 'width': w, 'height': h, 'format': fmt,
-                     'depth': {'RGB888': 24, 'ARGB8888': 32, 'PAL8': 8, 'DXT1': 4}.get(fmt, 8),
+                     'depth': {'RGB888': 24, 'ARGB8888': 32, 'PAL8': 8}.get(fmt, 16),
                      'has_alpha': any(b != 255 for b in lv[0]['rgba_data'][3::4]),
                      'alpha_name': '', 'mipmaps': len(lv), 'rgba_data': lv[0]['rgba_data'],
                      'mipmap_levels': lv, 'raster_format_flags': 0, 'platform': 'Bully PC',

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 105
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 106
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -3458,7 +3458,7 @@ class IMGFactory(QMainWindow):
         self._populate_real_img_table(img_file, table=table)
 
 
-    def _populate_real_img_table(self, img_file: IMGFile, table=None): #vers 5 Fixed
+    def _populate_real_img_table(self, img_file: IMGFile, table=None): #vers 6
         """Populate table with real IMG file entries - for SA format display with Date column"""
 
         if not img_file or not img_file.entries:
@@ -3485,6 +3485,9 @@ class IMGFactory(QMainWindow):
             table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "Source", "IDE Model", "IDE TXD"])
         else:
             table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "IDE Model", "IDE TXD"])
+        if img_file.version in (IMGVersion.VERSION_3, IMGVersion.VERSION_3_ENC):
+            table.horizontalHeaderItem(5).setText("Rage Flags")
+            table.horizontalHeaderItem(6).setText("Rage Version")
         # Hide IDE columns until xref loads
         ide_col = _ncols - 2
         table.setColumnHidden(ide_col, True)
@@ -3607,6 +3610,12 @@ class IMGFactory(QMainWindow):
                         version_text = "Unknown"
                 except:
                     version_text = "Unknown"
+                if hasattr(entry, 'v3_type'):           # GTA IV: Rage resource version
+                    from apps.methods.rw_versions import rage_version_text
+                    version_text = (rage_version_text(entry.v3_type) if entry.v3_resource
+                                    else f"{extension} File")
+                    rw_addr_text = f"0x{entry.v3_flags:08X}" if entry.v3_resource else "N/A"
+                    table.setItem(row, 5, QTableWidgetItem(rw_addr_text))
                 table.setItem(row, 6, QTableWidgetItem(version_text))
 
                 # Compression - column 7 (previously column 5)
