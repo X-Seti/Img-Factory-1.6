@@ -1,9 +1,11 @@
-#this belongs in apps/methods/txd_dialogs.py - Version: 6
+#this belongs in apps/methods/txd_dialogs.py - Version: 7
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD dialogs
 
 """
 Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, preview.
 """
+
+# _work_dir
 
 ##class TexturePreviewWidget: -
 # _get_ui_color
@@ -99,6 +101,7 @@ Texture windows shared by TXD and Asset Workshop: bumpmap, mipmap, properties, p
 # _update_bumpmap_preview
 # _update_reflection_previews
 
+import os
 import numpy as np
 from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QCursor, QFont, QImage, QPainter, QPixmap
@@ -108,6 +111,14 @@ from apps.methods.txd_dxt_encode import _encode_dxt1, _encode_dxt5
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 __all__ = ['TexturePreviewWidget', 'ZoomablePreview', 'TexturePropertiesDialog', 'MipmapManagerWindow', 'BumpmapManagerWindow']
+
+
+def _work_dir(owner) -> str: #vers 1
+    """Workshop's last used folder for dialog start paths, else home."""
+    ws = getattr(owner, 'parent_workshop', None)
+    if ws is not None and hasattr(ws, '_start_dir'):
+        return ws._start_dir()
+    return os.path.expanduser('~')
 
 
 class TexturePreviewWidget(QLabel): #vers 1
@@ -926,12 +937,12 @@ class TexturePropertiesDialog(QDialog): #vers 1
             self.parent_workshop.selected_texture = old_selection
 
 
-    def _export_mipmaps(self): #vers 1
+    def _export_mipmaps(self): #vers 2
         """Export all mipmap levels"""
         from PyQt6.QtWidgets import QFileDialog
         import os
 
-        output_dir = QFileDialog.getExistingDirectory(self, "Select Output Directory")
+        output_dir = QFileDialog.getExistingDirectory(self, "Select Output Directory", _work_dir(self))
         if not output_dir:
             return
 
@@ -1363,7 +1374,7 @@ class MipmapManagerWindow(QWidget): #vers 2
             new_window.show()
 
 
-    def _export_all_levels(self): #vers 2
+    def _export_all_levels(self): #vers 3
         """Export all mipmap levels as PNG files to a chosen folder."""
         import os
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
@@ -1374,7 +1385,7 @@ class MipmapManagerWindow(QWidget): #vers 2
             QMessageBox.warning(self, "No Mipmaps", "No mipmap levels found.")
             return
 
-        output_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
+        output_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory", _work_dir(self))
         if not output_dir:
             return
 
@@ -1401,14 +1412,14 @@ class MipmapManagerWindow(QWidget): #vers 2
 
 
     #Keep, needs work
-    def _import_all_levels(self): #vers 4
+    def _import_all_levels(self): #vers 5
         """Import mipmap levels from PNG files — filename must contain _mipN_."""
         import os, re
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         from PIL import Image
 
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Select Mipmap PNG files", "",
+            self, "Select Mipmap PNG files", _work_dir(self),
             "PNG Images (*.png);;All Files (*)")
         if not paths:
             return
@@ -1482,7 +1493,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         if hasattr(self.parent_workshop, '_save_undo_state'):
             self.parent_workshop._save_undo_state(action)
 
-    def _export_level(self, level_num): #vers 2
+    def _export_level(self, level_num): #vers 3
         """Save one mipmap level as PNG."""
         from PyQt6.QtWidgets import QFileDialog
         from PIL import Image
@@ -1491,14 +1502,14 @@ class MipmapManagerWindow(QWidget): #vers 2
             QMessageBox.warning(self, "Export Level", f"Level {level_num} has no image data")
             return
         name = f"{self.texture_data.get('name', 'texture')}_mip{level_num}_.png"
-        path, _ = QFileDialog.getSaveFileName(self, "Export Mipmap Level", name, "PNG Images (*.png)")
+        path, _ = QFileDialog.getSaveFileName(self, "Export Mipmap Level", os.path.join(_work_dir(self), name), "PNG Images (*.png)")
         if not path:
             return
         Image.frombytes('RGBA', (lv['width'], lv['height']), bytes(lv['rgba_data'])).save(path)
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"Exported level {level_num}: {path}")
 
-    def _import_level(self, level_num): #vers 2
+    def _import_level(self, level_num): #vers 3
         """Replace one mipmap level from an image (scaled to the level size)."""
         from PyQt6.QtWidgets import QFileDialog
         from PIL import Image
@@ -1506,7 +1517,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         if not lv:
             QMessageBox.warning(self, "Import Level", f"Level {level_num} doesn't exist")
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Import Mipmap Level", "",
+        path, _ = QFileDialog.getOpenFileName(self, "Import Mipmap Level", _work_dir(self),
                                               "Images (*.png *.bmp *.tga *.jpg *.jpeg)")
         if not path:
             return
@@ -2224,7 +2235,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         return panel
 
 
-    def _import_reflection_maps(self): #vers 1
+    def _import_reflection_maps(self): #vers 2
         """Import reflection and Fresnel maps from files"""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         from PyQt6.QtGui import QImage
@@ -2233,7 +2244,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
             # Get reflection map file
             reflection_path, _ = QFileDialog.getOpenFileName(
                 self, "Import Reflection Vector Map",
-                "",
+                _work_dir(self),
                 "Image Files (*.png *.jpg *.bmp);;All Files (*)"
             )
 
@@ -2243,7 +2254,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
             # Get Fresnel map file
             fresnel_path, _ = QFileDialog.getOpenFileName(
                 self, "Import Fresnel Reflectivity Map",
-                "",
+                _work_dir(self),
                 "Image Files (*.png *.jpg *.bmp);;All Files (*)"
             )
 
@@ -2446,7 +2457,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
             QMessageBox.critical(self, "Error", f"Failed to generate:\n{str(e)}")
 
 
-    def _export_reflection_maps(self): #vers 1
+    def _export_reflection_maps(self): #vers 2
         """Export reflection and Fresnel maps as PNG files"""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         from PIL import Image
@@ -2459,7 +2470,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
 
             # Get output directory
             output_dir = QFileDialog.getExistingDirectory(
-                self, "Select Output Directory"
+                self, "Select Output Directory", _work_dir(self)
             )
             if not output_dir:
                 return

@@ -42,6 +42,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _delete_texture
 # _detect_txd_info
 # _detect_y_flip
+# _dir_path
 # _display_mobile_textures
 # dragEnterEvent
 # dragMoveEvent
@@ -2548,6 +2549,10 @@ class TXDLogicMixin: #vers 1
             pass
         return str(Path.home())
 
+    def _dir_path(self, name: str) -> str: #vers 1
+        """File name placed in the last used folder for save dialogs."""
+        return os.path.join(self._start_dir(), os.path.basename(name or ''))
+
     def _remember_dir(self, file_path: str): #vers 1
         """Store the folder of an opened file as last_dir."""
         import json
@@ -3127,7 +3132,7 @@ class TXDLogicMixin: #vers 1
                 self.main_window.log_message(f"AI upscale error: {str(e)}")
             return False
 
-    def export_selected_texture(self): #vers 2
+    def export_selected_texture(self): #vers 3
         """Export selected texture with channel options"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
@@ -3154,11 +3159,12 @@ class TXDLogicMixin: #vers 1
 
             # Get save location
             default_name = f"{name}.png"
-            file_path, _ = QFileDialog.getSaveFileName(self, "Export Texture", default_name,
+            file_path, _ = QFileDialog.getSaveFileName(self, "Export Texture", self._dir_path(default_name),
                                                     "PNG Files (*.png);;All Files (*)")
 
             if not file_path:
                 return
+            self._remember_dir(file_path)
 
             rgba_data = self.selected_texture.get('rgba_data')
             width = self.selected_texture.get('width', 0)
@@ -3299,7 +3305,7 @@ class TXDLogicMixin: #vers 1
             ext = 'BMP' if fmt == 'BMP' else 'PNG'
             img.save(path, ext)
 
-    def export_all_textures(self): #vers 3
+    def export_all_textures(self): #vers 4
         """Export all textures from the current TXD in chosen format(s)."""
         if not self.texture_list:
             QMessageBox.warning(self, "No Textures", "No textures loaded to export.")
@@ -3350,7 +3356,7 @@ class TXDLogicMixin: #vers 1
             return
 
         output_dir = QFileDialog.getExistingDirectory(
-            self, "Select Export Folder")
+            self, "Select Export Folder", self._start_dir())
         if not output_dir:
             return
 
@@ -3430,15 +3436,16 @@ class TXDLogicMixin: #vers 1
         if not image.save(file_path):
             raise Exception("Failed to save PNG")
 
-    def _export_alpha_only(self): #vers 1
+    def _export_alpha_only(self): #vers 2
         """Export only alpha channel"""
         if not self.selected_texture:
             return
 
         name = self.selected_texture.get('name', 'texture')
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export Alpha Channel", f"{name}_alpha.png",
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Alpha Channel", self._dir_path(f"{name}_alpha.png"),
                                                 "PNG Files (*.png)")
         if file_path:
+            self._remember_dir(file_path)
             rgba_data = self.selected_texture.get('rgba_data')
             width = self.selected_texture.get('width', 0)
             height = self.selected_texture.get('height', 0)
@@ -4119,7 +4126,7 @@ class TXDLogicMixin: #vers 1
                 if removed_bumpmaps > 0:
                     self.main_window.log_message(f"Removed {removed_bumpmaps} bumpmaps (GTA III doesn't support bumpmaps)")
 
-    def _save_as_txd_file(self): #vers 6
+    def _save_as_txd_file(self): #vers 7
         """Save as standalone TXD file - respects save location setting"""
         import os
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
@@ -4145,13 +4152,13 @@ class TXDLogicMixin: #vers 1
                 initial_path = os.path.join(self.last_save_directory, default_name)
             else:
                 # Fallback to just filename
-                initial_path = default_name
+                initial_path = self._dir_path(default_name)
         else:
             # Option 2: Use last saved directory or current directory
             if self.last_save_directory:
                 initial_path = os.path.join(self.last_save_directory, default_name)
             else:
-                initial_path = default_name
+                initial_path = self._dir_path(default_name)
 
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save TXD File",
@@ -4161,6 +4168,7 @@ class TXDLogicMixin: #vers 1
 
         if not file_path:
             return
+        self._remember_dir(file_path)
 
         try:
             # Rebuild TXD data
@@ -4208,7 +4216,7 @@ class TXDLogicMixin: #vers 1
             # IMG-based TXD save with version selector
             return self._save_txd_to_img_with_version_selector()
 
-    def _save_txd_file(self): #vers 4
+    def _save_txd_file(self): #vers 5
         """Save TXD file with detailed structural logging"""
         if not self.current_txd_path and not self.current_txd_name:
             QMessageBox.warning(self, "No TXD", "No TXD file loaded")
@@ -4224,7 +4232,7 @@ class TXDLogicMixin: #vers 1
             if self.current_txd_path:
                 default_path = self.current_txd_path
             else:
-                default_path = self.current_txd_name
+                default_path = self._dir_path(self.current_txd_name)
 
             file_path, _ = QFileDialog.getSaveFileName(
                 self, "Save TXD File", default_path,
@@ -4233,6 +4241,7 @@ class TXDLogicMixin: #vers 1
 
             if not file_path:
                 return
+            self._remember_dir(file_path)
 
             # Create detailed progress dialog with log
             dialog = QDialog(self)
@@ -4415,7 +4424,7 @@ class TXDLogicMixin: #vers 1
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD save error: {str(e)}")
 
-    def _save_as_txd_file_with_version_selector(self): #vers 3
+    def _save_as_txd_file_with_version_selector(self): #vers 4
         """Save standalone TXD with version selector"""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         import os
@@ -4446,12 +4455,12 @@ class TXDLogicMixin: #vers 1
             elif hasattr(self, 'last_save_directory') and self.last_save_directory:
                 initial_path = os.path.join(self.last_save_directory, default_name)
             else:
-                initial_path = default_name
+                initial_path = self._dir_path(default_name)
         else:
             if hasattr(self, 'last_save_directory') and self.last_save_directory:
                 initial_path = os.path.join(self.last_save_directory, default_name)
             else:
-                initial_path = default_name
+                initial_path = self._dir_path(default_name)
 
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save TXD File",
@@ -4461,6 +4470,7 @@ class TXDLogicMixin: #vers 1
 
         if not file_path:
             return
+        self._remember_dir(file_path)
 
         try:
             # Store target version for rebuild
@@ -5153,7 +5163,7 @@ class TXDLogicMixin: #vers 1
                 f"Opened Bumpmap Manager: {self.selected_texture['name']} ({status})"
             )
 
-    def _export_bumpmap(self): #vers 1
+    def _export_bumpmap(self): #vers 2
         """Export bumpmap as separate image file"""
         if not self.selected_texture:
             return
@@ -5165,7 +5175,7 @@ class TXDLogicMixin: #vers 1
             # Get save path
             file_path, _ = QFileDialog.getSaveFileName(
                 self, "Export Bumpmap",
-                f"{texture_name}_bumpmap.png",
+                self._dir_path(f"{texture_name}_bumpmap.png"),
                 "PNG Images (*.png);;All Files (*)"
             )
 
@@ -6581,7 +6591,7 @@ class TXDLogicMixin: #vers 1
             return []
         return list(dict.fromkeys(n for n in names if n))
 
-    def _build_txd_from_dff(self): #vers 4
+    def _build_txd_from_dff(self): #vers 5
         """Build TXD structure from DFF material names with version/platform selection"""
         # Select DFF file
         dff_path, _ = QFileDialog.getOpenFileName(
@@ -6688,7 +6698,7 @@ class TXDLogicMixin: #vers 1
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
 
                 if reply == QMessageBox.StandardButton.Yes:
-                    folder = QFileDialog.getExistingDirectory(self, "Select Texture Folder")
+                    folder = QFileDialog.getExistingDirectory(self, "Select Texture Folder", self._start_dir())
                     if folder:
                         self._batch_import_from_folder(folder)
 

@@ -1,4 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 233
+#this belongs in root /ChangeLog.md - Version: 234
+
+## Oct 07 2026 - TXD dialogs start folder
+- TXD Workshop export/save/folder/mipmap/bumpmap dialogs start in last used folder (exe folder before); Save As and exports remember folder.
 
 ## Oct 06 2026 - Rage versions, IV depth
 - GTA IV IMGs: columns relabelled Rage Flags / Rage Version (e.g. v110 Drawable, v8 Texture Dict); plain entries show file type.
