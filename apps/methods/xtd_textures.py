@@ -1,4 +1,4 @@
-#this belongs in apps/methods/xtd_textures.py - Version: 5
+#this belongs in apps/methods/xtd_textures.py - Version: 6
 # X-Seti - October05 2026 - IMG Factory 1.6 - XTD texture dictionaries
 
 """
@@ -22,6 +22,7 @@ GTA IV .wtd (RSC5) read/write; GTA V / RDR2 .ytd (RSC8) read.
 # _iv_encode
 # _iv_entries
 # _iv_level_dims
+# _iv_textures
 # _iv_rename
 # open_xtd_dict
 # parse_iv_wtd
@@ -125,9 +126,9 @@ def _rsc5_sizes(flags: int) -> Tuple[int, int]: #vers 1
     return vs, ps
 
 
-def _iv_entries(z: bytes, vs: int) -> List[dict]: #vers 2
-    """grcTexturePC records from the decompressed IV dictionary."""
-    tp, tc = struct.unpack_from('<IH', z, 0x18)
+def _iv_entries(z: bytes, vs: int, at: int = 0) -> List[dict]: #vers 3
+    """grcTexturePC records from an IV dictionary at offset at."""
+    tp, tc = struct.unpack_from('<IH', z, at + 0x18)
     out = []
     for i in range(tc):
         o = struct.unpack_from('<I', z, (tp & 0xFFFFFFF) + 4 * i)[0] & 0xFFFFFFF
@@ -198,17 +199,23 @@ def _iv_encode(fmt: str, rgba: bytes, w: int, h: int) -> bytes: #vers 1
     return out.tobytes()
 
 
-def parse_iv_wtd(data: bytes) -> List[dict]: #vers 2
+def parse_iv_wtd(data: bytes) -> List[dict]: #vers 3
     """GTA IV .wtd to workshop texture dicts (all mip levels)."""
     magic, _ver, flags = struct.unpack_from('<III', data, 0)
     if magic != _RSC5_MAGIC:
         raise ValueError("Not a GTA IV RSC5 resource")
-    z = zlib.decompress(data[12:])
     vs, _ps = _rsc5_sizes(flags)
+    return _iv_textures(zlib.decompress(data[12:]), vs)
+
+
+def _iv_textures(z: bytes, vs: int, at: int = 0, levels: bool = True) -> List[dict]: #vers 1
+    """Workshop texture dicts from an IV dictionary at offset at."""
     texs = []
-    for e in _iv_entries(z, vs):
+    for e in _iv_entries(z, vs, at):
         lv, pos = [], e['offset']
         for i, (w, h, size) in enumerate(_iv_level_dims(e)):
+            if i and not levels:
+                break
             lv.append({'level': i, 'width': w, 'height': h,
                        'rgba_data': _iv_decode(e['format'], z[pos:pos + size], w, h)})
             pos += size

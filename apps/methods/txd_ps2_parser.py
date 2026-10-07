@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_ps2_parser.py - Version: 4
+#this belongs in apps/methods/txd_ps2_parser.py - Version: 5
 # X-Seti - October05 2026 - IMG Factory 1.6 - GTA PS2 TXD Parser
 """
 GTA PS2 TXD parser — rewritten using DragonFF's NativePS2Texture approach.
@@ -116,12 +116,19 @@ def _level_texels(raw: bytes, lv: Dict, depth: int) -> np.ndarray: #vers 1
 
 
 def _read_levels(data: bytes, pos: int, w: int, h: int, depth: int,
-                 pix_sz: int, chunk_pos: int) -> List[Dict]: #vers 1
+                 pix_sz: int, chunk_pos: int) -> List[Dict]: #vers 3
     """Walk per-level GIF headers; offsets relative to chunk_pos."""
     levels, off, lw, lh = [], 0, w, h
+    lo, hi = struct.unpack_from('<QQ', data, pos)
+    if (hi != 0x0E or (lo & 0x7FFF) != 3) and pix_sz == w * h * depth // 8:
+        # header-less raster (Manhunt): one linear level
+        return [{'level': 0, 'width': w, 'height': h, 'offset': pos - chunk_pos,
+                 'length': pix_sz, 'swizzled': False, 'store_w': w, 'store_h': h}]
     while off < pix_sz:
         lo, hi = struct.unpack_from('<QQ', data, pos + off)
         if hi != 0x0E or (lo & 0x7FFF) != 3:
+            if levels:          # filler after the last level, kept as-is
+                return levels
             raise ValueError(f"PS2 level {len(levels)}: bad GIF header at +{off}")
         trx = struct.unpack_from('<Q', data, pos + off + 32)[0]
         tw, th = trx & 0xFFF, (trx >> 32) & 0xFFF

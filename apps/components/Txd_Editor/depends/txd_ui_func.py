@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 11
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 12
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -216,13 +216,14 @@ class TXDUIMixin: #vers 1
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Feature init error: {str(e)}")
 
-    def _update_all_buttons(self): #vers 4
+    def _update_all_buttons(self): #vers 5
         """Update all buttons to match display mode"""
         buttons_to_update = [
             # Toolbar buttons
             ('open_img_btn', 'Open IMG'),
             ('open_txd_btn', 'Open TXD'),
             ('save_txd_btn', 'Save TXD'),
+            ('save_as_txd_btn', 'Save As'),
             ('import_btn', 'Import'),
             ('export_btn', 'Export'),
             ('export_all_btn', 'Export All'),
@@ -278,7 +279,7 @@ class TXDUIMixin: #vers 1
         from apps.methods.button_mode import apply_button_mode_to_button
         apply_button_mode_to_button(button, text, self.button_display_mode)
 
-    def _create_toolbar(self): #vers 15
+    def _create_toolbar(self): #vers 16
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
         self.titlebar = QFrame()
         self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -364,6 +365,14 @@ class TXDUIMixin: #vers 1
         self.save_txd_btn.setEnabled(False)
         self._save_buttons = [self.save_txd_btn]
         layout.addWidget(self.save_txd_btn)
+
+        self.save_as_txd_btn = QPushButton("Save As")
+        self.save_as_txd_btn.setFont(self.button_font)
+        self.save_as_txd_btn.setIcon(self.icon_factory.saveas_icon(color=self._get_icon_color()))
+        self.save_as_txd_btn.setIconSize(QSize(20, 20))
+        self.save_as_txd_btn.setToolTip("Save texture file as (Ctrl+Shift+S)")
+        self.save_as_txd_btn.clicked.connect(self._save_as_txd_file)
+        layout.addWidget(self.save_as_txd_btn)
 
         self.export_all_btn = QPushButton("Extract")
         self.export_all_btn.setFont(self.button_font)
@@ -510,7 +519,7 @@ class TXDUIMixin: #vers 1
 
         return panel
 
-    def _create_middle_panel(self): #vers 10
+    def _create_middle_panel(self): #vers 11
         """Create middle panel - Texture list with mini toolbar shown in docked mode."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -551,6 +560,14 @@ class TXDUIMixin: #vers 1
         self._save_buttons.append(self.save_txd_btn)
         btn_layout.addWidget(self.save_txd_btn)
 
+        self.save_as_dock_btn = QPushButton("Save As")
+        self.save_as_dock_btn.setFont(self.button_font)
+        self.save_as_dock_btn.setIcon(self.icon_factory.saveas_icon(color=icon_color))
+        self.save_as_dock_btn.setIconSize(QSize(20, 20))
+        self.save_as_dock_btn.setToolTip("Save texture file as (Ctrl+Shift+S)")
+        self.save_as_dock_btn.clicked.connect(self._save_as_txd_file)
+        btn_layout.addWidget(self.save_as_dock_btn)
+
         self.export_all_btn = QPushButton("Extract")
         self.export_all_btn.setFont(self.button_font)
         self.export_all_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
@@ -573,6 +590,7 @@ class TXDUIMixin: #vers 1
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)
         self._middle_compact_btns = [(self.open_txd_btn, "Open"), (self.save_txd_btn, "Save"),
+                                     (self.save_as_dock_btn, "Save As"),
                                      (self.export_all_btn, "Extract")]
 
         # Only show mini toolbar when docked (standalone toolbar already has these)
@@ -1091,7 +1109,7 @@ class TXDUIMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _refresh_icons(self): #vers 15
+    def _refresh_icons(self): #vers 16
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -1115,6 +1133,8 @@ class TXDUIMixin: #vers 1
             # Docked mode mini toolbar
             ('open_txd_btn',        'open_icon'),
             ('save_txd_btn',        'save_icon'),
+            ('save_as_txd_btn',     'saveas_icon'),
+            ('save_as_dock_btn',    'saveas_icon'),
             # Left transform toolbar (icon grid)
             ('flip_vert_btn',       'flip_vert_icon'),
             ('flip_horz_btn',       'flip_horz_icon'),

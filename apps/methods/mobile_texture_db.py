@@ -1,4 +1,4 @@
-#this belongs in apps/methods/mobile_texture_db.py - Version: 2
+#this belongs in apps/methods/mobile_texture_db.py - Version: 3
 # X-Seti - October05 2026 - IMG Factory 1.6 - Mobile Texture Database
 
 """
@@ -20,7 +20,7 @@ import struct
 import numpy as np
 
 from apps.methods.mobile_texture_decode import (
-    GL_DXT1, GL_DXT1A, GL_DXT3, GL_DXT5, GL_ETC1, GL_L8, GL_PVRTC2_RGB,
+    GL_DXT1, GL_DXT1A, GL_DXT3, GL_DXT5, GL_ETC1, GL_L8, GL_LA8, GL_PVRTC2_RGB,
     GL_PVRTC2_RGBA, GL_PVRTC4_RGB, GL_PVRTC4_RGBA, GL_RGB565, GL_RGBA4444,
     GL_RGBA5551, GL_RGBA8888, decode_level, encode_level, level_size, mip_dims,
 )
@@ -64,7 +64,7 @@ from apps.methods.mobile_texture_decode import (
 # texture_count
 
 ENCODING_NAMES = {
-    GL_RGBA8888: 'RGBA8888', GL_L8: 'L8', GL_RGBA4444: 'RGBA4444',
+    GL_RGBA8888: 'RGBA8888', GL_L8: 'L8', GL_LA8: 'LA8', GL_RGBA4444: 'RGBA4444',
     GL_RGBA5551: 'RGBA5551', GL_RGB565: 'RGB565', GL_DXT1: 'DXT1',
     GL_DXT1A: 'DXT1A', GL_DXT3: 'DXT3', GL_DXT5: 'DXT5',
     GL_PVRTC4_RGB: 'PVRTC4-RGB', GL_PVRTC2_RGB: 'PVRTC2-RGB',
@@ -72,7 +72,7 @@ ENCODING_NAMES = {
     GL_ETC1: 'ETC1',
 }
 ENCODING_BPP = {
-    GL_RGBA8888: 32, GL_L8: 8, GL_RGBA4444: 16, GL_RGBA5551: 16,
+    GL_RGBA8888: 32, GL_L8: 8, GL_LA8: 16, GL_RGBA4444: 16, GL_RGBA5551: 16,
     GL_RGB565: 16, GL_DXT1: 4, GL_DXT1A: 4, GL_DXT3: 8, GL_DXT5: 8,
     GL_PVRTC4_RGB: 4, GL_PVRTC2_RGB: 2, GL_PVRTC4_RGBA: 4,
     GL_PVRTC2_RGBA: 2, GL_ETC1: 4,
@@ -107,11 +107,13 @@ def hash_texture_name(name): #vers 1
     return h & 0xFFFF
 
 
-def _rle_segment(enc): #vers 1
+def _rle_segment(enc): #vers 2
     """RLE segment size in bytes for an encoding."""
-    if enc in (GL_DXT3, GL_DXT5):
+    if enc in (GL_PVRTC2_RGB, GL_PVRTC2_RGBA):
+        return 32
+    if enc in (GL_DXT3, GL_DXT5, GL_PVRTC4_RGB, GL_PVRTC4_RGBA):
         return 16
-    if enc in (GL_DXT1, GL_DXT1A, GL_ETC1) or enc in ENCODING_IS_PVRTC:
+    if enc in (GL_DXT1, GL_DXT1A, GL_ETC1):
         return 8
     return 4
 
@@ -346,7 +348,7 @@ def detect_mobile_db(path): #vers 2
     return db_name, plat, folder
 
 
-def load_mobile_texture_db(path, load_pixel_data=True): #vers 2
+def load_mobile_texture_db(path, load_pixel_data=True): #vers 3
     """Load a mobile texture database from any of its files."""
     detected = detect_mobile_db(path)
     if not detected:
@@ -358,9 +360,13 @@ def load_mobile_texture_db(path, load_pixel_data=True): #vers 2
     db.toc_path = os.path.join(folder, f'{db_name}.{platform}.toc')
     db.dat_path = os.path.join(folder, f'{db_name}.{platform}.dat')
     db.tmb_path = os.path.join(folder, f'{db_name}.{platform}.tmb')
-    if not os.path.isfile(db.txt_path):
-        raise FileNotFoundError(f"Missing {db.txt_path}")
-    _, entries = parse_txt_file(db.txt_path)
+    if os.path.isfile(db.txt_path):
+        _, entries = parse_txt_file(db.txt_path)
+    else:                                   # ported sets ship without .txt
+        count = (os.path.getsize(db.toc_path) - 4) // 4
+        entries = [{'name': '', 'is_affiliate': False, '_line': -1} for _ in range(count)]
+        db.txt_path = ''
+        db.errors.append(f"No {db_name}.txt - texture names generated")
     db.dat_size, offsets = parse_toc_file(db.toc_path, len(entries))
     with open(db.dat_path, 'rb') as f:
         dat = f.read()
@@ -382,8 +388,12 @@ def load_mobile_texture_db(path, load_pixel_data=True): #vers 2
             t = parsed[off]
             t.thumb_index = stored
             stored += 1
-            if t.hash != hash_texture_name(props['name']):
+            if not props['name']:
+                props['name'] = f"tex_{i:04d}_{t.hash:04x}"
+            elif t.hash != hash_texture_name(props['name']):
                 db.errors.append(f"Hash mismatch for {props['name']}")
+        if not props['name']:
+            props['name'] = f"affiliate_{i:04d}"
         t.name, t.index, t.txt_props = props['name'], i, dict(props)
         db.textures.append(t)
     if os.path.isfile(db.tmb_path):
@@ -473,7 +483,7 @@ def _write_file(path, data): #vers 1
         f.write(data)
 
 
-def save_mobile_texture_db(db_or_path, edited, out_dir=None): #vers 1
+def save_mobile_texture_db(db_or_path, edited, out_dir=None): #vers 2
     """Re-encode edited textures; rewrite .dat .toc .tmb .txt."""
     db = db_or_path if isinstance(db_or_path, MobileTextureDB) else load_mobile_texture_db(db_or_path)
     if db is None:
@@ -534,6 +544,10 @@ def save_mobile_texture_db(db_or_path, edited, out_dir=None): #vers 1
         dst = os.path.join(out_dir, os.path.basename(src))
         _write_file(dst, bytes(data))
         written.append(dst)
+    if not db.txt_path:
+        if resized:
+            raise ValueError("Resizing needs the set's .txt file")
+        return written
     with open(db.txt_path, 'r', newline='') as f:
         text = f.read()
     for idx, (w, h) in resized.items():

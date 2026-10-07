@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 4
+#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 5
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG
@@ -13,6 +13,33 @@ result (success OR failure) is cached so a missing/broken model isn't
 retried on every subsequent instance that references it.
 """
 
+##Methods list -
+# __init__
+# _index_wdd
+# _is_wdd
+# _model_entries
+# _parse_dff_job
+# _parse_model
+# _parse_textures
+# _parse_txd_job
+# _read_entry
+# _scan_col_model_names
+# _store_parsed
+# clear_indexes
+# get_collision
+# get_dimensions
+# get_geometry
+# get_raw_txd
+# get_textures
+# index_col_files
+# index_img_files
+# is_col_indexed
+# is_dff_indexed
+# is_txd_indexed
+# prefetch
+# stats
+
+import struct
 from typing import Dict, List, Optional, Tuple
 
 from apps.methods.dff_parser import DFFParser, detect_dff
@@ -20,6 +47,8 @@ from apps.methods.txd_parser import parse_txd
 from apps.methods.dff_classes import DFFModel
 from apps.methods.col_workshop_classes import COLModel
 from apps.methods.col_workshop_loader import COLFile
+
+_WDD_VTABLE = 0x6953A4   # GTA IV drawable dictionary
 
 
 def _scan_col_model_names(data: bytes) -> List[str]: #vers 1
@@ -48,25 +77,58 @@ def _scan_col_model_names(data: bytes) -> List[str]: #vers 1
     return names
 
 
-def _parse_dff_job(model_name: str, blobs: List[bytes]) -> Optional[DFFModel]: #vers 1
-    """Worker process: first blob that parses as a DFF."""
+def _is_wdd(data: bytes) -> bool: #vers 1
+    """True for a GTA IV .wdd drawable dictionary."""
+    import zlib
+    z = zlib.decompressobj().decompress(data[12:], 64)
+    return len(z) >= 4 and struct.unpack_from('<I', z, 0)[0] == _WDD_VTABLE
+
+
+def _parse_dff_job(model_name: str, blobs: List[bytes]) -> Optional[DFFModel]: #vers 2
+    """Worker process: first blob that parses as a model."""
     for data in blobs:
         try:
-            if data and detect_dff(data):
-                result = DFFParser(data, model_name).parse()
-                if result is not None:
-                    return result
+            result = _parse_model(model_name, data)
+            if result is not None:
+                return result
         except Exception:
             continue
     return None
 
 
-def _parse_txd_job(blobs: List[bytes]) -> Optional[Dict[str, dict]]: #vers 1
+def _parse_model(model_name: str, data: bytes) -> Optional[DFFModel]: #vers 1
+    """DFF, GTA IV .wdr or .wdd (by name hash) to DFFModel."""
+    from apps.methods.wdr_model import is_iv_drawable, parse_wdr, parse_wdd, wdr_embedded_textures
+    if not data:
+        return None
+    if is_iv_drawable(data):
+        if _is_wdd(data):
+            from apps.methods.xtd_textures import iv_hash
+            return parse_wdd(data, iv_hash(model_name), model_name)
+        model = parse_wdr(data, model_name)
+        model.embedded_textures = {t['name'].lower(): t for t in wdr_embedded_textures(data)}
+        return model
+    if detect_dff(data):
+        return DFFParser(data, model_name).parse()
+    return None
+
+
+def _parse_textures(data: bytes) -> List[dict]: #vers 1
+    """TXD or GTA IV .wtd textures (top level only for .wtd)."""
+    if data[:4] == b'RSC\x05':
+        import zlib
+        from apps.methods.xtd_textures import _iv_textures, _rsc5_sizes
+        vs, _ps = _rsc5_sizes(struct.unpack_from('<I', data, 8)[0])
+        return _iv_textures(zlib.decompress(data[12:]), vs, levels=False)
+    return parse_txd(data) or []
+
+
+def _parse_txd_job(blobs: List[bytes]) -> Optional[Dict[str, dict]]: #vers 2
     """Worker process: merged textures from every blob, keyed by lowercase name."""
     merged = {}
     for data in blobs:
         try:
-            for t in parse_txd(data) or []:
+            for t in _parse_textures(data):
                 name = t.get('name')
                 if name and name.lower() not in merged:
                     merged[name.lower()] = t
@@ -78,7 +140,7 @@ def _parse_txd_job(blobs: List[bytes]) -> Optional[Dict[str, dict]]: #vers 1
 class ModelCache:
     """See module docstring."""
 
-    def __init__(self): #vers 2
+    def __init__(self): #vers 3
         # lowercase entry name (no extension) -> [(img_path, IMGEntry), ...]
         # A list, not a single tuple (Aug 1 2026) - if the same name is
         # indexed more than once (e.g. my real game folder has
@@ -88,6 +150,8 @@ class ModelCache:
         # get_geometry/get_textures for how duplicates get resolved.
         self._dff_index: Dict[str, List[Tuple[str, object]]] = {}
         self._txd_index: Dict[str, List[Tuple[str, object]]] = {}
+        # GTA IV .wdd model name hash -> [(img_path, IMGEntry), ...]
+        self._wdd_index: Dict[int, List[Tuple[str, object]]] = {}
         # lowercase entry stem -> [(img_path, IMGEntry), ...] for .col
         # entries found directly inside the game's own IMG archives
         # (Aug 14 2026,  "In SA it should be reading them
@@ -171,7 +235,7 @@ class ModelCache:
         # once per texture lookup.
         self._opened_img_files: Dict[str, 'object'] = {}
 
-    def index_img_files(self, img_paths: List[str]): #vers 4
+    def index_img_files(self, img_paths: List[str]): #vers 5
         """Scan a list of IMG archive paths, building name -> (path,
         entry) indexes for .dff, .txd, and .col entries. Call once
         after a world loads (or its IMG set changes) - reading
@@ -197,6 +261,7 @@ class ModelCache:
 
         self._dff_index.clear()
         self._txd_index.clear()
+        self._wdd_index.clear()
         self._col_img_index.clear()
         self._col_container_cache.clear()
         self.indexed_img_paths = []
@@ -219,10 +284,12 @@ class ModelCache:
                         continue
                     stem_lower = stem.lower()
                     ext_lower = ext.lower()
-                    if ext_lower == 'dff':
+                    if ext_lower in ('dff', 'wdr', 'wft'):
                         self._dff_index.setdefault(stem_lower, []).append((img_path, entry))
-                    elif ext_lower == 'txd':
+                    elif ext_lower in ('txd', 'wtd'):
                         self._txd_index.setdefault(stem_lower, []).append((img_path, entry))
+                    elif ext_lower == 'wdd':
+                        self._index_wdd(img_path, entry)
                     elif ext_lower == 'col':
                         self.col_entries_found_in_img += 1
                         data = self._read_entry(img_path, entry)
@@ -232,6 +299,25 @@ class ModelCache:
                 self.indexed_img_paths.append(img_path)
             except Exception as e:
                 self.index_errors.append(f"{img_path}: {e}")
+
+    def _index_wdd(self, img_path: str, entry) -> None: #vers 1
+        """Index every model hash inside a GTA IV .wdd entry."""
+        from apps.methods.wdr_model import wdd_hashes
+        try:
+            data = self._read_entry(img_path, entry)
+            for h in wdd_hashes(data) if data else []:
+                self._wdd_index.setdefault(h, []).append((img_path, entry))
+        except Exception as e:
+            self.index_errors.append(f"{img_path}/{entry.name}: {e}")
+
+    def _model_entries(self, key: str) -> List[Tuple[str, object]]: #vers 1
+        """IMG entries holding a model: .dff/.wdr by name, else .wdd by hash."""
+        if key in self._dff_index:
+            return self._dff_index[key]
+        if self._wdd_index:
+            from apps.methods.xtd_textures import iv_hash
+            return self._wdd_index.get(iv_hash(key), [])
+        return []
 
     def index_col_files(self, col_paths: List[str]): #vers 1
         """Scan a list of standalone .col file paths, building a
@@ -266,12 +352,13 @@ class ModelCache:
             except Exception as e:
                 self.index_errors.append(f"{col_path}: {e}")
 
-    def clear_indexes(self): #vers 3
+    def clear_indexes(self): #vers 4
         """Drop all indexes and cached geometry/textures/collision -
         call before re-indexing for a newly loaded world, so stale
         entries from a previous world can't leak through."""
         self._dff_index.clear()
         self._txd_index.clear()
+        self._wdd_index.clear()
         self._col_img_index.clear()
         self._col_index.clear()
         self._geometry_cache.clear()
@@ -286,7 +373,7 @@ class ModelCache:
         self.index_errors = []
         self.col_entries_found_in_img = 0
 
-    def get_geometry(self, model_name: str) -> Optional[DFFModel]:
+    def get_geometry(self, model_name: str) -> Optional[DFFModel]: #vers 2
         """Get the parsed DFF geometry for a model name, loading and
         parsing (and caching the result either way) on first request.
         Returns None if the model isn't indexed, or its data failed to
@@ -306,13 +393,11 @@ class ModelCache:
             return self._geometry_cache[key]
 
         result = None
-        for img_path, entry in self._dff_index.get(key, []):
+        for img_path, entry in self._model_entries(key):
             try:
-                data = self._read_entry(img_path, entry)
-                if data and detect_dff(data):
-                    result = DFFParser(data, model_name).parse()
-                    if result is not None:
-                        break
+                result = _parse_model(model_name, self._read_entry(img_path, entry))
+                if result is not None:
+                    break
             except Exception:
                 continue
         self._geometry_cache[key] = result
@@ -349,7 +434,7 @@ class ModelCache:
         self._dimensions_cache[key] = dims
         return dims
 
-    def get_textures(self, txd_name: str) -> Optional[Dict[str, dict]]:
+    def get_textures(self, txd_name: str) -> Optional[Dict[str, dict]]: #vers 2
         """Get the parsed textures for a TXD name, as a dict keyed by
         lowercase texture name (a TXD can hold multiple textures) -
         loading/parsing/caching on first request, same fallback
@@ -376,7 +461,7 @@ class ModelCache:
                     data = self._read_entry(img_path, entry)
                     if not data:
                         continue
-                    textures = parse_txd(data)
+                    textures = _parse_textures(data)
                     if not textures:
                         continue
                     for t in textures:
@@ -466,7 +551,7 @@ class ModelCache:
 
     def prefetch(self, model_names, txd_names, workers: int, on_done=None,
                  is_cancelled=None, on_idle=None, on_stall=None,
-                 stall_seconds: float = 20.0) -> None: #vers 2
+                 stall_seconds: float = 20.0) -> None: #vers 3
         """Parse many DFFs/TXDs in parallel worker processes, filling the caches.
         on_done(kind, name, result) runs in this thread per finished item.
         Workers silent for stall_seconds are stopped; the rest parse here."""
@@ -475,7 +560,7 @@ class ModelCache:
         for name in dict.fromkeys(n.lower() for n in model_names):
             if name in self._geometry_cache:
                 continue
-            blobs = [b for b in (self._read_entry(p, e) for p, e in self._dff_index.get(name, [])) if b]
+            blobs = [b for b in (self._read_entry(p, e) for p, e in self._model_entries(name)) if b]
             jobs.append(('dff', name, blobs))
         for name in dict.fromkeys(n.lower() for n in txd_names if n):
             if name in self._texture_cache:
@@ -551,14 +636,14 @@ class ModelCache:
             self._opened_img_files[img_path] = img
         return img.read_entry_data(entry)
 
-    def is_dff_indexed(self, model_name: str) -> bool:
+    def is_dff_indexed(self, model_name: str) -> bool: #vers 2
         """True if model_name's .dff was found in one of the indexed
         IMG archives at all - distinguishes "genuinely missing from
         the archive" from "present but failed to parse" (get_geometry
         returning None covers both cases; this is for callers that
         need to tell them apart, e.g. my requested "road43.dff
         missing from img file" reporting)."""
-        return model_name.lower() in self._dff_index
+        return bool(self._model_entries(model_name.lower()))
 
     def get_raw_txd(self, txd_name: str) -> Optional[bytes]:
         """Return the original, unmodified .txd container bytes for

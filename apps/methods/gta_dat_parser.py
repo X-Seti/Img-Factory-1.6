@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 11
+#this belongs in apps/methods/gta_dat_parser.py - Version: 13
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -2264,6 +2264,8 @@ class GTAWorldLoader: #vers 4
         self.default_dat = DATParser(game)
         self.main_dat    = DATParser(game)
         self.objects:    Dict[int, IDEObject] = {}
+        # txdp: child TXD name (lowercase) -> parent TXD name
+        self.txd_parents: Dict[str, str] = {}
         # 2dfx entries share their base object's model_id (e.g. multiple
         # lights/particle effects on one building all use that building's
         # ID) - kept separate from self.objects rather than folded in,
@@ -2770,7 +2772,7 @@ class GTAWorldLoader: #vers 4
         self.stats.col_files += len(dat.col_entries())
         self.stats.img_files += len(img_list)
 
-    def _load_ide(self, entry: DATEntry, phase: str): #vers 4
+    def _load_ide(self, entry: DATEntry, phase: str): #vers 5
         if not entry.exists:
             self.stats.warnings.append(f"[{phase}] IDE missing: {entry.path}")
             self.load_log.append((phase, "IDE", entry.abs_path, False))
@@ -2785,6 +2787,9 @@ class GTAWorldLoader: #vers 4
         for obj in parser.objects:
             if obj.section == "2dfx":
                 self.effects_2dfx.setdefault(obj.model_id, []).append(obj)
+                continue
+            if obj.section == "txdp":
+                self.txd_parents[obj.model_name.lower()] = obj.txd_name
                 continue
             if obj.section == "tobj":
                 self.timed_objects.setdefault(obj.model_id, []).append(obj)
@@ -2932,6 +2937,14 @@ class GTAWorldLoader: #vers 4
         if callable(self.progress_cb):
             try: self.progress_cb(cur, total, msg)
             except Exception: pass
+
+    def txd_chain(self, txd_name: str) -> List[str]: #vers 1
+        """TXD name followed by its txdp parents, nearest first."""
+        chain, name = [], txd_name
+        while name and name.lower() not in (c.lower() for c in chain):
+            chain.append(name)
+            name = self.txd_parents.get(name.lower())
+        return chain
 
     def get_object(self, model_id: int) -> Optional[IDEObject]:
         return self.objects.get(model_id)
@@ -3110,12 +3123,15 @@ def detect_game_from_dat_filename(dat_path: str) -> Optional[str]: #vers 2
     return None
 
 
-def resolve_game_root(path: str) -> str: #vers 1
+def resolve_game_root(path: str) -> str: #vers 2
     """Game root from a folder or .dat path; finds the GTAIV subfolder."""
     p = os.path.abspath(path or '')
     if os.path.isfile(p):
         p = os.path.dirname(p)
     parts = p.replace('\\', '/').rstrip('/').split('/')
+    # IV common/ picked: root is its parent
+    if parts[-1].lower() == 'common' and _find_iv_data(os.path.dirname(p), GTAGame.DAT_FILE[GTAGame.IV]):
+        return os.path.dirname(p)
     if len(parts) >= 2 and parts[-1].lower() == 'data' and parts[-2].lower() == 'common':
         return os.path.dirname(os.path.dirname(p))
     if parts and parts[-1].lower() == 'data' and os.path.isdir(os.path.dirname(p)):

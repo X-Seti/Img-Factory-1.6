@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_reader.py - Version: 3
+#this belongs in apps/methods/txd_reader.py - Version: 4
 # X-Seti - October05 2026 - IMG Factory 1.6 - Shared texture file reader
 
 """
@@ -23,7 +23,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 import numpy as np
 
 # Files TXD Workshop opens (IMG Factory routes these to it)
-TEXTURE_EXTS = ('.txd', '.wtd', '.nft', '.xtx', '.chk')
+TEXTURE_EXTS = ('.txd', '.wtd', '.nft', '.xtx', '.chk', '.pvr')
 
 
 def decompress_dxt(compressed_data, width, height, format_str): #vers 1
@@ -538,9 +538,12 @@ def read_rw_txd(data: bytes, levels: bool = True,
     return texs
 
 
-def read_texture_file(data: bytes, name: str = '', levels: bool = True) -> Tuple[str, List[Dict]]: #vers 1
+def read_texture_file(data: bytes, name: str = '', levels: bool = True) -> Tuple[str, List[Dict]]: #vers 2
     """(kind, textures) for any supported texture file."""
     from apps.methods.nif_textures import is_nif_textures, parse_nif_textures
+    from apps.methods.pvr_texture import is_pvr_texture, parse_pvr_texture
+    if is_pvr_texture(data):
+        return 'pvr', parse_pvr_texture(data, name)
     from apps.methods.txd_lc_android import detect_lc_android_txd, parse_lc_android_txd
     from apps.methods.txd_ps2_parser import detect_ps2_txd, parse_ps2_txd
     if is_nif_textures(data):
@@ -585,9 +588,12 @@ def _rw_native_names(data: bytes) -> List[str]: #vers 1
     return out
 
 
-def texture_names(data: bytes, name: str = '') -> List[str]: #vers 1
+def texture_names(data: bytes, name: str = '') -> List[str]: #vers 2
     """Texture names in any supported texture file, fast for RW."""
     from apps.methods.txd_lc_android import detect_lc_android_txd
+    from apps.methods.pvr_texture import is_pvr_texture
+    if is_pvr_texture(data):
+        return [name.replace('\\', '/').rsplit('/', 1)[-1].rsplit('.', 1)[0]]
     if data[:4] == b'\x16\x00\x00\x00' and not detect_lc_android_txd(data):
         return _rw_native_names(data)
     if data[:4] == b'RSC\x05':

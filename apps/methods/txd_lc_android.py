@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/txd_lc_android.py - Version: 2
+#this belongs in apps/methods/txd_lc_android.py - Version: 3
 # X-Seti - October05 2026 - IMG Factory 1.6 - War Drum mobile TXD
 
 """
@@ -620,12 +620,17 @@ def build_lc_android_txd(textures, variant, original=None): #vers 1
     return head + b''.join(chunks) + struct.pack('<III', 3, 0, version)
 
 
-def detect_lc_android_txd(data): #vers 2
-    """True if data is a War Drum mobile TXD (RW 0x1005FFFF)."""
+def detect_lc_android_txd(data): #vers 3
+    """True for War Drum mobile TXDs: RW 0x1005FFFF, platform 10/12."""
     if len(data) < 28:
         return False
     ctype, _, ver = struct.unpack_from('<III', data, 0)
-    return ctype == 0x16 and ver == RW_VERSION_LC_MOBILE
+    if ctype != 0x16 or ver != RW_VERSION_LC_MOBILE:
+        return False
+    off = 24 + struct.unpack_from('<I', data, 16)[0]      # first native
+    if off + 28 > len(data):
+        return False
+    return struct.unpack_from('<I', data, off + 24)[0] in (10, 12)
 
 
 def parse_lc_android_txd(data): #vers 2

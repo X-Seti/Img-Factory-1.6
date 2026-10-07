@@ -1,4 +1,20 @@
-#this belongs in root /ChangeLog.md - Version: 234
+#this belongs in root /ChangeLog.md - Version: 237
+
+## Oct 07 2026 - GTA IV models in Map Workshop
+- New methods/wdr_model.py: GTA IV .wdr, .wdd (LOD dictionaries) and .wft (fragments) to model geometry; bone transforms applied.
+- Map Workshop loads IV models and .wtd textures from IMGs, including textures embedded in models.
+- TXD parents (txdp) now followed for textures, all games; txdp lines no longer stored as object 0.
+
+## Oct 07 2026 - GTA IV gta.dat root
+- Map Workshop: GTA IV common/data/gta.dat used common/ as game root; now GTAIV/. Folder load resolves root first.
+- Picking GTAIV/common folder was detected as SA; now GTA IV (Map Workshop, DAT Browser).
+
+## Oct 07 2026 - Texture coverage, all 8 resource folders
+- Mobile texture DBs without .txt load (names generated); RLE segment sizes fixed for PVRTC (16/32).
+- iOS LA8 (0x190A) textures decode/encode. Manhunt TXDs no longer taken as War Drum mobile.
+- Manhunt header-less PS2 rasters load; SA LD_OTB trailing filler kept, all 57 textures load.
+- PSP mipmapped textures: all levels decoded, saved (levels linear, not swizzled).
+- Loose PowerVR .pvr (PVRTC) open/edit/save in TXD Workshop: methods/pvr_texture.py.
 
 ## Oct 07 2026 - TXD dialogs start folder
 - TXD Workshop export/save/folder/mipmap/bumpmap dialogs start in last used folder (exe folder before); Save As and exports remember folder.

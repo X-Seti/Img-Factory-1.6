@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 229
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 231
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -16466,7 +16466,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
     # --- Editing Panel: IPL/IDE/DAT/IMG tabs (ported from map_workshop_old_version.py) ---
 
-    def _load_game_folder(self, preset_root: str = None): #vers 3
+    def _load_game_folder(self, preset_root: str = None): #vers 4
         """Load a GTA game's world data (DAT -> IDE -> IPL, full engine-
         order two-phase load) via the existing GTAWorldLoader - this is
         the Map Editor's actual data layer, already handling multi-game
@@ -16483,13 +16483,15 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             folder = QFileDialog.getExistingDirectory(self, "Select GTA game folder")
             if not folder:
                 return
+        from apps.methods.gta_dat_parser import resolve_game_root
+        folder = resolve_game_root(folder)
 
         game = detect_game(folder)
         if not game:
             QMessageBox.warning(self, "Load Game Folder",
                 f"Couldn't detect a supported GTA game in:\n{folder}\n\n"
                 "Expected a 'data' folder containing gta3.dat, gta_vc.dat, "
-                "or gta.dat.")
+                "or gta.dat (IV: common/data/gta.dat).")
             return
 
         loader = GTAWorldLoader(game)
@@ -16537,11 +16539,12 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         QApplication.processEvents()
         self._load_game_dat_file(preset_dat_path=recent[0])
 
-    def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 3
+    def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 4
         """Load a GTA game's world data starting from one specific .dat
         file, rather than a whole game folder."""
         from PyQt6.QtWidgets import QFileDialog
-        from apps.methods.gta_dat_parser import detect_game_from_dat_filename, GTAWorldLoader
+        from apps.methods.gta_dat_parser import (detect_game_from_dat_filename, GTAWorldLoader,
+                                                 GTAGame, resolve_game_root)
         if not self.confirm_close("Load World"):
             return
 
@@ -16564,6 +16567,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             return
 
         game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
+        if game == GTAGame.IV:   # IV: <root>/common/data/gta.dat
+            game_root = resolve_game_root(dat_path)
         loader = GTAWorldLoader(game)
         self._apply_vc_layout_ipl_stems(loader)
         loader.lazy_ipl_loading = True
@@ -21673,7 +21678,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self._ipl_controls_dock = dock
         return dock
 
-    def _get_txd_textures(self, txd_name): #vers 4
+    def _get_txd_textures(self, txd_name): #vers 5
         """Fetch any named TXD's textures from the game's indexed IMG
         archives (gta3.img is always auto-indexed for every game, per
         GTAWorldLoader.load()'s own docstring: "Always enforces
@@ -21691,6 +21696,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         entries = getattr(model_cache, '_txd_index', {}).get(key, [])
         archive_paths = "; ".join(dict.fromkeys(img_path for img_path, _entry in entries))
         textures = model_cache.get_textures(txd_name)
+        loader = getattr(self, '_world_loader', None)
+        for parent in (loader.txd_chain(txd_name)[1:] if hasattr(loader, 'txd_chain') else []):
+            inherited = model_cache.get_textures(parent)   # txdp parent, child wins
+            if inherited:
+                textures = {**inherited, **(textures or {})}
         if textures:
             return textures, (archive_paths or "an indexed IMG archive"), 'loaded'
         return (None, (archive_paths or None), 'failed') if entries else (None, None, 'missing')
@@ -26192,7 +26202,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         finally:
             self._refresh_world_view_in_progress = False
 
-    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 5
+    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 6
         """The actual body of _refresh_world_view, split out only so
         the reentrancy guard above can wrap it in a try/finally
         without a second level of indentation across this whole
@@ -26306,6 +26316,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                         all_materials.extend(g.materials)
                     col_vertices, col_triangles = self._convert_collision_geometry(
                         model_cache.get_collision(model_name))
+                    # IV .wdr textures embedded in the model
+                    all_textures.extend(getattr(dff_model, 'embedded_textures', {}).values())
                     converted[model_name] = {
                         'vertices':  all_vertices,
                         'normals':   all_normals,

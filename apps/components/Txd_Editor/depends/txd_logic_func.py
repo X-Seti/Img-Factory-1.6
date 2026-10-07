@@ -1,5 +1,5 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 11
-# X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop logic
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 12
+# X-Seti - October 07 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
 TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpmaps.
@@ -98,6 +98,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _open_paint_editor
 # _open_ps2_txd
 # _open_psp_txd
+# _open_pvr_texture
 # _open_seamless_tool
 # _open_snow_tool
 # _open_stories_file
@@ -168,7 +169,7 @@ from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow
 from apps.methods.txd_versions import detect_txd_version, get_game_from_version, get_platform_name, get_version_capabilities, is_bumpmap_supported, validate_txd_format
 from apps.methods.img_factory_settings import get_user_config_dir
 
-_DROP_EXTS = ('.txd', '.wtd', '.nft', '.xtx', '.chk', '.img', '.png', '.jpg', '.jpeg', '.bmp', '.tga', '.dds', '.gif', '.tiff', '.webp')
+_DROP_EXTS = ('.txd', '.wtd', '.nft', '.xtx', '.chk', '.pvr', '.img', '.png', '.jpg', '.jpeg', '.bmp', '.tga', '.dds', '.gif', '.tiff', '.webp')
 
 class TXDLogicMixin: #vers 1
     """logic methods for TXDWorkshop."""
@@ -3691,8 +3692,8 @@ class TXDLogicMixin: #vers 1
             self._log(f"Rebuild error: {e}")
             return None
 
-    def _rebuild_special(self) -> bytes: #vers 6
-        """Save bytes for mobile, PSP, Stories, GTA IV and Bully PC (layout kept)."""
+    def _rebuild_special(self) -> bytes: #vers 7
+        """Save bytes for mobile, PSP, Stories, IV, Bully PC, PVR (layout kept)."""
         from apps.methods.txd_splice import texture_signature, rebuild_inplace_txd
         kind, data = self._txd_kind, self.current_txd_data
         if kind == 'lc_mobile':
@@ -3712,6 +3713,10 @@ class TXDLogicMixin: #vers 1
             if kind == 'wtd':
                 return write_iv_wtd(data, edits, names)
             return write_nif_textures(data, edits, names)
+        if kind == 'pvr':
+            from apps.methods.pvr_texture import write_pvr_texture
+            t = self.texture_list[0]
+            return write_pvr_texture(data, None if t.get('_src_sig') == texture_signature(t) else t)
         if kind == 'stories':
             from apps.methods.xtx_reader import write_stories_textures
             names = [None if (t.get('name'), t.get('alpha_name') or '') ==
@@ -5383,7 +5388,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open IMG: {str(e)}")
 
-    def open_txd_file(self, file_path=None): #vers 8
+    def open_txd_file(self, file_path=None): #vers 9
         """Open standalone TXD file with version detection"""
         try:
             if not self._confirm_discard():
@@ -5391,7 +5396,7 @@ class TXDLogicMixin: #vers 1
             if not file_path:
                 file_path, _ = QFileDialog.getOpenFileName(
                     self, "Open TXD File", self._start_dir(),
-                    "All Texture Files (*.txd *.nft *.xtx *.txt *.dat *.toc *.tmb *.chk *.wtd *.ytd);;TXD Files (*.txd);;Bully PC (*.nft *.txd);;GTA IV (*.wtd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;PS2 Splash (*.chk);;All Files (*)"
+                    "All Texture Files (*.txd *.nft *.xtx *.txt *.dat *.toc *.tmb *.chk *.wtd *.ytd *.pvr);;TXD Files (*.txd);;Bully PC (*.nft *.txd);;GTA IV (*.wtd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;PS2 Splash (*.chk);;PowerVR (*.pvr);;All Files (*)"
                 )
             if file_path:
                 self._remember_dir(file_path)
@@ -5447,6 +5452,10 @@ class TXDLogicMixin: #vers 1
                 from apps.methods.nif_textures import is_nif_textures
                 if is_nif_textures(_all):
                     self._open_nif_textures(file_path, _all)
+                    return
+                from apps.methods.pvr_texture import is_pvr_texture
+                if is_pvr_texture(_all):
+                    self._open_pvr_texture(file_path, _all)
                     return
                 if detect_lc_android_txd(_all):
                     self._open_lc_mobile_txd(file_path, _all)
@@ -5990,6 +5999,19 @@ class TXDLogicMixin: #vers 1
         self.txd_version_str, self.txd_game = gamebryo_version_text(data[:64]), "Bully SE"
         self.txd_platform_name = "Bully PC"
         self._show_textures(texs, data, 'nif', f"{name} [Bully PC, {len(texs)} textures]")
+
+    def _open_pvr_texture(self, file_path: str, data: bytes): #vers 1
+        """Open a loose PowerVR .pvr texture (PVRTC)."""
+        from apps.methods.pvr_texture import parse_pvr_texture
+        name = os.path.basename(file_path)
+        try:
+            texs = parse_pvr_texture(data, name)
+        except Exception as e:
+            QMessageBox.warning(self, "PVR Texture", f"Failed to read {name}:\n{e}")
+            return
+        self.current_txd_path, self.current_txd_name = file_path, name
+        self.txd_version_str, self.txd_platform_name = "PVR v2", "PowerVR"
+        self._show_textures(texs, data, 'pvr', f"{name} [PowerVR {texs[0]['format']}]")
 
     def _open_lc_mobile_txd(self, file_path: str, data: bytes): #vers 1
         """Open a War Drum GTA III mobile TXD (UNC / PVR)."""

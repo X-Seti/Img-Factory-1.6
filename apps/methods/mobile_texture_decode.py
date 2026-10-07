@@ -1,4 +1,4 @@
-#this belongs in apps/methods/mobile_texture_decode.py - Version: 2
+#this belongs in apps/methods/mobile_texture_decode.py - Version: 3
 # X-Seti - October05 2026 - IMG Factory 1.6 - Mobile Texture Pixel Codecs
 
 """
@@ -25,6 +25,7 @@ import numpy as np
 
 GL_RGBA8888 = 0x1401
 GL_L8 = 0x1909
+GL_LA8 = 0x190A        # luminance + alpha, 2 bytes
 GL_RGBA4444 = 0x8033
 GL_RGBA5551 = 0x8034
 GL_RGB565 = 0x8363
@@ -41,7 +42,7 @@ GL_ETC1 = 0x8D64
 _PVRTC_BPP = {GL_PVRTC4_RGB: 4, GL_PVRTC2_RGB: 2, GL_PVRTC4_RGBA: 4, GL_PVRTC2_RGBA: 2}
 _BLOCK8 = (GL_DXT1, GL_DXT1A, GL_ETC1)
 _BLOCK16 = (GL_DXT3, GL_DXT5)
-_RAW_BPP = {GL_RGBA8888: 4, GL_L8: 1, GL_RGBA4444: 2, GL_RGBA5551: 2, GL_RGB565: 2}
+_RAW_BPP = {GL_RGBA8888: 4, GL_L8: 1, GL_LA8: 2, GL_RGBA4444: 2, GL_RGBA5551: 2, GL_RGB565: 2}
 _ETC_TABLE = np.array([[2, 8], [5, 17], [9, 29], [13, 42],
                        [18, 60], [24, 80], [33, 106], [47, 183]], dtype=np.int32)
 
@@ -225,7 +226,7 @@ def encode_etc1(rgba, width, height): #vers 1
     return best.tobytes()
 
 
-def decode_level(enc, data, width, height): #vers 1
+def decode_level(enc, data, width, height): #vers 2
     """Decode one stored level to an RGBA uint8 array."""
     size = level_size(enc, width, height)
     if len(data) < size:
@@ -245,6 +246,11 @@ def decode_level(enc, data, width, height): #vers 1
         out[..., :3] = v.reshape(height, width, 1)
         out[..., 3] = 255
         return out
+    if enc == GL_LA8:
+        la = v.reshape(height, width, 2)
+        out[..., :3] = la[..., :1]
+        out[..., 3] = la[..., 1]
+        return out
     s = v.view('<u2').reshape(height, width).astype(np.int32)
     if enc == GL_RGB565:
         parts = [(s >> 11, 5), ((s >> 5) & 63, 6), (s & 31, 5)]
@@ -258,7 +264,7 @@ def decode_level(enc, data, width, height): #vers 1
     return out
 
 
-def encode_level(enc, rgba, width, height): #vers 1
+def encode_level(enc, rgba, width, height): #vers 2
     """Encode an RGBA array to one stored level."""
     a = np.ascontiguousarray(np.asarray(rgba, dtype=np.uint8).reshape(height, width, 4))
     if enc in _PVRTC_BPP:
@@ -279,6 +285,9 @@ def encode_level(enc, rgba, width, height): #vers 1
     c = a.astype(np.uint32)
     if enc == GL_L8:
         return ((c[..., 0] + c[..., 1] + c[..., 2] + 1) // 3).astype(np.uint8).tobytes()
+    if enc == GL_LA8:
+        lum = ((c[..., 0] + c[..., 1] + c[..., 2] + 1) // 3).astype(np.uint8)
+        return np.stack([lum, c[..., 3].astype(np.uint8)], -1).tobytes()
     if enc == GL_RGB565:
         v = ((c[..., 0] >> 3) << 11) | ((c[..., 1] >> 2) << 5) | (c[..., 2] >> 3)
     elif enc == GL_RGBA4444:
