@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_core_classes.py - Version: 18
+#this belongs in apps/methods/img_core_classes.py - Version: 20
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -55,6 +55,7 @@ def _find_companion(base_path: str, new_ext: str) -> str:
 # detect_img_version
 # format_file_size
 # integrate_filtering
+# _embedded_v1_dir_ok
 # _is_v3_encrypted
 # populate_table_with_sample_data
 # rebuild_img_file
@@ -911,6 +912,29 @@ def get_platform_specific_specs(platform: IMGPlatform) -> Dict[str, Any]: #vers 
     return specs.get(platform, specs[IMGPlatform.PC])
 
 
+def _embedded_v1_dir_ok(path: str) -> bool: #vers 2
+    """True if most embedded directory records are in-file, named entries."""
+    try:
+        size = os.path.getsize(path)
+        with open(path, 'rb') as f:
+            first_off = struct.unpack('<I', f.read(4) or b'\0' * 4)[0]
+            if not (0 < first_off and first_off * 2048 < size):
+                return False
+            f.seek(0)
+            data = f.read(min(first_off * 2048, 4 << 20))
+    except (OSError, struct.error):
+        return False
+    named = valid = 0
+    for i in range(len(data) // 32):
+        off, cnt = struct.unpack_from('<II', data, i * 32)
+        name = _parse_entry_name(data[i * 32 + 8:i * 32 + 32])
+        if not name:
+            continue
+        named += 1
+        valid += cnt > 0 and '.' in name and (off + cnt) * 2048 <= size
+    return named > 0 and valid * 2 >= named
+
+
 def _parse_entry_name(raw_name_bytes: bytes) -> str:
     """Parse a 24-byte IMG directory name field robustly.
 
@@ -1489,7 +1513,7 @@ class IMGFile:
             return 0
 
 
-    def detect_version(self) -> IMGVersion: #vers 5
+    def detect_version(self) -> IMGVersion: #vers 6
         """Detect IMG version and platform from file"""
         try:
             if not os.path.exists(self.file_path):
@@ -1679,6 +1703,16 @@ class IMGFile:
                                     f"indexed by the companion {os.path.basename(_lvz)}.\n\n"
                                     f"Open {os.path.basename(_lvz)} instead to browse this archive."
                                 )
+                                self.version = IMGVersion.VERSION_STREAMING_SEG
+                                return IMGVersion.VERSION_STREAMING_SEG
+                            # No .dir, no .lvz: an embedded directory must look real,
+                            # else LCS/VCS world stream data (commer/indust/suburb)
+                            if not _embedded_v1_dir_ok(self.file_path):
+                                self._streaming_segment_error = (
+                                    f"{os.path.basename(self.file_path)} has no .dir and no directory inside.\n\n"
+                                    "PS2 split part (opens via GTA3.DIR) or LCS/VCS stream\n"
+                                    f"data (opens with {os.path.splitext(os.path.basename(self.file_path))[0]}.lvz "
+                                    "in the same folder).")
                                 self.version = IMGVersion.VERSION_STREAMING_SEG
                                 return IMGVersion.VERSION_STREAMING_SEG
                             # No .dir and no .lvz - standalone V1/V1.5, check size
@@ -2069,13 +2103,27 @@ class IMGFile:
         except Exception:
             return False
 
-    def _open_ps2(self) -> bool: #vers 5
+    def _stories_dir(self) -> Optional[dict]: #vers 1
+        """Entries from GAME.DTZ when this is its main LCS/VCS IMG, else None."""
+        from apps.methods.stories_dtz import StoriesDTZ, dtz_paths, find_stories_root
+        lay = dtz_paths(find_stories_root(self.file_path) or os.path.dirname(self.file_path))
+        if not lay or not os.path.samefile(lay[3], self.file_path):
+            return None
+        game, plat, dtz, _img = lay
+        ents = StoriesDTZ(dtz, game, plat).img_entries()
+        self.platform = IMGPlatform.PS2 if plat == 'ps2' else IMGPlatform.PSP
+        return {'entries': [{'name': n, 'offset': o * 2048, 'size': z * 2048,
+                             '_source_ref': f"{os.path.basename(dtz)} @ sector {o}"}
+                            for n, o, z in ents]}
+
+    def _open_ps2(self) -> bool: #vers 6
         """Open PS2/PSP/iOS/Android/Bully/HXD archive - read-only."""
         try:
             from apps.core.img_ps2_vcs import (open_ps2_vcs, open_ps2_v1, open_lvz,
                                                 open_anpk, open_bully, open_hxd)
             if self.version == IMGVersion.VERSION_PS2_VCS:
-                result = open_ps2_vcs(self.file_path)
+                # Main LCS/VCS IMG: directory lives in GAME.DTZ streaming info
+                result = self._stories_dir() or open_ps2_vcs(self.file_path)
             elif self.version in (IMGVersion.VERSION_PS2_V1,
                                   IMGVersion.VERSION_1_IOS):
                 result = open_ps2_v1(self.file_path)

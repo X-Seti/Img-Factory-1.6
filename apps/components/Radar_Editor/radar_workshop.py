@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 26
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 29
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -101,6 +101,10 @@ def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
 
 def _name_sol(idx): return f"radar{idx:04d}" #vers 1
 
+def _name_iv(idx):  return f"radar{idx}" #vers 1
+
+IV_TILE_SIZE = 512   # GTA IV radar.img tiles: radarN.wtd, DXT1
+
 # Grid constants (authoritative — do not change without verifying against game files)
 # SA: 144 tiles (12x12)  VC/III/LC/LCS/VCS: 64 tiles (8x8)  SOL: 1296 tiles (36x36)
 # img_source: 'img'=tiles in .img | 'txd'=single .txd | 'pvr'=.pvr img | 'toc'=toc/tmb/dat
@@ -144,6 +148,11 @@ GAME_PRESETS = {
                 "img_source":"img",  "label":"GTA State of Liberty (PC)",
                 "rw_ver":0x1803FFFF,
                 "hint":"Load RadarTex.img — contains radar0000.txd to radar1295.txd"},
+    "IV PC":   {"cols":12, "rows":12, "count":144,  "name_fn":_name_iv,
+                "img_pattern":r"^radar\d{1,3}\.wtd$",
+                "img_source":"iv",   "label":"GTA IV (PC)",
+                "rw_ver":0,
+                "hint":"Load pc/models/cdimages/radar.img - radar0.wtd to radar143.wtd (12x12, 512px)"},
     # Android versions
     "III And": {"cols":1,  "rows":1,  "count":1,    "name_fn":_name_sa,
                 "img_pattern":r"^radar",
@@ -233,10 +242,14 @@ def encode_dxt1(rgba, w, h): #vers 1
 
 class RadarTxdReader:
     @staticmethod
-    def read(data): #vers 3
+    def read(data): #vers 6
         """Read first texture from a RW TXD.
-        Supports: PC D3D8/D3D9 (8/9), Xbox (5), PS2 (6), iOS/Android (8 ver 0x1005FFFF).
+        Supports: PC D3D8/D3D9 (8/9), Xbox (5), PS2 (6), iOS/Android (8 ver 0x1005FFFF);
+        PSP/PS2 natives and War Drum mobile (III/VC iOS/Android) via shared readers.
         """
+        if RadarTxdReader.native_kind(data):
+            tex = RadarTxdReader._native_textures(data)[0]
+            return tex['rgba_data'], tex['width'], tex['height'], tex['name']
         pos = 12  # skip outer 0x16 container header
         while pos + 12 <= len(data):
             st = struct.unpack_from('<I', data, pos)[0]
@@ -260,7 +273,8 @@ class RadarTxdReader:
                     if comp in (0x0B, 0x0C):
                         rgba = decode_dxt1(pd, ww, hh)
                     elif comp in (0x0E, 0x0F, 0x10, 0x11):
-                        rgba = decode_dxt1(pd, ww, hh)  # DXT3/5 — approximate
+                        from apps.methods.txd_reader import decompress_dxt
+                        rgba = decompress_dxt(pd, ww, hh, 'DXT3' if comp < 0x10 else 'DXT5')
                     else:
                         rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh,
                             struct.unpack_from('<I', data, th+72)[0])
@@ -316,7 +330,9 @@ class RadarTxdReader:
                     if d3d_fmt == b'DXT1' or (platform == 8 and comp_byte == 1):
                         rgba = decode_dxt1(pd, ww, hh)
                     elif d3d_fmt in (b'DXT3', b'DXT5') or (platform == 8 and comp_byte in (3,5)):
-                        rgba = decode_dxt1(pd, ww, hh)  # DXT3/5 approx
+                        from apps.methods.txd_reader import decompress_dxt
+                        dxt = d3d_fmt.decode() if d3d_fmt in (b'DXT3', b'DXT5') else f'DXT{comp_byte}'
+                        rgba = decompress_dxt(pd, ww, hh, dxt)
                     else:
                         rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
                     return rgba, ww, hh, name
@@ -325,6 +341,42 @@ class RadarTxdReader:
                 break
             pos += 12 + ss
         raise ValueError("No Texture Native section")
+
+    @staticmethod
+    def native_kind(data) -> str: #vers 1
+        """'inplace' (PSP/PS2 natives), 'mobile' (War Drum III/VC) or '' (PC/Xbox)."""
+        from apps.methods.txd_lc_android import detect_lc_android_txd
+        if len(data) > 56 and data[52:56] in (b'PSP\0', b'PS2\0'):
+            return 'inplace'
+        return 'mobile' if detect_lc_android_txd(data) else ''
+
+    @staticmethod
+    def _native_textures(data) -> list: #vers 1
+        """Every texture of a PSP/PS2 or War Drum TXD, tagged for in-place rewrite."""
+        from apps.methods.txd_splice import tag_loaded_texture
+        if RadarTxdReader.native_kind(data) == 'mobile':
+            from apps.methods.txd_lc_android import parse_lc_android_txd
+            texs = parse_lc_android_txd(data)
+        else:
+            from apps.methods.txd_reader import read_psp_txd
+            texs = read_psp_txd(data)
+        for t in texs:
+            tag_loaded_texture(t)
+        return texs
+
+    @staticmethod
+    def write_native(original: bytes, rgba: bytes, w: int, h: int) -> bytes: #vers 1
+        """Re-encode the first texture in its own platform format (size kept)."""
+        texs = RadarTxdReader._native_textures(original)
+        if (texs[0]['width'], texs[0]['height']) != (w, h):
+            raise ValueError(f"Radar tile is {texs[0]['width']}x{texs[0]['height']}, edit is {w}x{h}")
+        texs[0]['rgba_data'] = bytes(rgba)
+        texs[0].pop('mipmap_levels', None)
+        if RadarTxdReader.native_kind(original) == 'mobile':
+            from apps.methods.txd_lc_android import build_lc_android_txd
+            return build_lc_android_txd(texs, texs[0]['platform_id'], original)
+        from apps.methods.txd_splice import rebuild_inplace_txd
+        return rebuild_inplace_txd(original, texs)
 
     @staticmethod
     def _raw_to_rgba(pd: bytes, w: int, h: int, raster_fmt: int) -> bytes: #vers 2
@@ -1531,6 +1583,9 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
         # Radar state
         self._img_reader:   Optional[ImgReader] = None
+        self._iv_img = None                  # GTA IV radar.img (IMGFile, V3)
+        self._texdb = None                   # mobile texture DB (SA iOS/Android radar)
+        self._iv_entries: Dict[int, object] = {}
         self._img_path:     str = ""
         self._game_preset:  dict = GAME_PRESETS["SA PC"]
         self._current_idx:  int  = -1
@@ -3160,13 +3215,13 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
    # - File ops
 
-    def _open_file(self, path: str = ""): #vers 4
+    def _open_file(self, path: str = ""): #vers 6
         """Open radar IMG/TXD/PVR file. Pass path to skip the file dialog."""
         source = self._game_preset.get("img_source", "img")
         hint   = self._game_preset.get("hint", "")
 
         # Formats not yet supported — show info and return
-        if source in ("toc", "chk", "xtx"):
+        if source in ("chk", "xtx"):
             label = self._game_preset.get("label", "")
             QMessageBox.information(self, "Format Not Yet Supported",
                 f"{label}\n\n{hint}\n\n"
@@ -3179,6 +3234,9 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             if source == "txd":
                 filt  = "TXD Files (*.txd);;All Files (*)"
                 title = "Open Radar TXD"
+            elif source == "toc":
+                filt  = "Texture DB (*.txt *.toc *.dat);;All Files (*)"
+                title = "Open Radar Texture DB"
             elif source == "pvr":
                 filt  = "PVR IMG Archives (*.pvr *.img);;All Files (*)"
                 title = "Open Radar PVR"
@@ -3190,8 +3248,20 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
         # Standalone .txd files
         if path.lower().endswith('.txd'):
+            self._set_native_tile_size(128)
             self._load_standalone_txd(path)
             return
+
+        # GTA IV radar.img (V3, usually encrypted)
+        if self._is_iv_img(path):
+            self._load_iv_radar(path)
+            return
+        # Mobile texture database (SA iOS/Android: radarNN in gta3.txt/.toc/.dat)
+        from apps.methods.mobile_texture_db import detect_mobile_db
+        if detect_mobile_db(path):
+            self._load_texdb_radar(path)
+            return
+        self._set_native_tile_size(128)
 
         # IMG / PVR — both use ImgReader (VER2 or V1+dir)
         try: self._img_reader = ImgReader(path); self._img_path = path
@@ -3253,6 +3323,161 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self.save_btn.setEnabled(True)
         self.RAD_settings.add_recent(str(path))
         self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  — game: {self._game_preset['label']}  grid: {self._game_preset['cols']}×{self._game_preset['rows']}")
+
+    def _set_native_tile_size(self, size: int, special: bool = False): #vers 2
+        """Module tile size: IV 512 / texture DB tiles set it; other files reset to 128."""
+        import apps.components.Radar_Editor.radar_workshop as _rw_mod
+        if special or getattr(self, '_special_tiles', False):
+            _rw_mod.TILE_W = _rw_mod.TILE_H = size
+            self._tw = self._th = size
+        self._special_tiles = special
+        if not special:
+            self._iv_img, self._iv_entries, self._texdb = None, {}, None
+
+    def _is_iv_img(self, path: str) -> bool: #vers 1
+        """True for a GTA IV (V3) IMG archive."""
+        from apps.methods.img_core_classes import IMGFile, IMGVersion
+        if not path.lower().endswith('.img'):
+            return False
+        try:
+            img = IMGFile(path)
+            return bool(img.open()) and img.version in (IMGVersion.VERSION_3, IMGVersion.VERSION_3_ENC)
+        except Exception:
+            return False
+
+    def _load_iv_radar(self, path: str): #vers 1
+        """Open GTA IV radar.img: radarN.wtd tiles on a 12x12 grid."""
+        from apps.methods.img_core_classes import IMGFile
+        from apps.methods.xtd_textures import parse_iv_wtd
+        from PIL import Image
+        img = IMGFile(path)
+        if not img.open():
+            QMessageBox.critical(self, "Load Error", f"Cannot open {Path(path).name}:\n"
+                                 f"{getattr(img, 'last_error', '')}")
+            return
+        entries = {}
+        for e in img.entries:
+            m = re.fullmatch(r'radar(\d+)\.wtd', e.name.lower())
+            if m and int(m.group(1)) < GAME_PRESETS["IV PC"]["count"]:
+                entries[int(m.group(1))] = e
+        if not entries:
+            QMessageBox.warning(self, "No Radar Tiles",
+                f"No radarN.wtd entries found in {Path(path).name}")
+            return
+        self._set_native_tile_size(IV_TILE_SIZE, special=True)
+        self._on_game_changed("IV PC")
+        self._img_reader, self._img_path = None, path
+        self._iv_img, self._iv_entries = img, entries
+        self._iv_formats = {}
+        self._tile_entries = [{"name": f"radar{i}.wtd", "offset": 0, "size": 0}
+                              for i in range(GAME_PRESETS["IV PC"]["count"])]
+        prog = QProgressDialog("Loading tiles…", "Cancel", 0, len(entries), self)
+        prog.setWindowModality(Qt.WindowModality.WindowModal); prog.show()
+        for n, (i, e) in enumerate(sorted(entries.items())):
+            prog.setValue(n); QApplication.processEvents()
+            if prog.wasCanceled():
+                break
+            try:
+                tex = parse_iv_wtd(img.read_entry_data(e))[0]
+                rgba, w, h = tex['rgba_data'], tex['width'], tex['height']
+                if (w, h) != (IV_TILE_SIZE, IV_TILE_SIZE):
+                    rgba = Image.frombytes("RGBA", (w, h), rgba).resize(
+                        (IV_TILE_SIZE, IV_TILE_SIZE)).tobytes()
+                self._iv_formats[i] = (tex['name'], w, h)
+                self._tile_rgba[i] = rgba
+                self._radar.set_tile(i, rgba, IV_TILE_SIZE, IV_TILE_SIZE)
+                if i < len(self._list_items):
+                    self._list_items[i].set_thumb(rgba, IV_TILE_SIZE, IV_TILE_SIZE)
+            except Exception as ex:
+                print(f"WARN IV tile {i}: {ex}", file=sys.stderr)
+        prog.setValue(len(entries)); self._dirty_tiles = set()
+        self.save_btn.setEnabled(True)
+        self.RAD_settings.add_recent(str(path))
+        self._set_status(f"Loaded {len(entries)} GTA IV tiles from {Path(path).name}  grid: 12×12")
+
+    def _load_texdb_radar(self, path: str): #vers 1
+        """Radar tiles (radarNN) from a mobile texture DB, grid by tile count."""
+        from PIL import Image
+        from apps.methods.mobile_texture_db import load_mobile_texture_db
+        from apps.methods.mobile_texture_decode import decode_mobile_texture
+        db = load_mobile_texture_db(path, load_pixel_data=True)
+        tiles = {}
+        for t in (db.textures if db else []):
+            m = re.fullmatch(r'radar(\d+)', t.name.lower())
+            if m and not t.is_affiliate:
+                tiles[int(m.group(1))] = t
+        if not tiles:
+            QMessageBox.warning(self, "No Radar Tiles", f"No radarNN textures in {Path(path).name}")
+            return
+        size = max(t.width for t in tiles.values())
+        self._set_native_tile_size(size, special=True)
+        self._autodetect(max(tiles) + 1)
+        self._img_reader, self._img_path, self._texdb = None, path, db
+        self._texdb_tiles = tiles
+        self._tile_entries = [{"name": f"radar{i:02d}", "offset": 0, "size": 0}
+                              for i in range(self._game_preset["count"])]
+        for i, t in tiles.items():
+            if i >= self._game_preset["count"]:
+                continue
+            rgba = decode_mobile_texture(t)
+            if (t.width, t.height) != (size, size):
+                rgba = Image.frombytes("RGBA", (t.width, t.height), rgba).resize((size, size)).tobytes()
+            self._tile_rgba[i] = rgba
+            self._radar.set_tile(i, rgba, size, size)
+            if i < len(self._list_items):
+                self._list_items[i].set_thumb(rgba, size, size)
+        self._dirty_tiles = set()
+        self.save_btn.setEnabled(True)
+        self.RAD_settings.add_recent(str(path))
+        self._set_status(f"Loaded {len(tiles)} tiles from texture DB {db.name} ({db.platform})  "
+                         f"grid: {self._game_preset['cols']}×{self._game_preset['rows']}")
+
+    def _save_texdb_radar(self, path: str): #vers 1
+        """Edited tiles back into the texture DB (.dat .toc .tmb .txt rewritten)."""
+        from PIL import Image
+        from apps.methods.file_backup import backup_file
+        from apps.methods.mobile_texture_db import save_mobile_texture_db
+        db, edited, skipped = self._texdb, {}, []
+        for idx in sorted(self._dirty_tiles):
+            t, rgba = self._texdb_tiles.get(idx), self._tile_rgba.get(idx)
+            if t is None or not rgba or len(rgba) != self._tw * self._th * 4:
+                skipped.append(idx)
+                continue
+            if (t.width, t.height) != (self._tw, self._th):
+                rgba = Image.frombytes("RGBA", (self._tw, self._th), rgba).resize((t.width, t.height)).tobytes()
+            edited[t.name] = bytes(rgba)
+        out_dir = str(Path(path).parent)
+        for f in Path(db.folder).glob(f"{db.name}.*"):
+            if str(f.parent) == out_dir and f.suffix.lower() in ('.dat', '.toc', '.tmb', '.txt'):
+                backup_file(str(f))
+        if edited:
+            save_mobile_texture_db(db, edited, out_dir)
+        return [i for i in self._dirty_tiles if i not in skipped], skipped
+
+    def _save_iv_radar(self, path: str): #vers 1
+        """Write edited GTA IV tiles back as .wtd; archive rebuilt as V3."""
+        from apps.methods.xtd_textures import write_iv_wtd, parse_iv_wtd
+        from PIL import Image
+        saved, skipped = [], []
+        for idx in sorted(self._dirty_tiles):
+            e, rgba = self._iv_entries.get(idx), self._tile_rgba.get(idx)
+            if e is None or not rgba or idx not in self._iv_formats:
+                skipped.append(idx)            # no tile of that number in the archive
+                continue
+            name, w, h = self._iv_formats[idx]
+            if len(rgba) != self._tw * self._th * 4:
+                skipped.append(idx)
+                continue
+            if (w, h) != (self._tw, self._th):
+                rgba = Image.frombytes("RGBA", (self._tw, self._th), rgba).resize((w, h)).tobytes()
+            original = self._iv_img.read_entry_data(e)
+            fmt = parse_iv_wtd(original)[0]['format']
+            e.data = write_iv_wtd(original, [{'name': name, 'width': w, 'height': h,
+                                              'format': fmt, 'rgba_data': rgba}])
+            saved.append(idx)
+        if saved and not self._iv_img.save(path):
+            raise RuntimeError(getattr(self._iv_img, 'last_error', '') or "IMG rebuild failed")
+        return saved, skipped
 
     def _load_standalone_txd(self, path: str): #vers 1
         """Load a standalone .txd file (GTA III / VC radar — single texture file)."""
@@ -3354,8 +3579,9 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         if path:
             self._save_to(path)
 
-    def _save_to(self, path: str): #vers 1
-        if not self._img_reader and not (self._img_path and str(self._img_path).lower().endswith('.txd')):
+    def _save_to(self, path: str): #vers 3
+        if not self._img_reader and self._iv_img is None and self._texdb is None and \
+                not (self._img_path and str(self._img_path).lower().endswith('.txd')):
             QMessageBox.information(self, "Nothing to Save", "No IMG or TXD file is loaded.")
             return
         if not self._dirty_tiles:
@@ -3366,7 +3592,11 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         if not self._backup_before_write(path):
             return
         try:
-            if self._img_reader:
+            if self._iv_img is not None:
+                saved, skipped = self._save_iv_radar(path)
+            elif self._texdb is not None:
+                saved, skipped = self._save_texdb_radar(path)
+            elif self._img_reader:
                 saved, skipped, data = self._build_img_data()
                 self._atomic_write(path, data)
                 if self._img_path:
@@ -3399,7 +3629,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             QMessageBox.critical(self, "Save Error",
                 f"Failed to save {Path(path).name}:\n{e}\n\n{traceback.format_exc()[-300:]}")
 
-    def _build_img_data(self): #vers 1
+    def _build_img_data(self): #vers 3
         """New IMG bytes with every dirty tile re-encoded into its own
         slot. A tile that would not fit is left untouched (never
         truncated) and reported. Returns (saved, skipped, bytes)."""
@@ -3411,10 +3641,18 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             e, rgba = self._tile_entries[idx], self._tile_rgba.get(idx)
             if not rgba:
                 continue
-            new_data = RadarTxdReader.write(
-                rgba, TILE_W, TILE_H, Path(e["name"]).stem,
-                rw_ver=self._game_preset.get('rw_ver', 0x1803FFFF))
             slot = e["size"]
+            original = bytes(data[e["offset"]:e["offset"] + slot])
+            if RadarTxdReader.native_kind(original):     # PSP/PS2/mobile: keep own format
+                try:
+                    new_data = RadarTxdReader.write_native(original, rgba, TILE_W, TILE_H)
+                except ValueError:
+                    skipped.append(idx)
+                    continue
+            else:
+                new_data = RadarTxdReader.write(
+                    rgba, TILE_W, TILE_H, Path(e["name"]).stem,
+                    rw_ver=self._game_preset.get('rw_ver', 0x1803FFFF))
             if len(new_data) > slot:
                 skipped.append(idx)
                 continue
@@ -3422,11 +3660,15 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             saved.append(idx)
         return saved, skipped, bytes(data)
 
-    def _save_standalone_txd(self, path: str): #vers 2
-        """Replace the first texture of a standalone PC (D3D8/D3D9) TXD,
+    def _save_standalone_txd(self, path: str): #vers 3
+        """Replace the first texture of a standalone TXD (PC, PSP/PS2, mobile),
         keeping every other chunk byte-for-byte."""
         from apps.methods.txd_splice import split_txd, build_native_chunk
         src = Path(self._img_path).read_bytes()
+        if RadarTxdReader.native_kind(src):
+            self._atomic_write(path, RadarTxdReader.write_native(
+                src, self._tile_rgba.get(0), self._tw, self._th))
+            return [0], []
         parts = split_txd(src)
         if not parts or not parts[2]:
             raise ValueError("Source TXD could not be parsed")

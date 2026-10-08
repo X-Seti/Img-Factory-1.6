@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 15
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 16
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -3860,7 +3860,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                     open_paths.add(os.path.normcase(fp))
         return open_paths
 
-    def _load_all_game_imgs(self): #vers 1
+    def _load_all_game_imgs(self): #vers 2
         """Open every IMG/CDIMAGE in load_log as a new IMG Factory tab."""
         mw = self.main_window
         if not mw or not self.loader:
@@ -3871,15 +3871,20 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                 "Main window does not support loading IMG tabs.")
             return
         open_paths = self._get_open_img_paths()
-        queued = 0
+        queue = []
         for _phase, etype, path, ok in self.loader.load_log:
             if not (ok and etype in ('IMG', 'CDIMAGE') and os.path.isfile(path)):
                 continue
             if os.path.normcase(path) in open_paths:
                 continue   # already open
-            mw._load_img_file_in_new_tab(path)
+            queue.append(path)
             open_paths.add(os.path.normcase(path))
-            queued += 1
+        queued = len(queue)
+        if hasattr(mw, 'load_img_files_batch'):     # one report window, timed close
+            mw.load_img_files_batch(queue, "DAT Browser - loading IMG archives")
+        else:
+            for path in queue:
+                mw._load_img_file_in_new_tab(path)
         if hasattr(mw, 'log_message'):
             mw.log_message(f"DAT Browser: queued {queued} IMG(s) to load")
 

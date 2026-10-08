@@ -69,15 +69,7 @@
     "game_root": "/home/x2/Desktop/gta_resouce/GTA_Carcer_City_Demo/",
     "assists_path": "/home/x2/Desktop/gta_resouce/GTA_Carcer_City_Demo/Assets",
     "created_date": "2026-08-20T14:09:15.957980",
-    "last_used": "2026-08-27T03:29:39.170975"
-  },
-  "LCS": {
-    "name": "LCS",
-    "project_folder": "",
-    "game_root": "/home/x2/Desktop/gta_resouce/GTA Liberty City Stories/",
-    "assists_path": "",
-    "created_date": "2026-08-20T20:00:22.739508",
-    "last_used": "2026-08-23T13:02:11.578229"
+    "last_used": "2026-10-08T15:24:03.635713"
   },
   "GTASOL 76.0": {
     "name": "GTASOL 76.0",
@@ -109,6 +101,22 @@
     "game_root": "/home/x2/Desktop/gta_resouce/Grand Theft Auto IV",
     "assists_path": "",
     "created_date": "2026-10-06T14:27:17.488152",
-    "last_used": "2026-10-07T15:06:33.052516"
+    "last_used": "2026-10-07T20:54:24.964780"
+  },
+  "LibertyCityStories(ported)": {
+    "name": "LibertyCityStories(ported)",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/Ported_IOS_LCS/data",
+    "assists_path": "",
+    "created_date": "2026-10-07T21:03:24.199367",
+    "last_used": "2026-10-08T00:55:00.227485"
+  },
+  "Other LCS": {
+    "name": "Other LCS",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTA Liberty City Stories/",
+    "assists_path": "",
+    "created_date": "2026-10-08T00:57:04.356521",
+    "last_used": "2026-10-08T14:06:10.293509"
   }
 }

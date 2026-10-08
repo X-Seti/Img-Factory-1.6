@@ -1,4 +1,4 @@
-#this belongs in core/ open.py - Version: 10
+#this belongs in core/ open.py - Version: 11
 # X-Seti - November10 2025 - IMG Factory 1.5 - Open Functions with Tab System
 
 """
@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 # _load_txd_file
 # open_file_dialog
 
-def open_file_dialog(main_window): #vers 15
+def open_file_dialog(main_window): #vers 16
     """Unified file dialog for IMG, COL, TXD, CST, 3DS, HXD, MXD, AGR files"""
     file_paths, _ = QFileDialog.getOpenFileNames(
         main_window,
@@ -28,6 +28,7 @@ def open_file_dialog(main_window): #vers 15
     )
 
     if file_paths:
+        img_paths = []
         for file_path in file_paths:
             file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext in TEXTURE_EXTS:
@@ -38,9 +39,14 @@ def open_file_dialog(main_window): #vers 15
                 _load_cst_file(main_window, file_path)
             elif file_ext == '.3ds':
                 _load_3ds_file(main_window, file_path)
-            elif file_ext in ('.hxd', '.mxd', '.agr', '.lvz'):
-                _load_img_file(main_window, file_path)
-            else:
+            else:                                   # IMG, hxd/mxd/agr, lvz
+                img_paths.append(file_path)
+        if len(img_paths) > 1 and hasattr(main_window, 'load_img_files_batch'):
+            main_window.load_img_files_batch(img_paths)   # one report window
+            for file_path in img_paths:
+                add_to_recent_files(main_window, file_path)
+        else:
+            for file_path in img_paths:
                 _load_img_file(main_window, file_path)
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 231
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 239
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -443,6 +443,8 @@ class MapSettings(QObject):
         # VC-only gate (Aug 20 2026,  "offset should only be
         # for VC, so we need a toggle to effect VC waterpro.dat only")
         'water2_offset_vc_only': True,
+        # Radar/water fix mode: 'vc' VC only, 'all', 'off'
+        'water2_offset_mode': '',
 
         # IPL Controls display style (Aug 20 2026,  "we
         # could add a toggle in settings, Show IPL Controls = as
@@ -4701,7 +4703,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         btn = getattr(self, 'menu_btn', None)
         if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _build_workshop_settings_tabs(self): #vers 6
+    def _build_workshop_settings_tabs(self): #vers 8
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -5552,12 +5554,15 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         water2_y_spin.setToolTip("Same real request as X offset above.")
         water2_form.addRow("Y offset:", water2_y_spin)
 
-        water2_vc_only_chk = QCheckBox("Apply X/Y offset to VC only")
-        water2_vc_only_chk.setChecked(bool(self.map_settings.get('water2_offset_vc_only')))
-        water2_vc_only_chk.setToolTip(
-            "On: X/Y offset applies to VC only (LC/SA already align).\n"
-            "Off: applies the offset regardless of game.")
-        water2_form.addRow(water2_vc_only_chk)
+        water2_mode_combo = QComboBox()
+        for label, key in (("VC only", 'vc'), ("All games", 'all'), ("Off", 'off')):
+            water2_mode_combo.addItem(label, key)
+        water2_mode_combo.setCurrentIndex(
+            max(0, water2_mode_combo.findData(self._water2_offset_mode())))
+        water2_mode_combo.setToolTip(
+            "Radar/water fix - when the X/Y offset applies.\n"
+            "VC only: PC Vice City (-400 X).  Off: LCS ports, LC, SA.")
+        water2_form.addRow("Radar/water fix:", water2_mode_combo)
 
         #  fix (Aug 20 2026,  "Change it by 20+ on the
         # height in settings, doesn't update the view") - these two
@@ -5586,11 +5591,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         water2_alpha_spin.valueChanged.connect(_live_water2_alpha)
         water2_x_spin.valueChanged.connect(_live_water2_x)
         water2_y_spin.valueChanged.connect(_live_water2_y)
-        def _live_water2_vc_only(checked): #vers 1
+        def _live_water2_mode(_idx): #vers 2
             vp_live = getattr(self, 'preview_widget', None)
-            if vp_live is not None and hasattr(vp_live, 'set_water2_offset_vc_only'):
-                vp_live.set_water2_offset_vc_only(checked)
-        water2_vc_only_chk.toggled.connect(_live_water2_vc_only)
+            if vp_live is not None and hasattr(vp_live, 'set_water2_offset_mode'):
+                vp_live.set_water2_offset_mode(water2_mode_combo.currentData())
+        water2_mode_combo.currentIndexChanged.connect(_live_water2_mode)
 
         render_layout.addWidget(water2_grp)
 
@@ -5879,21 +5884,21 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         downscale_chk.setChecked(self.map_settings.get('texture_downscale_enabled'))
         downscale_chk.setToolTip(
             "Reduce any texture larger than the threshold below down\n"
-            "to the target size before uploading it to the GPU - saves\n"
-            "significant VRAM on maps with many large textures, at a\n"
-            "quality cost for those specific textures.")
+            "to the target size as it loads (TXD, WTD, PVR, PSP/PS2,\n"
+            "mobile) - saves memory and VRAM. Reload the world after\n"
+            "changing it.")
         ld_form.addRow(downscale_chk)
 
         downscale_threshold_spin = QSpinBox()
-        downscale_threshold_spin.setRange(64, 4096)
-        downscale_threshold_spin.setSingleStep(64)
+        downscale_threshold_spin.setRange(16, 4096)
+        downscale_threshold_spin.setSingleStep(16)
         downscale_threshold_spin.setValue(self.map_settings.get('texture_downscale_threshold'))
         downscale_threshold_spin.setToolTip("Textures larger than this (in either dimension) get reduced")
         ld_form.addRow("Reduce anything over:", downscale_threshold_spin)
 
         downscale_target_spin = QSpinBox()
         downscale_target_spin.setRange(16, 2048)
-        downscale_target_spin.setSingleStep(64)
+        downscale_target_spin.setSingleStep(16)
         downscale_target_spin.setValue(self.map_settings.get('texture_downscale_target'))
         downscale_target_spin.setToolTip("Size to reduce large textures down to")
         ld_form.addRow("Reduce down to:", downscale_target_spin)
@@ -6174,9 +6179,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             self.map_settings.set('water2_y_offset', water2_y_spin.value())
             if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_y_offset'):
                 vp_for_water2.set_water2_y_offset(water2_y_spin.value())
-            self.map_settings.set('water2_offset_vc_only', water2_vc_only_chk.isChecked())
-            if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_offset_vc_only'):
-                vp_for_water2.set_water2_offset_vc_only(water2_vc_only_chk.isChecked())
+            mode = water2_mode_combo.currentData()
+            self.map_settings.set('water2_offset_mode', mode)
+            self.map_settings.set('water2_offset_vc_only', mode == 'vc')
+            if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_offset_mode'):
+                vp_for_water2.set_water2_offset_mode(mode)
             self.map_settings.set('show_verbose_loading_dialog',   verbose_loading_chk.isChecked())
             self.map_settings.set('load_workers', workers_spin.value())
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
@@ -6215,6 +6222,10 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                     downscale_chk.isChecked(),
                     downscale_threshold_spin.value(),
                     downscale_target_spin.value())
+            if getattr(self, '_model_cache', None) is not None:   # all formats, on load
+                self._model_cache.set_texture_limit(downscale_chk.isChecked(),
+                                                    downscale_threshold_spin.value(),
+                                                    downscale_target_spin.value())
 
             # Render tab (Aug 16 2026)
             if vp is not None:
@@ -8702,7 +8713,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_right_panel(self): #vers 15
+    def _create_right_panel(self): #vers 16
         """Right panel using QMainWindow + QToolBar for native docking.
         QMainWindow handles toolbar placement, row stacking, floating, and
         save/restore natively — same system Gwenview/KDE apps use."""
@@ -8828,8 +8839,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             self.preview_widget.set_water2_x_offset(float(self.map_settings.get('water2_x_offset')))
         if hasattr(self.preview_widget, 'set_water2_y_offset'):
             self.preview_widget.set_water2_y_offset(float(self.map_settings.get('water2_y_offset')))
-        if hasattr(self.preview_widget, 'set_water2_offset_vc_only'):
-            self.preview_widget.set_water2_offset_vc_only(bool(self.map_settings.get('water2_offset_vc_only')))
+        if hasattr(self.preview_widget, 'set_water2_offset_mode'):
+            self.preview_widget.set_water2_offset_mode(self._water2_offset_mode())
         if hasattr(self.preview_widget, 'set_camera_state'):
             self.preview_widget.set_camera_state(
                 dist=self.map_settings.get('viewport_dist'),
@@ -16539,12 +16550,12 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         QApplication.processEvents()
         self._load_game_dat_file(preset_dat_path=recent[0])
 
-    def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 4
+    def _load_game_dat_file(self, preset_dat_path: str = None, force_preload_img: bool = False): #vers 5
         """Load a GTA game's world data starting from one specific .dat
         file, rather than a whole game folder."""
         from PyQt6.QtWidgets import QFileDialog
         from apps.methods.gta_dat_parser import (detect_game_from_dat_filename, GTAWorldLoader,
-                                                 GTAGame, resolve_game_root)
+                                                 dat_game_root)
         if not self.confirm_close("Load World"):
             return
 
@@ -16566,9 +16577,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 "shared across games and can't be identified by name alone.")
             return
 
-        game_root = os.path.normpath(os.path.join(os.path.dirname(dat_path), ".."))
-        if game == GTAGame.IV:   # IV: <root>/common/data/gta.dat
-            game_root = resolve_game_root(dat_path)
+        game_root = dat_game_root(dat_path, game)   # data/, sol/, IV or flat iOS
         loader = GTAWorldLoader(game)
         self._apply_vc_layout_ipl_stems(loader)
         loader.lazy_ipl_loading = True
@@ -16703,7 +16712,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         finally:
             self._applying_loaded_world = False
 
-    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 4
+    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 8
         """Shared post-load handling for both _load_game_folder and
         _load_game_dat_file - status message, populating the World View
         panes/Instance List/IPL Sections panel, and the summary/error
@@ -16774,6 +16783,9 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             from apps.components.Map_Editor.depends.model_cache import ModelCache
             model_cache = ModelCache()
             self._model_cache = model_cache
+        model_cache.set_texture_limit(self.map_settings.get('texture_downscale_enabled'),
+                                      self.map_settings.get('texture_downscale_threshold'),
+                                      self.map_settings.get('texture_downscale_target'))
         model_cache.index_img_files(loader.get_img_paths())
         col_in_img = model_cache.col_entries_found_in_img
         if col_in_img:
@@ -16793,6 +16805,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         # water2 doesn't need ,separately re-pick the same
         # file through Preload every time - only the texture still
         # does.
+        self._apply_radar_settings()
         try:
             self._try_auto_water2_from_loader()
         except Exception as e:
@@ -16823,10 +16836,10 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 fp = info.get('file_path') if isinstance(info, dict) else None
                 if fp:
                     already_open.add(os.path.normpath(fp))
-            for img_path in loader.get_img_paths():
-                if os.path.normpath(img_path) not in already_open:
-                    print(f"[MapWorkshop-MARKER] _load_img_file_in_new_tab({img_path!r})")
-                    mw._load_img_file_in_new_tab(img_path)
+            to_open = [p for p in loader.get_img_paths()
+                       if os.path.normpath(p) not in already_open]
+            if to_open:                    # one window for every archive, not a popup each
+                mw.load_img_files_batch(to_open, "Map Workshop - loading IMG archives")
 
         # radar tex layer needs the freshly-indexed ModelCache, so
         # this runs here rather than earlier in this method (Aug 20
@@ -17331,7 +17344,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             placeholder.setVisible(False)
         table.setVisible(True)
 
-    def _scan_binary_ipls_in_img_archives(self, loader): #vers 3
+    def _scan_binary_ipls_in_img_archives(self, loader): #vers 4
         """Scan every indexed IMG archive (gta3.img etc.) for .ipl-
         extension entries, associating binary ones with their parent
         text IPL rather than listing them as independent entries."""
@@ -17368,21 +17381,25 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                         model_cache._opened_img_files[img_path] = img
                 for entry in img.entries:
                     name = getattr(entry, 'name', '') or ''
-                    if not name.lower().endswith('.ipl'):
+                    is_wpl = name.lower().endswith('.wpl')   # GTA IV, always binary
+                    if not (is_wpl or name.lower().endswith('.ipl')):
                         continue
-                    try:
-                        head = img.read_entry_data(entry)[:64]
-                    except Exception:
-                        continue
-                    if detect_ipl_format(head) != 'binary':
-                        continue
+                    if not is_wpl:
+                        try:
+                            head = img.read_entry_data(entry)[:64]
+                        except Exception:
+                            continue
+                        if detect_ipl_format(head) != 'binary':
+                            continue
                     found_count += 1
                     entry_stem = os.path.splitext(name)[0].lower()
 
-                    # Match either the exact stem, or "{parent}_streamN"
+                    # Match the exact stem, "{parent}_streamN" or IV "{parent}_strbigN"
                     parent_stem = entry_stem
-                    if '_stream' in entry_stem:
-                        parent_stem = entry_stem.rsplit('_stream', 1)[0]
+                    for tag in ('_stream', '_strbig'):
+                        if tag in entry_stem:
+                            parent_stem = entry_stem.rsplit(tag, 1)[0]
+                            break
                     parent_display = text_stems.get(entry_stem) or text_stems.get(parent_stem)
 
                     if parent_display is not None:
@@ -18544,11 +18561,17 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         progress.setValue(len(tiles))
         self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
 
-    def _on_radar_tiles_context_menu(self, button, pos): #vers 4
+    def _on_radar_tiles_context_menu(self, button, pos): #vers 5
         """Right-click menu on the Radar button - "Send to TXD
         Workshop" (Aug 20 2026)"""
         menu = QMenu(button)
         tiles = getattr(self, '_last_radar_tile_paths', None)
+        menu.addAction("Radar / Water Alignment...").triggered.connect(self._show_radar_align_dialog)
+        fix = menu.addAction("Water fix (VC -400 X shift)")
+        fix.setCheckable(True)
+        fix.setChecked(self._water_fix_active())
+        fix.toggled.connect(self._set_water_fix)
+        menu.addSeparator()
         regen = menu.addAction("Regenerate tiles touched by unsaved edits")
         regen.setEnabled(bool(getattr(self, '_dirty_ipls', None)))
         regen.triggered.connect(self._regen_changed_radar_tiles)
@@ -19974,7 +19997,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             insert_at += 1
         order.insert(insert_at, entry_name)
 
-    def _load_binary_ipl_stream(self, archive_path, entry_name): #vers 1
+    def _load_binary_ipl_stream(self, archive_path, entry_name): #vers 2
         """Actually load one binary IPL stream entry's instance data"""
         if entry_name in getattr(self, '_loaded_binary_ipls', set()):
             self._set_status(f"{entry_name} is already loaded")
@@ -20010,10 +20033,15 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
         self._set_status(f"Parsing {entry_name} ({len(data)} bytes)...")
         QApplication.processEvents()
-        from apps.methods.gta_dat_parser import BinaryIPLParser
+        from apps.methods.gta_dat_parser import BinaryIPLParser, WPLParser
         game = getattr(loader, 'game', None)
-        parser = BinaryIPLParser(game=game) if game else BinaryIPLParser()
-        if not parser.parse(data, source_name=entry_name):
+        if entry_name.lower().endswith('.wpl'):      # GTA IV streamed placements
+            parser = WPLParser(getattr(loader, '_iv_hash_names', {}))
+            ok = parser.parse_bytes(data, entry_name)
+        else:
+            parser = BinaryIPLParser(game=game) if game else BinaryIPLParser()
+            ok = parser.parse(data, source_name=entry_name)
+        if not ok:
             errs = "; ".join(parser.stats.errors[:3])
             self._set_status(f"Failed to parse {entry_name}: {errs}")
             return
@@ -20025,6 +20053,9 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             if obj is not None:
                 inst.model_name = obj.model_name
                 resolved_count += 1
+        if isinstance(parser, WPLParser):
+            loader.grges += parser.grges
+            loader.culls += parser.culls
 
         # Merge into loader.instances (Aug 16 2026)
         loader.instances.extend(parser.instances)
@@ -20061,6 +20092,30 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         # Explicit refresh (Aug 1 2026)
 
         self._refresh_ipl_inst_file_panel()
+
+    def _populate_wpl_table(self, table, loader, entry, display_name): #vers 1
+        """GTA IV .wpl INST rows; file read here if not loaded yet."""
+        from apps.methods.gta_dat_parser import WPLParser
+        if getattr(self, '_ipl_data_type', 'inst') != 'inst':
+            table.setRowCount(0)
+            return
+        insts = [i for i in getattr(self, '_all_instances', []) if i.source_ipl == display_name]
+        if not insts:
+            parser = WPLParser(getattr(loader, '_iv_hash_names', {}))
+            if parser.parse(entry.abs_path):
+                insts = parser.instances
+        headers = ["ID", "Model", "Int", "Pos X", "Pos Y", "Pos Z",
+                   "Scale X", "Scale Y", "Scale Z", "Rot X", "Rot Y", "Rot Z", "Rot W"]
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.setRowCount(len(insts))
+        for r, inst in enumerate(insts):
+            values = [inst.model_id, inst.model_name, inst.interior,
+                      f"{inst.pos_x:.6f}", f"{inst.pos_y:.6f}", f"{inst.pos_z:.6f}",
+                      inst.scale_x, inst.scale_y, inst.scale_z,
+                      f"{inst.rot_x:.7f}", f"{inst.rot_y:.7f}", f"{inst.rot_z:.7f}", f"{inst.rot_w:.7f}"]
+            for c, value in enumerate(values):
+                table.setItem(r, c, QTableWidgetItem(str(value)))
 
     def _show_preload_dialog(self): #vers 2
         """New "Preload" dialog (Aug 20 2026,  "we need a
@@ -20412,6 +20467,99 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 f"Preload: couldn't find in the current game's own data "
                 f"folder ({', '.join(missing)})")
         return loaded
+
+    def _radar_settings_path(self): #vers 1
+        """radar_settings.json in the loaded game root, or ''."""
+        root = getattr(self, '_game_root', '') or ''
+        return os.path.join(root, 'radar_settings.json') if root and os.path.isdir(root) else ''
+
+    def _load_radar_settings(self): #vers 1
+        """Per-game alignment dict from radar_settings.json."""
+        path = self._radar_settings_path()
+        data = {'radar_offset': [0.0, 0.0], 'water_offset': [0.0, 0.0], 'water_fix': None}
+        if path and os.path.isfile(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data.update(json.load(f))
+            except (OSError, ValueError) as e:
+                self._set_status(f"radar_settings.json unreadable: {e}")
+        return data
+
+    def _save_radar_settings(self, data): #vers 1
+        """Write per-game alignment to radar_settings.json."""
+        path = self._radar_settings_path()
+        if not path:
+            self._set_status("No game loaded - alignment not saved")
+            return
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+        except OSError as e:
+            self._set_status(f"Could not save radar_settings.json: {e}")
+
+    def _apply_radar_settings(self): #vers 1
+        """Push saved radar/water offsets and fix to the viewport."""
+        data = self._load_radar_settings()
+        self._radar_settings = data
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        if hasattr(vp, 'set_radar_tex_offset'):
+            vp.set_radar_tex_offset(*data['radar_offset'])
+        if hasattr(vp, 'set_water2_nudge'):
+            vp.set_water2_nudge(*data['water_offset'])
+        if hasattr(vp, 'set_water2_fix_override'):
+            vp.set_water2_fix_override(data.get('water_fix'))
+
+    def _radar_align_offset(self, layer): #vers 1
+        """Current (x, y) offset for 'radar' or 'water'."""
+        data = getattr(self, '_radar_settings', None) or self._load_radar_settings()
+        x, y = data.get(f'{layer}_offset', [0.0, 0.0])
+        return float(x), float(y)
+
+    def _set_radar_align_offset(self, layer, x, y): #vers 1
+        """Set, apply and save one layer's offset."""
+        data = getattr(self, '_radar_settings', None) or self._load_radar_settings()
+        data[f'{layer}_offset'] = [float(x), float(y)]
+        self._save_radar_settings(data)
+        self._apply_radar_settings()
+
+    def _water_fix_active(self): #vers 1
+        """Effective water fix state for the loaded game."""
+        data = getattr(self, '_radar_settings', None) or self._load_radar_settings()
+        if data.get('water_fix') is not None:
+            return bool(data['water_fix'])
+        mode = self._water2_offset_mode()
+        game = getattr(getattr(self, '_world_loader', None), 'game', '')
+        return mode == 'all' or (mode == 'vc' and game == 'vc')
+
+    def _set_water_fix(self, on): #vers 1
+        """Per-game water fix on/off, saved."""
+        data = getattr(self, '_radar_settings', None) or self._load_radar_settings()
+        data['water_fix'] = bool(on)
+        self._save_radar_settings(data)
+        self._apply_radar_settings()
+        dlg = getattr(self, '_radar_align_dlg', None)
+        if dlg is not None and dlg.isVisible():
+            dlg._refresh()
+
+    def _show_radar_align_dialog(self): #vers 1
+        """Open the radar/water alignment window."""
+        from apps.gui.radar_align_dialog import RadarAlignDialog
+        dlg = getattr(self, '_radar_align_dlg', None)
+        if dlg is None:
+            dlg = RadarAlignDialog(self, self)
+            self._radar_align_dlg = dlg
+        dlg._refresh()
+        dlg.show()
+        dlg.raise_()
+
+    def _water2_offset_mode(self): #vers 1
+        """Radar/water fix mode; old VC-only bool when unset."""
+        mode = self.map_settings.get('water2_offset_mode')
+        if mode in ('vc', 'all', 'off'):
+            return mode
+        return 'vc' if self.map_settings.get('water2_offset_vc_only') else 'all'
 
     def _waterpro_to_cells(self, waterpro, game): #vers 5
         """Real, confirmed grid-to-cells logic (Aug 20 2026, re-
@@ -20876,7 +21024,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 return (rgba, w, h)
         return None
 
-    def _load_radar_tex_tiles(self, game_key): #vers 1
+    def _load_radar_tex_tiles(self, game_key): #vers 2
         """Read every real radarNN.txd texture for game_key directly
         from whichever IMG archive is already loaded (via ModelCache -
         the same index used for models/collision),  "those
@@ -20897,7 +21045,10 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             return []
         result = []
         for i in range(tile_count):
-            name = f"radar{i:04d}" if game_key == 'sol' else f"RADAR{i:02d}"
+            if game_key == 'iv':
+                name = f"radar{i}"          # IV radar.img: radar0-radar143
+            else:
+                name = f"radar{i:04d}" if game_key == 'sol' else f"RADAR{i:02d}"
             textures = model_cache.get_textures(name)
             if not textures:
                 result.append(None)
@@ -21146,7 +21297,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             return
         self._on_ipl_data_type_changed(keys[index])
 
-    def _create_ipl_controls_dock(self): #vers 10
+    def _create_ipl_controls_dock(self): #vers 11
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons
@@ -21596,8 +21747,9 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self._interior_btn = interior_btn
 
         # Show Water (Aug 20 2026)
-        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=False, icon=OverlayIcons.water_icon(24))
+        show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True, icon=OverlayIcons.water_icon(24))
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
+        show_water_btn.edit_toggled.connect(lambda _on: self._show_radar_align_dialog())
         # Middle-click switches water layers (Sep 5 2026, .per:
         # "the right click toggle between vis_water and phy_water
         # needs to be moved to the middle button so it doesnt clash
@@ -21610,7 +21762,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         show_water_btn.setToolTip(
             "Left-click: show/hide Water.\n"
             "Middle-click: switch between visible_map and\n"
-            "physical_map layers (waterpro.dat only).")
+            "physical_map layers (waterpro.dat only).\n"
+            "Right-click: radar/water alignment.")
         show_water_btn.middle_clicked.connect(
             lambda: self._on_water_layer_toggled(
                 not getattr(self, '_water2_showing_physical', False)))
@@ -21648,7 +21801,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         radar_gen_btn.setToolTip(
             "Left-click: show/hide the radar tex layer.\n"
             "Middle-click: generate radar tiles.\n"
-            "Right-click: send/export options for generated tiles.")
+            "Right-click: alignment, water fix, send/export options.")
         opts_row4 = QHBoxLayout()
         opts_row4.addWidget(show_sa_nodes_btn)
         opts_row4.addWidget(show_auzo_btn)
@@ -22337,7 +22490,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             for c, value in enumerate(values):
                 table.setItem(r, c, QTableWidgetItem(value))
 
-    def _refresh_ipl_inst_file_panel(self): #vers 3
+    def _refresh_ipl_inst_file_panel(self): #vers 4
         """Re-read the currently selected IPL's raw file content,
         filtered to the currently selected data type (INST/CULL/ZONE -
         PATH is stubbed, never reachable here since its radio button
@@ -22395,6 +22548,9 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         entry = loader.available_ipls.get(stem) if stem else None
         if entry is None or not entry.exists:
             table.setRowCount(0)
+            return
+        if entry.abs_path.lower().endswith('.wpl'):   # GTA IV binary placements
+            self._populate_wpl_table(table, loader, entry, display_name)
             return
         try:
             with open(entry.abs_path, 'r', encoding='ascii', errors='ignore') as f:
@@ -24733,7 +24889,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         if ipl_name in getattr(self, '_hidden_ipls', set()):
             self._on_ipl_section_cell_clicked(row, 0)
 
-    def _ensure_ipl_loaded(self, display_name): #vers 5
+    def _ensure_ipl_loaded(self, display_name): #vers 6
         """Actually load one IPL's content on demand, the first time
         it's toggled visible - parses its instances (GTAWorldLoader.
         load_ipl_by_name), refreshes self._all_instances/Object Browser
@@ -24802,7 +24958,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             for m in self._load_models_into_dialog(dlg, loader, model_cache, new_instances):
                 dlg.message(f"missing: {m}")
 
-        if self.map_settings.get('load_text_plus_binary_ipl_set'):
+        # IV parent .wpl holds little; city placements are in its streams
+        if self.map_settings.get('load_text_plus_binary_ipl_set') or getattr(loader, 'game', None) == 'iv':
             for archive_path, stream_name in sorted(stream_entries, key=lambda t: t[1]):
                 if stream_name in getattr(self, '_loaded_binary_ipls', set()):
                     continue
@@ -26169,6 +26326,41 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         rz = 2.0*(xz-wy)*vx + 2.0*(yz+wx)*vy + (1.0-2.0*(xx+yy))*vz
         return rx, ry, rz
 
+    def _model_collision(self, model_cache, model_name): #vers 1
+        """(col_vertices, col_triangles) from COL, else GTA IV .wbd bounds."""
+        cv, ct = self._convert_collision_geometry(model_cache.get_collision(model_name))
+        if not ct and hasattr(model_cache, 'get_iv_collision'):
+            iv = model_cache.get_iv_collision(model_name)
+            if iv:
+                cv, ct = iv
+        return cv, ct
+
+    def _iv_static_bound_entries(self, model_cache, instances): #vers 1
+        """World-space GTA IV .wbn collision entries for the visible map areas."""
+        if not hasattr(model_cache, 'iv_static_bound_names'):
+            return []
+        areas = set()
+        for name in {getattr(i, 'source_ipl', '') for i in instances}:
+            stem = os.path.splitext(name)[0].lower()
+            for tag in ('_stream', '_strbig'):
+                if tag in stem:
+                    stem = stem.rsplit(tag, 1)[0]
+                    break
+            areas.add(stem)
+        entries = []
+        for area in sorted(areas):
+            for stem in model_cache.iv_static_bound_names(area):
+                bounds = model_cache.get_iv_static_bounds(stem)
+                if not bounds:
+                    continue
+                entries.append({'vertices': [], 'normals': [], 'uvs': [], 'triangles': [],
+                                'materials': [], 'prelit': [], 'geom_flags': 0,
+                                'col_vertices': bounds[0], 'col_triangles': bounds[1],
+                                'pos': (0.0, 0.0, 0.0), 'rot': (0.0, 0.0, 0.0, 1.0),
+                                'scale': (1.0, 1.0, 1.0), 'model_key': f"wbn:{stem}",
+                                'instance': None})
+        return entries
+
     def _convert_collision_geometry(self, col_model): #vers 1
         """Convert a COLModel (or None) into the flat (col_vertices,
         col_triangles) shape DFFViewport's collision overlay draws
@@ -26202,7 +26394,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         finally:
             self._refresh_world_view_in_progress = False
 
-    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 6
+    def _refresh_world_view_impl(self, instances, auto_fit, clear_display_lists): #vers 7
         """The actual body of _refresh_world_view, split out only so
         the reentrancy guard above can wrap it in a try/finally
         without a second level of indentation across this whole
@@ -26279,8 +26471,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                     # selected" - the same underlying mechanism, just
                     # reached because THIS model has no geometry
                     # rather than because the user deselected one.
-                    col_vertices, col_triangles = self._convert_collision_geometry(
-                        model_cache.get_collision(model_name))
+                    col_vertices, col_triangles = self._model_collision(model_cache, model_name)
                     if col_vertices and col_triangles:
                         converted[model_name] = {
                             'vertices': [], 'normals': [], 'uvs': [],
@@ -26314,8 +26505,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                              t.material_id + mat_offset)
                             for t in g.triangles)
                         all_materials.extend(g.materials)
-                    col_vertices, col_triangles = self._convert_collision_geometry(
-                        model_cache.get_collision(model_name))
+                    col_vertices, col_triangles = self._model_collision(model_cache, model_name)
                     # IV .wdr textures embedded in the model
                     all_textures.extend(getattr(dff_model, 'embedded_textures', {}).values())
                     converted[model_name] = {
@@ -26378,6 +26568,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         if hasattr(vp, 'set_render_mode') and not getattr(self, '_world_render_mode_set', False):
             vp.set_render_mode('textured')
             self._world_render_mode_set = True
+        if getattr(loader, 'game', None) == 'iv':
+            entries.extend(self._iv_static_bound_entries(model_cache, instances))
         vp.set_world_instances(entries, auto_fit=auto_fit, clear_display_lists=clear_display_lists)
         self._populate_models_panel_from_ipl(instances)
 

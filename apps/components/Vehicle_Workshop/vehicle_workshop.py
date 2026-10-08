@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 12
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 13
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -4278,8 +4278,8 @@ class VehicleWorkshop(RibbonMixin, GLViewportMixin, GUIWorkshop): #vers 4
     # Bump when the set of ribbons changes (1 = File ribbon)
     _RIBBON_LAYOUT_VERSION = 1
 
-    def __init__(self, main_window=None, parent=None): #vers 5
-        super().__init__(parent)
+    def __init__(self, main_window=None, parent=None): #vers 6
+        super().__init__(parent, main_window=main_window)   # docked: no corner handles
         self.main_window = main_window
         self.__dict__.setdefault('_dff_model', None)        # set on DFF load
         self.__dict__.setdefault('_current_dff_path', None)

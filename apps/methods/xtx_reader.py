@@ -1,4 +1,4 @@
-#this belongs in apps/methods/xtx_reader.py - Version: 3
+#this belongs in apps/methods/xtx_reader.py - Version: 4
 # X-Seti - October05 2026 - IMG Factory 1.6 - Stories XTX Texture Reader Writer
 
 """
@@ -13,7 +13,7 @@ Stories xet texture files (.xtx VCS, .chk LCS), PS2 and PSP.
 # PSP pixels GE swizzled 16x8 blocks, alpha 0..255
 # PS2 VCS: 0, gs, data, flags; PS2 LCS: data, flags
 # PS2 flags: log2w 0-5, log2h 6-11, depth 12-17, mips 20-23
-# PS2 pixels linear, alpha 0..128, PAL8 CLUT CSM1 order
+# PS2 pixels GS swizzled per mip (flags>>24 bit n), alpha 0..128, PAL8 CSM1
 # Palette always follows pixel data
 
 import os
@@ -27,6 +27,8 @@ from apps.methods.txd_platform_psp import (
     ge_swizzle, ge_unswizzle, pack_indices, unpack_indices)
 
 ##Methods list -
+# _ps2_swizzle_map
+# _ps2_swizzled
 # _raster_layout
 # _raster_try
 # is_xtx
@@ -43,7 +45,7 @@ XTX_MAGIC = b'xet\x00'
 STORIES_MAGIC = 0x00746578
 
 
-def _raster_layout(data: bytes, r: int, relocs: set, data_end: int) -> Dict: #vers 1
+def _raster_layout(data: bytes, r: int, relocs: set, data_end: int) -> Dict: #vers 2
     """Identify raster platform via reloc table; return pixel layout."""
     found = []
     for kind, off in (('PSP', r + 4), ('PS2_VCS', r + 8), ('PS2_LCS', r)):
@@ -58,12 +60,10 @@ def _raster_layout(data: bytes, r: int, relocs: set, data_end: int) -> Dict: #ve
     lay = found[0]
     if lay['depth'] not in (4, 8):
         raise ValueError(f"Stories raster at 0x{r:X}: depth {lay['depth']} not supported")
-    if lay['mips'] != 1:
-        raise ValueError(f"Stories raster at 0x{r:X}: {lay['mips']} mip levels not supported")
     return lay
 
 
-def _raster_try(data: bytes, r: int, kind: str, data_end: int) -> Optional[Dict]: #vers 1
+def _raster_try(data: bytes, r: int, kind: str, data_end: int) -> Optional[Dict]: #vers 2
     """Raster layout for one platform guess; None if fields inconsistent."""
     if kind == 'PSP':
         _u, ptr, stride, lw, lh, fl = struct.unpack_from('<IIHBBI', data, r)
@@ -89,14 +89,35 @@ def _raster_try(data: bytes, r: int, kind: str, data_end: int) -> Optional[Dict]
     if swz and stride % 16:
         return None
     pix = stride * rows
+    total = pix                                     # all mip levels, palette follows
+    for k in range(1, max(mips, 1)):
+        wk, hk = max(w >> k, 1), max(h >> k, 1)
+        total += max(wk * depth // 8, 16) * hk if swz else (wk * hk * depth + 7) // 8
     pal = (1 << depth) * 4
-    if ptr < 0x20 or ptr + pix + pal > data_end:
+    if ptr < 0x20 or ptr + total + pal > data_end:
         return None
     return {'platform': 'PSP' if kind == 'PSP' else 'PS2', 'raster_kind': kind,
             'raster_offset': r, 'flags': fl, 'width': w, 'height': h,
             'depth': depth, 'mips': mips, 'stride': stride, 'rows': rows,
             'swizzled': swz, 'ps2_alpha': ps2, 'csm1': ps2 and depth == 8,
-            'pix_off': ptr, 'pix_size': pix, 'pal_off': ptr + pix, 'pal_size': pal}
+            'pix_off': ptr, 'pix_size': pix, 'pal_off': ptr + total, 'pal_size': pal}
+
+
+def _ps2_swizzle_map(w: int, h: int) -> Optional[np.ndarray]: #vers 1
+    """Swizzled source index per linear texel (GS PSMT8 order), or None."""
+    logw = max(w.bit_length() - 1, 1)
+    y, x = np.mgrid[0:h, 0:w].astype(np.int64)
+    x = x ^ ((((y >> 1) & 1) ^ ((y >> 2) & 1)) << 2)
+    nx = (x & 7) | ((x >> 1) & ~7)
+    ny = (y & 1) | ((y >> 1) & ~1)
+    n = ((y >> 1) & 1) | (((x >> 3) & 1) << 1)
+    m = (n | (nx << 2) | (ny << (logw + 1))).ravel()
+    return m if m.max() < w * h else None
+
+
+def _ps2_swizzled(lay: Dict) -> bool: #vers 1
+    """PS2 raster whose top mip level is GS swizzled (flags bit 24)."""
+    return lay['platform'] == 'PS2' and bool((lay['flags'] >> 24) & 1)
 
 
 def is_xtx(path: str) -> bool: #vers 2
@@ -105,11 +126,12 @@ def is_xtx(path: str) -> bool: #vers 2
         return f.read(4) == XTX_MAGIC
 
 
-def parse_stories_textures(data: bytes) -> List[Dict]: #vers 1
+def parse_stories_textures(data: bytes) -> List[Dict]: #vers 3
     """Decode every texture in a Stories xet texture list."""
     if len(data) < 0x30 or data[:4] != XTX_MAGIC:
         raise ValueError("Not a Stories texture file ('xet' ident missing)")
     _id, _sh, file_end, data_end, reloc_tab, n_rel = struct.unpack_from('<6I', data, 0)
+    data = data[:file_end]                          # IMG entries are sector padded
     if file_end != len(data) or reloc_tab + n_rel * 4 > len(data):
         raise ValueError(f"Stories header size mismatch (file_end {file_end}, len {len(data)})")
     relocs = set(struct.unpack_from(f'<{n_rel}I', data, reloc_tab))
@@ -132,6 +154,9 @@ def parse_stories_textures(data: bytes) -> List[Dict]: #vers 1
         else:
             raw = raw.reshape(lay['rows'], lay['stride'])
         idx = unpack_indices(raw[:h, :w * depth // 8], depth)
+        swz = _ps2_swizzle_map(w, h) if _ps2_swizzled(lay) else None
+        if swz is not None:
+            idx = idx[swz]
         pal = decode_palette(data[lay['pal_off']:lay['pal_off'] + lay['pal_size']],
                              lay['ps2_alpha'], lay['csm1'])
         rgba = decode_indexed(idx, pal)
@@ -176,7 +201,7 @@ def read_xtx(path: str) -> Dict: #vers 2
                 'error': str(e)}
 
 
-def write_stories_textures(original: bytes, rgba, names=None) -> bytes: #vers 2
+def write_stories_textures(original: bytes, rgba, names=None) -> bytes: #vers 4
     """Rewrite pixels/palettes/names in place; names: (name, mask) or None."""
     texs = parse_stories_textures(original)
     if isinstance(rgba, (bytes, bytearray)):
@@ -190,11 +215,18 @@ def write_stories_textures(original: bytes, rgba, names=None) -> bytes: #vers 2
         if new is None:
             continue
         w, h, depth = tex['width'], tex['height'], tex['depth']
+        if tex['mips'] > 1:
+            raise ValueError(f"'{tex['name']}': mipmapped texture, writing not supported")
         if len(new) != w * h * 4:
             raise ValueError(f"'{tex['name']}': RGBA must be {w}x{h} (size is fixed)")
         old_idx = np.frombuffer(tex['indices'], np.uint8)
         old_pal = np.frombuffer(tex['palette'], np.uint8).reshape(-1, 4)
         idx, new_pal = encode_indexed(bytes(new), w, h, old_idx, old_pal, 1 << depth)
+        swz = _ps2_swizzle_map(w, h) if _ps2_swizzled(tex) else None
+        if swz is not None:
+            stored_idx = np.empty_like(np.asarray(idx, np.uint8).ravel())
+            stored_idx[swz] = np.asarray(idx, np.uint8).ravel()
+            idx = stored_idx
         row = pack_indices(idx, depth).reshape(h, w * depth // 8)
         lin = np.frombuffer(original, np.uint8, tex['pix_size'],
                             tex['pix_off']).copy()

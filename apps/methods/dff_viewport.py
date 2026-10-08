@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 23
+# this belongs in apps/methods/dff_viewport.py - Version: 26
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -461,6 +461,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # VC-only gate (Aug 20 2026)
         self._water2_game = ''
         self._water2_offset_vc_only = True
+        self._water2_offset_mode = 'vc'
+        self._water2_fix_override = None   # per-game True/False, None = mode
+        self._water2_nudge = (0.0, 0.0)
+        self._radar_tex_offset = (0.0, 0.0)
 
         # Cull zone boxes (Aug 16 2026)
         self.show_cull_boxes = False
@@ -986,7 +990,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_MODELVIEW)
         self._label_widget.move(4, 2)
 
-    def paintGL(self): #vers 10
+    def paintGL(self): #vers 11
         if not OPENGL_AVAILABLE: return
         bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
@@ -997,10 +1001,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glRotatef(self._yaw, 0, 0, 1)
         # Sky drawn here - after yaw/pitch rotate the scene, before pan
         # translates it (Aug 20 2026)
-        if self._skybox_path:
-            self._draw_skybox()
-        elif self._timecyc_playing and self._sky_gradient_top and self._sky_gradient_bot:
-            self._draw_sky_gradient()
+        if self._skybox_path or (self._timecyc_playing and self._sky_gradient_top
+                                 and self._sky_gradient_bot):
+            glPushMatrix()                      # camera-centred: rotate only, no zoom/pan
+            glLoadIdentity()
+            glRotatef(-self._pitch, 1, 0, 0)
+            glRotatef(self._yaw, 0, 0, 1)
+            if self._skybox_path:
+                self._draw_skybox()
+            else:
+                self._draw_sky_gradient()
+            glPopMatrix()
         glTranslatef(self._pan_x, self._pan_y, 0)
         if self._backface_cull:
             glEnable(GL_CULL_FACE); glCullFace(GL_BACK)
@@ -1641,7 +1652,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._skybox_tex_id = False
         return self._skybox_tex_id
 
-    def _draw_skybox(self): #vers 2
+    def _draw_skybox(self): #vers 3
         """Real, world-space "box sky" - same real technique _draw_
         sky_gradient now uses (Aug 20 2026)"""
         if not self._skybox_path:
@@ -1656,7 +1667,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, tex_id)
         glColor4f(1, 1, 1, 1)
-        radius = 80000.0
+        radius = 1000.0                     # camera-centred box, depth test off
         top_z = radius
         bottom_z = 0.0   # kept at the real horizon line, not below it - same real fix _draw_sky_gradient's own docstring explains (Aug 20 2026)
         glBegin(GL_QUADS)
@@ -1678,7 +1689,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if was_cull:
             glEnable(GL_CULL_FACE)
 
-    def _draw_sky_gradient(self): #vers 3
+    def _draw_sky_gradient(self): #vers 4
         """Real, world-space "box sky" - 4 large vertical quads (N/S/
         E/W) forming a box around the origin, each with the same real
         3-stop blend (sky_top at the zenith, sky_bot lower, sun_core
@@ -1698,7 +1709,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         tr, tg, tb = top_color
         mr, mg, mb = bot_color
         hr, hg, hb = horizon_color
-        radius = 80000.0
+        radius = 1000.0                     # camera-centred box, depth test off
         top_z = radius
         mid_z = radius * 0.35
         horizon_z = 0.0
@@ -2400,7 +2411,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             tile['tex_id'] = False
         return tile['tex_id']
 
-    def _draw_radar_tex_layer(self): #vers 2
+    def _draw_radar_tex_layer(self): #vers 3
         """V-coordinates: row 0 of the saved PNG is north (capture_
         radar_tile uses grabFramebuffer's own display-ready, already-
         correctly-oriented output), which uploads as V=0 - so V=0
@@ -2416,6 +2427,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDepthMask(GL_FALSE)
         glEnable(GL_TEXTURE_2D)
         glColor4f(1, 1, 1, 1)
+        glPushMatrix()
+        glTranslatef(self._radar_tex_offset[0], self._radar_tex_offset[1], 0.0)
         for tile in self._radar_tex_tiles:
             tex_id = self._ensure_radar_tex_tile(tile)
             if not tex_id:
@@ -2427,6 +2440,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glTexCoord2f(1, 0); glVertex3f(tile['max_x'], tile['max_y'], 0)
             glTexCoord2f(0, 0); glVertex3f(tile['min_x'], tile['max_y'], 0)
             glEnd()
+        glPopMatrix()
         glBindTexture(GL_TEXTURE_2D, 0)
         glDisable(GL_TEXTURE_2D)
         glDepthMask(GL_TRUE)
@@ -3135,13 +3149,35 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_game = (game_key or '').lower()
         self.update()
 
-    def set_water2_offset_vc_only(self, enabled): #vers 1
+    def set_water2_offset_vc_only(self, enabled): #vers 2
         """ toggle (Aug 20 2026, same real request as
         set_water2_game above) - on (default) restricts the X/Y
         offset to VC only; off applies it regardless of which game
         is loaded, for a future game that might turn out to need the
         same kind of correction."""
         self._water2_offset_vc_only = bool(enabled)
+        self._water2_offset_mode = 'vc' if enabled else 'all'
+        self.update()
+
+    def set_water2_fix_override(self, value): #vers 1
+        """Per-game water fix: True/False forces, None uses mode."""
+        self._water2_fix_override = None if value is None else bool(value)
+        self.update()
+
+    def set_water2_nudge(self, x, y): #vers 1
+        """Per-game water nudge, always applied."""
+        self._water2_nudge = (float(x), float(y))
+        self.update()
+
+    def set_radar_tex_offset(self, x, y): #vers 1
+        """Per-game radar tile layer offset in world units."""
+        self._radar_tex_offset = (float(x), float(y))
+        self.update()
+
+    def set_water2_offset_mode(self, mode): #vers 1
+        """Radar/water fix: 'vc' VC only, 'all' every game, 'off'."""
+        self._water2_offset_mode = mode if mode in ('vc', 'all', 'off') else 'vc'
+        self._water2_offset_vc_only = self._water2_offset_mode == 'vc'
         self.update()
 
     def _ensure_water2_texture(self): #vers 2
@@ -3204,7 +3240,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_rgba_wh = (width, height)
         self.update()
 
-    def _draw_water2(self): #vers 2
+    def _draw_water2(self): #vers 4
         """New, simple water draw """
         if not OPENGL_AVAILABLE or not self._water2_cells:
             return
@@ -3218,9 +3254,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._water2_use_texture and self._water2_texture_path:
             tex_id = self._ensure_water2_texture()
         z_offset = self._water2_height_offset
-        gate_ok = (not self._water2_offset_vc_only) or self._water2_game == 'vc'
-        x_offset = self._water2_x_offset if gate_ok else 0.0
-        y_offset = self._water2_y_offset if gate_ok else 0.0
+        mode = self._water2_offset_mode
+        gate_ok = mode == 'all' or (mode == 'vc' and self._water2_game == 'vc')
+        if self._water2_fix_override is not None:
+            gate_ok = self._water2_fix_override
+        nx, ny = self._water2_nudge
+        x_offset = (self._water2_x_offset if gate_ok else 0.0) + nx
+        y_offset = (self._water2_y_offset if gate_ok else 0.0) + ny
         alpha = self._water2_alpha
         half = self._water_map_half_extent
         span = half * 2.0

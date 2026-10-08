@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 106
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 110
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -3017,11 +3017,27 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()  # Debug info
             return False
 
-    def _load_img_file_in_new_tab(self, file_path): #vers 3
+    def load_img_files_batch(self, paths, title="Loading IMG archives"): #vers 1
+        """Open IMGs as tabs; 2+ files report in one window, no popups."""
+        paths = [p for p in paths if p]
+        if len(paths) == 1:
+            self._load_img_file_in_new_tab(paths[0])
+            return
+        if not paths:
+            return
+        from apps.gui.img_batch_load_dialog import ImgBatchLoadDialog
+        batch = ImgBatchLoadDialog(self, len(paths), title)
+        self._img_batch_dialog = batch
+        batch.show()
+        for p in paths:
+            self._load_img_file_in_new_tab(p, batch=batch)
+
+    def _load_img_file_in_new_tab(self, file_path, batch=None): #vers 4
         """Load IMG file in a new tab.
 
         Each file gets its own IMGLoadThread carrying the target tab_index so
         multiple concurrent loads never clobber each other's tab.
+        batch: ImgBatchLoadDialog - results go there, no per-file error popup.
         """
         try:
             from apps.methods.tab_system import create_tab
@@ -3038,6 +3054,11 @@ class IMGFactory(QMainWindow):
             thread.progress_updated.connect(self._on_img_load_progress)
             thread.loading_finished.connect(self._on_img_loaded)
             thread.loading_error.connect(self._on_img_load_error)
+            if batch is not None:
+                thread._batch = True
+                batch.file_started(file_path)
+                thread.loading_finished.connect(lambda img, _i, p=file_path: batch.file_done(p, img))
+                thread.loading_error.connect(lambda msg, _i, p=file_path: batch.file_failed(p, msg))
             thread.start()
 
             # Keep reference so it isn't garbage-collected before finishing
@@ -3238,7 +3259,7 @@ class IMGFactory(QMainWindow):
                 if hasattr(button, 'setEnabled'):
                     button.setEnabled(False)
 
-    def _on_img_load_error(self, error_message: str, tab_index: int = -1): #vers 5
+    def _on_img_load_error(self, error_message: str, tab_index: int = -1): #vers 6
         """Handle IMG loading error — close the empty tab that was created."""
         self.log_message(f" {error_message}")
         # Remove the empty tab that was pre-created for this file
@@ -3258,7 +3279,8 @@ class IMGFactory(QMainWindow):
             if hasattr(self.gui_layout, 'hide_progress'):
                 self.gui_layout.hide_progress()
 
-        QMessageBox.critical(self, "IMG Load Error", error_message)
+        if not getattr(self.sender(), '_batch', False):   # batch loads log in one window
+            QMessageBox.critical(self, "IMG Load Error", error_message)
 
     # Add this to __init__ method after GUI creation:
 
@@ -4743,8 +4765,12 @@ class IMGFactory(QMainWindow):
         box.exec()
         return dat_path if box.clickedButton() == continue_btn else None
 
-    def open_radar_map(self): #vers 5
+    def open_radar_map(self): #vers 7
         """Open Radar Workshop docked in a tab (DP5 pattern), or standalone fallback."""
+        # Read before addTab - tab switch clears current_img
+        start_img = getattr(self.current_img, 'file_path', '') if self.current_img else ''
+        if not start_img:                       # DAT Browser tab active: use its game
+            start_img = self._radar_file_for_root(self._dat_browser_game_root())
         try:
             from apps.components.Radar_Editor.radar_workshop import RadarWorkshop
             from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -4795,10 +4821,10 @@ class IMGFactory(QMainWindow):
 
             self.log_message("Radar Workshop opened (docked)")
 
-            # Pass current IMG if loaded
-            if self.current_img:
+            # Pass the IMG that was current when opened
+            if start_img:
                 from pathlib import Path
-                img_path = getattr(self.current_img, 'file_path', '')
+                img_path = start_img
                 if img_path and Path(img_path).exists():
                     from PyQt6.QtCore import QTimer
                     QTimer.singleShot(200, lambda: workshop._open_file(img_path))
@@ -4899,8 +4925,56 @@ class IMGFactory(QMainWindow):
             import traceback; traceback.print_exc()
 
 
-    def open_water_workshop(self, file_path=None): #vers 2
+    def _water_file_for_img(self, img_path): #vers 2
+        """waterpro.dat / water.dat of the game owning img_path, or ''."""
+        if not img_path:
+            return ''
+        folder = os.path.dirname(os.path.abspath(img_path))
+        root = os.path.dirname(folder) if os.path.basename(folder).lower() == 'models' else folder
+        return self._water_file_for_root(root)
+
+    def _water_file_for_root(self, root): #vers 1
+        """waterpro.dat / water.dat under a game root (IV: common/data)."""
+        if not root:
+            return ''
+        from apps.methods.gta_dat_parser import _data_dir, _resolve_ci
+        hit = _resolve_ci(root, 'common/data/water.dat')
+        if hit:
+            return hit
+        data = _data_dir(root)
+        for name in ('waterpro.dat', 'water.dat'):
+            hit = _resolve_ci(data, name)
+            if hit:
+                return hit
+        return ''
+
+    def _dat_browser_game_root(self): #vers 1
+        """Game root loaded in the DAT Browser, or ''."""
+        db = getattr(self, 'dat_browser', None)
+        root = getattr(db, 'game_root', '') if db is not None else ''
+        return root if root and os.path.isdir(root) else ''
+
+    def _radar_file_for_root(self, root): #vers 1
+        """Radar source under a game root: IV radar.img, SOL radartex.img, else gta3.img."""
+        if not root:
+            return ''
+        from apps.methods.gta_dat_parser import _resolve_ci
+        for want in ('radar.img', 'radartex.img'):
+            for base, dirs, files in os.walk(root):
+                if base[len(root):].count(os.sep) >= 3:
+                    dirs[:] = []
+                hit = next((f for f in files if f.lower() == want), None)
+                if hit:
+                    return os.path.join(base, hit)
+        return _resolve_ci(root, 'models/gta3.img') or ''
+
+    def open_water_workshop(self, file_path=None): #vers 4
         """Open Water Workshop docked in a tab (DP5 pattern), or standalone fallback."""
+        # Read before addTab - tab switch clears current_img
+        auto_path = ''
+        if not file_path:
+            auto_path = self._water_file_for_img(getattr(self.current_img, 'file_path', '')) \
+                if self.current_img else self._water_file_for_root(self._dat_browser_game_root())
         try:
             from apps.components.Water_Editor.water_workshop import WaterWorkshop
             from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -4930,9 +5004,10 @@ class IMGFactory(QMainWindow):
             workshop.setWindowFlags(Qt.WindowType.Widget)
             tab_layout.addWidget(workshop)
 
-            if file_path:
+            load_path = file_path or auto_path
+            if load_path:
                 from PyQt6.QtCore import QTimer
-                QTimer.singleShot(100, lambda: workshop._load_file(file_path))
+                QTimer.singleShot(100, lambda: workshop._load_file(load_path))
 
             # Add tab with anchor icon
             try:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 16
+#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 18
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -214,8 +214,8 @@ class WaterDatParser:
 
 class SaWaterParser:
     """SA water.dat / water1.dat quads (4 corners x 7 values, optional
-    trailing flag). Original lines are kept so untouched quads, the
-    "processed" line and any comments save unchanged."""
+    trailing flag; GTA IV adds one more value). Original lines are kept so
+    untouched quads, the "processed" line and any comments save unchanged."""
     def __init__(self): #vers 2
         self.quads = []
         self.path  = None
@@ -223,10 +223,11 @@ class SaWaterParser:
         self._lines = []
 
     @staticmethod
-    def _sig(q): #vers 1
-        return (tuple((c["x"], c["y"], *c["f"]) for c in q["corners"]), q.get("flag"))
+    def _sig(q): #vers 2
+        return (tuple((c["x"], c["y"], *c["f"]) for c in q["corners"]), q.get("flag"),
+                tuple(q.get("extra", ())))
 
-    def load(self, path: str): #vers 2
+    def load(self, path: str): #vers 3
         self.path  = path
         self.quads = []
         raw = Path(path).read_bytes().decode("latin1")
@@ -247,18 +248,25 @@ class SaWaterParser:
                     for c in range(4)
                 ]
                 flag = int(parts[28]) if len(parts) > 28 else None
+                extra = [p for p in parts[29:]]          # GTA IV trailing value
+                [float(p) for p in extra]
             except (ValueError, IndexError):
                 continue
-            q = {"corners": corners, "flag": flag, "_line": i}
+            q = {"corners": corners, "flag": flag, "extra": extra, "_line": i}
             q["_sig"] = self._sig(q)
             self.quads.append(q)
 
     @staticmethod
-    def _fmt(q): #vers 1
+    def _fmt(q): #vers 2
         row = "    ".join(
             f"{c['x']:.4f} {c['y']:.4f} " + " ".join(f"{v:.5f}" for v in c["f"])
             for c in q["corners"])
-        return row + (f"  {q['flag']}" if q.get("flag") is not None else "")
+        row += f"  {q['flag']}" if q.get("flag") is not None else ""
+        return row + "".join(f" {v}" for v in q.get("extra", ()))
+
+    def is_iv(self) -> bool: #vers 1
+        """GTA IV water.dat: no "processed" line, extra value per quad."""
+        return any(q.get("extra") for q in self.quads)
 
     def to_text(self) -> str: #vers 1
         by_line = {q["_line"]: q for q in self.quads if "_line" in q}
@@ -353,6 +361,9 @@ class WaterGridWidget(QWidget):
         self._pan_drag      = None
         self._pan_start     = (0, 0)
         self._colour_flipped = False
+        self._depth_mode    = False     # colour water cells by level Z
+        self._gauge_side    = ''        # depth gauge: '', 'left', 'right'
+        self._paint_level   = 0         # level index painted by left-click
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -374,7 +385,20 @@ class WaterGridWidget(QWidget):
         self.update()
 
 
-    def _cell_col(self, val: int) -> QColor: #vers 2
+    def _levels_z(self): #vers 1
+        """Z of each waterpro level (empty for other formats)."""
+        wp = getattr(self._workshop, '_waterpro', None) if self._workshop else None
+        return list(wp.water_level_data[:wp.water_levels_count]) if wp else []
+
+    def _depth_col(self, z: float, zmin: float, zmax: float) -> QColor: #vers 1
+        """Blue shade for a Z: deep/low dark, high light."""
+        t = 0.5 if zmax <= zmin else (z - zmin) / (zmax - zmin)
+        return QColor(int(8 + 112 * t), int(30 + 170 * t), int(80 + 175 * t))
+
+    def _cell_col(self, val: int) -> QColor: #vers 3
+        levels = getattr(self, '_cache_levels', None)
+        if self._depth_mode and levels and val != 128 and val < len(levels):
+            return self._depth_col(levels[val], min(levels), max(levels))
         if val == 128:
             return self.COL_WATER if self._colour_flipped else self.COL_DRY
         else:
@@ -426,7 +450,7 @@ class WaterGridWidget(QWidget):
             self._grid[self._grid_idx(cx, cy)] = val
 
 
-    def _rebuild_cache(self): #vers 4
+    def _rebuild_cache(self): #vers 5
         """Render grid data to QImage. SOL's own real grid genuinely
         needs de-tiling: its own visible_map (384) and physical_map
         (768) are both real, exact multiples of 6 (6x6 map tiles,
@@ -434,6 +458,7 @@ class WaterGridWidget(QWidget):
         real and correct for SOL specifically."""
         from PyQt6.QtGui import QImage
         gw = self._grid_w
+        self._cache_levels = self._levels_z()
         img = QImage(gw, gw, QImage.Format.Format_RGB32)
         if gw % 6 == 0:
             map_w = 6
@@ -457,9 +482,10 @@ class WaterGridWidget(QWidget):
                     img.setPixel(col, row, self._cell_col(v).rgb())
         self._img_cache  = img
         self._cache_flip = self._colour_flipped
+        self._cache_key  = (self._colour_flipped, self._depth_mode, tuple(self._cache_levels))
 
 
-    def paintEvent(self, ev): #vers 1
+    def paintEvent(self, ev): #vers 2
         if not self._grid_w:
             return
         ts  = self._ts()
@@ -469,7 +495,8 @@ class WaterGridWidget(QWidget):
         p   = QPainter(self)
 
         # Draw cached QImage scaled to current zoom using explicit scale transform
-        if not hasattr(self, "_img_cache") or                 getattr(self, "_cache_flip", None) != self._colour_flipped:
+        key = (self._colour_flipped, self._depth_mode, tuple(self._levels_z()))
+        if not hasattr(self, "_img_cache") or getattr(self, "_cache_key", None) != key:
             self._rebuild_cache()
         p.save()
         p.translate(px0, py0)
@@ -504,11 +531,64 @@ class WaterGridWidget(QWidget):
 
         ws   = self._workshop
         tool = ws._active_tool if ws else "pencil"
+        levels = self._levels_z()
+        paint = f"L=level {self._paint_level}"
+        if self._paint_level < len(levels):
+            paint += f" (Z {levels[self._paint_level]:.2f})"
+        hover = ""
+        hv = self._cell_val(self._hover_cx, self._hover_cy) if self._hover_cx >= 0 else None
+        if hv is not None:
+            hover = "  cell: land" if hv == 128 else (
+                f"  cell: L{hv} Z {levels[hv]:.2f}" if hv < len(levels) else f"  cell: L{hv}")
         p.setPen(QColor(255, 255, 255, 180))
         p.setFont(QFont("monospace", 8))
         p.drawText(4, self.height()-6,
-                   f"{gw}x{gw}  z={self._zoom:.1f}x  [{tool}]  L=sea(0) R=land(128)")
+                   f"{gw}x{gw}  z={self._zoom:.1f}x  [{tool}]  {paint}  R=land(128){hover}")
+        if self._gauge_side and levels:
+            self._paint_gauge(p, levels)
         p.end()
+
+    def _gauge_rect(self): #vers 1
+        """Screen rect of the depth gauge strip."""
+        from PyQt6.QtCore import QRect
+        w, top, h = 96, 8, max(60, self.height() - 36)
+        x = 8 if self._gauge_side == 'left' else self.width() - w - 8
+        return QRect(x, top, w, h)
+
+    def _gauge_ticks(self, levels): #vers 1
+        """[(first level index, z, y)] for each distinct Z, top = highest."""
+        r = self._gauge_rect()
+        zmin, zmax = min(levels), max(levels)
+        bar_top, bar_h = r.top() + 10, r.height() - 20
+        out, seen = [], set()
+        for i, z in enumerate(levels):
+            if round(z, 3) in seen:
+                continue
+            seen.add(round(z, 3))
+            t = 0.5 if zmax <= zmin else (z - zmin) / (zmax - zmin)
+            out.append((i, z, int(bar_top + (1.0 - t) * bar_h)))
+        return out
+
+    def _paint_gauge(self, p, levels): #vers 1
+        """Depth gauge: blue Z bar, one tick per level height."""
+        from PyQt6.QtGui import QLinearGradient
+        r = self._gauge_rect()
+        zmin, zmax = min(levels), max(levels)
+        p.fillRect(r, QColor(10, 14, 24, 200))
+        bar_x, bar_top, bar_h = r.left() + 6, r.top() + 10, r.height() - 20
+        grad = QLinearGradient(0, bar_top, 0, bar_top + bar_h)
+        grad.setColorAt(0.0, self._depth_col(zmax, zmin, zmax))
+        grad.setColorAt(1.0, self._depth_col(zmin, zmin, zmax))
+        p.fillRect(bar_x, bar_top, 16, bar_h, grad)
+        p.setFont(QFont("monospace", 7))
+        cur_z = levels[self._paint_level] if self._paint_level < len(levels) else None
+        for i, z, y in self._gauge_ticks(levels):
+            sel = cur_z is not None and round(z, 3) == round(cur_z, 3)
+            p.setPen(QPen(self.COL_SEL if sel else QColor(255, 255, 255, 200), 2 if sel else 1))
+            p.drawLine(bar_x - 2, y, bar_x + 20, y)
+            p.drawText(bar_x + 24, y + 4, f"{z:.1f}")
+        p.setPen(QColor(255, 255, 255, 160))
+        p.drawText(r.left() + 4, r.bottom() + 12, "Z gauge")
 
 
     def mouseMoveEvent(self, ev): #vers 1
@@ -535,7 +615,7 @@ class WaterGridWidget(QWidget):
             self.update()
 
 
-    def mousePressEvent(self, ev): #vers 1
+    def mousePressEvent(self, ev): #vers 2
         is_left  = ev.button() == Qt.MouseButton.LeftButton
         is_right = ev.button() == Qt.MouseButton.RightButton
         is_mid   = ev.button() == Qt.MouseButton.MiddleButton
@@ -555,6 +635,12 @@ class WaterGridWidget(QWidget):
             self._pan_y = cy - int((cy - self._pan_y) * new / max(1, old))
             self.update()
             return
+        levels = self._levels_z()
+        if self._gauge_side and levels and is_left and self._gauge_rect().contains(ev.pos()):
+            ticks = self._gauge_ticks(levels)
+            self._paint_level = min(ticks, key=lambda t: abs(t[2] - ev.pos().y()))[0]
+            self.update()
+            return
         cx, cy = self._cell_at(ev.pos())
         if cx < 0:
             return
@@ -564,7 +650,8 @@ class WaterGridWidget(QWidget):
         if tool == "picker":
             self.color_picked.emit(self._cell_val(cx, cy) == 0, is_left)  # 0=water
             return
-        self._draw_val = 0 if is_left else 128  # L=draw water(0), R=draw land(128)
+        lv = self._paint_level if self._paint_level < max(1, len(levels)) else 0
+        self._draw_val = lv if is_left else 128  # L=water at gauge level, R=land(128)
         if ws:
             ws._push_undo_grid()
         if tool == "pencil":
@@ -938,7 +1025,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self.ribbon_label(tb, "L = Sea   R = Land")
 
 
-    def _build_menus_into_qmenu(self, pm): #vers 3
+    def _build_menus_into_qmenu(self, pm): #vers 4
         fm = pm.addMenu("File")
         fm.addAction("Load  Ctrl+O",         self._open_file)
         fm.addAction("Save  Ctrl+S",         self._save_file)
@@ -970,6 +1057,18 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         vm.addAction("Toggle Grid Lines",    self._toggle_grid)
         vm.addAction("Flip Display Colours", self._flip_colours)
         vm.addAction("Grid Offset / Shift…", self._show_offset_dialog)
+        vm.addSeparator()
+        gm = vm.addMenu("Depth Gauge (Z)")
+        cur = self.WS.get("depth_gauge_side", "")
+        for label, side in (("Off", ""), ("Left", "left"), ("Right", "right")):
+            act = gm.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(cur == side)
+            act.triggered.connect(lambda _c=False, sd=side: self._set_depth_view(gauge_side=sd))
+        act = vm.addAction("Colour Water by Depth (Z)")
+        act.setCheckable(True)
+        act.setChecked(bool(self.WS.get("depth_colour", False)))
+        act.toggled.connect(lambda on: self._set_depth_view(depth_colour=on))
         vm.addSeparator()
         vm.addAction("About Water Workshop", self._show_about)
 
@@ -1006,7 +1105,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return panel
 
 
-    def _create_centre_panel(self): #vers 3
+    def _create_centre_panel(self): #vers 4
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         cl = QVBoxLayout(panel)
@@ -1023,6 +1122,9 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._view_tabs.addTab(sc1, "Physical (64x64)")
         self._vis_canvas = WaterGridWidget()
         self._vis_canvas._workshop = self
+        for cv in (self._phys_canvas, self._vis_canvas):
+            cv._gauge_side = self.WS.get("depth_gauge_side", "")
+            cv._depth_mode = bool(self.WS.get("depth_colour", False))
         sc2 = QScrollArea()
         sc2.setWidget(self._vis_canvas)
         sc2.setWidgetResizable(True)
@@ -1139,6 +1241,19 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             c.update()
 
 
+    def _set_depth_view(self, gauge_side=None, depth_colour=None): #vers 1
+        """Apply and save depth gauge side / depth colouring to both grids."""
+        if gauge_side is not None:
+            self.WS._data["depth_gauge_side"] = gauge_side
+        if depth_colour is not None:
+            self.WS._data["depth_colour"] = bool(depth_colour)
+        self.WS.save()
+        for cv in (getattr(self, '_phys_canvas', None), getattr(self, '_vis_canvas', None)):
+            if cv is not None:
+                cv._gauge_side = self.WS.get("depth_gauge_side", "")
+                cv._depth_mode = bool(self.WS.get("depth_colour", False))
+                cv.update()
+
     def _flip_colours(self): #vers 1
         for c in (self._phys_canvas, self._vis_canvas):
             c._colour_flipped = not c._colour_flipped
@@ -1189,11 +1304,23 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return gw * gw == rem // 5
 
 
-    def _is_sa_water(self, data): #vers 2
+    def _is_sa_water(self, data): #vers 3
+        """SA ("processed" header) or GTA IV (no header, quad lines) water.dat."""
         try:
-            return data[:9].decode("latin1") == "processed"
+            text = data[:4096].decode("latin1")
         except Exception:
             return False
+        if text[:9] == "processed":
+            return True
+        first = next((l.split() for l in text.splitlines()
+                      if l.strip() and not l.lstrip().startswith((";", "#"))), [])
+        if len(first) < 28:
+            return False
+        try:
+            [float(p) for p in first]
+        except ValueError:
+            return False
+        return True
 
 
     def _open_file(self, path=None): #vers 2
@@ -1265,7 +1392,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             f"Loaded {Path(path).name}  |  {len(wd.rects)} rectangle(s)  (text)")
 
 
-    def _load_sa_water(self, path): #vers 2
+    def _load_sa_water(self, path): #vers 3
         sa = SaWaterParser()
         sa.load(path)
         self._sa_water  = sa
@@ -1280,8 +1407,9 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             c = q["corners"][0]
             self._levels_list.addItem(QListWidgetItem(
                 f"[{i}] ({c['x']:.0f},{c['y']:.0f})  flag={q['flag']}"))
+        kind = "GTA IV" if sa.is_iv() else "SA"
         self._set_status(
-            f"Loaded {Path(path).name}  |  {len(sa.quads)} SA water quads")
+            f"Loaded {Path(path).name}  |  {len(sa.quads)} {kind} water quads")
 
 
     def _refresh_levels_list(self): #vers 3
@@ -1418,7 +1546,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             QMessageBox.critical(self, "Import Error", str(e))
 
 
-    def _edit_level(self, item): #vers 3
+    def _edit_level(self, item): #vers 4
         idx = self._levels_list.row(item)
         dlg = QDialog(self)
         _apply_dialog_theme(dlg, self.main_window)
@@ -1467,18 +1595,40 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
                 return
             dlg.setWindowTitle(f"Edit Water Quad {idx}")
             from PyQt6.QtWidgets import QSpinBox
+            q = quads[idx]
+            corner_spins = []
+            for n, c in enumerate(q["corners"]):
+                xyz = (_spin(c["x"], dec=4), _spin(c["y"], dec=4), _spin(c["f"][0], dec=4))
+                fl.addRow(f"Corner {n + 1} X / Y / Z:", self._spin_row(xyz))
+                corner_spins.append(xyz)
             fs = QSpinBox()
             fs.setRange(0, 255)
-            fs.setValue(quads[idx]["flag"] if quads[idx]["flag"] is not None else 0)
+            fs.setValue(q["flag"] if q["flag"] is not None else 0)
             fl.addRow("Flag:", fs)
             fl.addRow(btns)
             if dlg.exec() == QDialog.DialogCode.Accepted:
-                quads[idx]["flag"] = fs.value()
+                for c, (sx, sy, sz) in zip(q["corners"], corner_spins):
+                    c["x"], c["y"] = sx.value(), sy.value()
+                    c["f"] = [sz.value()] + c["f"][1:]
+                if q["flag"] is not None or fs.value():
+                    q["flag"] = fs.value()
+                self._sa_canvas.setup(self._sa_water.quads, self._sa_water.world_bbox())
                 self._refresh_levels_list()
                 self._mark_dirty(True)
 
+    @staticmethod
+    def _spin_row(widgets): #vers 1
+        """Spin boxes side by side in one form row."""
+        from PyQt6.QtWidgets import QHBoxLayout, QWidget
+        row = QWidget()
+        lay = QHBoxLayout(row)
+        lay.setContentsMargins(0, 0, 0, 0)
+        for w in widgets:
+            lay.addWidget(w)
+        return row
 
-    def _add_level(self): #vers 2
+
+    def _add_level(self): #vers 3
         if self._waterpro:
             wp = self._waterpro
             if wp.water_levels_count >= WaterproParser.WATER_LEVELS:
@@ -1495,6 +1645,22 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             self._waterdat.rects.append((0.0, cx - 50, cy - 50, cx + 50, cy + 50))
             self._refresh_levels_list()
             self._levels_list.setCurrentRow(len(self._waterdat.rects) - 1)
+            self._mark_dirty(True)
+        elif self._sa_water:
+            sa = self._sa_water
+            x0, y0, x1, y1 = sa.world_bbox()
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+            tmpl = sa.quads[-1] if sa.quads else None   # copy last quad's layout
+            corners = [{"x": cx + dx, "y": cy + dy,
+                        "f": [0.0] + (list(c["f"][1:]) if tmpl else [0.0, 0.0, 0.0, 0.0])}
+                       for (dx, dy), c in zip(((-50, -50), (50, -50), (-50, 50), (50, 50)),
+                                              tmpl["corners"] if tmpl else [None] * 4)]
+            sa.quads.append({"corners": corners,
+                             "flag": tmpl["flag"] if tmpl else 1,
+                             "extra": list(tmpl.get("extra", ())) if tmpl else []})
+            self._sa_canvas.setup(sa.quads, sa.world_bbox())
+            self._refresh_levels_list()
+            self._levels_list.setCurrentRow(len(sa.quads) - 1)
             self._mark_dirty(True)
 
 

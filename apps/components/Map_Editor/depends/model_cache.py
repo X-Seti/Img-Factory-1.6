@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 5
+#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 10
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG
@@ -15,6 +15,7 @@ retried on every subsequent instance that references it.
 
 ##Methods list -
 # __init__
+# _index_wbd
 # _index_wdd
 # _is_wdd
 # _model_entries
@@ -23,12 +24,16 @@ retried on every subsequent instance that references it.
 # _parse_textures
 # _parse_txd_job
 # _read_entry
+# _apply_limit
 # _scan_col_model_names
+# _shrink_texture
 # _store_parsed
 # clear_indexes
 # get_collision
 # get_dimensions
 # get_geometry
+# get_iv_collision
+# get_iv_static_bounds
 # get_raw_txd
 # get_textures
 # index_col_files
@@ -36,7 +41,9 @@ retried on every subsequent instance that references it.
 # is_col_indexed
 # is_dff_indexed
 # is_txd_indexed
+# iv_static_bound_names
 # prefetch
+# set_texture_limit
 # stats
 
 import struct
@@ -96,7 +103,7 @@ def _parse_dff_job(model_name: str, blobs: List[bytes]) -> Optional[DFFModel]: #
     return None
 
 
-def _parse_model(model_name: str, data: bytes) -> Optional[DFFModel]: #vers 1
+def _parse_model(model_name: str, data: bytes) -> Optional[DFFModel]: #vers 4
     """DFF, GTA IV .wdr or .wdd (by name hash) to DFFModel."""
     from apps.methods.wdr_model import is_iv_drawable, parse_wdr, parse_wdd, wdr_embedded_textures
     if not data:
@@ -108,19 +115,52 @@ def _parse_model(model_name: str, data: bytes) -> Optional[DFFModel]: #vers 1
         model = parse_wdr(data, model_name)
         model.embedded_textures = {t['name'].lower(): t for t in wdr_embedded_textures(data)}
         return model
+    from apps.methods.lcs_geometry import is_lcs_dff, parse_lcs_dff
+    if is_lcs_dff(data):                       # LCS mobile/PSP native geometry
+        return parse_lcs_dff(data, model_name)
+    from apps.methods.stories_mdl import is_stories_mdl, parse_stories_mdl
+    if is_stories_mdl(data):                   # LCS/VCS PS2/PSP .mdl
+        return parse_stories_mdl(data, model_name)
+    from apps.methods.ps2_geometry import is_ps2_native_dff, parse_ps2_native_dff
+    if is_ps2_native_dff(data):                # III/VC/SA PS2 native geometry
+        return parse_ps2_native_dff(data, model_name)
     if detect_dff(data):
         return DFFParser(data, model_name).parse()
     return None
 
 
-def _parse_textures(data: bytes) -> List[dict]: #vers 1
-    """TXD or GTA IV .wtd textures (top level only for .wtd)."""
+def _parse_textures(data: bytes) -> List[dict]: #vers 2
+    """TXD, GTA IV .wtd (top level only) or LCS/VCS .chk/.xtx textures."""
+    if data[:4] == b'xet\x00':
+        from apps.methods.xtx_reader import parse_stories_textures
+        return parse_stories_textures(data)
     if data[:4] == b'RSC\x05':
         import zlib
         from apps.methods.xtd_textures import _iv_textures, _rsc5_sizes
         vs, _ps = _rsc5_sizes(struct.unpack_from('<I', data, 8)[0])
         return _iv_textures(zlib.decompress(data[12:]), vs, levels=False)
     return parse_txd(data) or []
+
+
+def _shrink_texture(tex: dict, threshold: int, target: int) -> dict: #vers 1
+    """Texture over threshold reduced to fit target (mip level reused); mips dropped."""
+    w, h = tex.get('width', 0), tex.get('height', 0)
+    levels = tex.pop('mipmap_levels', None) or []
+    tex.pop('compressed_data', None)
+    if max(w, h) <= threshold or not tex.get('rgba_data'):
+        return tex
+    lv = next((l for l in levels if max(l.get('width', 0), l.get('height', 0)) <= target
+               and l.get('rgba_data')), None)
+    if lv is not None:
+        rgba, nw, nh = lv['rgba_data'], lv['width'], lv['height']
+    else:
+        from PIL import Image
+        f = target / max(w, h)
+        nw, nh = max(1, int(w * f)), max(1, int(h * f))
+        rgba = Image.frombytes('RGBA', (w, h), bytes(tex['rgba_data'])).resize(
+            (nw, nh), Image.BOX).tobytes()
+    tex.update(rgba_data=bytes(rgba), width=nw, height=nh, mipmaps=1)
+    return tex
 
 
 def _parse_txd_job(blobs: List[bytes]) -> Optional[Dict[str, dict]]: #vers 2
@@ -140,7 +180,7 @@ def _parse_txd_job(blobs: List[bytes]) -> Optional[Dict[str, dict]]: #vers 2
 class ModelCache:
     """See module docstring."""
 
-    def __init__(self): #vers 3
+    def __init__(self): #vers 5
         # lowercase entry name (no extension) -> [(img_path, IMGEntry), ...]
         # A list, not a single tuple (Aug 1 2026) - if the same name is
         # indexed more than once (e.g. my real game folder has
@@ -152,6 +192,12 @@ class ModelCache:
         self._txd_index: Dict[str, List[Tuple[str, object]]] = {}
         # GTA IV .wdd model name hash -> [(img_path, IMGEntry), ...]
         self._wdd_index: Dict[int, List[Tuple[str, object]]] = {}
+        # (threshold, target) applied to every loaded texture, None = full size
+        self.texture_limit: Optional[Tuple[int, int]] = None
+        # GTA IV .wbd model hash and .wbn stem -> [(img_path, IMGEntry), ...]
+        self._wbd_index: Dict[int, List[Tuple[str, object]]] = {}
+        self._wbn_index: Dict[str, List[Tuple[str, object]]] = {}
+        self._iv_bounds_cache: Dict[str, object] = {}
         # lowercase entry stem -> [(img_path, IMGEntry), ...] for .col
         # entries found directly inside the game's own IMG archives
         # (Aug 14 2026,  "In SA it should be reading them
@@ -235,7 +281,7 @@ class ModelCache:
         # once per texture lookup.
         self._opened_img_files: Dict[str, 'object'] = {}
 
-    def index_img_files(self, img_paths: List[str]): #vers 5
+    def index_img_files(self, img_paths: List[str]): #vers 7
         """Scan a list of IMG archive paths, building name -> (path,
         entry) indexes for .dff, .txd, and .col entries. Call once
         after a world loads (or its IMG set changes) - reading
@@ -262,6 +308,9 @@ class ModelCache:
         self._dff_index.clear()
         self._txd_index.clear()
         self._wdd_index.clear()
+        self._wbd_index.clear()
+        self._wbn_index.clear()
+        self._iv_bounds_cache.clear()
         self._col_img_index.clear()
         self._col_container_cache.clear()
         self.indexed_img_paths = []
@@ -284,12 +333,16 @@ class ModelCache:
                         continue
                     stem_lower = stem.lower()
                     ext_lower = ext.lower()
-                    if ext_lower in ('dff', 'wdr', 'wft'):
+                    if ext_lower in ('dff', 'wdr', 'wft', 'mdl'):     # mdl: LCS/VCS
                         self._dff_index.setdefault(stem_lower, []).append((img_path, entry))
-                    elif ext_lower in ('txd', 'wtd'):
+                    elif ext_lower in ('txd', 'wtd', 'chk', 'xtx'):   # chk/xtx: LCS/VCS
                         self._txd_index.setdefault(stem_lower, []).append((img_path, entry))
                     elif ext_lower == 'wdd':
                         self._index_wdd(img_path, entry)
+                    elif ext_lower == 'wbd':
+                        self._index_wbd(img_path, entry)
+                    elif ext_lower == 'wbn':
+                        self._wbn_index.setdefault(stem_lower, []).append((img_path, entry))
                     elif ext_lower == 'col':
                         self.col_entries_found_in_img += 1
                         data = self._read_entry(img_path, entry)
@@ -309,6 +362,69 @@ class ModelCache:
                 self._wdd_index.setdefault(h, []).append((img_path, entry))
         except Exception as e:
             self.index_errors.append(f"{img_path}/{entry.name}: {e}")
+
+    def set_texture_limit(self, enabled: bool, threshold: int, target: int) -> None: #vers 1
+        """Reduce textures on load (all formats); changing it drops cached textures."""
+        limit = (int(threshold), int(target)) if enabled else None
+        if limit != self.texture_limit:
+            self.texture_limit = limit
+            self._texture_cache.clear()
+
+    def _apply_limit(self, textures): #vers 1
+        """Texture limit applied to a {name: texture} dict (in place)."""
+        if textures and self.texture_limit:
+            for t in textures.values():
+                _shrink_texture(t, *self.texture_limit)
+        return textures
+
+    def _index_wbd(self, img_path: str, entry) -> None: #vers 1
+        """Index every model hash inside a GTA IV .wbd entry."""
+        from apps.methods.iv_bounds import wbd_hashes
+        try:
+            data = self._read_entry(img_path, entry)
+            for h in wbd_hashes(data) if data else []:
+                self._wbd_index.setdefault(h, []).append((img_path, entry))
+        except Exception as e:
+            self.index_errors.append(f"{img_path}/{entry.name}: {e}")
+
+    def get_iv_collision(self, model_name: str): #vers 1
+        """GTA IV model collision from .wbd: (vertices, triangles) or None."""
+        key = 'wbd:' + model_name.lower()
+        if key not in self._iv_bounds_cache:
+            from apps.methods.iv_bounds import parse_wbd
+            from apps.methods.xtd_textures import iv_hash
+            h, result = iv_hash(model_name), None
+            for img_path, entry in self._wbd_index.get(iv_hash(model_name), []) if self._wbd_index else []:
+                try:
+                    result = parse_wbd(self._read_entry(img_path, entry), h)
+                except Exception:
+                    result = None
+                if result:
+                    break
+            self._iv_bounds_cache[key] = result
+        return self._iv_bounds_cache[key]
+
+    def iv_static_bound_names(self, area: str) -> List[str]: #vers 1
+        """.wbn stems for a GTA IV map area (area_1, area_2, ...)."""
+        prefix = area.lower() + '_'
+        return sorted(n for n in self._wbn_index
+                      if n.startswith(prefix) and n[len(prefix):].isdigit())
+
+    def get_iv_static_bounds(self, stem: str): #vers 1
+        """World-space collision of one GTA IV .wbn: (vertices, triangles) or None."""
+        key = 'wbn:' + stem.lower()
+        if key not in self._iv_bounds_cache:
+            from apps.methods.iv_bounds import parse_wbn
+            result = None
+            for img_path, entry in self._wbn_index.get(stem.lower(), []):
+                try:
+                    result = parse_wbn(self._read_entry(img_path, entry))
+                except Exception:
+                    result = None
+                if result and result[1]:
+                    break
+            self._iv_bounds_cache[key] = result if result and result[1] else None
+        return self._iv_bounds_cache[key]
 
     def _model_entries(self, key: str) -> List[Tuple[str, object]]: #vers 1
         """IMG entries holding a model: .dff/.wdr by name, else .wdd by hash."""
@@ -352,13 +468,16 @@ class ModelCache:
             except Exception as e:
                 self.index_errors.append(f"{col_path}: {e}")
 
-    def clear_indexes(self): #vers 4
+    def clear_indexes(self): #vers 5
         """Drop all indexes and cached geometry/textures/collision -
         call before re-indexing for a newly loaded world, so stale
         entries from a previous world can't leak through."""
         self._dff_index.clear()
         self._txd_index.clear()
         self._wdd_index.clear()
+        self._wbd_index.clear()
+        self._wbn_index.clear()
+        self._iv_bounds_cache.clear()
         self._col_img_index.clear()
         self._col_index.clear()
         self._geometry_cache.clear()
@@ -373,7 +492,7 @@ class ModelCache:
         self.index_errors = []
         self.col_entries_found_in_img = 0
 
-    def get_geometry(self, model_name: str) -> Optional[DFFModel]: #vers 2
+    def get_geometry(self, model_name: str) -> Optional[DFFModel]: #vers 3
         """Get the parsed DFF geometry for a model name, loading and
         parsing (and caching the result either way) on first request.
         Returns None if the model isn't indexed, or its data failed to
@@ -400,6 +519,8 @@ class ModelCache:
                     break
             except Exception:
                 continue
+        if result is not None:
+            self._apply_limit(getattr(result, 'embedded_textures', None))
         self._geometry_cache[key] = result
         return result
 
@@ -434,7 +555,7 @@ class ModelCache:
         self._dimensions_cache[key] = dims
         return dims
 
-    def get_textures(self, txd_name: str) -> Optional[Dict[str, dict]]: #vers 2
+    def get_textures(self, txd_name: str) -> Optional[Dict[str, dict]]: #vers 3
         """Get the parsed textures for a TXD name, as a dict keyed by
         lowercase texture name (a TXD can hold multiple textures) -
         loading/parsing/caching on first request, same fallback
@@ -470,7 +591,7 @@ class ModelCache:
                             merged[name.lower()] = t
                 except Exception:
                     continue
-            result = merged or None
+            result = self._apply_limit(merged) or None
         self._texture_cache[key] = result
         return result
 
@@ -610,8 +731,10 @@ class ModelCache:
                 result = _parse_dff_job(name, blobs) if kind == 'dff' else _parse_txd_job(blobs)
                 self._store_parsed(kind, name, result, on_done)
 
-    def _store_parsed(self, kind, name, result, on_done=None) -> None: #vers 1
+    def _store_parsed(self, kind, name, result, on_done=None) -> None: #vers 2
         """Cache one parsed DFF/TXD result and report it."""
+        if result is not None:
+            self._apply_limit(result if kind != 'dff' else getattr(result, 'embedded_textures', None))
         (self._geometry_cache if kind == 'dff' else self._texture_cache)[name] = result
         if on_done:
             on_done(kind, name, result)

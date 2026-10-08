@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 13
+#this belongs in apps/methods/gta_dat_parser.py - Version: 16
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -521,8 +521,8 @@ class WaterShape: #vers 1
         return bool(self.water_type & 2)
 
 
-def parse_water_dat(path: str) -> List[WaterShape]: #vers 1
-    """Parse a real SA water.dat file (Aug 20 2026)"""
+def parse_water_dat(path: str) -> List[WaterShape]: #vers 2
+    """Parse SA water.dat, or GTA IV's (no header, 30 values per quad)."""
     shapes: List[WaterShape] = []
     try:
         with open(path, 'r', encoding='ascii', errors='ignore') as f:
@@ -536,20 +536,23 @@ def parse_water_dat(path: str) -> List[WaterShape]: #vers 1
         line = raw_line.split('#', 1)[0].strip()
         if not line:
             continue
+        parts = line.split()
         if not seen_processed:
             if line.lower() == 'processed':
                 seen_processed = True
-            continue
-        parts = line.split()
+                continue
+            if len(parts) != 30:     # IV has no header; data starts at once
+                continue
+            seen_processed = True
         if len(parts) == 22:
             n_corners = 3
-        elif len(parts) == 29:
+        elif len(parts) in (29, 30):  # 30: IV, trailing extra value
             n_corners = 4
         else:
             continue
         try:
-            values = [float(p) for p in parts[:-1]]
-            water_type = int(float(parts[-1]))
+            values = [float(p) for p in parts[:n_corners * 7]]
+            water_type = int(float(parts[n_corners * 7]))
         except ValueError:
             continue
         corners = []
@@ -600,13 +603,18 @@ def _detile_sol_grid(raw: bytes, grid_width: int, map_w: int = 6) -> List[List[i
     return out
 
 
-def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 3
+def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 4
     """Parse a real GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026)"""
     try:
         with open(path, 'rb') as f:
             data = f.read()
     except Exception:
         return None
+    return parse_waterpro_bytes(data, os.path.basename(path))
+
+
+def parse_waterpro_bytes(data: bytes, source: str = '') -> Optional[WaterProFile]: #vers 1
+    """waterpro.dat layout from bytes (file or LCS/VCS GAME.DTZ)."""
     header_size = 964
     remaining = len(data) - header_size
     if remaining <= 0 or remaining % 5 != 0:
@@ -638,7 +646,7 @@ def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 3
     return WaterProFile(
         level_count=level_count, levels=levels, grid_width=grid_width,
         unk_block=unk_block, visible_map=visible_map, physical_map=physical_map,
-        source_file=os.path.basename(path))
+        source_file=source)
 
 
 @dataclass
@@ -660,6 +668,7 @@ RADAR_GRID_PRESETS = {
     'vc':   {'grid_size': 4000.0, 'tiles_per_side': 8},
     'sa':   {'grid_size': 6000.0, 'tiles_per_side': 12},
     'sol':  {'grid_size': 12000.0, 'tiles_per_side': 36},
+    'iv':   {'grid_size': 6000.0, 'tiles_per_side': 12},   # radar.img radarN.wtd
 }
 
 # Water's own real grid size, separate from RADAR_GRID_PRESETS (Sep 5 2026)
@@ -873,7 +882,28 @@ def _resolve_ci(base: str, rel_path: str) -> Optional[str]:
     return current if os.path.isfile(current) else None
 
 
-class DATParser: #vers 3
+def _flat_lookup(directory: str, name: str) -> Optional[str]: #vers 1
+    """File by name (any case) directly in directory - flat iOS installs."""
+    try:
+        low = os.path.basename(name.replace("\\", "/")).lower()
+        hit = next((e for e in os.listdir(directory) if e.lower() == low), None)
+    except OSError:
+        return None
+    path = os.path.join(directory, hit) if hit else None
+    return path if path and os.path.isfile(path) else None
+
+
+def dat_game_root(dat_path: str, game: str = "") -> str: #vers 1
+    """Game root for a .dat: parent of data/ or sol/, else its own folder (flat iOS)."""
+    if game == GTAGame.IV:
+        return resolve_game_root(dat_path)
+    folder = os.path.dirname(os.path.abspath(dat_path))
+    if os.path.basename(folder).lower() in ('data',) + tuple(n.lower() for n in GTAGame.SOL_SUBDIRS):
+        return os.path.dirname(folder)
+    return folder
+
+
+class DATParser: #vers 4
     """Parses a single GTA .dat file — handles COLFILE island index and strips inline comments."""
 
     def __init__(self, game: str = GTAGame.GTA3):
@@ -883,12 +913,9 @@ class DATParser: #vers 3
         self.entries:  List[DATEntry] = []
         self.stats     = ParseStats()
 
-    def parse(self, dat_path: str, game_root: str = "") -> bool: #vers 3
+    def parse(self, dat_path: str, game_root: str = "") -> bool: #vers 4
         self.dat_path  = dat_path
-        # IV dat lives two levels down (common/data/)
-        up = ("..", "..") if self.game == GTAGame.IV else ("..",)
-        self.game_root = game_root or os.path.normpath(
-            os.path.join(os.path.dirname(dat_path), *up))
+        self.game_root = game_root or dat_game_root(dat_path, self.game)
         self.entries.clear()
         self.stats = ParseStats()
 
@@ -992,7 +1019,7 @@ class DATParser: #vers 3
                 return found
         return os.path.normpath(os.path.join(self.game_root, rel))
 
-    def _resolve(self, raw: str) -> str: #vers 4
+    def _resolve(self, raw: str) -> str: #vers 5
         """Resolve a Windows-style relative path to an absolute path.
         Uses case-insensitive fallback for Linux (needed for SOL's mixed-case paths)."""
         if self.game == GTAGame.IV:
@@ -1014,6 +1041,12 @@ class DATParser: #vers 3
         ci = _resolve_ci(self.game_root, norm)
         if ci:
             return ci
+        # Flat iOS installs: every file in the app folder, paths ignored
+        stem, ext = os.path.splitext(os.path.basename(norm))
+        for name in (norm, stem + "_PVR" + ext):        # iOS III: misc_PVR.txd
+            flat = _flat_lookup(self.game_root, name) or _flat_lookup(os.path.dirname(self.dat_path), name)
+            if flat:
+                return flat
         return cand  # return game-root candidate even if not found
 
     def get_by_directive(self, d: str) -> List[DATEntry]:
@@ -2327,6 +2360,7 @@ class GTAWorldLoader: #vers 4
         # then does the actual, real load for one specific IPL on
         # demand, exactly matching MooMapper's model.
         self.lazy_ipl_loading: bool = False
+        self.stories = None   # (game, platform) when loaded from LCS/VCS GAME.DTZ
         self.available_ipls: Dict[str, DATEntry] = {}   # lowercase stem -> DATEntry
         self.loaded_ipls: set = set()   # lowercase stems already loaded on demand
         # IPL stems (lowercase, no extension) to parse using VC's own
@@ -2340,7 +2374,7 @@ class GTAWorldLoader: #vers 4
         self._iv_hash_names: Dict[int, Tuple[str, int]] = {}  # hash -> (name, id)
         self.iv_wpl_unresolved = 0
 
-    def load(self, game_root: str, progress_cb=None) -> bool: #vers 7
+    def load(self, game_root: str, progress_cb=None) -> bool: #vers 10
         """Full load from a game root directory.
         Always enforces models/gta3.img (called from game exe, not from any .dat)
         so TXD Workshop and the Dump TXDs feature can always find it.
@@ -2348,6 +2382,9 @@ class GTAWorldLoader: #vers 4
         self.progress_cb = progress_cb
         game_root = resolve_game_root(game_root)
         self._reset()
+        from apps.methods.stories_dtz import dtz_paths
+        if dtz_paths(game_root):                # LCS/VCS console: no .dat files
+            return self.load_stories(game_root)
 
         #    Inject exe-loaded archives (not in any .dat)                   
         # gta3.img is always loaded by the game exe — enforce it here so
@@ -2376,12 +2413,43 @@ class GTAWorldLoader: #vers 4
         self._process_dat(self.main_dat, "main")
         if self.game == GTAGame.IV:
             self._load_iv_streamed_wpls()
+            self.load_water_dat(os.path.dirname(main_path))
+        else:
+            self._load_dat_extras(game_root, os.path.dirname(main_path))
 
         self.stats.objects_loaded = len(self.objects)
         self.stats.instances      = len(self.instances)
         return True
 
-    def _inject_enforced_imgs(self, game_root: str): #vers 4
+    def load_stories(self, game_root: str) -> bool: #vers 2
+        """LCS/VCS PS2/PSP: objects, placements, water and IMG from GAME.DTZ."""
+        from apps.methods.stories_dtz import StoriesDTZ, dtz_paths
+        game, plat, dtz_path, img_path = dtz_paths(game_root)
+        self._progress(0, 1, f"GAME.DTZ: {game.upper()} {plat.upper()}")
+        dtz = StoriesDTZ(dtz_path, game, plat)
+        self.stories = (game, plat)
+        kinds = {'objs': 'object', 'tobj': 'object', 'weap': 'weapon',
+                 'hier': 'clump', 'cars': 'vehicle', 'peds': 'ped'}
+        for o in dtz.objects():
+            self.objects[o['id']] = IDEObject(o['id'], o['name'], o['txd'], kinds[o['section']],
+                                              o['section'], o['extra'], dtz_path, 0)
+        for n, e in enumerate(dtz.instances()):
+            (x, y, z), (qx, qy, qz, qw) = e['pos'], e['rot']
+            self.instances.append(IPLInstance(e['id'], e['name'], 0, x, y, z, qx, qy, qz, qw,
+                                              source_ipl=e['pool'] + '.ipl', line_no=n))
+        for kind, a, b in dtz.path_links():          # compiled path graph, one link per group
+            self.paths.append(PathGroup(0 if kind == 'car' else 1, 0, [
+                PathNode(1, 1, *a), PathNode(1, -1, *b)], source_ipl=f"paths_{kind}.dtz"))
+        self.load_log.append(("stories", "IMG", img_path, True))
+        self.load_log.append(("stories", "DTZ", dtz_path, True))
+        self.waterpro = parse_waterpro_bytes(dtz.waterpro_bytes(), os.path.basename(dtz_path))
+        self.lazy_ipl_loading = False               # pools are in memory already
+        self.stats.ipl_files = len({i.source_ipl for i in self.instances})
+        self.stats.objects_loaded = len(self.objects)
+        self.stats.instances = len(self.instances)
+        return True
+
+    def _inject_enforced_imgs(self, game_root: str): #vers 5
         """Inject models/gta3.img which the game exe always loads directly —
         it never appears in any .dat file for GTA3, VC, SA or SOL.
         We deduplicate both by normalised abs-path and by basename so that
@@ -2403,7 +2471,8 @@ class GTAWorldLoader: #vers 4
         if 'gta3' in seen_stems:
             return   # already in log from a .dat
 
-        abs_path = _resolve_ci(game_root, rel)
+        abs_path = (_resolve_ci(game_root, rel) or _flat_lookup(game_root, "gta3.img")
+                    or _flat_lookup(game_root, "gta3_pvr.img"))   # flat iOS (III: gta3_pvr)
         if not abs_path:
             abs_path = os.path.normpath(os.path.join(game_root, rel))
 
@@ -2414,20 +2483,27 @@ class GTAWorldLoader: #vers 4
         self.load_log.append(("enforced", "IMG", abs_path, exists))
         if exists:
             self.stats.img_files += 1
+        if _data_dir(game_root) == game_root:          # flat iOS: exe loads every app IMG
+            seen_abs.add(os.path.normcase(abs_path))
+            for name in sorted(os.listdir(game_root)):
+                full = os.path.join(game_root, name)
+                if name.lower().endswith(".img") and os.path.normcase(full) not in seen_abs:
+                    self.load_log.append(("enforced", "IMG", full, True))
+                    self.stats.img_files += 1
 
     def load_from_dat(self, dat_path: str, game_root: str = "",
-                      progress_cb=None) -> bool: #vers 2
+                      progress_cb=None) -> bool: #vers 5
         """Load from an explicit .dat path."""
         self.progress_cb = progress_cb
         self._reset()
         if not game_root:
-            up = ("..", "..") if self.game == GTAGame.IV else ("..",)
-            game_root = os.path.normpath(
-                os.path.join(os.path.dirname(dat_path), *up))
+            game_root = dat_game_root(dat_path, self.game)
         data_dir     = os.path.dirname(dat_path)
         default_name = GTAGame.DEFAULT_DAT.get(self.game)
         if default_name:
             default_path = os.path.join(data_dir, default_name)
+            if not os.path.isfile(default_path):
+                default_path = _flat_lookup(data_dir, default_name) or default_path
             if os.path.isfile(default_path):
                 self._progress(0, 1, f"Phase 1: {default_name}")
                 self.default_dat.parse(default_path, game_root)
@@ -2439,7 +2515,13 @@ class GTAWorldLoader: #vers 4
         self.stats.objects_loaded = len(self.objects)
         self.stats.instances      = len(self.instances)
         if self.game == GTAGame.IV:
+            self.load_water_dat(data_dir)   # IV water.dat: SA-style quads
             return True   # III/VC/SA extras below do not apply
+        self._load_dat_extras(game_root, data_dir)
+        return True
+
+    def _load_dat_extras(self, game_root: str, data_dir: str): #vers 2
+        """Tracks, SA nodes/roadblox/water, III chase, waterpro (both load paths)."""
         self.load_tracks_dat(data_dir)
         if self.game == GTAGame.SA:
             # SA-only (Aug 19 2026)
@@ -2455,9 +2537,8 @@ class GTAWorldLoader: #vers 4
             # text water.dat instead, see load_water_dat just above;
             # SOL is built on the VC engine, so it uses the same
             # binary format VC does, not SA's).
-            waterpro_dir = os.path.join(game_root, "data") if self.game == GTAGame.SOL else data_dir
+            waterpro_dir = _data_dir(game_root) if self.game == GTAGame.SOL else data_dir   # Data/ or data/
             self.load_waterpro_dat(waterpro_dir)
-        return True
 
     def load_tracks_dat(self, data_dir: str): #vers 2
         """Load train track waypoints, and (Aug 19 2026)"""
@@ -2482,7 +2563,7 @@ class GTAWorldLoader: #vers 4
                 self.tracks[name] = waypoints
                 self.load_log.append(("tracks", "TRACKS", abs_path, True))
 
-    def load_sa_nodes(self, game_root: str = "", data_dir: str = ""): #vers 1
+    def load_sa_nodes(self, game_root: str = "", data_dir: str = ""): #vers 2
         """Load every real, game-used nodesN.dat area file for SA (Aug
         19 2026)"""
         from apps.methods.sa_path_parser import (
@@ -2490,18 +2571,7 @@ class GTAWorldLoader: #vers 4
             load_all_nodes_dat_from_dir)
         loaded_any = False
         if game_root:
-            img_path = os.path.join(game_root, 'models', 'gta3.img')
-            if not os.path.isfile(img_path):
-                # Case-insensitive fallback - same reasoning load_
-                # tracks_dat already uses for its own subdirectory
-                # lookup, real installs on Linux won't always match
-                # the documented casing exactly.
-                models_dir = os.path.join(game_root, 'models')
-                if os.path.isdir(models_dir):
-                    for name in os.listdir(models_dir):
-                        if name.lower() == 'gta3.img':
-                            img_path = os.path.join(models_dir, name)
-                            break
+            img_path = _resolve_ci(game_root, 'models/gta3.img') or ''   # PS2: MODELS/GTA3.IMG
             if os.path.isfile(img_path):
                 try:
                     from apps.methods.img_core_classes import IMGFile
@@ -2918,7 +2988,8 @@ class GTAWorldLoader: #vers 4
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 8
+    def _reset(self): #vers 9
+        self.stories = None                     # (game, platform) for LCS/VCS DTZ loads
         self.ipl_layouts.clear()
         self._iv_next_id = 1
         self._iv_name_ids.clear(); self._iv_hash_names.clear()
@@ -3144,22 +3215,36 @@ def resolve_game_root(path: str) -> str: #vers 2
     return p
 
 
-def detect_game(game_root: str) -> Optional[str]: #vers 6
+def _data_dir(game_root: str) -> str: #vers 1
+    """data/ (any case) under game_root; flat iOS installs use the root itself."""
+    try:
+        hit = next((e for e in os.listdir(game_root)
+                    if e.lower() == "data" and os.path.isdir(os.path.join(game_root, e))), None)
+    except OSError:
+        hit = None
+    return os.path.join(game_root, hit) if hit else game_root
+
+
+def detect_game(game_root: str) -> Optional[str]: #vers 8
     """Detect which GTA game lives at game_root. Checks SA data/ and SOL sol/ subfolder."""
     game_root = resolve_game_root(game_root)
     if _find_iv_data(game_root, GTAGame.DAT_FILE[GTAGame.IV]):
         return GTAGame.IV
-    data = os.path.join(game_root, "data")
+    from apps.methods.stories_dtz import dtz_paths
+    stories = dtz_paths(game_root)
+    if stories:                                 # LCS -> III map, VCS -> VC map
+        return GTAGame.GTA3 if stories[0] == 'lcs' else GTAGame.VC
+    data = _data_dir(game_root)
     # SOL: check sol/ or SOL/ for gta_sol.dat or gtasol.dat
     sol_dir = _find_sol_dir(game_root)
     if sol_dir:
         for name in (GTAGame.DAT_FILE["sol"], GTAGame.ALT_DAT_FILE["sol"]):
             if os.path.isfile(os.path.join(sol_dir, name)):
                 return GTAGame.SOL
-    if os.path.isfile(os.path.join(data, "gta.dat")):       return GTAGame.SA
-    if os.path.isfile(os.path.join(data, "gta_quick.dat")): return GTAGame.SA
-    if os.path.isfile(os.path.join(data, "gta_vc.dat")):    return GTAGame.VC
-    if os.path.isfile(os.path.join(data, "gta3.dat")):      return GTAGame.GTA3
+    if _flat_lookup(data, "gta.dat"):       return GTAGame.SA
+    if _flat_lookup(data, "gta_quick.dat"): return GTAGame.SA
+    if _flat_lookup(data, "gta_vc.dat"):    return GTAGame.VC
+    if _flat_lookup(data, "gta3.dat"):      return GTAGame.GTA3
     return None
 
 
@@ -3177,7 +3262,7 @@ def prescan_dat_ipls(dat_path: str, game_root: str = "", game: str = GTAGame.GTA
     return [e for e in dat.entries if e.directive == "IPL"]
 
 
-def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 5
+def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 6
     """Return absolute path to the main .dat for the given game, or None.
     SOL: searches sol/ and SOL/ subfolders; tries alt name (gtasol.dat) if primary missing."""
     if game == GTAGame.IV:
@@ -3191,21 +3276,15 @@ def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 5
             if os.path.isfile(c):
                 return c
         return None
-    data = os.path.join(game_root, "data")
-    name = GTAGame.DAT_FILE.get(game)
-    if name:
-        c = os.path.join(data, name)
-        if os.path.isfile(c):
-            return c
-    alt = GTAGame.ALT_DAT_FILE.get(game)
-    if alt:
-        c = os.path.join(data, alt)
-        if os.path.isfile(c):
+    data = _data_dir(game_root)
+    for name in (GTAGame.DAT_FILE.get(game), GTAGame.ALT_DAT_FILE.get(game)):
+        c = _flat_lookup(data, name) if name else None
+        if c:
             return c
     return None
 
 
-def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 4
+def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 5
     """Return absolute path to the phase-1 dat (default.dat / special.dat), or None."""
     name = GTAGame.DEFAULT_DAT.get(game)
     if not name:
@@ -3222,8 +3301,7 @@ def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 4
             ci = _resolve_ci(sol_dir, name)
             return ci
         return c
-    c = os.path.join(game_root, "data", name)
-    return c if os.path.isfile(c) else None
+    return _flat_lookup(_data_dir(game_root), name)
 
 
 def integrate_gta_dat_parser(main_window) -> bool: #vers 4

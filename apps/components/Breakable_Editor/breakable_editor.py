@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 4
+#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 5
 # X-Seti - May08 2026 - Img Factory 1.6 - Breakable Objects Editor
 
 """
@@ -325,9 +325,9 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
     # Bump when the set of ribbons changes (1 = File/Edit/Tools)
     _RIBBON_LAYOUT_VERSION = 1
 
-    def __init__(self, main_window=None, parent=None):
+    def __init__(self, main_window=None, parent=None): #vers 2
         self._defer_setup_ui = True
-        super().__init__(parent)
+        super().__init__(parent, main_window=main_window)   # docked: no corner handles
         self.main_window   = main_window
         self._parser       = BreakableParser()
         self._current_path: Optional[str]  = None
