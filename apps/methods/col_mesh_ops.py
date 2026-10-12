@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_mesh_ops.py - Version: 5
+#this belongs in apps/methods/col_mesh_ops.py - Version: 7
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Mesh Operations
 
 """
@@ -37,6 +37,7 @@ Face selections are sets of face indices; vertex selections sets of vertex indic
 # _mat
 # merge_coplanar
 # merge_models
+# min_sphere
 # mirror
 # _new_face
 # _normal
@@ -276,7 +277,24 @@ def copy_as_lod(model): #vers 2
     return new
 
 
-def optimum_bounds(model): #vers 1
+def min_sphere(pts): #vers 1
+    """Near-minimal sphere (Ritter plus refinement): (centre list, radius)."""
+    p0 = pts[0]
+    p1 = max(pts, key=lambda q: math.dist(p0, q))
+    p2 = max(pts, key=lambda q: math.dist(p1, q))
+    c = [(p1[k] + p2[k]) / 2 for k in range(3)]
+    r = math.dist(p1, p2) / 2
+    for _ in range(2):
+        for q in pts:
+            d = math.dist(c, q)
+            if d > r:
+                nr = (r + d) / 2
+                c = [c[k] + (q[k] - c[k]) * (nr - r) / d for k in range(3)]
+                r = nr
+    return c, r
+
+
+def optimum_bounds(model): #vers 2
     """Tight bounds: exact box, near-minimal sphere (Ritter plus refinement)."""
     recalc_bounds(model)
     pts = [(v.x, v.y, v.z) for v in model.vertices]
@@ -290,18 +308,7 @@ def optimum_bounds(model): #vers 1
                 for dx, dy, dz in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))]
     if len(pts) < 2:
         return
-    p0 = pts[0]
-    p1 = max(pts, key=lambda q: math.dist(p0, q))
-    p2 = max(pts, key=lambda q: math.dist(p1, q))
-    c = [(p1[k] + p2[k]) / 2 for k in range(3)]
-    r = math.dist(p1, p2) / 2
-    for _ in range(2):
-        for q in pts:
-            d = math.dist(c, q)
-            if d > r:
-                nr = (r + d) / 2
-                c = [c[k] + (q[k] - c[k]) * (nr - r) / d for k in range(3)]
-                r = nr
+    c, r = min_sphere(pts)
     for s in model.spheres:
         r = max(r, math.dist(c, tuple(s.center)) + float(s.radius))
     model.bounds.center = Vector3(*c)
@@ -654,13 +661,16 @@ def _normal(model, f): #vers 1
     return ((n[0] / L, n[1] / L, n[2] / L) if L > 0 else (0.0, 0.0, 0.0)), L
 
 
-def clean_mesh(model, tol=0.001): #vers 1
+def clean_mesh(model, tol=0.001, keep_seams=False): #vers 2
     """Lossless clean: weld vertices within tol, drop zero-area, repeated and
-    duplicate faces, drop unused vertices. Returns (verts_removed, faces_removed)."""
+    duplicate faces, drop unused vertices. keep_seams: only weld vertices with
+    equal normal/UV/colour (DFF). Returns (verts_removed, faces_removed)."""
     nv0, nf0 = len(model.vertices), len(model.faces)
     grid, remap, keep = {}, {}, []
     for i, v in enumerate(model.vertices):
         key = (round(v.x / tol), round(v.y / tol), round(v.z / tol))
+        if keep_seams:
+            key += (getattr(v, 'normal', None), getattr(v, 'uvs', None), getattr(v, 'colour', None))
         if key in grid:
             remap[i] = grid[key]
         else:

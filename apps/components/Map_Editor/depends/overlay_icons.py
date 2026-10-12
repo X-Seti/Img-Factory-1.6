@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 5
+#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 6
 # X-Seti - Aug 2026 - IMG Factory 1.6 - Detailed colour SVG icons for Map Workshop's IPL Controls overlay buttons
 
 """
@@ -250,19 +250,18 @@ class OverlayIcons:
 </svg>''', size, color="#000000")
 
     @staticmethod
-    def zon_icon(size: int = 24) -> QIcon: #vers 1
-        """Zones toggle - a planted flag inside a dashed boundary
-        circle, for gameplay/info zone entries."""
+    def zon_icon(size: int = 24) -> QIcon: #vers 2
+        """Zones toggle - amber flag in a dashed box (zones are boxes, not the green radar)."""
         return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <defs>
     <linearGradient id="zonFlag" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#5be08a"/>
-      <stop offset="100%" stop-color="#189a54"/>
+      <stop offset="0%" stop-color="#ffc44d"/>
+      <stop offset="100%" stop-color="#e07a10"/>
     </linearGradient>
   </defs>
-  <circle cx="11.5" cy="13.5" r="8.6" fill="none" stroke="#3fce7a" stroke-width="1.4" stroke-dasharray="3.2 2.6" opacity="0.8"/>
-  <line x1="8.4" y1="21.4" x2="8.4" y2="3.2" stroke="#6b6b70" stroke-width="1.4" stroke-linecap="round"/>
-  <path d="M8.4 3.6 L18.6 6.4 L14.6 9.4 L18.6 12.2 L8.4 15 Z" fill="url(#zonFlag)" stroke="#0e6b34" stroke-width="0.5"/>
+  <rect x="2.6" y="5.2" width="18.8" height="15.6" rx="1.2" fill="#e08a1a" fill-opacity="0.18" stroke="#f0a030" stroke-width="1.4" stroke-dasharray="3 2.2"/>
+  <line x1="8.4" y1="19.6" x2="8.4" y2="2.4" stroke="#c8c8cc" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M8.4 2.8 L18.2 5.4 L14.4 8.2 L18.2 11 L8.4 13.6 Z" fill="url(#zonFlag)" stroke="#8a4a08" stroke-width="0.5"/>
 </svg>''', size, color="#000000")
 
     @staticmethod

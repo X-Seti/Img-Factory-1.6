@@ -1,4 +1,4 @@
-#this belongs in apps/methods/wdr_model.py - Version: 2
+#this belongs in apps/methods/wdr_model.py - Version: 3
 # X-Seti - October 07 2026 - IMG Factory 1.6 - GTA IV drawables
 
 """
@@ -283,12 +283,12 @@ def parse_wdd(data: bytes, name_hash: int, name: str = '') -> Optional[DFFModel]
     return _drawable_model(z, vs, drawables[hashes.index(name_hash)], name)
 
 
-def wdr_embedded_textures(data: bytes) -> List[dict]: #vers 2
-    """Textures embedded in a .wdr / .wft shader group (top level only)."""
+def wdr_embedded_textures(data: bytes, levels=False) -> List[dict]: #vers 3
+    """Textures embedded in a .wdr / .wft shader group; levels='dxt' keeps DXT."""
     from apps.methods.xtd_textures import _iv_textures
     z, vs = _unpack(data)
     frag = struct.unpack_from('<I', data, 4)[0] == _FRAGMENT_TYPE
     drawable = _ptr(z, vs, 0xB4) if frag else 0
     sg = _ptr(z, vs, drawable + 0x08) if drawable is not None else None
     td = _ptr(z, vs, sg + 0x04) if sg is not None else None
-    return _iv_textures(z, vs, td, levels=False) if td is not None else []
+    return _iv_textures(z, vs, td, levels=levels) if td is not None else []

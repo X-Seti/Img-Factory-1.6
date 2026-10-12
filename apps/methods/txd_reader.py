@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_reader.py - Version: 4
+#this belongs in apps/methods/txd_reader.py - Version: 6
 # X-Seti - October05 2026 - IMG Factory 1.6 - Shared texture file reader
 
 """
@@ -70,7 +70,7 @@ def _rgba_out(n_pix: int, rgba: np.ndarray) -> bytes: #vers 1
 
 def decompress_raw(data, width, height, format_type, palette=None,
                    palette_entry_fmt='ARGB8888', depth=0, force_opaque=False,
-                   palette_is_bgra=True): #vers 1
+                   palette_is_bgra=True): #vers 2
     """RW uncompressed and palettised formats to RGBA bytes."""
     try:
         n = width * height
@@ -94,7 +94,7 @@ def decompress_raw(data, width, height, format_type, palette=None,
             pal = pal.copy()
             if palette_entry_fmt == 'RGB888':
                 pal[:, 3] = 255
-            if format_type == 'PAL8':
+            if format_type == 'PAL8' or len(buf) >= n:   # PAL4 at depth 8: byte per index
                 idx = buf[:n]
             else:
                 idx = np.stack([buf >> 4, buf & 15], 1).reshape(-1)[:n]
@@ -138,8 +138,8 @@ def decompress_raw(data, width, height, format_type, palette=None,
         return None
 
 
-def parse_native_texture(txd_data, offset, index, rw_version=0x1803FFFF, levels=True, log=None): #vers 1
-    """One RW texture native to a workshop dict; levels=False decodes mip 0 only."""
+def parse_native_texture(txd_data, offset, index, rw_version=0x1803FFFF, levels=True, log=None): #vers 2
+    """One RW texture native to a dict; levels=False mip 0 only, 'dxt' keeps DXT."""
 
     tex = {
         'name': f'texture_{index}',
@@ -360,12 +360,16 @@ def parse_native_texture(txd_data, offset, index, rw_version=0x1803FFFF, levels=
                 break
             level_data = txd_data[pos:pos+size]
             pos += size
-            if level and not levels:
+            if level and (not levels or (levels == 'dxt' and not is_dxt)):
                 w, h = max(1, w // 2), max(1, h // 2)
                 continue
 
             lw = max(1, width >> level)
             lh = max(1, height >> level)
+            if levels == 'dxt' and is_dxt:       # GPU decodes; no RGBA kept
+                tex.setdefault('dxt_levels', []).append((lw, lh, bytes(level_data)))
+                w, h = max(1, w // 2), max(1, h // 2)
+                continue
             if 'DXT' in fmt:
                 rgba_data = decompress_dxt(level_data, lw, lh, fmt)
             elif fmt in ('PAL8', 'PAL4'):

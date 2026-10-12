@@ -1,4 +1,4 @@
-#this belongs in apps/methods/xtd_textures.py - Version: 6
+#this belongs in apps/methods/xtd_textures.py - Version: 7
 # X-Seti - October05 2026 - IMG Factory 1.6 - XTD texture dictionaries
 
 """
@@ -11,6 +11,7 @@ GTA IV .wtd (RSC5) read/write; GTA V / RDR2 .ytd (RSC8) read.
 # _bc5_decode
 # _bc7_decode_fallback
 # _decode_pixels
+# _dxt1_has_alpha
 # _dxt1_decode
 # _dxt3_decode
 # _dxt5_decode
@@ -208,11 +209,34 @@ def parse_iv_wtd(data: bytes) -> List[dict]: #vers 3
     return _iv_textures(zlib.decompress(data[12:]), vs)
 
 
-def _iv_textures(z: bytes, vs: int, at: int = 0, levels: bool = True) -> List[dict]: #vers 1
-    """Workshop texture dicts from an IV dictionary at offset at."""
+def _dxt1_has_alpha(data: bytes) -> bool: #vers 1
+    """True when any DXT1 block uses 1-bit (punch-through) transparency."""
+    import numpy as np
+    b = np.frombuffer(data[:len(data) // 8 * 8], np.uint8).reshape(-1, 8)
+    c0 = b[:, 0].astype(np.uint16) | b[:, 1].astype(np.uint16) << 8
+    c1 = b[:, 2].astype(np.uint16) | b[:, 3].astype(np.uint16) << 8
+    idx = np.unpackbits(b[:, 4:8], axis=1, bitorder='little').reshape(-1, 16, 2)
+    three = (idx[:, :, 0] & idx[:, :, 1]).any(axis=1)
+    return bool(((c0 <= c1) & three).any())
+
+
+def _iv_textures(z: bytes, vs: int, at: int = 0, levels=True) -> List[dict]: #vers 2
+    """Workshop texture dicts from an IV dictionary; levels='dxt' keeps DXT compressed."""
     texs = []
     for e in _iv_entries(z, vs, at):
         lv, pos = [], e['offset']
+        if levels == 'dxt' and e['format'] in ('DXT1', 'DXT3', 'DXT5'):
+            dxt = []
+            for w, h, size in _iv_level_dims(e):
+                dxt.append((w, h, bytes(z[pos:pos + size])))
+                pos += size
+            alpha = e['format'] != 'DXT1' or _dxt1_has_alpha(dxt[0][2])
+            texs.append({'name': e['name'], 'width': e['width'], 'height': e['height'],
+                         'depth': 16, 'format': e['format'], 'has_alpha': alpha,
+                         'alpha_name': '', 'mipmaps': len(dxt), 'dxt_levels': dxt,
+                         'raster_format_flags': 0, 'platform': 'GTA IV PC',
+                         'compressed_size': sum(len(d) for _, _, d in dxt)})
+            continue
         for i, (w, h, size) in enumerate(_iv_level_dims(e)):
             if i and not levels:
                 break

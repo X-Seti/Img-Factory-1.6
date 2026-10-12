@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 12
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 13
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -544,7 +544,7 @@ class COLSetupUIMixin: #vers 1
                 self.is_docked and not self.standalone_mode)
         self._apply_custom_icons()
 
-    def _create_toolbar(self): #vers 14
+    def _create_toolbar(self): #vers 15
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
         # Read sizes from app_settings so they match Global App System Settings
         try:
@@ -609,15 +609,7 @@ class COLSetupUIMixin: #vers 1
         layout.addWidget(self.settings_btn)
 
         # Standalone file tabs drop-down (docked: IMG Factory tabs are used)
-        from PyQt6.QtWidgets import QToolButton, QMenu
-        self.doc_tabs_btn = QToolButton()
-        self.doc_tabs_btn.setFont(self.button_font)
-        self.doc_tabs_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.doc_tabs_btn.setMenu(QMenu(self.doc_tabs_btn))
-        self.doc_tabs_btn.menu().aboutToShow.connect(self._fill_doc_menu)
-        self.doc_tabs_btn.setToolTip("Open COL files - switch, open in new tab, close")
-        self.doc_tabs_btn.setVisible(False)
-        layout.addWidget(self.doc_tabs_btn)
+        self._build_doc_tabs_btn(layout)
 
         layout.addStretch()
 

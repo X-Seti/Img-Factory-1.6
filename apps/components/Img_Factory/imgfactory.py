@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 110
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 111
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -3017,19 +3017,26 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()  # Debug info
             return False
 
-    def load_img_files_batch(self, paths, title="Loading IMG archives"): #vers 1
-        """Open IMGs as tabs; 2+ files report in one window, no popups."""
+    def load_img_files_batch(self, paths, title="Loading IMG archives", report=None): #vers 3
+        """Open IMGs as tabs; 2+ files report in one window, no popups.
+        report: caller's own window (file_started/done/failed/skipped)."""
         paths = [p for p in paths if p]
-        if len(paths) == 1:
+        if len(paths) == 1 and report is None:
             self._load_img_file_in_new_tab(paths[0])
             return
         if not paths:
             return
         from apps.gui.img_batch_load_dialog import ImgBatchLoadDialog
-        batch = ImgBatchLoadDialog(self, len(paths), title)
-        self._img_batch_dialog = batch
-        batch.show()
+        from apps.methods.img_core_classes import IMGFile, IMGVersion
+        batch = report
+        if batch is None:
+            batch = ImgBatchLoadDialog(self, len(paths), title)
+            self._img_batch_dialog = batch
+            batch.show()
         for p in paths:
+            if IMGFile(p).detect_version() == IMGVersion.VERSION_STREAMING_SEG:
+                batch.file_skipped(p, "stream data, no directory (opens with its .lvz)")
+                continue
             self._load_img_file_in_new_tab(p, batch=batch)
 
     def _load_img_file_in_new_tab(self, file_path, batch=None): #vers 4

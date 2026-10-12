@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 18
+#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 19
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -196,19 +196,18 @@ class WaterDatParser:
         _atomic_write(path, self.to_text().encode("latin1", errors="replace"))
         self.path = path
 
-    def translate_all(self, dx: float, dy: float, dz: float = 0.0): #vers 1
-        """Translate all water rectangles by (dx, dy). z is ignored for flat rects.
-        Rect format: (x1, y1, x2, y2, level)."""
+    def translate_all(self, dx: float, dy: float, dz: float = 0.0): #vers 2
+        """Translate all water rectangles. Rect format: (level, x1, y1, x2, y2)."""
         self.rects = [
-            (r[0]+dx, r[1]+dy, r[2]+dx, r[3]+dy, r[4])
+            (r[0]+dz, r[1]+dx, r[2]+dy, r[3]+dx, r[4]+dy)
             for r in self.rects
         ]
 
-    def world_bbox(self): #vers 1
+    def world_bbox(self): #vers 2
         if not self.rects:
             return -3000, -3000, 3000, 3000
-        xs = [r[0] for r in self.rects] + [r[2] for r in self.rects]
-        ys = [r[1] for r in self.rects] + [r[3] for r in self.rects]
+        xs = [r[1] for r in self.rects] + [r[3] for r in self.rects]
+        ys = [r[2] for r in self.rects] + [r[4] for r in self.rects]
         return min(xs), min(ys), max(xs), max(ys)
 
 
@@ -227,7 +226,8 @@ class SaWaterParser:
         return (tuple((c["x"], c["y"], *c["f"]) for c in q["corners"]), q.get("flag"),
                 tuple(q.get("extra", ())))
 
-    def load(self, path: str): #vers 3
+    def load(self, path: str): #vers 4
+        """Quads (4 corners) and triangles (3 corners), 7 values per corner."""
         self.path  = path
         self.quads = []
         raw = Path(path).read_bytes().decode("latin1")
@@ -238,17 +238,18 @@ class SaWaterParser:
             if not s or s.startswith(";") or s.startswith("*") or s == "processed":
                 continue
             parts = s.split()
-            if len(parts) < 28:
+            if len(parts) < 21:
                 continue
+            n = 4 if len(parts) >= 28 else 3          # quad or triangle
             try:
                 corners = [
                     {"x": float(parts[c*7]),
                      "y": float(parts[c*7+1]),
                      "f": [float(parts[c*7+k]) for k in range(2, 7)]}
-                    for c in range(4)
+                    for c in range(n)
                 ]
-                flag = int(parts[28]) if len(parts) > 28 else None
-                extra = [p for p in parts[29:]]          # GTA IV trailing value
+                flag = int(parts[n*7]) if len(parts) > n*7 else None
+                extra = [p for p in parts[n*7+1:]]       # GTA IV trailing value
                 [float(p) for p in extra]
             except (ValueError, IndexError):
                 continue
@@ -288,9 +289,9 @@ class SaWaterParser:
         return self._eol.join(out)
 
     @staticmethod
-    def _is_quad_line(line): #vers 1
+    def _is_quad_line(line): #vers 2
         s = line.strip()
-        return bool(s) and not s.startswith((";", "*")) and s != "processed" and len(s.split()) >= 28
+        return bool(s) and not s.startswith((";", "*")) and s != "processed" and len(s.split()) >= 21
 
     def save(self, path: str): #vers 2
         _atomic_write(path, self.to_text().encode("latin1", errors="replace"))
@@ -773,18 +774,27 @@ class WaterGridWidget(QWidget):
         self.update()
 
 
-class SaWaterCanvas(QWidget):
-    quad_selected = pyqtSignal(int)
+class WaterObjectCanvas(QWidget):
+    """Edit water.dat objects for every game: SA/IV quads and triangles,
+    III/VC/LCS rectangles. Select, drag corners or whole objects, add by
+    dragging a box, delete, and set Z on the depth gauge (right side)."""
+    quad_selected = pyqtSignal(int)        # primary selected object, -1 none
+    edit_started  = pyqtSignal()           # before a change (undo snapshot)
+    edited        = pyqtSignal()           # after a change
+    edit_cancelled = pyqtSignal()          # press without a change (drop the undo point)
+    add_requested = pyqtSignal(float, float, float, float, str)   # x0, y0, x1, y1, kind
+    delete_requested = pyqtSignal()
 
-    COL_WATER  = QColor(30, 120, 220, 160)
-    COL_SEL    = QColor(255, 200,   0, 220)
+    COL_SEL    = QColor(255, 200,   0, 230)
     COL_BORDER = QColor(80,  160, 255, 200)
     COL_BG     = QColor(20,   20,  20)
+    GAUGE_W    = 64
+    HANDLE     = 5
 
-
-    def __init__(self, parent=None): #vers 1
+    def __init__(self, parent=None): #vers 2
         super().__init__(parent)
         self._quads     = []
+        self._sel       = set()
         self._sel_idx   = -1
         self._zoom      = 1.0
         self._pan_x     = 0
@@ -792,112 +802,360 @@ class SaWaterCanvas(QWidget):
         self._bbox      = (-3000, -3000, 3000, 3000)
         self._pan_drag  = None
         self._pan_start = (0, 0)
+        self._drag      = None            # ('corner'|'move'|'box'|'add'|'gauge', data)
+        self.add_kind   = None            # 'quad' / 'tri' while adding
+        self.snap       = 1.0
         self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
 
     def _get_ui_color(self, key): #vers 2
         """Theme QColor via shared helper."""
         from apps.methods.ui_color import get_ui_color
         return get_ui_color(self, key)
 
+    #    data helpers
 
-    def setup(self, quads, bbox): #vers 1
-        self._quads   = quads
-        self._bbox    = bbox
-        self._sel_idx = -1
+    def setup(self, quads, bbox, keep_view=False): #vers 2
+        self._quads = quads
+        self._bbox  = bbox
+        self._sel   = {i for i in self._sel if i < len(quads)} if keep_view else set()
+        self._sel_idx = min(self._sel) if self._sel else -1
+        if not keep_view:
+            self._fit()
+        self.update()
+
+    @staticmethod
+    def _z(q): #vers 1
+        return sum(c["f"][0] for c in q["corners"]) / len(q["corners"])
+
+    def _z_range(self): #vers 2
+        """Shade / gauge Z range: 2nd-98th percentile so one odd height can't flatten the rest."""
+        zs = sorted(self._z(q) for q in self._quads) or [0.0]
+        lo, hi = zs[int(len(zs) * 0.02)], zs[min(len(zs) - 1, int(len(zs) * 0.98))]
+        return (lo - 5.0, hi + 5.0) if hi - lo < 10 else (lo, hi)
+
+    @staticmethod
+    def _depth_col(z, zmin, zmax, alpha=170): #vers 1
+        """Blue shade for a Z: low dark, high light (matches the grid gauge)."""
+        t = 0.5 if zmax <= zmin else max(0.0, min(1.0, (z - zmin) / (zmax - zmin)))
+        return QColor(int(8 + 112 * t), int(30 + 170 * t), int(80 + 175 * t), alpha)
+
+    def _ordered(self, q): #vers 1
+        """Corner indices in drawing order (corners are stored Z-order)."""
+        cs = q["corners"]
+        cx = sum(c["x"] for c in cs) / len(cs)
+        cy = sum(c["y"] for c in cs) / len(cs)
+        return sorted(range(len(cs)), key=lambda i: math.atan2(cs[i]["y"] - cy, cs[i]["x"] - cx))
+
+    def _snap(self, v): #vers 1
+        return round(v / self.snap) * self.snap if self.snap > 0 else v
+
+    #    view
+
+    def _view_rect(self): #vers 1
+        from PyQt6.QtCore import QRect
+        return QRect(0, 0, max(1, self.width() - self.GAUGE_W), self.height())
+
+    def _fit(self): #vers 2
+        x0, y0, x1, y1 = self._bbox
+        ww, wh = x1 - x0, y1 - y0
+        vr = self._view_rect()
+        if ww <= 0 or wh <= 0:
+            return
+        self._zoom  = min(vr.width() / ww, vr.height() / wh) * 0.9
+        self._pan_x = int(vr.width() / 2 - (x0 + ww / 2) * self._zoom)
+        self._pan_y = int(vr.height() / 2 + (y0 + wh / 2) * self._zoom)
+
+    def _w2s(self, wx, wy): #vers 2
+        """World to screen; north (+Y) is up."""
+        return wx * self._zoom + self._pan_x, -wy * self._zoom + self._pan_y
+
+    def _s2w(self, sx, sy): #vers 1
+        return (sx - self._pan_x) / self._zoom, -(sy - self._pan_y) / self._zoom
+
+    def fit(self): #vers 1
         self._fit()
         self.update()
 
+    #    painting
 
-    def _fit(self): #vers 1
-        if not self._quads:
-            return
-        x0, y0, x1, y1 = self._bbox
-        ww, wh = x1-x0, y1-y0
-        if ww <= 0 or wh <= 0:
-            return
-        self._zoom  = min(self.width()/ww, self.height()/wh) * 0.9
-        self._pan_x = int(self.width()  / 2 - (x0 + ww/2) * self._zoom)
-        self._pan_y = int(self.height() / 2 - (y0 + wh/2) * self._zoom)
-
-
-    def _w2s(self, wx, wy): #vers 1
-        return int(wx * self._zoom + self._pan_x), int(wy * self._zoom + self._pan_y)
-
-
-    def paintEvent(self, ev): #vers 1
+    def paintEvent(self, ev): #vers 2
+        from PyQt6.QtCore import QPointF, QRectF
+        from PyQt6.QtGui import QPolygonF
         p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.fillRect(self.rect(), self.COL_BG)
-        if not self._quads:
+        if not self._quads and self.add_kind is None:
             p.setPen(self._get_ui_color('viewport_text'))
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
-                       "No SA water quads — load SA water.dat")
-            p.end()
-            return
+            p.drawText(self._view_rect(), Qt.AlignmentFlag.AlignCenter,
+                       "No water objects - load a water.dat (SA/IV quads, III/VC rects)")
+        zmin, zmax = self._z_range()
         for idx, q in enumerate(self._quads):
-            # Sort corners by angle from centroid to avoid self-intersecting quads
-            cx_avg = sum(c["x"] for c in q["corners"]) / 4
-            cy_avg = sum(c["y"] for c in q["corners"]) / 4
-            import math as _m
-            sorted_corners = sorted(q["corners"],
-                key=lambda c: _m.atan2(c["y"] - cy_avg, c["x"] - cx_avg))
-            pts = [QPoint(*self._w2s(c["x"], c["y"])) for c in sorted_corners]
-            sel = (idx == self._sel_idx)
-            p.setPen(QPen(self.COL_SEL if sel else self.COL_BORDER, 2 if sel else 1))
-            p.setBrush(self.COL_SEL.lighter(120) if sel else self.COL_WATER)
-            p.drawPolygon(QPolygon(pts))
+            if idx in self._sel:
+                continue
+            pts = QPolygonF([QPointF(*self._w2s(q["corners"][i]["x"], q["corners"][i]["y"])) for i in self._ordered(q)])
+            p.setPen(QPen(self.COL_BORDER, 1))
+            p.setBrush(self._depth_col(self._z(q), zmin, zmax))
+            p.drawPolygon(pts)
+        for idx in sorted(self._sel):                      # selected on top, with corner handles
+            if idx >= len(self._quads):
+                continue
+            q = self._quads[idx]
+            pts = QPolygonF([QPointF(*self._w2s(q["corners"][i]["x"], q["corners"][i]["y"])) for i in self._ordered(q)])
+            p.setPen(QPen(self.COL_SEL, 2))
+            p.setBrush(self._depth_col(self._z(q), zmin, zmax, 220))
+            p.drawPolygon(pts)
+            p.setBrush(self.COL_SEL)
+            for c in q["corners"]:
+                sx, sy = self._w2s(c["x"], c["y"])
+                p.drawRect(QRectF(sx - self.HANDLE, sy - self.HANDLE, self.HANDLE * 2, self.HANDLE * 2))
+        if self._drag and self._drag[0] in ('box', 'add'):
+            (ax, ay), (bx, by) = self._drag[1]
+            p.setPen(QPen(self.COL_SEL, 1, Qt.PenStyle.DashLine))
+            p.setBrush(QColor(255, 200, 0, 40) if self._drag[0] == 'add' else Qt.BrushStyle.NoBrush)
+            if self._drag[0] == 'add' and self.add_kind == 'tri':
+                p.drawPolygon(QPolygonF([QPointF(ax, by), QPointF(bx, by), QPointF(ax, ay)]))
+            else:
+                p.drawRect(QRectF(QPointF(ax, ay), QPointF(bx, by)).normalized())
+        self._paint_gauge(p, zmin, zmax)
         p.end()
 
+    def _gauge_rect(self): #vers 1
+        from PyQt6.QtCore import QRect
+        return QRect(self.width() - self.GAUGE_W + 6, 14, 18, max(60, self.height() - 40))
 
-    def mousePressEvent(self, ev): #vers 1
+    def _gauge_y(self, z, zmin, zmax): #vers 1
+        r = self._gauge_rect()
+        t = 0.5 if zmax <= zmin else (z - zmin) / (zmax - zmin)
+        return int(r.top() + (1.0 - t) * r.height())
+
+    def _gauge_z(self, y): #vers 1
+        zmin, zmax = self._z_range()
+        r = self._gauge_rect()
+        t = 1.0 - max(0.0, min(1.0, (y - r.top()) / max(1, r.height())))
+        return zmin + t * (zmax - zmin)
+
+    def _paint_gauge(self, p, zmin, zmax): #vers 1
+        """Depth gang: blue Z bar, ticks for each object Z, marker for the selection."""
+        from PyQt6.QtGui import QLinearGradient
+        r = self._gauge_rect()
+        p.fillRect(self.width() - self.GAUGE_W, 0, self.GAUGE_W, self.height(), QColor(10, 14, 24))
+        g = QLinearGradient(0, r.top(), 0, r.bottom())
+        g.setColorAt(0.0, self._depth_col(zmax, zmin, zmax, 255))
+        g.setColorAt(1.0, self._depth_col(zmin, zmin, zmax, 255))
+        p.fillRect(r, g)
+        p.setPen(QPen(QColor(255, 255, 255, 90), 1))
+        for z in sorted({round(self._z(q), 2) for q in self._quads}):
+            y = self._gauge_y(z, zmin, zmax)
+            p.drawLine(r.left(), y, r.right(), y)
+        p.setFont(QFont("monospace", 7))
+        p.setPen(QColor(255, 255, 255, 200))
+        p.drawText(r.right() + 3, r.top() + 4, f"{zmax:.0f}")
+        p.drawText(r.right() + 3, r.bottom() + 4, f"{zmin:.0f}")
+        sel = [self._quads[i] for i in self._sel if i < len(self._quads)]
+        if sel:
+            z = sum(self._z(q) for q in sel) / len(sel)
+            y = self._gauge_y(z, zmin, zmax)
+            p.setBrush(self.COL_SEL); p.setPen(Qt.PenStyle.NoPen)
+            p.drawPolygon(QPolygon([QPoint(r.left() - 6, y - 5), QPoint(r.left(), y), QPoint(r.left() - 6, y + 5)]))
+            p.setPen(self.COL_SEL)
+            p.drawText(r.right() + 3, y + 4, f"{z:.1f}")
+        p.setPen(QColor(255, 255, 255, 160))
+        p.drawText(self.width() - self.GAUGE_W + 4, self.height() - 8, "Z")
+
+    #    picking
+
+    def _hit_obj(self, sx, sy): #vers 1
+        """Smallest object under the screen point, or -1."""
+        from PyQt6.QtCore import QPointF
+        from PyQt6.QtGui import QPolygonF
+        wx, wy = self._s2w(sx, sy)
+        best, best_a = -1, None
+        for idx, q in enumerate(self._quads):
+            poly = QPolygonF([QPointF(q["corners"][i]["x"], q["corners"][i]["y"]) for i in self._ordered(q)])
+            if poly.containsPoint(QPointF(wx, wy), Qt.FillRule.OddEvenFill):
+                br = poly.boundingRect()
+                a = br.width() * br.height()
+                if best_a is None or a < best_a:
+                    best, best_a = idx, a
+        return best
+
+    def _hit_corner(self, sx, sy): #vers 1
+        """(object, corner) handle of a selected object under the point, or None."""
+        for idx in self._sel:
+            if idx >= len(self._quads):
+                continue
+            for ci, c in enumerate(self._quads[idx]["corners"]):
+                cx, cy = self._w2s(c["x"], c["y"])
+                if abs(cx - sx) <= self.HANDLE + 2 and abs(cy - sy) <= self.HANDLE + 2:
+                    return idx, ci
+        return None
+
+    def set_selection(self, sel, primary=None): #vers 1
+        self._sel = set(sel)
+        self._sel_idx = primary if primary is not None else (min(self._sel) if self._sel else -1)
+        self.quad_selected.emit(self._sel_idx)
+        self.update()
+
+    def selection(self): #vers 1
+        return sorted(i for i in self._sel if i < len(self._quads))
+
+    #    edits
+
+    def _move_corner(self, idx, ci, x, y): #vers 1
+        """Move one corner; rectangle objects keep their edges straight."""
+        q = self._quads[idx]
+        cs = q["corners"]
+        if q.get("_rect"):
+            for k, c in enumerate(cs):
+                if (k & 1) == (ci & 1):
+                    c["x"] = x
+                if (k & 2) == (ci & 2):
+                    c["y"] = y
+        else:
+            cs[ci]["x"], cs[ci]["y"] = x, y
+
+    def move_selected(self, dx, dy): #vers 1
+        for idx in self.selection():
+            for c in self._quads[idx]["corners"]:
+                c["x"] += dx; c["y"] += dy
+
+    def set_selected_z(self, z): #vers 1
+        for idx in self.selection():
+            for c in self._quads[idx]["corners"]:
+                c["f"] = [z] + list(c["f"][1:])
+
+    #    mouse
+
+    def mousePressEvent(self, ev): #vers 3
+        x, y = ev.position().x(), ev.position().y()
         if ev.button() == Qt.MouseButton.MiddleButton:
             self._pan_drag  = ev.pos()
             self._pan_start = (self._pan_x, self._pan_y)
             return
         if ev.button() != Qt.MouseButton.LeftButton:
             return
-        wx = (ev.pos().x() - self._pan_x) / self._zoom
-        wy = (ev.pos().y() - self._pan_y) / self._zoom
-        for idx, q in enumerate(self._quads):
-            xs = [c["x"] for c in q["corners"]]
-            ys = [c["y"] for c in q["corners"]]
-            if min(xs) <= wx <= max(xs) and min(ys) <= wy <= max(ys):
-                self._sel_idx = idx
-                self.quad_selected.emit(idx)
-                self.update()
+        if x >= self.width() - self.GAUGE_W:               # depth gauge: set Z of selection
+            if self.selection():
+                self.edit_started.emit()
+                self._drag = ('gauge', None)
+                self.set_selected_z(round(self._gauge_z(y), 2))
+                self.edited.emit(); self.update()
+            return
+        if self.add_kind:
+            self._drag = ('add', [(x, y), (x, y)])
+            return
+        hc = self._hit_corner(x, y)
+        if hc is not None:
+            self.edit_started.emit()
+            self._drag = ('corner', [hc[0], hc[1], False])
+            return
+        ctrl = bool(ev.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        idx = self._hit_obj(x, y)
+        if idx >= 0:
+            if ctrl:
+                self.set_selection(self._sel ^ {idx}, idx if idx not in self._sel else None)
                 return
-        self._sel_idx = -1
-        self.update()
+            if idx not in self._sel:
+                self.set_selection({idx}, idx)
+            self.edit_started.emit()
+            wx, wy = self._s2w(x, y)
+            self._drag = ('move', [self._snap(wx), self._snap(wy), False])
+            return
+        self._drag = ('box', [(x, y), (x, y), ctrl])
 
-
-    def mouseMoveEvent(self, ev): #vers 1
+    def mouseMoveEvent(self, ev): #vers 3
+        x, y = ev.position().x(), ev.position().y()
         if self._pan_drag and ev.buttons() & Qt.MouseButton.MiddleButton:
-            dx = ev.pos().x() - self._pan_drag.x()
-            dy = ev.pos().y() - self._pan_drag.y()
-            self._pan_x = self._pan_start[0] + dx
-            self._pan_y = self._pan_start[1] + dy
+            self._pan_x = self._pan_start[0] + ev.pos().x() - self._pan_drag.x()
+            self._pan_y = self._pan_start[1] + ev.pos().y() - self._pan_drag.y()
             self.update()
-
-
-    def mouseReleaseEvent(self, ev): #vers 1
-        self._pan_drag = None
-
-
-    def wheelEvent(self, ev): #vers 1
-        f = 1.12 if ev.angleDelta().y() > 0 else 1/1.12
-        self._zoom = max(0.01, min(50.0, self._zoom * f))
+            return
+        if not self._drag:
+            wx, wy = self._s2w(x, y)
+            self.setToolTip(f"Z {self._gauge_z(y):.1f}" if x >= self.width() - self.GAUGE_W
+                            else f"{wx:.0f}, {wy:.0f}")
+            return
+        kind, data = self._drag
+        if kind == 'gauge':
+            self.set_selected_z(round(self._gauge_z(y), 2))
+            self.edited.emit()
+        elif kind == 'corner':
+            wx, wy = self._s2w(x, y)
+            self._move_corner(data[0], data[1], self._snap(wx), self._snap(wy))
+            data[2] = True
+            self.edited.emit()
+        elif kind == 'move':
+            wx, wy = (self._snap(v) for v in self._s2w(x, y))
+            if (wx, wy) != (data[0], data[1]):
+                self.move_selected(wx - data[0], wy - data[1])
+                data[0], data[1], data[2] = wx, wy, True
+                self.edited.emit()
+        else:                                              # box / add rubber band
+            data[1] = (x, y)
         self.update()
 
+    def mouseReleaseEvent(self, ev): #vers 3
+        if ev.button() == Qt.MouseButton.MiddleButton:
+            self._pan_drag = None
+            return
+        drag, self._drag = self._drag, None
+        if not drag:
+            return
+        kind, data = drag
+        if kind in ('move', 'corner') and not data[2]:
+            self.edit_cancelled.emit()
+        if kind == 'add':
+            (ax, ay), (bx, by) = data
+            if abs(bx - ax) > 4 and abs(by - ay) > 4:
+                x0, y1 = self._s2w(min(ax, bx), min(ay, by))
+                x1, y0 = self._s2w(max(ax, bx), max(ay, by))
+                self.add_requested.emit(self._snap(x0), self._snap(y0), self._snap(x1), self._snap(y1),
+                                        self.add_kind)
+        elif kind == 'box':
+            (ax, ay), (bx, by), add = data
+            if abs(bx - ax) <= 3 and abs(by - ay) <= 3:
+                if not add:
+                    self.set_selection(set())
+            else:
+                x0, y1 = self._s2w(min(ax, bx), min(ay, by))
+                x1, y0 = self._s2w(max(ax, bx), max(ay, by))
+                hit = {i for i, q in enumerate(self._quads)
+                       if all(x0 <= c["x"] <= x1 and y0 <= c["y"] <= y1 for c in q["corners"])}
+                self.set_selection((self._sel | hit) if add else hit)
+        self.update()
+
+    def wheelEvent(self, ev): #vers 2
+        """Zoom around the cursor."""
+        f = 1.12 if ev.angleDelta().y() > 0 else 1 / 1.12
+        x, y = ev.position().x(), ev.position().y()
+        wx, wy = self._s2w(x, y)
+        self._zoom = max(0.005, min(50.0, self._zoom * f))
+        self._pan_x = x - wx * self._zoom
+        self._pan_y = y + wy * self._zoom
+        self.update()
+
+    def keyPressEvent(self, ev): #vers 1
+        """Delete removes, arrows nudge by the snap step, Esc ends add mode."""
+        k = ev.key()
+        step = self.snap or 1.0
+        moves = {Qt.Key.Key_Left: (-step, 0), Qt.Key.Key_Right: (step, 0),
+                 Qt.Key.Key_Up: (0, step), Qt.Key.Key_Down: (0, -step)}
+        if k in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            self.delete_requested.emit()
+        elif k in moves and self.selection():
+            self.edit_started.emit()
+            self.move_selected(*moves[k])
+            self.edited.emit(); self.update()
+        elif k == Qt.Key.Key_Escape:
+            self.add_kind = None
+            self.set_selection(set())
+        else:
+            super().keyPressEvent(ev)
 
     def sizeHint(self): #vers 1
-        from PyQt6.QtCore import QSize
         return QSize(600, 600)
-
-
-    def fit(self): #vers 1
-        self._fit()
-        self.update()
 
 
 # =============================================================================
@@ -915,10 +1173,10 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
     config_key      = "water_workshop"
     _ribbon_name    = "water_workshop"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
-    _RIBBON_LAYOUT_VERSION = 1
+    _RIBBON_LAYOUT_VERSION = 2
 
 
-    def __init__(self, parent=None, main_window=None): #vers 1
+    def __init__(self, parent=None, main_window=None): #vers 2
         self._waterpro    = None
         self._waterdat    = None
         self._sa_water    = None
@@ -933,6 +1191,9 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._grid_offset_x = 0
         self._grid_offset_y = 0
         self._grid_offset_z = 0.0
+        self._rect_objs   = []            # water.dat rects as editable objects
+        self._undo_objs   = []
+        self._redo_objs   = []
         super().__init__(parent, main_window)
         # Set anchor icon
         try:
@@ -978,7 +1239,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._status_widget.setVisible(self.WS.get("show_statusbar", True))
 
 
-    def _build_ribbons(self): #vers 1
+    def _build_ribbons(self): #vers 2
         """File / Edit / View / Draw ribbons (replaces the old right-hand
         tool sidebar and the titlebar/left-panel file buttons)."""
         B = self.ribbon_button
@@ -1023,6 +1284,33 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._draw_btns["pencil"].setChecked(True)
         self._active_tool = "pencil"
         self.ribbon_label(tb, "L = Sea   R = Land")
+
+        self._ribbon_mw.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
+        tb = self.ribbon_toolbar("Objects")            # water.dat quads / triangles / rects
+        self._obj_btns = {
+            None:   B(tb, "dp_select_icon",   "Select / move (drag corners or objects)",
+                      lambda checked=False: self._set_obj_tool(None), checkable=True),
+            'quad': B(tb, "rect_icon",        "Add quad / rect (drag a box)",
+                      lambda checked=False: self._set_obj_tool('quad'), checkable=True),
+            'tri':  B(tb, "create_face_icon", "Add triangle (SA, drag a box)",
+                      lambda checked=False: self._set_obj_tool('tri'), checkable=True)}
+        self._obj_btns[None].setChecked(True)
+        B(tb, "delete_face_icon", "Delete selected (Del)", self._obj_delete)
+        tb.addSeparator()
+        self.ribbon_label(tb, "Z")
+        self._obj_z_spin = QDoubleSpinBox()
+        self._obj_z_spin.setRange(-1000, 1000); self._obj_z_spin.setDecimals(2)
+        self._obj_z_spin.setToolTip("Z of the selected objects (also drag the depth gauge)")
+        self._obj_z_spin.editingFinished.connect(lambda: self._obj_set_z(self._obj_z_spin.value()))
+        tb.addWidget(self._obj_z_spin)
+        self.ribbon_label(tb, "Snap")
+        self._obj_snap_spin = QDoubleSpinBox()
+        self._obj_snap_spin.setRange(0, 100); self._obj_snap_spin.setDecimals(1)
+        self._obj_snap_spin.setValue(float(self.WS.get("object_snap", 2.0)))
+        self._obj_snap_spin.setToolTip("Corner / move snap step (0 = off)")
+        self._obj_snap_spin.valueChanged.connect(self._obj_set_snap)
+        tb.addWidget(self._obj_snap_spin)
+        self._sa_canvas.snap = self._obj_snap_spin.value()
 
 
     def _build_menus_into_qmenu(self, pm): #vers 4
@@ -1073,7 +1361,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         vm.addAction("About Water Workshop", self._show_about)
 
 
-    def _create_left_panel(self): #vers 1
+    def _create_left_panel(self): #vers 2
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         ll  = QVBoxLayout(panel)
@@ -1087,6 +1375,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._levels_list = QListWidget()
         self._levels_list.setAlternatingRowColors(True)
         self._levels_list.itemDoubleClicked.connect(self._edit_level)
+        self._levels_list.currentRowChanged.connect(self._on_list_row)
         ll.addWidget(self._levels_list)
         br = QHBoxLayout()
         self._add_btn = QPushButton("+ Add")
@@ -1105,7 +1394,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return panel
 
 
-    def _create_centre_panel(self): #vers 4
+    def _create_centre_panel(self): #vers 5
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         cl = QVBoxLayout(panel)
@@ -1134,8 +1423,13 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         sa_lay   = QVBoxLayout(sa_frame)
         sa_lay.setContentsMargins(0, 0, 0, 0)
         sa_lay.setSpacing(2)
-        self._sa_canvas = SaWaterCanvas()
+        self._sa_canvas = WaterObjectCanvas()
         self._sa_canvas.quad_selected.connect(self._on_quad_selected)
+        self._sa_canvas.edit_started.connect(self._obj_edit_started)
+        self._sa_canvas.edited.connect(self._obj_edited)
+        self._sa_canvas.edit_cancelled.connect(lambda: self._undo_objs and self._undo_objs.pop())
+        self._sa_canvas.add_requested.connect(self._obj_add)
+        self._sa_canvas.delete_requested.connect(self._obj_delete)
         sa_lay.addWidget(self._sa_canvas, 1)
 
         # Translate bar
@@ -1159,7 +1453,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         tbl.addStretch()
         sa_lay.addWidget(tbar)
 
-        self._view_tabs.addTab(sa_frame, "SA Quads")
+        self._view_tabs.addTab(sa_frame, "Water Objects")
         cl.addWidget(self._view_tabs)
         return panel
 
@@ -1193,7 +1487,9 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
                 self._undo_vis.pop(0)
             self._redo_vis.clear()
 
-    def _undo(self): #vers 1
+    def _undo(self): #vers 2
+        if self._view_tabs.currentIndex() == 2:
+            return self._obj_undo_redo(self._undo_objs, self._redo_objs, "Undo")
         if self._active_grid == "phys":
             s, r, attr, canvas = self._undo_phys, self._redo_phys, "phys_grid", self._phys_canvas
         else:
@@ -1208,7 +1504,9 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._set_status("Undo")
 
 
-    def _redo(self): #vers 1
+    def _redo(self): #vers 2
+        if self._view_tabs.currentIndex() == 2:
+            return self._obj_undo_redo(self._redo_objs, self._undo_objs, "Redo")
         if self._active_grid == "phys":
             s, u, attr, canvas = self._redo_phys, self._undo_phys, "phys_grid", self._phys_canvas
         else:
@@ -1332,7 +1630,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             self._load_file(path)
 
 
-    def _load_file(self, path): #vers 2
+    def _load_file(self, path): #vers 3
         try:
             data = Path(path).read_bytes()
             if self._is_binary_waterpro(data):
@@ -1345,6 +1643,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             self._file_path = str(path)
             self._undo_phys.clear(); self._undo_vis.clear()
             self._redo_phys.clear(); self._redo_vis.clear()
+            self._undo_objs.clear(); self._redo_objs.clear()
             self._mark_dirty(False)
         except Exception as e:
             import traceback
@@ -1376,14 +1675,17 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             f"  |  {wp.water_levels_count} level(s)")
 
 
-    def _load_waterdat(self, path): #vers 2
+    def _load_waterdat(self, path): #vers 3
         wd = WaterDatParser()
         wd.load(path)
         self._waterdat  = wd
         self._waterpro  = self._sa_water = None
         self._file_type = "waterdat"
-        for i in range(3):
-            self._view_tabs.setTabEnabled(i, False)
+        for i, e in enumerate([False, False, True]):
+            self._view_tabs.setTabEnabled(i, e)
+        self._view_tabs.setCurrentIndex(2)
+        self._rects_to_objs()
+        self._sa_canvas.setup(self._rect_objs, wd.world_bbox())
         self._levels_list.clear()
         for i, r in enumerate(wd.rects):
             self._levels_list.addItem(QListWidgetItem(
@@ -1546,7 +1848,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             QMessageBox.critical(self, "Import Error", str(e))
 
 
-    def _edit_level(self, item): #vers 4
+    def _edit_level(self, item): #vers 5
         idx = self._levels_list.row(item)
         dlg = QDialog(self)
         _apply_dialog_theme(dlg, self.main_window)
@@ -1586,7 +1888,10 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
                 fl.addRow(lbl + ":", w)
             fl.addRow(btns)
             if dlg.exec() == QDialog.DialogCode.Accepted:
+                self._obj_edit_started()
                 rects[idx] = tuple(w.value() for w in sp)
+                self._rects_to_objs()
+                self._sa_canvas.setup(self._rect_objs, self._waterdat.world_bbox(), keep_view=True)
                 self._refresh_levels_list()
                 self._mark_dirty(True)
         elif self._sa_water:
@@ -1628,7 +1933,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return row
 
 
-    def _add_level(self): #vers 3
+    def _add_level(self): #vers 4
         if self._waterpro:
             wp = self._waterpro
             if wp.water_levels_count >= WaterproParser.WATER_LEVELS:
@@ -1639,32 +1944,13 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             wp.water_levels_count += 1
             self._refresh_levels_list()
             self._on_grid_changed()
-        elif self._waterdat:
-            x0, y0, x1, y1 = self._waterdat.world_bbox()
+        elif self._waterdat or self._sa_water:
+            x0, y0, x1, y1 = self._current_parser().world_bbox()
             cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-            self._waterdat.rects.append((0.0, cx - 50, cy - 50, cx + 50, cy + 50))
-            self._refresh_levels_list()
-            self._levels_list.setCurrentRow(len(self._waterdat.rects) - 1)
-            self._mark_dirty(True)
-        elif self._sa_water:
-            sa = self._sa_water
-            x0, y0, x1, y1 = sa.world_bbox()
-            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-            tmpl = sa.quads[-1] if sa.quads else None   # copy last quad's layout
-            corners = [{"x": cx + dx, "y": cy + dy,
-                        "f": [0.0] + (list(c["f"][1:]) if tmpl else [0.0, 0.0, 0.0, 0.0])}
-                       for (dx, dy), c in zip(((-50, -50), (50, -50), (-50, 50), (50, 50)),
-                                              tmpl["corners"] if tmpl else [None] * 4)]
-            sa.quads.append({"corners": corners,
-                             "flag": tmpl["flag"] if tmpl else 1,
-                             "extra": list(tmpl.get("extra", ())) if tmpl else []})
-            self._sa_canvas.setup(sa.quads, sa.world_bbox())
-            self._refresh_levels_list()
-            self._levels_list.setCurrentRow(len(sa.quads) - 1)
-            self._mark_dirty(True)
+            self._obj_add(cx - 50, cy - 50, cx + 50, cy + 50, 'quad')
 
 
-    def _del_level(self): #vers 2
+    def _del_level(self): #vers 3
         idx = self._levels_list.currentRow()
         if self._waterpro:
             wp = self._waterpro
@@ -1676,15 +1962,9 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             wp.water_levels_count -= 1
             self._refresh_levels_list()
             self._on_grid_changed()
-        elif self._waterdat and 0 <= idx < len(self._waterdat.rects):
-            del self._waterdat.rects[idx]
-            self._refresh_levels_list()
-            self._mark_dirty(True)
-        elif self._sa_water and 0 <= idx < len(self._sa_water.quads):
-            del self._sa_water.quads[idx]
-            self._sa_canvas.setup(self._sa_water.quads, self._sa_water.world_bbox())
-            self._refresh_levels_list()
-            self._mark_dirty(True)
+        elif (self._waterdat or self._sa_water) and 0 <= idx < len(self._water_objs()):
+            self._sa_canvas.set_selection({idx}, idx)
+            self._obj_delete()
 
 
     def get_water_quads(self): #vers 1
@@ -1699,7 +1979,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return self._waterdat.rects if self._waterdat else []
 
 
-    def translate_water(self, dx: float, dy: float, dz: float = 0.0): #vers 1
+    def translate_water(self, dx: float, dy: float, dz: float = 0.0): #vers 2
         """Translate all loaded water data by (dx, dy, dz) and refresh canvas."""
         changed = False
         if self._sa_water:
@@ -1708,6 +1988,8 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             changed = True
         if self._waterdat:
             self._waterdat.translate_all(dx, dy, dz)
+            self._rects_to_objs()
+            self._sa_canvas.setup(self._rect_objs, self._waterdat.world_bbox())
             changed = True
         if changed:
             self._mark_dirty(True)
@@ -1718,16 +2000,153 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
                     f"Water Workshop: translated by dX={dx:+.1f} dY={dy:+.1f} dZ={dz:+.1f}")
 
 
-    def _on_quad_selected(self, idx): #vers 1
-        if not self._sa_water:
+    def _on_quad_selected(self, idx): #vers 2
+        objs = self._water_objs()
+        if not 0 <= idx < len(objs):
             return
+        self._levels_list.blockSignals(True)
         self._levels_list.setCurrentRow(idx)
-        q    = self._sa_water.quads[idx]
-        c    = q["corners"][0]
-        vals = ", ".join(f"{v:.3f}" for v in c["f"])
-        self._set_status(
-            f"Quad {idx}: ({c['x']:.1f},{c['y']:.1f})"
-            f"  flag={q['flag']}  f=[{vals}]")
+        self._levels_list.blockSignals(False)
+        q = objs[idx]
+        c = q["corners"][0]
+        self._obj_z_spin.setValue(WaterObjectCanvas._z(q))
+        n = len(self._sa_canvas.selection())
+        kind = "Rect" if q.get("_rect") else ("Triangle" if len(q["corners"]) == 3 else "Quad")
+        self._set_status(f"{kind} {idx}: ({c['x']:.1f},{c['y']:.1f})  Z={WaterObjectCanvas._z(q):.2f}"
+                         + (f"  flag={q['flag']}" if q.get('flag') is not None else "")
+                         + (f"  ({n} selected)" if n > 1 else ""))
+
+    def _on_list_row(self, row): #vers 1
+        """List row picked: select that object on the canvas."""
+        if (self._waterdat or self._sa_water) and 0 <= row < len(self._water_objs()):
+            self._sa_canvas.set_selection({row}, row)
+
+    #    Water objects (water.dat): shared by SA/IV quads and III/VC rects
+
+    def _water_objs(self): #vers 1
+        """Editable object list for the loaded water.dat."""
+        if self._sa_water:
+            return self._sa_water.quads
+        return self._rect_objs if self._waterdat else []
+
+    def _rects_to_objs(self): #vers 1
+        """III/VC rects (level, x1, y1, x2, y2) as 4-corner objects (Z-order)."""
+        self._rect_objs = [{"_rect": True, "corners": [
+            {"x": x, "y": y, "f": [r[0]]} for y in (r[2], r[4]) for x in (r[1], r[3])]}
+            for r in self._waterdat.rects]
+
+    def _objs_to_rects(self): #vers 1
+        """Write rect objects back to the water.dat rects."""
+        self._waterdat.rects = [
+            (WaterObjectCanvas._z(q), min(c["x"] for c in q["corners"]), min(c["y"] for c in q["corners"]),
+             max(c["x"] for c in q["corners"]), max(c["y"] for c in q["corners"]))
+            for q in self._rect_objs]
+
+    def _obj_edit_started(self): #vers 1
+        """Undo point before an object edit."""
+        import copy
+        self._undo_objs.append(copy.deepcopy(self._water_objs()))
+        del self._undo_objs[:-50]
+        self._redo_objs.clear()
+
+    def _obj_edited(self): #vers 1
+        """After an object edit: sync rects, dirty flag, list refresh (coalesced)."""
+        if self._waterdat:
+            self._objs_to_rects()
+        self._mark_dirty(True)
+        if not getattr(self, '_obj_refresh_pending', False):
+            from PyQt6.QtCore import QTimer
+            self._obj_refresh_pending = True
+            QTimer.singleShot(150, self._obj_refresh)
+
+    def _obj_refresh(self): #vers 1
+        self._obj_refresh_pending = False
+        row = self._sa_canvas._sel_idx
+        self._levels_list.blockSignals(True)
+        self._refresh_levels_list()
+        if row >= 0:
+            self._levels_list.setCurrentRow(row)
+        self._levels_list.blockSignals(False)
+        self._on_quad_selected(row)
+
+    def _obj_set_objs(self, objs): #vers 1
+        """Replace the object list (undo/redo) and redraw."""
+        if self._sa_water:
+            self._sa_water.quads = objs
+        else:
+            self._rect_objs = objs
+            self._objs_to_rects()
+        self._sa_canvas.setup(objs, self._current_parser().world_bbox(), keep_view=True)
+
+    def _obj_undo_redo(self, src, dst, label): #vers 1
+        import copy
+        if not src:
+            self._set_status(f"Nothing to {label.lower()}")
+            return
+        dst.append(copy.deepcopy(self._water_objs()))
+        self._obj_set_objs(src.pop())
+        self._obj_edited()
+        self._set_status(label)
+
+    def _set_obj_tool(self, kind): #vers 1
+        """Select (None) or add 'quad' / 'tri' mode on the object canvas."""
+        if kind == 'tri' and not self._sa_water:
+            self._set_status("Triangles are SA / IV water.dat only")
+            kind = None
+        self._sa_canvas.add_kind = kind
+        for k, b in self._obj_btns.items():
+            b.setChecked(k == kind)
+        self._view_tabs.setCurrentIndex(2)
+
+    def _obj_set_snap(self, v): #vers 1
+        self._sa_canvas.snap = v
+        self.WS._data["object_snap"] = v
+        self.WS.save()
+
+    def _obj_add(self, x0, y0, x1, y1, kind): #vers 1
+        """New quad / triangle / rect from a box, at the selection's (or last) Z."""
+        objs = self._water_objs()
+        if not (self._sa_water or self._waterdat):
+            return
+        sel = self._sa_canvas.selection()
+        ref = objs[sel[0]] if sel else (objs[-1] if objs else None)
+        z = WaterObjectCanvas._z(ref) if ref else 0.0
+        self._obj_edit_started()
+        pts = [(x0, y0), (x1, y0), (x0, y1)] if kind == 'tri' else [(x0, y0), (x1, y0), (x0, y1), (x1, y1)]
+        if self._sa_water:
+            tmpl = ref["corners"][0]["f"][1:] if ref else [0.0, 0.0, 0.0, 0.0]
+            obj = {"corners": [{"x": x, "y": y, "f": [z] + list(tmpl)} for x, y in pts],
+                   "flag": ref.get("flag", 1) if ref else 1,
+                   "extra": list(ref.get("extra", ())) if ref else []}
+        else:
+            obj = {"_rect": True, "corners": [{"x": x, "y": y, "f": [z]} for x, y in pts]}
+        objs.append(obj)
+        self._sa_canvas.setup(objs, self._current_parser().world_bbox(), keep_view=True)
+        self._sa_canvas.set_selection({len(objs) - 1})
+        self._obj_edited()
+
+    def _obj_delete(self): #vers 1
+        """Delete the selected objects."""
+        sel = self._sa_canvas.selection()
+        if not sel:
+            return
+        self._obj_edit_started()
+        objs = self._water_objs()
+        for i in reversed(sel):
+            del objs[i]
+        self._sa_canvas.set_selection(set())
+        self._sa_canvas.setup(objs, self._current_parser().world_bbox(), keep_view=True)
+        self._obj_edited()
+        self._set_status(f"Deleted {len(sel)} object(s)")
+
+    def _obj_set_z(self, z): #vers 1
+        """Set Z of the selected objects (Z field)."""
+        if not self._sa_canvas.selection():
+            return
+        self._obj_edit_started()
+        self._sa_canvas.set_selected_z(z)
+        self._sa_canvas.update()
+        self._obj_edited()
 
 
     def closeEvent(self, ev): #vers 1

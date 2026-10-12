@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_splice.py - Version: 6
+#this belongs in apps/methods/txd_splice.py - Version: 7
 # X-Seti - October05 2026 - IMG Factory 1.6 - TXD splice rebuild
 
 """txd_splice.py - TXD writer. Rebuilds from the ORIGINAL file bytes so a
@@ -258,8 +258,9 @@ def _palette_index(rgba: bytes, pal: bytes) -> np.ndarray: #vers 1
     return out
 
 
-def _encode_level(fmt: str, rgba: bytes, w: int, h: int, pal: bytes = b'') -> bytes: #vers 1
-    """Pixel data of one level in the TXD's stored layout."""
+def _encode_level(fmt: str, rgba: bytes, w: int, h: int, pal: bytes = b'',
+                  byte_pal4: bool = False) -> bytes: #vers 2
+    """Pixel data of one level; byte_pal4 = PAL4 one index per byte (depth 8)."""
     from apps.methods.txd_dxt_encode import _encode_dxt1, _encode_dxt3, _encode_dxt5
     if fmt == 'DXT1':
         return _encode_dxt1(rgba, w, h, alpha=True)
@@ -267,8 +268,8 @@ def _encode_level(fmt: str, rgba: bytes, w: int, h: int, pal: bytes = b'') -> by
         return {'DXT3': _encode_dxt3, 'DXT5': _encode_dxt5}[fmt](rgba, w, h)
     if fmt in ('PAL8', 'PAL4'):
         ix = _palette_index(rgba, pal)
-        if fmt == 'PAL8':
-            return ix.tobytes()
+        if fmt == 'PAL8' or byte_pal4:
+            return ix.astype(np.uint8).tobytes()
         if len(ix) % 2:
             ix = np.append(ix, 0)
         return ((ix[0::2] << 4) | (ix[1::2] & 15)).astype(np.uint8).tobytes()
@@ -296,7 +297,7 @@ def _encode_level(fmt: str, rgba: bytes, w: int, h: int, pal: bytes = b'') -> by
 
 
 def build_native_chunk(tex: Dict, rw_ver: int, platform: int = None,
-                       ext_payload: bytes = b'') -> bytes: #vers 1
+                       ext_payload: bytes = b'') -> bytes: #vers 2
     """One texture-native chunk (D3D8 = III/VC layout, D3D9 = SA) encoded
     from tex['rgba_data'] in tex['format']. Mip levels: imported level
     RGBA when its size matches, else box-filtered from the image."""
@@ -317,17 +318,20 @@ def build_native_chunk(tex: Dict, rw_ver: int, platform: int = None,
     src_levels = tex.get('mipmap_levels') or []
     n_levels = max(1, len(src_levels))
     pal = stored = b''
+    byte_pal4 = fmt == 'PAL4' and int(tex.get('depth') or 0) == 8   # e.g. LCS PC: keep layout
     if fmt in ('PAL8', 'PAL4'):
         pal = stored = _palette(rgba, w, h, 256 if fmt == 'PAL8' else 16)
         if rw_ver >= _SA_VER:                           # SA palettes stored BGRA
             stored = np.frombuffer(pal, dtype=np.uint8).reshape(-1, 4)[:, [2, 1, 0, 3]].tobytes()
+        if byte_pal4:
+            stored = stored.ljust(128, b'\0')           # depth 8 reads a 32-entry palette
     levels, lw, lh = [], w, h
     for i in range(n_levels):
         lv = src_levels[i] if i < len(src_levels) else {}
         src = bytes(lv.get('rgba_data') or b'') if i else rgba
         if len(src) != lw * lh * 4:
             src = _level_rgba(rgba, w, h, lw, lh)
-        levels.append(_encode_level(fmt, src, lw, lh, pal))
+        levels.append(_encode_level(fmt, src, lw, lh, pal, byte_pal4))
         if lw == 1 and lh == 1:
             break
         lw, lh = max(1, lw // 2), max(1, lh // 2)
@@ -339,7 +343,7 @@ def build_native_chunk(tex: Dict, rw_ver: int, platform: int = None,
     elif fmt in ('PAL8', 'PAL4'):
         cmp_code, d3d = 0, 41
         ptype = (0x2000 if fmt == 'PAL8' else 0x4000) | (0x0500 if has_alpha else 0x0600)
-        depth = 8 if fmt == 'PAL8' else 4
+        depth = 8 if fmt == 'PAL8' or byte_pal4 else 4
     else:
         ptype, depth, d3d = _RAW[fmt]
         cmp_code = 0

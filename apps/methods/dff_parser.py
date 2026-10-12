@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_parser.py - Version: 8
+#this belongs in apps/methods/dff_parser.py - Version: 9
 # X-Seti - May09 2026 - Model Workshop - RenderWare DFF Parser
 """
 Parser for GTA RenderWare DFF (Clump) model files.
@@ -376,6 +376,52 @@ def detect_dff(data: bytes) -> bool: #vers 1
     if len(data) < 12:
         return False
     return struct.unpack_from('<I', data)[0] == int(RWChunkType.CLUMP)
+
+
+MODEL_EXTS = ('.dff', '.wdr', '.wft', '.mdl', '.nif')   # parse_model_any formats
+
+
+def _with_root_frame(model: Optional[DFFModel], name: str) -> Optional[DFFModel]: #vers 1
+    """Frameless models get a root frame (centring world-placed meshes) and atomics."""
+    if model is not None and not model.frames:
+        stem = name.replace('\\', '/').rsplit('/', 1)[-1].rsplit('.', 1)[0] or 'root'
+        pts = [v for g in model.geometries for v in g.vertices]
+        c = [-(min(getattr(v, a) for v in pts) + max(getattr(v, a) for v in pts)) / 2
+             for a in 'xyz'] if pts else [0.0, 0.0, 0.0]
+        model.frames = [Frame(name=stem, position=Vector3(*c))]
+        model.atomics = [Atomic(frame_index=0, geometry_index=i) for i in range(len(model.geometries))]
+    return model
+
+
+def parse_model_any(data: bytes, name: str = '') -> Optional[DFFModel]: #vers 1
+    """Any supported model: RW DFF (PC/PS2/mobile/PSP), LCS/VCS mdl, IV wdr/wft, Bully nif."""
+    return _with_root_frame(_parse_model_any(data, name), name)
+
+
+def _parse_model_any(data: bytes, name: str = '') -> Optional[DFFModel]: #vers 1
+    """Format dispatch for parse_model_any."""
+    if not data:
+        return None
+    from apps.methods.wdr_model import is_iv_drawable, parse_wdr, wdr_embedded_textures
+    if is_iv_drawable(data):
+        model = parse_wdr(data, name)
+        model.embedded_textures = {t['name'].lower(): t for t in wdr_embedded_textures(data)}
+        return model
+    from apps.methods.nif_model import is_nif_model, parse_nif_model
+    if is_nif_model(data):
+        return parse_nif_model(data, name)
+    from apps.methods.lcs_geometry import is_lcs_dff, parse_lcs_dff
+    if is_lcs_dff(data):
+        return parse_lcs_dff(data, name)
+    from apps.methods.stories_mdl import is_stories_mdl, parse_stories_mdl
+    if is_stories_mdl(data):
+        return parse_stories_mdl(data, name)
+    from apps.methods.ps2_geometry import is_ps2_native_dff, parse_ps2_native_dff
+    if is_ps2_native_dff(data):
+        return parse_ps2_native_dff(data, name)
+    if detect_dff(data):
+        return DFFParser(data, name).parse()
+    return None
 
 
 def load_dff(path: str) -> Optional[DFFModel]: #vers 1

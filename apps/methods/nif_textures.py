@@ -1,4 +1,4 @@
-#this belongs in apps/methods/nif_textures.py - Version: 3
+#this belongs in apps/methods/nif_textures.py - Version: 4
 # X-Seti - October05 2026 - IMG Factory 1.6 - Gamebryo texture packs
 
 """
@@ -8,6 +8,7 @@ Bully PC Gamebryo texture packs (.nft / .txd, NIF 20.3): read and write.
 ##Methods list -
 # _blocks
 # _decode
+# _endian
 # _encode
 # _level_size
 # _pal_block
@@ -34,60 +35,70 @@ def is_nif_textures(data: bytes) -> bool: #vers 1
     return data[:20] == _MAGIC
 
 
-def _blocks(d: bytes): #vers 1
-    """(types, offsets, sizes, strings) from a NIF 20.x header."""
+def _endian(d: bytes) -> str: #vers 1
+    """struct prefix of a NIF 20.x file: '<' little, '>' big (console data)."""
+    i = d.index(b'\n') + 1
+    return '<' if d[i + 4] else '>'
+
+
+def _blocks(d: bytes): #vers 2
+    """(types, offsets, sizes, strings) from a NIF 20.x header, either endian."""
     i = d.index(b'\n') + 1
     ver = struct.unpack_from('<I', d, i)[0]
     if ver < 0x14020007:
         raise ValueError(f"Gamebryo version {ver:#x} not supported")
+    E = _endian(d)
     p = i + 9
-    nb = struct.unpack_from('<I', d, p)[0]; p += 4
-    nt = struct.unpack_from('<H', d, p)[0]; p += 2
+    nb = struct.unpack_from('<I', d, p)[0]; p += 4         # always little-endian
+    nt = struct.unpack_from(E + 'H', d, p)[0]; p += 2
     types = []
     for _ in range(nt):
-        n = struct.unpack_from('<I', d, p)[0]
+        n = struct.unpack_from(E + 'I', d, p)[0]
         types.append(d[p + 4:p + 4 + n].decode('latin1')); p += 4 + n
-    idx = struct.unpack_from(f'<{nb}H', d, p); p += 2 * nb
-    sizes = struct.unpack_from(f'<{nb}I', d, p); p += 4 * nb
-    ns = struct.unpack_from('<I', d, p)[0]; p += 8
+    idx = struct.unpack_from(E + f'{nb}H', d, p); p += 2 * nb
+    sizes = struct.unpack_from(E + f'{nb}I', d, p); p += 4 * nb
+    ns = struct.unpack_from(E + 'I', d, p)[0]; p += 8
     strs = []
     for _ in range(ns):
-        n = struct.unpack_from('<I', d, p)[0]
+        n = struct.unpack_from(E + 'I', d, p)[0]
         strs.append(d[p + 4:p + 4 + n].decode('latin1')); p += 4 + n
-    p += 4 + 4 * struct.unpack_from('<I', d, p)[0]
+    p += 4 + 4 * struct.unpack_from(E + 'I', d, p)[0]
     offs = []
     for s in sizes:
         offs.append(p); p += s
     return [types[t & 0x7FFF] for t in idx], offs, sizes, strs
 
 
-def _pixel_block(d: bytes, o: int) -> Dict: #vers 1
+def _pixel_block(d: bytes, o: int) -> Dict: #vers 2
     """NiPixelData fields (20.3 layout)."""
-    fmt = struct.unpack_from('<I', d, o)[0]
+    E = _endian(d)
+    fmt = struct.unpack_from(E + 'I', d, o)[0]
     p = o + 19 + 40
-    pal, nm, _bpp = struct.unpack_from('<iII', d, p); p += 12
-    mips = [struct.unpack_from('<III', d, p + 12 * k) for k in range(nm)]
+    pal, nm, _bpp = struct.unpack_from(E + 'iII', d, p); p += 12
+    mips = [struct.unpack_from(E + 'III', d, p + 12 * k) for k in range(nm)]
     p += 12 * nm + 8
     return {'fmt': fmt, 'pal': pal, 'mips': mips, 'data': p}
 
 
-def _pal_block(d: bytes, o: int): #vers 1
+def _pal_block(d: bytes, o: int): #vers 2
     """(offset of RGBA entries, entry count) of a NiPalette."""
-    return o + 5, struct.unpack_from('<I', d, o + 1)[0]
+    E = _endian(d)
+    return o + 5, struct.unpack_from(E + 'I', d, o + 1)[0]
 
 
-def _source_textures(d: bytes): #vers 1
+def _source_textures(d: bytes): #vers 2
     """[(name, pixel block index)] for each embedded NiSourceTexture."""
+    E = _endian(d)
     types, offs, _sizes, strs = _blocks(d)
     out = []
     for t, o in zip(types, offs):
         if t != 'NiSourceTexture':
             continue
         p = o + 4
-        nx = struct.unpack_from('<I', d, p)[0]; p += 4 + 4 * nx + 4
+        nx = struct.unpack_from(E + 'I', d, p)[0]; p += 4 + 4 * nx + 4
         if d[p]:                                   # external file, no pixels
             continue
-        sidx, ref = struct.unpack_from('<iI', d, p + 1)
+        sidx, ref = struct.unpack_from(E + 'iI', d, p + 1)
         name = strs[sidx] if 0 <= sidx < len(strs) else f"tex_{len(out)}"
         name = name.replace('\\', '/').rsplit('/', 1)[-1].rsplit('.', 1)[0]
         if ref < len(types) and types[ref] == 'NiPixelData':
@@ -220,24 +231,26 @@ def write_nif_textures(original: bytes, textures: List[Optional[Dict]],
     return _rename_nif(bytes(out), names) if renamed else bytes(out)
 
 
-def _string_table(d: bytes): #vers 1
-    """(start, end) byte span of the header string table."""
+def _string_table(d: bytes): #vers 2
+    """(start, end) byte span of the header string table, either endian."""
+    E = _endian(d)
     i = d.index(b'\n') + 1
     p = i + 9
     nb = struct.unpack_from('<I', d, p)[0]; p += 4
-    nt = struct.unpack_from('<H', d, p)[0]; p += 2
+    nt = struct.unpack_from(E + 'H', d, p)[0]; p += 2
     for _ in range(nt):
-        p += 4 + struct.unpack_from('<I', d, p)[0]
+        p += 4 + struct.unpack_from(E + 'I', d, p)[0]
     p += 6 * nb
-    start, ns = p, struct.unpack_from('<I', d, p)[0]
+    start, ns = p, struct.unpack_from(E + 'I', d, p)[0]
     p += 8
     for _ in range(ns):
-        p += 4 + struct.unpack_from('<I', d, p)[0]
+        p += 4 + struct.unpack_from(E + 'I', d, p)[0]
     return start, p
 
 
-def _rename_nif(data: bytes, names: List[Optional[str]]) -> bytes: #vers 1
+def _rename_nif(data: bytes, names: List[Optional[str]]) -> bytes: #vers 2
     """New texture names: file name and Filename extra string stems."""
+    E = _endian(data)
     types, offs, _sizes, strs = _blocks(data)
     strs = list(strs)
     owner = {}
@@ -246,15 +259,15 @@ def _rename_nif(data: bytes, names: List[Optional[str]]) -> bytes: #vers 1
         if t != 'NiSourceTexture':
             continue
         p = o + 4
-        nx = struct.unpack_from('<I', data, p)[0]
-        extras = struct.unpack_from(f'<{nx}i', data, p + 4)
+        nx = struct.unpack_from(E + 'I', data, p)[0]
+        extras = struct.unpack_from(E + f'{nx}i', data, p + 4)
         p += 4 + 4 * nx + 4
         if data[p]:
             continue
-        idxs = [struct.unpack_from('<i', data, p + 1)[0]]
+        idxs = [struct.unpack_from(E + 'i', data, p + 1)[0]]
         for ref in extras:
             if 0 <= ref < len(types) and types[ref] == 'NiStringExtraData':
-                idxs.append(struct.unpack_from('<i', data, offs[ref] + 4)[0])
+                idxs.append(struct.unpack_from(E + 'i', data, offs[ref] + 4)[0])
         new = names[k] if k < len(names) else None
         k += 1
         for si in set(i for i in idxs if 0 <= i < len(strs)):
@@ -270,6 +283,6 @@ def _rename_nif(data: bytes, names: List[Optional[str]]) -> bytes: #vers 1
             strs[si] = (head.replace('/', sep) + sep if head else '') + new + ext
     start, end = _string_table(data)
     raw = [x.encode('latin1') for x in strs]
-    table = struct.pack('<II', len(raw), max((len(x) for x in raw), default=0))
-    table += b''.join(struct.pack('<I', len(x)) + x for x in raw)
+    table = struct.pack(E + 'II', len(raw), max((len(x) for x in raw), default=0))
+    table += b''.join(struct.pack(E + 'I', len(x)) + x for x in raw)
     return data[:start] + table + data[end:]

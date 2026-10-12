@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_patch.py - Version: 1
+#this belongs in apps/methods/dff_patch.py - Version: 3
 # X-Seti - September 21 2026 - IMG Factory 1.6 - DFF patch-in-place writer
 
 """dff_patch.py - Writes edits made in Model Workshop back into the DFF they
@@ -7,17 +7,35 @@ from a fresh parse of those bytes are patched (materials: colour, flags,
 lighting, texture name/mask/filter/wrap; frames: position, rotation, parent,
 flags, name; geometry: vertices, normals, UVs, vertex colours with the same
 counts). Section sizes of every parent are fixed after a length change.
-Changes that need a new structure (different vertex/triangle/frame counts,
-added or removed geometries) are NOT written - they are listed in the report
+Frames, geometries and atomics appended at the end are written as new
+sections; removed or reordered ones are NOT written. Changed vertex/triangle
+counts rebuild that geometry (PC, no skin/morph/night colours) - they are listed in the report
 and the file is left with everything else patched, never corrupted. The
 result is re-parsed and checked against the edited model before it is
 returned."""
 
 ##Methods list -
+# _atomic_chunk
+# _bin_mesh_chunk
+# build_dff
+# _chunk
+# _frame_ext
+# _frame_record
+# _geometry_layout
+# _geometry_struct
+# geometry_chunk
+# _material_chunk
 # patch_dff
 # patch_report_text
-# _geometry_layout
-# _Patcher
+# _string
+# _texture_chunk
+#
+##class _Patcher: -
+# append_parts
+# patch_frames
+# patch_geometry
+# patch_material
+# rebuild_geometry
 
 import struct
 from typing import List, Tuple
@@ -92,6 +110,118 @@ def moved_any(geom, base) -> bool:
         (a.r, a.g, a.b, a.a) != (b.r, b.g, b.b, b.a) for a, b in zip(geom.colors, base.colors))
 
 
+def _chunk(type_: int, body: bytes, stamp: int) -> bytes: #vers 1
+    """One RW section: header plus body."""
+    return struct.pack("<III", type_, len(body), stamp) + body
+
+
+def _string(text: str, stamp: int) -> bytes: #vers 1
+    raw = text.encode("latin-1", "replace") + b"\0"
+    raw += b"\0" * (-len(raw) % 4)
+    return _chunk(T_STRING, raw, stamp)
+
+
+def _texture_chunk(mat, stamp: int) -> bytes: #vers 1
+    """Texture section (filter/wrap, name, mask, empty extension)."""
+    tflags = (mat.filter_mode & 0xFF) | ((mat.wrap_u & 0xF) << 8) | ((mat.wrap_v & 0xF) << 12)
+    body = (_chunk(T_STRUCT, struct.pack("<HH", tflags, 0), stamp)
+            + _string(mat.texture_name, stamp) + _string(mat.texture_mask or "", stamp)
+            + _chunk(T_EXT, b"", stamp))
+    return _chunk(T_TEXTURE, body, stamp)
+
+
+def _material_chunk(mat, stamp: int) -> bytes: #vers 1
+    """Material section from a Material."""
+    c = mat.color
+    st = struct.pack("<I4BII", mat.flags & 0xFFFFFFFF,
+                     *(int(max(0, min(255, v))) for v in (c.r, c.g, c.b, c.a)), 0, 1 if mat.texture_name else 0)
+    if rw.version_of(stamp) > 0x30400:
+        st += struct.pack("<3f", mat.ambient, mat.specular, mat.diffuse)
+    body = _chunk(T_STRUCT, st, stamp)
+    if mat.texture_name:
+        body += _texture_chunk(mat, stamp)
+    return _chunk(T_MATERIAL, body + _chunk(T_EXT, b"", stamp), stamp)
+
+
+def _geometry_struct(geom, flags: int, uvc: int, ver: int, surf: bytes) -> bytes: #vers 1
+    """Geometry struct body (triangle list, one morph target)."""
+    n_layers = uvc if uvc else (2 if flags & 0x80 else 1 if flags & 0x04 else 0)
+    flags &= ~0x01                                 # triangle lists, not strips
+    flags = (flags | 0x08) if geom.colors else (flags & ~0x08)
+    flags = (flags | 0x10) if geom.normals else (flags & ~0x10)
+    body = struct.pack("<HBBiii", flags, uvc, 0, len(geom.triangles), len(geom.vertices), 1)
+    if ver < 0x34000:
+        body += surf
+    if geom.colors:
+        body += b"".join(bytes((c.r & 255, c.g & 255, c.b & 255, c.a & 255)) for c in geom.colors)
+    for layer in list(geom.uv_layers or [])[:n_layers]:
+        body += b"".join(struct.pack("<2f", t.u, t.v) for t in layer)
+    body += b"".join(struct.pack("<HHHH", t.v2, t.v1, t.material_id, t.v3) for t in geom.triangles)
+    bs = geom.bounding_sphere
+    body += struct.pack("<4fII", bs.center.x, bs.center.y, bs.center.z, bs.radius, 1, 1 if geom.normals else 0)
+    body += b"".join(struct.pack("<3f", v.x, v.y, v.z) for v in geom.vertices)
+    if geom.normals:
+        body += b"".join(struct.pack("<3f", v.x, v.y, v.z) for v in geom.normals)
+    return body
+
+
+def _bin_mesh_chunk(geom, stamp: int) -> bytes: #vers 1
+    """Triangle-list BinMesh (0x50E) grouped by material."""
+    groups = {}
+    for t in geom.triangles:
+        groups.setdefault(t.material_id, []).extend((t.v1, t.v2, t.v3))
+    bm = struct.pack("<III", 0, len(groups), sum(len(g) for g in groups.values()))
+    for mat in sorted(groups):
+        bm += struct.pack("<II", len(groups[mat]), mat) + struct.pack(f"<{len(groups[mat])}I", *groups[mat])
+    return _chunk(0x50E, bm, stamp)
+
+
+def geometry_chunk(geom, stamp: int) -> bytes: #vers 1
+    """Complete new geometry section (struct, materials, BinMesh)."""
+    layers = len(geom.uv_layers or [])
+    flags = ((geom.flags & 0xFFFF) or 0x02 | 0x20) | 0x02
+    flags = (flags & ~0x84) | (0x04 if layers == 1 else 0x80 if layers >= 2 else 0)
+    body = _chunk(T_STRUCT, _geometry_struct(geom, flags, layers, rw.version_of(stamp),
+                                             struct.pack("<3f", 1.0, 1.0, 1.0)), stamp)
+    mats = geom.materials or []
+    ml = _chunk(T_STRUCT, struct.pack(f"<I{len(mats)}i", len(mats), *([-1] * len(mats))), stamp)
+    ml += b"".join(_material_chunk(m, stamp) for m in mats)
+    body += _chunk(T_MATLIST, ml, stamp)
+    body += _chunk(T_EXT, _bin_mesh_chunk(geom, stamp), stamp)
+    return _chunk(T_GEOMETRY, body, stamp)
+
+
+def _frame_ext(name: str, stamp: int) -> bytes: #vers 1
+    """Frame extension holding the frame name."""
+    raw = name.encode("latin-1", "replace")
+    raw += b"\0" * (-len(raw) % 4 or (4 if not raw else 0))
+    return _chunk(T_EXT, _chunk(FRAME_NAME_TYPES[0], raw, stamp), stamp)
+
+
+def _frame_record(f) -> bytes: #vers 1
+    return struct.pack("<9f3fiI", *f.rotation, f.position.x, f.position.y, f.position.z,
+                       f.parent_index, f.flags & 0xFFFFFFFF)
+
+
+def _atomic_chunk(a, stamp: int) -> bytes: #vers 1
+    body = _chunk(T_STRUCT, struct.pack("<4I", a.frame_index, a.geometry_index, a.flags, 0), stamp)
+    return _chunk(T_ATOMIC, body + _chunk(T_EXT, b"", stamp), stamp)
+
+
+def build_dff(model, stamp: int) -> bytes: #vers 1
+    """New DFF clump from a DFFModel (frames, geometries, atomics)."""
+    ver = rw.version_of(stamp)
+    cs = struct.pack("<I", len(model.atomics)) + (struct.pack("<II", 0, 0) if ver >= 0x33000 else b"")
+    fl = _chunk(T_STRUCT, struct.pack("<I", len(model.frames))
+                + b"".join(_frame_record(f) for f in model.frames), stamp)
+    fl += b"".join(_frame_ext(f.name, stamp) for f in model.frames)
+    gl = _chunk(T_STRUCT, struct.pack("<I", len(model.geometries)), stamp)
+    gl += b"".join(geometry_chunk(g, stamp) for g in model.geometries)
+    body = (_chunk(T_STRUCT, cs, stamp) + _chunk(T_FRAMELIST, fl, stamp) + _chunk(T_GEOMLIST, gl, stamp)
+            + b"".join(_atomic_chunk(a, stamp) for a in model.atomics) + _chunk(T_EXT, b"", stamp))
+    return _chunk(T_CLUMP, body, stamp)
+
+
 class _Patcher:
     def __init__(self, data: bytes):
         self.data = data
@@ -123,14 +253,8 @@ class _Patcher:
                     n = n.parent
         return bytes(buf)
 
-    @staticmethod
-    def string_chunk(text: str, stamp: int) -> bytes:
-        raw = text.encode("latin-1", "replace") + b"\0"
-        raw += b"\0" * (-len(raw) % 4)
-        return struct.pack("<III", T_STRING, len(raw), stamp) + raw
-
     # - materials
-    def patch_material(self, mnode, base, mat, where: str):
+    def patch_material(self, mnode, base, mat, where: str): #vers 2
         st = _child(mnode, T_STRUCT)
         p = st.data_start
         flags, r, g, b, a, unused, textured = struct.unpack_from("<I4BII", self.data, p)
@@ -154,12 +278,7 @@ class _Patcher:
         if tex is None:
             if not mat.texture_name:
                 return
-            tflags = (mat.filter_mode & 0xFF) | ((mat.wrap_u & 0xF) << 8) | ((mat.wrap_v & 0xF) << 12)
-            tstruct = struct.pack("<III", T_STRUCT, 4, stamp) + struct.pack("<HH", tflags, 0)
-            body = (tstruct + self.string_chunk(mat.texture_name, stamp)
-                    + self.string_chunk(mat.texture_mask or "", stamp)
-                    + struct.pack("<III", T_EXT, 0, stamp))
-            chunk = struct.pack("<III", T_TEXTURE, len(body), stamp) + body
+            chunk = _texture_chunk(mat, stamp)
             ext = _child(mnode, T_EXT)
             at = ext.offset if ext is not None else mnode.end
             self.splice(at, at, chunk, mnode)
@@ -184,7 +303,7 @@ class _Patcher:
                 self.skip(f"{where}: texture {label} (section missing in the file)")
                 continue
             sn = strings[idx]
-            self.splice(sn.offset, sn.end, self.string_chunk(new, sn.stamp), tex)
+            self.splice(sn.offset, sn.end, _string(new, sn.stamp), tex)
             self.changed += 1
 
     # - frames
@@ -213,16 +332,88 @@ class _Patcher:
                 self.changed += 1
 
     # - geometry
-    def patch_geometry(self, gnode, base, geom, gi: int):
-        where = f"geometry {gi}"
-        if len(geom.vertices) != len(base.vertices):
-            self.skip(f"{where}: vertex count changed ({len(base.vertices)} -> {len(geom.vertices)})")
+    _PER_VERTEX_PLUGINS = {0x116: "skin", 0x105: "morph", 0x253F2F9: "night vertex colours",
+                           0x510: "native (console) data"}
+
+    def rebuild_geometry(self, gnode, geom, where: str): #vers 2
+        """New geometry struct + triangle-list BinMesh when counts change (PC only)."""
+        st = _child(gnode, T_STRUCT)
+        ext = _child(gnode, T_EXT)
+        for c in (ext.children if ext is not None else []):
+            if c.type in self._PER_VERTEX_PLUGINS:
+                self.skip(f"{where}: mesh rebuild needs {self._PER_VERTEX_PLUGINS[c.type]} per vertex, not written")
+                return
+        flags, uvc, native = struct.unpack_from("<HBB", self.data, st.data_start)
+        if native & 1:
+            self.skip(f"{where}: native (console) geometry can't be rebuilt")
             return
+        ver = rw.version_of(gnode.stamp)
+        nv, nt = len(geom.vertices), len(geom.triangles)
+        n_layers = uvc if uvc else (2 if flags & 0x80 else 1 if flags & 0x04 else 0)
+        if len(list(geom.uv_layers or [])[:n_layers]) != n_layers:
+            self.skip(f"{where}: UV layers missing, mesh not rebuilt")
+            return
+        body = _geometry_struct(geom, flags, uvc, ver, self.data[st.data_start + 16:st.data_start + 28])
+        self.splice(st.offset, st.end, _chunk(T_STRUCT, body, st.stamp), gnode)
+        old = next((c for c in ext.children if c.type == 0x50E), None) if ext is not None else None
+        chunk = _bin_mesh_chunk(geom, (old or gnode).stamp)
+        if old is not None:
+            self.splice(old.offset, old.end, chunk, ext)
+        elif ext is not None:
+            self.splice(ext.end, ext.end, chunk, ext)
+        else:
+            self.splice(gnode.end, gnode.end, _chunk(T_EXT, chunk, gnode.stamp), gnode)
+        self.report.append(f"{where}: mesh rebuilt ({nv} vertices, {nt} triangles)")
+        self.changed += 1
+
+    def append_parts(self, base, model): #vers 1
+        """Write frames, geometries and atomics added after the loaded ones."""
+        clump = self.root
+        nf, ng, na = len(base.frames), len(base.geometries), len(base.atomics)
+        flist, glist = _child(clump, T_FRAMELIST), _child(clump, T_GEOMLIST)
+        if len(model.frames) > nf:
+            st = _child(flist, T_STRUCT)
+            exts = [c for c in flist.children if c.type == T_EXT]
+            if len(exts) != nf:
+                self.skip("new frames: frame list layout not recognised")
+                return
+            new = model.frames[nf:]
+            self.put(st.data_start, struct.pack("<I", len(model.frames)))
+            self.splice(st.end, st.end, b"".join(_frame_record(f) for f in new), st)
+            self.splice(exts[-1].end, exts[-1].end, b"".join(_frame_ext(f.name, flist.stamp) for f in new), flist)
+            self.report.append(f"{len(new)} frame(s) added")
+        if len(model.geometries) > ng:
+            st = _child(glist, T_STRUCT)
+            gnodes = [c for c in glist.children if c.type == T_GEOMETRY]
+            at = gnodes[-1].end if gnodes else st.end
+            stamp = gnodes[-1].stamp if gnodes else glist.stamp
+            new = model.geometries[ng:]
+            self.put(st.data_start, struct.pack("<I", len(model.geometries)))
+            self.splice(at, at, b"".join(geometry_chunk(g, stamp) for g in new), glist)
+            self.report.append(f"{len(new)} geometry(s) added")
+        if len(model.atomics) > na:
+            st = _child(clump, T_STRUCT)
+            anodes = [c for c in clump.children if c.type == T_ATOMIC]
+            at = anodes[-1].end if anodes else glist.end
+            stamp = anodes[-1].stamp if anodes else clump.stamp
+            new = model.atomics[na:]
+            self.put(st.data_start, struct.pack("<I", len(model.atomics)))
+            self.splice(at, at, b"".join(_atomic_chunk(a, stamp) for a in new), clump)
+            self.report.append(f"{len(new)} atomic(s) added")
+        self.changed += 1
+
+    def patch_geometry(self, gnode, base, geom, gi: int): #vers 3
+        where = f"geometry {gi}"
         tri_now = [(t.v1, t.v2, t.v3, t.material_id) for t in geom.triangles]
         tri_was = [(t.v1, t.v2, t.v3, t.material_id) for t in base.triangles]
-        if tri_now != tri_was:
-            self.skip(f"{where}: triangle list changed")
-        if not (moved_any(geom, base)):
+        if len(geom.vertices) != len(base.vertices) or tri_now != tri_was \
+                or bool(geom.colors) != bool(base.colors):
+            self.rebuild_geometry(gnode, geom, where)
+            return
+        nb, ob = geom.bounding_sphere, base.bounding_sphere
+        sphere_changed = (nb.center.x, nb.center.y, nb.center.z, nb.radius) != \
+            (ob.center.x, ob.center.y, ob.center.z, ob.radius)
+        if not (moved_any(geom, base) or sphere_changed):
             return
         try:
             lay = _geometry_layout(self.data, gnode)
@@ -257,6 +448,9 @@ class _Patcher:
                 rad = max(((v.x - cx) ** 2 + (v.y - cy) ** 2 + (v.z - cz) ** 2) ** 0.5 for v in vs)
                 self.put(lay["bsphere"], struct.pack("<4f", cx, cy, cz, rad))
             self.changed += 1
+        if sphere_changed and not moved and lay["bsphere"] is not None:
+            self.put(lay["bsphere"], struct.pack("<4f", nb.center.x, nb.center.y, nb.center.z, nb.radius))
+            self.changed += 1
         if normals_changed and lay["nrm"] is not None:
             self.put(lay["nrm"], b"".join(struct.pack("<3f", v.x, v.y, v.z) for v in geom.normals))
             self.changed += 1
@@ -271,7 +465,7 @@ class _Patcher:
             self.changed += 1
 
 
-def patch_dff(original: bytes, model) -> Tuple[bytes, List[str]]: #vers 1
+def patch_dff(original: bytes, model) -> Tuple[bytes, List[str]]: #vers 3
     """Return (new bytes, report lines). Raises DFFPatchError if the source is
     not a DFF or the result fails its re-parse check."""
     from apps.methods.dff_parser import DFFParser
@@ -279,17 +473,20 @@ def patch_dff(original: bytes, model) -> Tuple[bytes, List[str]]: #vers 1
     base = DFFParser(original).parse()
     px = _Patcher(original)
     clump = px.root
-    if (len(model.frames), len(model.geometries), len(model.atomics)) != \
-            (len(base.frames), len(base.geometries), len(base.atomics)):
-        px.skip("frames / geometries / atomics were added or removed "
-                f"({len(base.frames)}/{len(base.geometries)}/{len(base.atomics)} -> "
-                f"{len(model.frames)}/{len(model.geometries)}/{len(model.atomics)})")
+    counts = (len(base.frames), len(base.geometries), len(base.atomics))
+    now = (len(model.frames), len(model.geometries), len(model.atomics))
+    if any(n < b for n, b in zip(now, counts)) or \
+            any(getattr(g, 'added', False) for g in model.geometries[:counts[1]]):
+        px.skip("frames / geometries / atomics were removed or inserted mid-list "
+                f"({counts[0]}/{counts[1]}/{counts[2]} -> {now[0]}/{now[1]}/{now[2]})")
         return original, px.report
+    if now != counts:
+        px.append_parts(base, model)
 
     flist = _child(clump, T_FRAMELIST)
     if flist is not None:
         px.patch_frames(flist, base.frames, model.frames)
-    for i, (a, b) in enumerate(zip(base.atomics, model.atomics)):
+    for i, (a, b) in enumerate(zip(base.atomics, model.atomics[:len(base.atomics)])):
         if (a.frame_index, a.geometry_index, a.flags) != (b.frame_index, b.geometry_index, b.flags):
             px.skip(f"atomic {i}: link/flags edits are not written")
 
@@ -318,7 +515,12 @@ def patch_dff(original: bytes, model) -> Tuple[bytes, List[str]]: #vers 1
     if problems:
         raise DFFPatchError("result failed the structure check: " + problems[0])
     after = DFFParser(out).parse()
+    if (len(after.frames), len(after.geometries), len(after.atomics)) != now:
+        raise DFFPatchError("added frames / geometries / atomics did not round-trip")
     for gi, (ag, g) in enumerate(zip(after.geometries, model.geometries)):
+        if any(f"geometry {gi}: mesh rebuilt" in r for r in px.report) and \
+                (len(ag.vertices), len(ag.triangles)) != (len(g.vertices), len(g.triangles)):
+            raise DFFPatchError(f"geometry {gi}: rebuilt mesh did not round-trip")
         for mi, (am, m) in enumerate(zip(ag.materials, g.materials)):
             if (am.texture_name, am.texture_mask) != (m.texture_name, m.texture_mask) and \
                     not any("texture" in r and f"geometry {gi} material {mi}" in r for r in px.report):

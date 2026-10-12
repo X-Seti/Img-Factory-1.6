@@ -1,4 +1,4 @@
-#this belongs in apps/gui/img_batch_load_dialog.py - Version: 1
+#this belongs in apps/gui/img_batch_load_dialog.py - Version: 2
 # X-Seti - October 08 2026 - IMG Factory 1.6 - Batch IMG load window
 
 """
@@ -15,6 +15,7 @@ scrolling per-file stats (or errors), timed close once all are done.
 # closeEvent
 # file_done
 # file_failed
+# file_skipped
 # file_started
 
 import os
@@ -93,6 +94,13 @@ class ImgBatchLoadDialog(QDialog):
         self._failed += 1
         self._advance()
 
+    def file_skipped(self, path: str, reason: str) -> None: #vers 1
+        """Not an archive to open on its own: noted, window still auto-closes."""
+        self._line(f"{os.path.basename(path)}  —  skipped: {reason}")
+        self._done += 1
+        self._skipped = getattr(self, '_skipped', 0) + 1
+        self._advance()
+
     def _advance(self) -> None: #vers 1
         """Progress, then timed close once every file has reported."""
         self._bar.setValue(self._done)
@@ -100,11 +108,13 @@ class ImgBatchLoadDialog(QDialog):
         if self._done >= self._total:
             self._finish()
 
-    def _finish(self) -> None: #vers 1
+    def _finish(self) -> None: #vers 2
         """All loaded: summary and countdown."""
-        ok = self._done - self._failed
+        skipped = getattr(self, '_skipped', 0)
+        ok = self._done - self._failed - skipped
         self._head.setText(f"Loaded {ok} of {self._total} archive(s)")
-        self._summary.setText(f"{self._failed} failed" if self._failed else "All loaded")
+        note = f", {skipped} skipped" if skipped else ""
+        self._summary.setText(f"{self._failed} failed{note}" if self._failed else f"All loaded{note}")
         if self._failed:
             return                      # keep open so failures can be read
         self._close_btn.setText(f"Close ({self._countdown})")

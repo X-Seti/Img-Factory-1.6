@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_parser.py - Version: 7
+#this belongs in apps/methods/txd_parser.py - Version: 8
 # X-Seti - October05 2026 - IMG Factory 1.6 - TXD parser for viewers
 
 """
@@ -12,17 +12,17 @@ parse_txd / load_txd for Model, Map, Vehicle, viewers; uses txd_reader.
 from typing import List
 
 
-def parse_txd(data: bytes) -> List[dict]: #vers 7
-    """Any texture file to dicts (mip 0 decoded), TXD Workshop reader."""
+def parse_txd(data: bytes, levels=False) -> List[dict]: #vers 8
+    """Any texture file to dicts (mip 0 decoded; levels='dxt' keeps DXT)."""
     from apps.methods.txd_reader import read_texture_file
     try:
-        _kind, texs = read_texture_file(data, levels=False)
+        _kind, texs = read_texture_file(data, levels=levels)
     except Exception as e:
         print(f"txd_parser: parse_txd error: {e}")
         return []
     out = []
     for t in texs:
-        if not t.get('rgba_data') or not t.get('width') or not t.get('height'):
+        if not (t.get('rgba_data') or t.get('dxt_levels')) or not t.get('width') or not t.get('height'):
             continue
         ff = t.get('filter_flags', 0) or 0
         t.setdefault('mask', t.get('alpha_name', '') or '')

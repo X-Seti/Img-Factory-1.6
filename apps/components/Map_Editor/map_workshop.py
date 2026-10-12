@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 239
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 245
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -30,7 +30,7 @@ from PyQt6.QtWidgets import (QApplication, QCheckBox, QWidget,
     QProgressDialog, QStackedWidget, QGridLayout, QToolButton, QProgressBar
 )
 
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QByteArray, QPointF, QTimer, QAbstractTableModel, QObject
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QByteArray, QPointF, QTimer, QAbstractTableModel, QObject, QEventLoop
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 
 # Shared DFFViewport — import from methods/, fallback to local methods/
@@ -526,6 +526,11 @@ class MapSettings(QObject):
         'texture_downscale_enabled': False,
         'texture_downscale_threshold': 512,
         'texture_downscale_target': 256,
+        # Per-format texture limits (Oct 12 2026); RW uses texture_downscale_*
+        'tex_limit_iv_on': False, 'tex_limit_iv_over': 256, 'tex_limit_iv_to': 128,
+        'tex_limit_stories_on': False, 'tex_limit_stories_over': 512, 'tex_limit_stories_to': 256,
+        'tex_limit_nif_on': False, 'tex_limit_nif_over': 512, 'tex_limit_nif_to': 256,
+        'tex_keep_dxt': True,   # DXT kept compressed, GPU decodes
         'default_width':     320,
         'default_height':    200,
         'retro_palette':     'Amiga AGA WB',
@@ -2276,7 +2281,7 @@ class _IplLoadDialog(QDialog):
 
     CLOSE_AFTER = 5     # seconds before auto close once finished
 
-    def __init__(self, parent=None, total_files=1): #vers 1
+    def __init__(self, parent=None, total_files=1): #vers 2
         super().__init__(parent)
         import time as _time
         self._time = _time
@@ -2303,8 +2308,9 @@ class _IplLoadDialog(QDialog):
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        for col, width in ((1, 70), (2, 170)):   # fixed: no relayout per row
+            hh.setSectionResizeMode(col, QHeaderView.ResizeMode.Fixed)
+            self._table.setColumnWidth(col, width)
         lay.addWidget(self._table, 1)
         self._msgs = QListWidget(); self._msgs.setMaximumHeight(90); self._msgs.setVisible(False)
         lay.addWidget(self._msgs)
@@ -2319,9 +2325,10 @@ class _IplLoadDialog(QDialog):
         for _ in range(3):              # let the window map and paint first
             QApplication.processEvents()
 
-    def _pump(self, force=False): #vers 1
+    def _pump(self, force=False): #vers 2
         now = self._time.monotonic()
-        if force or now - self._last_pump >= 0.05:
+        if force or now - self._last_pump >= 0.1:
+            self._table.scrollToBottom()
             QApplication.processEvents()
             self._last_pump = now
 
@@ -2338,14 +2345,13 @@ class _IplLoadDialog(QDialog):
         self._bar.setValue(int(done * 100 / total) if total else 100)
         self._pump()
 
-    def model_row(self, model_name): #vers 1
+    def model_row(self, model_name): #vers 2
         """Add a 'Parsing x.dff' row, return its index."""
         r = self._table.rowCount()
         self._table.insertRow(r)
         self._table.setItem(r, 0, QTableWidgetItem(f"Parsing {model_name}.dff"))
         self._table.setItem(r, 1, QTableWidgetItem("0%"))
         self._table.setItem(r, 2, QTableWidgetItem(""))
-        self._table.scrollToBottom()
         self._pump()
         return r
 
@@ -2371,6 +2377,44 @@ class _IplLoadDialog(QDialog):
         self._btn.setText(f"Close ({self._countdown})")
         self._timer.start(1000)
         self._pump(True)
+
+    def file_started(self, path): #vers 1
+        """IMG batch report: archive started (one-window world load)."""
+        self._files_lbl.setText(os.path.basename(path))
+        self._pump()
+
+    def file_done(self, path, img_file): #vers 1
+        """IMG batch report: archive loaded."""
+        n = len(getattr(img_file, 'entries', []) or [])
+        self.message(f"{os.path.basename(path)} - {n:,} entries")
+
+    def file_failed(self, path, message): #vers 1
+        """IMG batch report: archive failed, reason logged."""
+        first = (message or "unknown error").strip().splitlines()[0]
+        self.message(f"{os.path.basename(path)} - FAILED: {first}")
+
+    def file_skipped(self, path, reason): #vers 1
+        """IMG batch report: archive skipped."""
+        self.message(f"{os.path.basename(path)} - skipped: {reason}")
+
+    def show_summary(self, title, summary_text, preloaded_files, seconds=None): #vers 1
+        """World summary in this window; timed close only when seconds set."""
+        self.setWindowTitle(title)
+        self._table.setVisible(False)
+        self._msgs.setMaximumHeight(16777215)
+        self._msgs.setVisible(True)
+        for line in summary_text.splitlines():
+            if line.strip():
+                self._msgs.addItem(line)
+        if preloaded_files:
+            self._msgs.addItem("Preloaded:")
+            self._msgs.addItems([f"    {f}" for f in preloaded_files])
+        if seconds:
+            self._countdown = int(seconds)
+        self.finish(title)
+        if not seconds:
+            self._keep.setChecked(True)
+            self._tick()
 
     def _tick(self): #vers 1
         if self._keep.isChecked():
@@ -4703,7 +4747,18 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         btn = getattr(self, 'menu_btn', None)
         if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _build_workshop_settings_tabs(self): #vers 8
+    def _texture_limits(self): #vers 1
+        """Per-format texture limits {group: (over, down_to)} from settings."""
+        ms = self.map_settings
+        limits = {}
+        if ms.get('texture_downscale_enabled'):
+            limits['rw'] = (ms.get('texture_downscale_threshold'), ms.get('texture_downscale_target'))
+        for g in ('iv', 'stories', 'nif'):
+            if ms.get(f'tex_limit_{g}_on'):
+                limits[g] = (ms.get(f'tex_limit_{g}_over'), ms.get(f'tex_limit_{g}_to'))
+        return limits
+
+    def _build_workshop_settings_tabs(self): #vers 9
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -5642,6 +5697,18 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         render_layout.addStretch()
         tabs.addTab(render_tab_outer, "Render")
 
+        # - World tab (Oct 12 2026): grid/radar, water, environment, audio
+        world_scroll = QScrollArea()
+        world_scroll.setWidgetResizable(True)
+        world_tab = QWidget()
+        world_layout = QVBoxLayout(world_tab)
+        world_layout.setSpacing(6)
+        for _grp in (radar_grp, water2_grp, env_grp, audio_grp):
+            world_layout.addWidget(_grp)
+        world_layout.addStretch()
+        world_scroll.setWidget(world_tab)
+        tabs.addTab(world_scroll, "World")
+
         # TAB 3: placeholder
         # TAB 4: PERFORMANCE
 
@@ -5681,7 +5748,6 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         perf_layout.addWidget(cache_group)
 
         perf_layout.addStretch()
-        tabs.addTab(perf_tab, "Performance")
 
         # TAB 5: PREVIEW SETTINGS (LAST TAB)
 
@@ -5798,13 +5864,16 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         preview_layout.addWidget(overlay_group)
 
         preview_layout.addStretch()
-        tabs.addTab(preview_tab, "Preview")
+        for _grp in (zoom_group, bg_group, overlay_group):   # Preview merged into Display
+            display_layout.insertWidget(display_layout.count() - 1, _grp)
 
         # - Loading tab (Aug 1 2026)
         loading_tab = QWidget()
         ld_lay = QVBoxLayout(loading_tab)
         ld_form = QFormLayout()
         ld_form.setSpacing(8)
+        ld_grid = QGridLayout()          # short checkboxes two per row
+        ld_grid.setHorizontalSpacing(24)
 
         load_streams_chk = QCheckBox("Load Text plus Binary IPL set")
         load_streams_chk.setChecked(self.map_settings.get('load_text_plus_binary_ipl_set'))
@@ -5813,7 +5882,6 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             "its known associated binary stream files - many text IPLs\n"
             "are mostly LOD content, with the normal-detail models\n"
             "living in their streams instead.")
-        ld_form.addRow(load_streams_chk)
 
         preload_img_chk = QCheckBox("Preload IMG archives on DAT load")
         preload_img_chk.setChecked(self.map_settings.get('preload_img_on_dat_load'))
@@ -5824,7 +5892,6 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             "of time. Trades a longer upfront wait for faster per-IPL\n"
             "model/texture loading afterward - off by default since\n"
             "it's not always a net win.")
-        ld_form.addRow(preload_img_chk)
 
         show_load_options_chk = QCheckBox("Show Load Options dialog on world load")
         show_load_options_chk.setChecked(self.map_settings.get('show_load_options_dialog', True))
@@ -5836,14 +5903,12 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             "load individual IPLs later via their eye icon in IPL\n"
             "Sections, the same as picking \"Load from .dat file\" in\n"
             "that dialog would.")
-        ld_form.addRow(show_load_options_chk)
 
         auto_load_last_world_chk = QCheckBox("Auto-load last world on startup")
         auto_load_last_world_chk.setChecked(self.map_settings.get('auto_load_last_world', True))
         auto_load_last_world_chk.setToolTip(
             "Automatically reloads the most recently used game .dat\n"
             "file when Map Workshop opens.")
-        ld_form.addRow(auto_load_last_world_chk)
 
         auto_dismiss_summary_chk = QCheckBox("Auto-dismiss the load summary dialog")
         auto_dismiss_summary_chk.setChecked(self.map_settings.get('auto_dismiss_summary_dialog', False))
@@ -5862,6 +5927,10 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
         verbose_loading_chk = QCheckBox("Show Full Loading Models (Debug)")
         verbose_loading_chk.setChecked(self.map_settings.get('show_verbose_loading_dialog'))
+        for _i, _chk in enumerate((load_streams_chk, preload_img_chk, show_load_options_chk,
+                                   auto_load_last_world_chk)):
+            ld_grid.addWidget(_chk, _i // 2, _i % 2)
+        ld_lay.addLayout(ld_grid)
         verbose_loading_chk.setToolTip(
             "Show a scrolling debug dialog listing every model as it\n"
             "loads, one line per instance.")
@@ -5877,39 +5946,54 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             f"This system has {_cores} CPU cores. 1 = one at a time, Auto = cores - 2.")
         ld_form.addRow(f"Parallel load workers ({_cores} cores):", workers_spin)
 
-        ld_form.addRow(QLabel(""))
-        ld_form.addRow(QLabel("—  Texture size limit  —"))
-
-        downscale_chk = QCheckBox("Reduce large textures")
-        downscale_chk.setChecked(self.map_settings.get('texture_downscale_enabled'))
-        downscale_chk.setToolTip(
-            "Reduce any texture larger than the threshold below down\n"
-            "to the target size as it loads (TXD, WTD, PVR, PSP/PS2,\n"
-            "mobile) - saves memory and VRAM. Reload the world after\n"
-            "changing it.")
-        ld_form.addRow(downscale_chk)
-
-        downscale_threshold_spin = QSpinBox()
-        downscale_threshold_spin.setRange(16, 4096)
-        downscale_threshold_spin.setSingleStep(16)
-        downscale_threshold_spin.setValue(self.map_settings.get('texture_downscale_threshold'))
-        downscale_threshold_spin.setToolTip("Textures larger than this (in either dimension) get reduced")
-        ld_form.addRow("Reduce anything over:", downscale_threshold_spin)
-
-        downscale_target_spin = QSpinBox()
-        downscale_target_spin.setRange(16, 2048)
-        downscale_target_spin.setSingleStep(16)
-        downscale_target_spin.setValue(self.map_settings.get('texture_downscale_target'))
-        downscale_target_spin.setToolTip("Size to reduce large textures down to")
-        ld_form.addRow("Reduce down to:", downscale_target_spin)
-
         ld_lay.addLayout(ld_form)
         ld_lay.addStretch()
+        for _grp in (perf_group, cache_group):   # Performance merged into Loading
+            ld_lay.insertWidget(ld_lay.count() - 1, _grp)
         tabs.addTab(loading_tab, "Loading")
 
-        # - Map Assets tab (Aug 1 2026)
-        assets_tab = QWidget()
-        as_lay = QVBoxLayout(assets_tab)
+        # - Textures tab (Oct 12 2026): per-format limits on load
+        textures_tab = QWidget()
+        tx_lay = QVBoxLayout(textures_tab)
+        tex_grp = QGroupBox("Texture size limit - reload the world after changing")
+        tx_grid = QGridLayout(tex_grp)
+        for _c, _h in enumerate(("Format", "Reduce", "Anything over", "Down to")):
+            tx_grid.addWidget(QLabel(f"<b>{_h}</b>"), 0, _c)
+
+        def _limit_spin(value, top): #vers 1
+            sp = QSpinBox()
+            sp.setRange(16, top)
+            sp.setSingleStep(16)
+            sp.setValue(int(value))
+            return sp
+
+        downscale_chk = QCheckBox()
+        downscale_chk.setChecked(self.map_settings.get('texture_downscale_enabled'))
+        downscale_threshold_spin = _limit_spin(self.map_settings.get('texture_downscale_threshold'), 4096)
+        downscale_target_spin = _limit_spin(self.map_settings.get('texture_downscale_target'), 2048)
+        tex_rows = {'rw': (downscale_chk, downscale_threshold_spin, downscale_target_spin)}
+        for g in ('iv', 'stories', 'nif'):
+            chk = QCheckBox()
+            chk.setChecked(bool(self.map_settings.get(f'tex_limit_{g}_on')))
+            tex_rows[g] = (chk, _limit_spin(self.map_settings.get(f'tex_limit_{g}_over'), 4096),
+                           _limit_spin(self.map_settings.get(f'tex_limit_{g}_to'), 2048))
+        for r, (g, title, tip) in enumerate((
+                ('rw', "RenderWare", "TXD and DFF: PC, Xbox, PS2, PSP, mobile"),
+                ('iv', "GTA IV", "WTD, and textures inside WDR / WFT"),
+                ('stories', "LCS / VCS", "CHK / XTX textures for MDL models"),
+                ('nif', "Bully (Gamebryo)", "NFT texture packs for NIF models")), 1):
+            lbl = QLabel(title)
+            lbl.setToolTip(tip)
+            tx_grid.addWidget(lbl, r, 0)
+            for c, w in enumerate(tex_rows[g], 1):
+                w.setToolTip(tip)
+                tx_grid.addWidget(w, r, c)
+        tx_grid.setColumnStretch(4, 1)
+        tx_lay.addWidget(tex_grp)
+        keep_dxt_chk = QCheckBox("Keep DXT textures compressed (graphics card decodes, 4-8x less memory)")
+        keep_dxt_chk.setChecked(bool(self.map_settings.get('tex_keep_dxt')))
+        keep_dxt_chk.setToolTip("RW PC and GTA IV DXT1/3/5 textures. Reload the world after changing.")
+        tx_lay.addWidget(keep_dxt_chk)
         load_generic_btn = QPushButton("Load Generic.txd Manually")
         load_generic_btn.setToolTip(
             "Manually (re)load generic.txd - the shared texture archive\n"
@@ -5921,11 +6005,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             "always loads via the exe), then falls back to {game root}/\n"
             "models/generic.txd as a loose file.")
         load_generic_btn.clicked.connect(self._on_load_generic_txd_clicked)
-        as_lay.addWidget(load_generic_btn)
+        tx_lay.addWidget(load_generic_btn)
+        tx_lay.addStretch()
 
-        as_lay.addWidget(QLabel(""))
-        as_lay.addWidget(QLabel("—  LOD Test  —"))
-        lod_test_form = QFormLayout()
+        lod_test_grp = QGroupBox("LOD Test")
+        lod_test_form = QFormLayout(lod_test_grp)
         lod_test_radius_spin = QSpinBox()
         lod_test_radius_spin.setRange(1, 10000)
         lod_test_radius_spin.setSingleStep(50)
@@ -5936,10 +6020,6 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             "models outside switch to the other (see the LOD Test\n"
             "checkbox in IPL Controls).")
         lod_test_form.addRow("Circle radius:", lod_test_radius_spin)
-        as_lay.addLayout(lod_test_form)
-
-        as_lay.addStretch()
-        tabs.addTab(assets_tab, "Map Assets")
 
         # - Save Points tab (Sep 23 2026)
         sp_tab = QWidget()
@@ -5970,7 +6050,6 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         sp_btn_row.addWidget(sp_restore_btn)
         sp_lay.addLayout(sp_btn_row)
         sp_lay.addStretch()
-        tabs.addTab(sp_tab, "Save Points")
 
         # - Navigation tab (Aug 1 2026)
         nav_tab = QWidget()
@@ -6102,6 +6181,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         nav_lay.addLayout(pad_dz_row)
 
         nav_lay.addStretch()
+        sp_grp = QGroupBox("Save Points")   # Save Points + LOD Test merged here
+        QVBoxLayout(sp_grp).addWidget(sp_tab)
+        nav_lay.insertWidget(nav_lay.count() - 1, sp_grp)
+        nav_lay.insertWidget(nav_lay.count() - 1, lod_test_grp)
+        tabs.addTab(textures_tab, "Textures")
         tabs.addTab(nav_tab, "Navigation")
 
         # TAB 8: KEYBINDINGS (Aug 16 2026)
@@ -6144,7 +6228,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         keys_lay.addStretch()
         tabs.addTab(keys_tab, "Keybindings")
 
-        def apply_settings():  #vers 2
+        def apply_settings():  #vers 3
             # Loading / Map Assets tabs saved first (Aug 1 2026),
             # before any of this function's other, pre-existing logic
             # runs - that logic has at least one confirmed broken
@@ -6189,6 +6273,12 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             self.map_settings.set('texture_downscale_enabled',   downscale_chk.isChecked())
             self.map_settings.set('texture_downscale_threshold', downscale_threshold_spin.value())
             self.map_settings.set('texture_downscale_target',    downscale_target_spin.value())
+            self.map_settings.set('tex_keep_dxt', keep_dxt_chk.isChecked())
+            for g in ('iv', 'stories', 'nif'):
+                chk, over, to = tex_rows[g]
+                self.map_settings.set(f'tex_limit_{g}_on', chk.isChecked())
+                self.map_settings.set(f'tex_limit_{g}_over', over.value())
+                self.map_settings.set(f'tex_limit_{g}_to', to.value())
             self.map_settings.set('lod_test_circle_radius', float(lod_test_radius_spin.value()))
             vp2 = getattr(self, 'preview_widget', None)
             if vp2 is not None and hasattr(vp2, '_lod_test_radius'):
@@ -6223,9 +6313,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                     downscale_threshold_spin.value(),
                     downscale_target_spin.value())
             if getattr(self, '_model_cache', None) is not None:   # all formats, on load
-                self._model_cache.set_texture_limit(downscale_chk.isChecked(),
-                                                    downscale_threshold_spin.value(),
-                                                    downscale_target_spin.value())
+                self._model_cache.set_texture_limit(self._texture_limits(),
+                                                    self.map_settings.get('tex_keep_dxt'))
 
             # Render tab (Aug 16 2026)
             if vp is not None:
@@ -7186,7 +7275,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
 # - Panel Setup
 
-    def _create_toolbar(self): #vers 14
+    def _create_toolbar(self): #vers 15
         """Create toolbar - Hide drag button when docked, ensure buttons visible"""
         # Read sizes from app_settings so they match Global App System Settings
         try:
@@ -7286,7 +7375,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         if self.button_display_mode == 'icons':
             self.open_btn.setFixedSize(40, 40)
         self.open_btn.setToolTip("Open DFF or COL model file (Ctrl+O)")
-        self.open_btn.clicked.connect(self._open_file)
+        self.open_btn.clicked.connect(self._map_open_menu)
         layout.addWidget(self.open_btn)
 
         # Open DFF (standalone — skips COL filter)
@@ -7365,8 +7454,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self.tb_import_btn.setIconSize(QSize(20, 20))
         if self.button_display_mode == 'icons':
             self.tb_import_btn.setFixedSize(40, 40)
-        self.tb_import_btn.setToolTip("Import — MDL, OBJ, FBX and other formats")
-        self.tb_import_btn.clicked.connect(self._import_model)
+        self.tb_import_btn.setToolTip("Import IPL / IDE into the loaded world, or a model")
+        self.tb_import_btn.clicked.connect(self._map_import_menu)
         layout.addWidget(self.tb_import_btn)
 
         # Export button (title bar) — same _export_model_menu callback the
@@ -7381,8 +7470,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self.export_ojs_btn.setIconSize(QSize(20, 20))
         if self.button_display_mode == 'icons':
             self.export_ojs_btn.setFixedSize(40, 40)
-        self.export_ojs_btn.setToolTip("Export — OBJ, COL, 3DS, FBX and other formats")
-        self.export_ojs_btn.clicked.connect(self._export_model_menu)
+        self.export_ojs_btn.setToolTip("Export IPLs (selected / changed), or the model")
+        self.export_ojs_btn.clicked.connect(self._map_export_menu)
         self.export_ojs_btn.setEnabled(True)
         layout.addWidget(self.export_ojs_btn)
 
@@ -8126,12 +8215,19 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             "Mirror is not yet implemented.\n"
             "Coming in a future build.")
 
-    def _align_dialog(self): #vers 1
-        """STUB: Align selection to another object or the world grid."""
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Align",
-            "Align is not yet implemented.\n"
-            "Coming in a future build.")
+    def _align_dialog(self): #vers 2
+        """Align menu: selected objects to last selected, distribute, drop."""
+        n = len(self._selected_instances())
+        menu = QMenu(self)
+        for ax in 'xyz':
+            menu.addAction(f"Align {ax.upper()} to last selected",
+                           lambda a=ax: self._align_selected(a)).setEnabled(n > 1)
+        menu.addAction("Distribute evenly", self._distribute_selected).setEnabled(n > 2)
+        menu.addAction(f"Drop to Ground ({n})", self._drop_selected_to_ground).setEnabled(n > 0)
+        if not n:
+            menu.addSeparator()
+            menu.addAction("Select objects in the world view first").setEnabled(False)
+        menu.exec(QCursor.pos())
 
     def _set_select_mode(self, mode: str): #vers 3
         """Set viewport selection mode: vertex / edge / face / poly / object.
@@ -16627,64 +16723,17 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self.map_settings.save()
         self._refresh_recent_dat_menu()
 
-    def _show_world_load_summary(self, title, summary_text, preloaded_files): #vers 2
-        """ replacement for the plain QMessageBox.information this
-        summary used to show (Aug 20 2026,  "that dat
-        window, countdown from 10, then automatically press ok, also
-        show the preloaded files in that dialog window").
-
-        Appends a real "Preloaded:" line when anything was actually
-        preloaded this load, and - only when my own new Auto-
-        dismiss setting is on - makes the OK button count down its
-        own label each second and click itself once it reaches zero,
-        rather than needing to be dismissed by hand every time
-        (useful alongside Auto-load last world).
-
-         fix (Aug 21 2026  own real, uploaded
-        tidyup.png screenshot: "this needs to be tidied up, even if
-        it has to scroll one entry per line") - the preloaded files
-        list used to be joined into one, single, comma-separated
-        QLabel line with no word-wrap at all, running straight off
-        the right edge of the dialog rather than wrapping or
-        scrolling. Now its own real QListWidget, one real filename
-        per row, height-capped so a long real list scrolls inside its
-        own real, fixed-height box instead of stretching the whole
-        dialog taller without limit."""
-        print(f"[MapWorkshop-MARKER] _show_world_load_summary shown (title={title!r}, id={id(self)})")
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle(title)
-        layout = QVBoxLayout(dlg)
-        layout.addWidget(QLabel(summary_text))
-
-        if preloaded_files:
-            layout.addWidget(QLabel("Preloaded:"))
-            preload_list = QListWidget()
-            preload_list.addItems(preloaded_files)
-            preload_list.setMaximumHeight(160)
-            preload_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-            layout.addWidget(preload_list)
-
-        ok_btn = QPushButton("OK")
-        ok_btn.setDefault(True)
-        layout.addWidget(ok_btn)
-        ok_btn.clicked.connect(dlg.accept)
-
+    def _show_world_load_summary(self, title, summary_text, preloaded_files, load_dlg=None): #vers 3
+        """Summary shown in the shared load window; waits until it closes."""
+        dlg = load_dlg or _IplLoadDialog(self, 1)
+        seconds = None
         if self.map_settings.get('auto_dismiss_summary_dialog'):
-            remaining = [int(self.map_settings.get('auto_dismiss_summary_seconds', 10))]
-            ok_btn.setText(f"OK ({remaining[0]})")
-            timer = QTimer(dlg)
-            def _tick(): #vers 1
-                remaining[0] -= 1
-                if remaining[0] <= 0:
-                    timer.stop()
-                    dlg.accept()
-                else:
-                    ok_btn.setText(f"OK ({remaining[0]})")
-            timer.timeout.connect(_tick)
-            timer.start(1000)
-
-        dlg.exec()
+            seconds = int(self.map_settings.get('auto_dismiss_summary_seconds', 10))
+        dlg.show_summary(title, summary_text, preloaded_files, seconds)
+        if dlg.isVisible():
+            loop = QEventLoop()
+            dlg.finished.connect(loop.quit)
+            loop.exec()
 
     def _apply_loaded_world(self, loader, game, ok, source_desc): #vers 2
         """ re-entrancy guard (Aug 20 2026  own
@@ -16712,7 +16761,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         finally:
             self._applying_loaded_world = False
 
-    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 8
+    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 11
         """Shared post-load handling for both _load_game_folder and
         _load_game_dat_file - status message, populating the World View
         panes/Instance List/IPL Sections panel, and the summary/error
@@ -16783,9 +16832,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             from apps.components.Map_Editor.depends.model_cache import ModelCache
             model_cache = ModelCache()
             self._model_cache = model_cache
-        model_cache.set_texture_limit(self.map_settings.get('texture_downscale_enabled'),
-                                      self.map_settings.get('texture_downscale_threshold'),
-                                      self.map_settings.get('texture_downscale_target'))
+        model_cache.set_texture_limit(self._texture_limits(), self.map_settings.get('tex_keep_dxt'))
         model_cache.index_img_files(loader.get_img_paths())
         col_in_img = model_cache.col_entries_found_in_img
         if col_in_img:
@@ -16838,8 +16885,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                     already_open.add(os.path.normpath(fp))
             to_open = [p for p in loader.get_img_paths()
                        if os.path.normpath(p) not in already_open]
-            if to_open:                    # one window for every archive, not a popup each
-                mw.load_img_files_batch(to_open, "Map Workshop - loading IMG archives")
+            if to_open:                    # reported in the world load window
+                self._world_load_dlg = _IplLoadDialog(self, 1)
+                self._world_load_dlg.start_file(f"{game.upper()} world - loading IMG archives", 0)
+                mw.load_img_files_batch(to_open, "Map Workshop - loading IMG archives",
+                                        report=self._world_load_dlg)
 
         # radar tex layer needs the freshly-indexed ModelCache, so
         # this runs here rather than earlier in this method (Aug 20
@@ -16951,12 +17001,19 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         # reopening the Preload dialog later (table already built by
         # then) but never during the automatic path itself.
         preloaded_files = []
+        load_dlg = getattr(self, '_world_load_dlg', None) or _IplLoadDialog(self, 1)
+        self._world_load_dlg = None             # one window: archives, preloads, summary
+        load_dlg.start_file(f"{game.upper()} world - preloading", 0)
+        self._ipl_load_dlg = load_dlg
         try:
             preloaded_files = self._apply_saved_preload_picks() or []
         except Exception as e:
             import traceback
             traceback.print_exc()
             self._set_status(f"Preload auto-apply failed: {e}")
+            load_dlg.message(f"Preload failed: {e}")
+        finally:
+            self._ipl_load_dlg = None
 
         self._set_status(f"Populating Object Browser ({len(loader.objects)} objects)...")
         QApplication.processEvents()
@@ -16997,7 +17054,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self._set_status(
             f"Loaded {game.upper()} world: {len(loader.objects)} objects, "
             f"{len(loader.instances)} instances, {loader.stats.ipl_files} IPL files")
-        self._show_world_load_summary(source_desc, loader.get_summary(), preloaded_files)
+        self._show_world_load_summary(source_desc, loader.get_summary(), preloaded_files, load_dlg)
 
         if getattr(loader, 'lazy_ipl_loading', False) and loader.available_ipls:
             if self.map_settings.get('show_load_options_dialog', True):
@@ -18415,7 +18472,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self._set_status(
             f"Saved {len(matching)} instances from {ipl_name} to binary IPL: {path}")
 
-    def _on_show_radar_tex_layer_toggled(self, checked): #vers 1
+    def _on_show_radar_tex_layer_toggled(self, checked): #vers 2
         """Show/hide the radar tex layer - real fix (Aug 20 2026, per
          : "The radar button also needs to switch the radar on
         and off, and right-clicking the radar button should generate
@@ -18436,6 +18493,11 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             game_key = getattr(loader, 'game', 'sa') if loader is not None else 'sa'
             tile_textures = self._load_radar_tex_tiles(game_key)
             vp.set_radar_tex_layer(True, tile_textures, game_key)
+            from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS
+            grid = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])['grid_size']
+            if vp._dist < grid / 12:                # inside one tile: one flat colour, zoom out
+                vp.set_camera_state(dist=grid * 0.6)
+                self._set_status("Radar on - zoomed out to show the map")
         else:
             vp.set_radar_tex_layer(False)
 
@@ -19269,6 +19331,128 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         else:
             self._set_status(f"Saved {len(names)} IPL(s)")
         return not failed
+
+    def _popup_under(self, btn, items): #vers 1
+        """Show a menu of (label, callback) under a title bar button; None = separator."""
+        menu = QMenu(self)
+        for it in items:
+            if it is None:
+                menu.addSeparator()
+            else:
+                menu.addAction(it[0], it[1])
+        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _map_open_menu(self): #vers 1
+        """Open: game .dat, game folder or a model."""
+        self._popup_under(self.open_btn, [
+            ("Load Game DAT...", lambda: self._load_game_dat_file()),
+            ("Load Game Folder...", lambda: self._load_game_folder()),
+            None,
+            ("Open Model / COL / TXD...", self._open_file)])
+
+    def _map_import_menu(self): #vers 1
+        """Import: IPL / IDE into the loaded world, or a model."""
+        self._popup_under(self.tb_import_btn, [
+            ("Import IPL...", self._import_ipl_files),
+            ("Import IDE...", self._import_ide_files),
+            None,
+            ("Import Model...", self._import_model)])
+
+    def _map_export_menu(self): #vers 1
+        """Export: selected IPL, changed IPLs to a folder, or the model."""
+        self._popup_under(self.export_ojs_btn, [
+            ("Export Selected IPL...", self._export_selected_ipl),
+            ("Export Changed IPLs to Folder...", self._export_changed_ipls),
+            None,
+            ("Export Model...", self._export_model_menu)])
+
+    def _map_loader_or_warn(self, title): #vers 1
+        """Loaded world loader, or None after telling the user to load one."""
+        loader = getattr(self, '_world_loader', None)
+        if loader is None:
+            QMessageBox.information(self, title, "Load a game (.dat or folder) first.")
+        return loader
+
+    def _import_ipl_files(self): #vers 1
+        """Add text IPL files to the loaded world and show them."""
+        from apps.methods.gta_dat_parser import DATEntry
+        loader = self._map_loader_or_warn("Import IPL")
+        if loader is None:
+            return
+        paths, _ = QFileDialog.getOpenFileNames(self, "Import IPL", getattr(self, '_game_root', '') or '',
+                                                "IPL files (*.ipl);;All files (*)")
+        if not paths:
+            return
+        names = []
+        for path in paths:
+            stem = os.path.splitext(os.path.basename(path))[0].lower()
+            if stem in loader.available_ipls:
+                self._set_status(f"{os.path.basename(path)}: an IPL with that name is already in the world")
+                continue
+            loader.available_ipls[stem] = DATEntry('IPL', path, abs_path=path, exists=True, source_dat='import')
+            name = os.path.basename(path)
+            self._ipl_display_to_stem[name] = stem
+            self._hidden_ipls.add(name)
+            self._ipl_display_order.append(name)
+            names.append(name)
+        if not names:
+            return
+        self._rebuild_ipl_sections_rows()
+        rows = [self._ipl_display_order.index(n) for n in names]
+        self._load_selected_ipl_sections(rows)
+        self._set_status(f"Imported {len(names)} IPL(s)")
+
+    def _import_ide_files(self): #vers 1
+        """Add IDE object definitions to the loaded world."""
+        from apps.methods.gta_dat_parser import DATEntry
+        loader = self._map_loader_or_warn("Import IDE")
+        if loader is None:
+            return
+        paths, _ = QFileDialog.getOpenFileNames(self, "Import IDE", getattr(self, '_game_root', '') or '',
+                                                "IDE files (*.ide);;All files (*)")
+        if not paths:
+            return
+        before = len(loader.objects)
+        for path in paths:
+            loader._load_ide(DATEntry('IDE', path, abs_path=path, exists=True, source_dat='import'), 'import')
+        self._populate_object_browser(loader)
+        self._set_status(f"Imported {len(paths)} IDE(s): {len(loader.objects) - before} new object id(s)")
+
+    def _export_selected_ipl(self): #vers 1
+        """Save the IPL selected in IPL Sections (all sections) to a new file."""
+        table = getattr(self, '_ipl_sections_table', None)
+        row = table.currentRow() if table is not None else -1
+        item = table.item(row, 0) if row >= 0 else None
+        if item is None:
+            QMessageBox.information(self, "Export IPL", "Select an IPL in IPL Sections first.")
+            return
+        self._save_ipl_data_as_full(item.data(Qt.ItemDataRole.UserRole))
+
+    def _export_changed_ipls(self): #vers 1
+        """Write every changed IPL (all sections) into a chosen folder; originals untouched."""
+        if self._map_loader_or_warn("Export Changed IPLs") is None:
+            return
+        self._refresh_dirty_ipls()
+        names = sorted(getattr(self, '_dirty_ipls', set()))
+        if not names:
+            self._set_status("No changed IPLs to export")
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Export Changed IPLs to Folder")
+        if not folder:
+            return
+        done, failed = 0, []
+        for name in names:
+            built = self._build_ipl_text_lines(name)
+            if not built or not built[0]:
+                failed.append(name)
+                continue
+            _write_ipl_lines(os.path.join(folder, os.path.splitext(name)[0] + ".ipl"),
+                             [l + '\n' for l in built[0]])
+            done += 1
+        msg = f"Exported {done} changed IPL(s) to {folder}"
+        if failed:
+            QMessageBox.warning(self, "Export Changed IPLs", msg + "\n\nNot exported: " + ", ".join(failed))
+        self._set_status(msg)
 
     def _save_map_or_model(self): #vers 2
         """Ctrl+S / Save: changed IPLs first, otherwise the open model."""
@@ -21062,7 +21246,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 result.append(None)
         return result
 
-    def _load_selected_ipl_sections(self, rows): #vers 4
+    def _load_selected_ipl_sections(self, rows): #vers 6
         """Show/load every currently-hidden row among the given table
         rows - the "Load Selected" context menu action.
 
@@ -21094,6 +21278,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
         dlg = _IplLoadDialog(self, len(ipl_names))
         self._ipl_load_dlg = dlg
+        self._ipl_batch_defer, self._ipl_batch_dirty = True, False
         done = 0
         try:
             for idx, ipl_name in enumerate(ipl_names):
@@ -21110,10 +21295,21 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 if current_row is None:
                     continue   # row no longer exists (e.g. removed by an earlier rebuild)
                 dlg.start_file(ipl_name, idx)
-                self._on_ipl_section_cell_clicked(current_row, 0)
+                try:
+                    self._on_ipl_section_cell_clicked(current_row, 0)
+                except Exception as e:   # report, then carry on with the rest
+                    self._ipl_cell_click_in_progress = False
+                    dlg.message(f"{ipl_name} - failed: {e}")
+                    if self.main_window and hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message(f"[{ipl_name}] load failed: {e}")
+                    continue
                 done += 1
         finally:
             self._ipl_load_dlg = None
+            self._ipl_batch_defer = False
+            if self._ipl_batch_dirty:
+                dlg.message("Refreshing world view...")
+                self._apply_ipl_visibility_filter(clear_display_lists=False)
             dlg.finish(f"{'Cancelled - ' if dlg.cancelled else ''}{done} of {len(ipl_names)} IPL(s) loaded")
 
     def _on_ipl_sections_column_resized(self, logical_index, old_size, new_size): #vers 1
@@ -25024,7 +25220,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             color = text_color
         name_item.setForeground(QBrush(color))
 
-    def _toggle_ipl_section(self, ipl_name, hidden): #vers 2
+    def _toggle_ipl_section(self, ipl_name, hidden): #vers 3
         """Show/hide all instances from one IPL file - recomputes the
         visible instance subset from the full loaded set and re-feeds
         it to the world-view panes and Instance List, without needing
@@ -25035,6 +25231,9 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             self._hidden_ipls.add(ipl_name)
         else:
             self._hidden_ipls.discard(ipl_name)
+        if getattr(self, '_ipl_batch_defer', False):
+            self._ipl_batch_dirty = True     # batch load: one refresh at the end
+            return
         self._apply_ipl_visibility_filter(clear_display_lists=False)
 
     # --- World viewport, LOD, ribbon/menu framework (ported from map_workshop_old_version.py) ---

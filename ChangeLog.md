@@ -1,4 +1,60 @@
-#this belongs in root /ChangeLog.md - Version: 257
+#this belongs in root /ChangeLog.md - Version: 259
+
+
+## Oct 12 2026 - Radar Workshop
+- Mixed tile sizes (LCS 128/256) handled everywhere: render modes, undo, draw tools, checkerboard fill, export/import sheet. Sheet export keeps alpha.
+- Redraw button; Game/W/H moved into a Grid ribbon; ribbon positions saved on move and hide.
+- Map Workshop world load: IMG archive results go in the same load window as preloads and summary.
+- Model Workshop files panel lists every open IMG tab and refreshes when tabs change.
+- Model Workshop: Mesh Select, Mesh Edit, Mesh Optimise ribbons on a second row (COL Workshop icons). Ribbon layout reset once.
+- Viewport: already-uploaded textures skipped before reading pixels (DXT textures were CPU-decoded on every refresh; SA load slow).
+
+## TODO (next session, from Oct 12 2026)
+- Radar Workshop: PC radar writer always DXT1.
+- Emojis in Model Workshop log/print strings (~280): Keith removing.
+- DFF save: rebuild with SA night colours / skin; console, MDL, NIF, WDR save back.
+- Map Workshop: Bully world (.ipb placements, Bully dat). 1 of 1118 Bully NFT fails.
+- Format audit: TXD/Model/COL Workshops open every format.
+- Map Workshop: water object editing with vertical depth gauge (Water Workshop done). SA_Realisted tearing (which folder?).
+- methods/txd_platform_pc.py unused, duplicate of txd_reader: suggest removal.
+- Staging rule: copy files to a new outputs/cNNNNNN folder per commit (same name sends stale cache).
+
+## Oct 12 2026 - Water Workshop objects
+- Water Objects tab for SA/IV quads+triangles and III/VC rects: select, box select, drag corners/objects, add, delete, snap, Z gauge, undo. VC rect translate fixed.
+
+## Oct 12 2026 - Radar / Map Workshop bugs
+- Radar Workshop: SA load 25s to 1.5s (cached tile scaling, single checker brush, IMG memory-mapped).
+- Radar Workshop: middle-drag and arrow-key pan (Home resets); Height gauge in sidebar picks water/sand/grass colours.
+- Map Workshop title bar: Open (DAT/folder/model), Import (IPL/IDE/model), Export (selected IPL, changed IPLs to folder, model). Save unchanged.
+- Map Workshop water: one vertex-array draw; SOL waterpro (141k cells) frame 1.16s to 0.09s.
+- Map Workshop: radar on zooms out when camera sits inside one tile (was all green). Zon icon now amber box.
+
+## Oct 12 2026 - File tabs shared
+- methods/doc_tabs.py DocTabsMixin used by COL and Model Workshops. Model: tabs, Open in New Tab, drop asks replace/new tab. open_model_workshop opens every model format.
+
+## Oct 12 2026 - Model Workshop ribbons
+- Region select (rect/circle, window/crossing), Selection to Geometry/DFF, Copy as LOD, Optimum Bounds, Generate Lighting, Light View. dff_patch writes appended frames/geometries/atomics.
+
+## Oct 12 2026 - Model Workshop mesh tools
+- Vertex/face move gizmo, hide/unhide faces, selection lock (Space), game controller toggle, drag and drop, dock grips. Shared gamepad helpers in gamepad_input.
+
+## Oct 12 2026 - Model Workshop split into mixins
+- model_workshop.py keeps init, settings, docking, help, theme, hotkeys; rest in depends/ model_win, setup_ui, core_logic, list, viewport, edit, texture. Code unchanged.
+- Mesh Edit (ribbon button, viewport right-click in Vertex/Face mode): COL mesh tools on DFF geometry via new methods/dff_mesh_ops.py; Mirror/Align implemented; undo.
+- Save rebuilds geometries whose vertex/triangle counts changed (PC; skin/morph/night colours refused). Clean keeps UV seams.
+
+## Oct 12 2026 - Map Workshop load window
+- World load: preloads and DAT summary share one window. Load Selected IPLs: a failing IPL is reported, remaining ones still load.
+- Load Selected IPLs about 2x faster: one world refresh at the end, load window table no longer relayouts per model.
+- Align button: align X/Y/Z to last selected, distribute evenly, drop to ground.
+- Map Workshop settings: 8 tabs (Preview into Display, new World, Performance into Loading, new Textures, Save Points/LOD Test into Navigation).
+- Texture limits per format: RenderWare, GTA IV, LCS/VCS, Bully NFT; shrunk inside load workers. Bully .nft indexed.
+- Map Workshop: DXT textures (RW PC, GTA IV) kept compressed and uploaded as S3TC; decoded only when shown in panels. nj_01 textures 293MB to 49MB.
+- Bully NIF models: new nif_model.py; Model Workshop opens NIF, MDL, WDR, WFT, PS2/PSP DFF via shared parse_model_any. Big-endian NIF/NFT supported.
+- LCS PC TXDs: PAL4 stored one index per byte (depth 8) now decodes and saves in that layout. Radar Workshop PC tiles use the shared reader (paletted tiles were blank).
+
+## Oct 12 2026 - Load windows, docked handles
+- One shared IMG load report window (DAT Browser, Map Workshop, Open); stream-only IMGs listed as skipped. Vehicle/Handling/Timecyc/Breakable: no corner handles when docked.
 
 ## Oct 08 2026 - Changelogs merged
 - Older root CHANGELOG.md entries moved to the end of this file; CHANGELOG.md removed.

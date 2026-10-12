@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 127
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 128
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -44,6 +44,7 @@ from apps.components.Col_Editor.depends.col_list_func import COLListMixin
 from apps.components.Col_Editor.depends.col_core_logic_func import COLCoreLogicMixin
 from apps.components.Col_Editor.depends.col_setup_ui_func import COLSetupUIMixin, App_name, App_build
 from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.doc_tabs import DocTabsMixin
 from apps.methods.grip_splitter import SplitterSizesMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 
@@ -86,7 +87,7 @@ DEBUG_STANDALONE = False
 # SplitterSizesMixin - methods/grip_splitter.py
 
 
-class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, RibbonIconsMixin, SplitterSizesMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 13
+class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, DocTabsMixin, RibbonIconsMixin, SplitterSizesMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 14
     """COL Workshop - Main window"""
 
     #    ToolMenuMixin implementation                                      

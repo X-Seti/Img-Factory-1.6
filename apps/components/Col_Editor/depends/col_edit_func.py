@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 9
+#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 10
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Workshop edit tools
 
 """
@@ -954,47 +954,15 @@ class COLEditMixin: #vers 1
         all_menu = menu.addMenu("All Tools")
         self._build_full_menu(all_menu)
 
-    def _edit_gamepad_saved(self): #vers 1
+    def _edit_gamepad_saved(self): #vers 2
         """Saved controller on/off from col_workshop.json."""
-        import json
-        from apps.methods.img_factory_settings import get_user_config_dir
-        try:
-            return bool(json.loads((get_user_config_dir() / 'col_workshop.json').read_text()).get('gamepad_enabled'))
-        except (OSError, ValueError):
-            return False
+        from apps.methods.gamepad_input import gamepad_saved
+        return gamepad_saved('col_workshop.json')
 
-    def _edit_toggle_gamepad(self, on): #vers 1
+    def _edit_toggle_gamepad(self, on): #vers 2
         """Start or stop the PS5 / game controller; remembered in col_workshop.json."""
-        import json
-        from apps.methods.img_factory_settings import get_user_config_dir
-        vp = self.preview_widget
-        pad = getattr(self, '_gamepad', None)
-        if on and pad is None:
-            from apps.methods.gamepad_input import GamepadPoller
-            pad = GamepadPoller(self)
-            pad.connected.connect(lambda n: self._set_status(
-                f"Controller connected: {n}" if n else "Controller disconnected"))
-            try:
-                pad.start()
-            except ImportError:
-                QMessageBox.warning(self, "Game Controller",
-                                    "Controller support needs pygame 2:\n\npip install pygame")
-                self.gamepad_btn.setChecked(False)
-                return
-            self._gamepad = pad
-            vp.set_gamepad(pad)
-            self._set_status("Controller on: Cross select/grab, right stick orbit, L2/R2 zoom")
-        elif not on and pad is not None:
-            pad.stop()
-            vp.set_gamepad(None)
-            self._gamepad = None
-        path = get_user_config_dir() / 'col_workshop.json'
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, ValueError):
-            data = {}
-        data['gamepad_enabled'] = bool(on and self._gamepad is not None)
-        path.write_text(json.dumps(data, indent=2))
+        from apps.methods.gamepad_input import toggle_workshop_gamepad
+        toggle_workshop_gamepad(self, on, 'col_workshop.json', getattr(self, 'gamepad_btn', None))
 
     def _edit_optimise(self): #vers 1
         """Reduce face count: clean (lossless), merge flat areas, decimate (lossy)."""

@@ -1,9 +1,9 @@
-#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 7
+#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 8
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop core logic
 
 """
 COL Workshop core logic - file load/save, import/export, model edits, undo, surface.dat,
-standalone file tabs (title bar drop-down).
+standalone file tab hooks (DocTabsMixin).
 """
 
 ##class COLCoreLogicMixin: -
@@ -13,7 +13,6 @@ standalone file tabs (title bar drop-down).
 # _apply_settings
 # _build_col_from_txd
 # _change_format
-# _close_doc
 # _compress_col
 # _compress_surface
 # _convert_surface
@@ -23,7 +22,12 @@ standalone file tabs (title bar drop-down).
 # _create_shadow_mesh
 # _delete_selected_model
 # _delete_surface
-# _doc_opened
+# _doc_current_path
+# _doc_has_file
+# _doc_new
+# _doc_open
+# _doc_reset
+# _doc_restore
 # _doc_state
 # dragEnterEvent
 # dragMoveEvent
@@ -38,7 +42,6 @@ standalone file tabs (title bar drop-down).
 # export_selected
 # export_selected_surface
 # _export_via_ide
-# _fill_doc_menu
 # _force_save_col
 # _get_selected_model
 # _import_col_data
@@ -53,9 +56,7 @@ standalone file tabs (title bar drop-down).
 # open_col_file
 # _open_col_file
 # _open_col_from_img_entry
-# _open_col_new_doc
 # _open_file
-# _open_file_new_tab
 # open_img_archive
 # _open_surface_edit_dialog
 # _open_surface_type_dialog
@@ -63,7 +64,6 @@ standalone file tabs (title bar drop-down).
 # _paste_surface
 # _pick_col_from_current_img
 # _push_undo
-# _refresh_doc_menu
 # _remove_shadow
 # _remove_shadow_mesh
 # _remove_via_ide
@@ -92,7 +92,6 @@ standalone file tabs (title bar drop-down).
 # _surf_populate
 # _surf_refresh_list
 # _surf_save
-# _switch_doc
 # _toggle_pin_selected
 # _uncompress_col
 # _uncompress_surface
@@ -1313,11 +1312,10 @@ class COLCoreLogicMixin: #vers 1
         if hasattr(self, 'undo_col_btn'):
             self.undo_col_btn.setEnabled(bool(self.undo_stack))
 
-    def _doc_opened(self): #vers 1
-        """First file opened standalone becomes tab 1."""
-        if getattr(self, '_col_doc_idx', -1) < 0:
-            self._col_docs, self._col_doc_idx = [{}], 0
-        self._refresh_doc_menu()
+    #    File tab hooks for DocTabsMixin (apps/methods/doc_tabs.py)
+
+    _DOC_KIND = "COL"
+    _DOC_FILTER = "COL Files (*.col);;All Files (*)"
 
     def _doc_state(self): #vers 1
         """Snapshot of the open file: data, path, undo stack, selected row."""
@@ -1325,91 +1323,32 @@ class COLCoreLogicMixin: #vers 1
         return {'col_file': self.current_col_file, 'path': self.current_file_path,
                 'undo': self.undo_stack, 'row': max(0, lw.currentRow())}
 
-    def _open_col_new_doc(self, file_path): #vers 1
-        """Open a COL file in a new standalone tab, keeping the current one."""
-        if not getattr(self.current_col_file, 'models', None):
-            return self.open_col_file(file_path)
-        if getattr(self, '_col_doc_idx', -1) < 0:          # file loaded another way (IMG entry)
-            self._col_docs, self._col_doc_idx = [{}], 0
-        prev = self._col_doc_idx
-        self._col_docs[prev] = self._doc_state()
-        self._col_docs.append({})
-        self._col_doc_idx = len(self._col_docs) - 1
-        self.undo_stack = []
-        if self.open_col_file(file_path):
-            return True
-        self._col_docs.pop()
-        self._switch_doc(prev, save_current=False)
-        return False
-
-    def _switch_doc(self, index, save_current=True): #vers 1
-        """Show another open standalone file."""
-        docs = getattr(self, '_col_docs', [])
-        if not 0 <= index < len(docs):
-            return
-        if save_current and 0 <= self._col_doc_idx < len(docs):
-            docs[self._col_doc_idx] = self._doc_state()
-        st = docs[index]
-        self._col_doc_idx = index
+    def _doc_restore(self, st): #vers 1
+        """Show a saved tab state."""
         self.current_col_file, self.current_file_path = st['col_file'], st['path']
         self.undo_stack = st['undo']
         self._show_col_file(st['row'])
-        self._refresh_doc_menu()
 
-    def _close_doc(self): #vers 1
-        """Close the current standalone tab (unsaved edits in it are lost)."""
-        docs = getattr(self, '_col_docs', [])
-        if not docs:
-            return
-        name = os.path.basename(self.current_file_path or 'file')
-        if QMessageBox.question(self, "Close Tab", f"Close {name}? Unsaved changes are lost.",
-                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) \
-                != QMessageBox.StandardButton.Yes:
-            return
-        del docs[self._col_doc_idx]
-        if docs:
-            self._col_doc_idx = -1
-            self._switch_doc(0, save_current=False)
-            return
-        self._col_doc_idx = -1
+    def _doc_open(self, file_path): #vers 1
+        return self.open_col_file(file_path)
+
+    def _doc_has_file(self): #vers 1
+        return bool(getattr(self.current_col_file, 'models', None))
+
+    def _doc_current_path(self): #vers 1
+        return self.current_file_path
+
+    def _doc_new(self): #vers 1
+        """Fresh per-file state before a new tab opens."""
+        self.undo_stack = []
+
+    def _doc_reset(self): #vers 1
+        """Empty workshop after the last tab closes."""
         self.current_col_file, self.current_file_path, self.undo_stack = None, None, []
         self.collision_list.setRowCount(0)
         self.col_compact_list.setRowCount(0)
         self.preview_widget.set_current_model(None)
         self.setWindowTitle(App_name)
-        self._refresh_doc_menu()
-
-    def _refresh_doc_menu(self): #vers 2
-        """Title bar file drop-down button: shown standalone with files open, current name."""
-        btn = getattr(self, 'doc_tabs_btn', None)
-        if btn is None:
-            return
-        docs = getattr(self, '_col_docs', [])
-        btn.setVisible(bool(self.standalone_mode and docs))
-        cur = os.path.basename(self.current_file_path or '')
-        btn.setText(f"{cur}  ({self._col_doc_idx + 1}/{len(docs)})" if docs else "")
-
-    def _fill_doc_menu(self): #vers 1
-        """Build the drop-down when it opens: files (current ticked), new tab, close."""
-        menu = self.doc_tabs_btn.menu()
-        menu.clear()
-        docs = getattr(self, '_col_docs', [])
-        for i in range(len(docs)):
-            path = self.current_file_path if i == self._col_doc_idx else docs[i].get('path')
-            act = menu.addAction(os.path.basename(path or 'untitled'))
-            act.setCheckable(True)
-            act.setChecked(i == self._col_doc_idx)
-            act.triggered.connect(lambda _=False, k=i: self._switch_doc(k))
-        menu.addSeparator()
-        menu.addAction("Open in New Tab...", self._open_file_new_tab)
-        menu.addAction("Close Tab", self._close_doc)
-
-    def _open_file_new_tab(self): #vers 1
-        """Pick COL files and open each in a new standalone tab."""
-        paths, _ = QFileDialog.getOpenFileNames(self, "Open COL in New Tab", "",
-                                                "COL Files (*.col);;All Files (*)")
-        for path in paths:
-            self._open_col_new_doc(path)
 
     def _pick_col_from_current_img(self): #vers 1
         """Pick a COL entry from the IMG currently loaded in IMG Factory and open it."""
@@ -1859,7 +1798,7 @@ class COLCoreLogicMixin: #vers 1
                     if tw is not None:
                         open_col_workshop(self.main_window, path)
                     elif path.lower().endswith('.col'):
-                        self._open_col_new_doc(path)
+                        self._open_new_doc(path)
             return
         first, rest = paths[0], paths[1:]
         if first.lower().endswith('.img'):

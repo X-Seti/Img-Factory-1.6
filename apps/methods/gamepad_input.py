@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gamepad_input.py - Version: 1
+#this belongs in apps/methods/gamepad_input.py - Version: 2
 # X-Seti - September24 2026 - IMG Factory 1.6 - Game controller input (SDL via pygame)
 
 """
@@ -10,6 +10,8 @@ Requires pygame 2 (pip install pygame).
 """
 
 ##Methods list -
+# gamepad_saved
+# toggle_workshop_gamepad
 
 ##class GamepadPoller: -
 # __init__
@@ -133,3 +135,49 @@ class GamepadPoller(QObject):
                 self._pad.rumble(low, high, ms)
             except (AttributeError, self._pg.error):
                 pass
+
+
+def gamepad_saved(settings_file: str) -> bool: #vers 1
+    """Saved controller on/off from a workshop json in the user config dir."""
+    import json
+    from apps.methods.img_factory_settings import get_user_config_dir
+    try:
+        return bool(json.loads((get_user_config_dir() / settings_file).read_text()).get('gamepad_enabled'))
+    except (OSError, ValueError):
+        return False
+
+
+def toggle_workshop_gamepad(ws, on: bool, settings_file: str, button=None) -> None: #vers 1
+    """Start/stop a controller for ws.preview_widget; remembered in settings_file."""
+    import json
+    from PyQt6.QtWidgets import QMessageBox
+    from apps.methods.img_factory_settings import get_user_config_dir
+    vp = ws.preview_widget
+    pad = getattr(ws, '_gamepad', None)
+    if on and pad is None:
+        pad = GamepadPoller(ws)
+        pad.connected.connect(lambda n: ws._set_status(
+            f"Controller connected: {n}" if n else "Controller disconnected"))
+        try:
+            pad.start()
+        except ImportError:
+            QMessageBox.warning(ws, "Game Controller",
+                                "Controller support needs pygame 2:\n\npip install pygame")
+            if button is not None:
+                button.setChecked(False)
+            return
+        ws._gamepad = pad
+        vp.set_gamepad(pad)
+        ws._set_status("Controller on: Cross select/grab, right stick orbit, L2/R2 zoom")
+    elif not on and pad is not None:
+        pad.stop()
+        vp.set_gamepad(None)
+        ws._gamepad = None
+    path = get_user_config_dir() / settings_file
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = {}
+    data['gamepad_enabled'] = bool(on and getattr(ws, '_gamepad', None) is not None)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2))

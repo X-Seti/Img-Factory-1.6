@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 10
+#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 13
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG
@@ -18,6 +18,8 @@ retried on every subsequent instance that references it.
 # _index_wbd
 # _index_wdd
 # _is_wdd
+# LazyTexture
+# _limit_texture
 # _model_entries
 # _parse_dff_job
 # _parse_model
@@ -28,6 +30,7 @@ retried on every subsequent instance that references it.
 # _scan_col_model_names
 # _shrink_texture
 # _store_parsed
+# _tag
 # clear_indexes
 # get_collision
 # get_dimensions
@@ -49,7 +52,6 @@ retried on every subsequent instance that references it.
 import struct
 from typing import Dict, List, Optional, Tuple
 
-from apps.methods.dff_parser import DFFParser, detect_dff
 from apps.methods.txd_parser import parse_txd
 from apps.methods.dff_classes import DFFModel
 from apps.methods.col_workshop_classes import COLModel
@@ -91,21 +93,25 @@ def _is_wdd(data: bytes) -> bool: #vers 1
     return len(z) >= 4 and struct.unpack_from('<I', z, 0)[0] == _WDD_VTABLE
 
 
-def _parse_dff_job(model_name: str, blobs: List[bytes]) -> Optional[DFFModel]: #vers 2
-    """Worker process: first blob that parses as a model."""
+def _parse_dff_job(model_name: str, blobs: List[bytes], limit=None, keep_dxt=False) -> Optional[DFFModel]: #vers 5
+    """Worker process: first blob that parses as a model; textures shrunk here."""
     for data in blobs:
         try:
-            result = _parse_model(model_name, data)
+            result = _parse_model(model_name, data, keep_dxt)
             if result is not None:
+                if limit:
+                    for t in getattr(result, 'embedded_textures', {}).values():
+                        _limit_texture(t, limit)
                 return result
         except Exception:
             continue
     return None
 
 
-def _parse_model(model_name: str, data: bytes) -> Optional[DFFModel]: #vers 4
-    """DFF, GTA IV .wdr or .wdd (by name hash) to DFFModel."""
+def _parse_model(model_name: str, data: bytes, keep_dxt: bool = False) -> Optional[DFFModel]: #vers 7
+    """IV .wdd by name hash, IV wdr/wft textures tagged; rest via parse_model_any."""
     from apps.methods.wdr_model import is_iv_drawable, parse_wdr, parse_wdd, wdr_embedded_textures
+    from apps.methods.dff_parser import parse_model_any
     if not data:
         return None
     if is_iv_drawable(data):
@@ -113,38 +119,81 @@ def _parse_model(model_name: str, data: bytes) -> Optional[DFFModel]: #vers 4
             from apps.methods.xtd_textures import iv_hash
             return parse_wdd(data, iv_hash(model_name), model_name)
         model = parse_wdr(data, model_name)
-        model.embedded_textures = {t['name'].lower(): t for t in wdr_embedded_textures(data)}
+        model.embedded_textures = {t['name'].lower(): t for t in _tag(wdr_embedded_textures(data, 'dxt' if keep_dxt else False), 'iv')}
         return model
-    from apps.methods.lcs_geometry import is_lcs_dff, parse_lcs_dff
-    if is_lcs_dff(data):                       # LCS mobile/PSP native geometry
-        return parse_lcs_dff(data, model_name)
-    from apps.methods.stories_mdl import is_stories_mdl, parse_stories_mdl
-    if is_stories_mdl(data):                   # LCS/VCS PS2/PSP .mdl
-        return parse_stories_mdl(data, model_name)
-    from apps.methods.ps2_geometry import is_ps2_native_dff, parse_ps2_native_dff
-    if is_ps2_native_dff(data):                # III/VC/SA PS2 native geometry
-        return parse_ps2_native_dff(data, model_name)
-    if detect_dff(data):
-        return DFFParser(data, model_name).parse()
-    return None
+    return parse_model_any(data, model_name)
 
 
-def _parse_textures(data: bytes) -> List[dict]: #vers 2
-    """TXD, GTA IV .wtd (top level only) or LCS/VCS .chk/.xtx textures."""
+TEXTURE_GROUPS = ('rw', 'iv', 'stories', 'nif')   # per-format texture limits
+
+
+class LazyTexture(dict):
+    """Texture dict whose DXT levels decode to RGBA only when rgba_data is read."""
+
+    def _rgba(self): #vers 1
+        from apps.methods.txd_reader import decompress_dxt
+        w, h, data = dict.__getitem__(self, 'dxt_levels')[0]
+        return decompress_dxt(data, w, h, self.get('format', 'DXT1'))
+
+    def get(self, key, default=None): #vers 1
+        if key == 'rgba_data' and 'rgba_data' not in self and 'dxt_levels' in self:
+            return self._rgba()
+        return dict.get(self, key, default)
+
+    def __getitem__(self, key): #vers 1
+        if key == 'rgba_data' and 'rgba_data' not in self and 'dxt_levels' in self:
+            return self._rgba()
+        return dict.__getitem__(self, key)
+
+
+def _tag(textures: List[dict], group: str) -> List[dict]: #vers 2
+    """Format group tag for limits; DXT-kept textures become LazyTexture."""
+    out = []
+    for t in textures:
+        t['_group'] = group
+        if 'dxt_levels' in t:
+            t.pop('rgba_data', None)          # empty placeholder from the reader
+            t = LazyTexture(t)
+        out.append(t)
+    return out
+
+
+def _parse_textures(data: bytes, keep_dxt: bool = False) -> List[dict]: #vers 4
+    """TXD, IV .wtd, LCS/VCS .chk/.xtx or Bully .nft, tagged by group."""
     if data[:4] == b'xet\x00':
         from apps.methods.xtx_reader import parse_stories_textures
-        return parse_stories_textures(data)
+        return _tag(parse_stories_textures(data), 'stories')
     if data[:4] == b'RSC\x05':
         import zlib
         from apps.methods.xtd_textures import _iv_textures, _rsc5_sizes
         vs, _ps = _rsc5_sizes(struct.unpack_from('<I', data, 8)[0])
-        return _iv_textures(zlib.decompress(data[12:]), vs, levels=False)
-    return parse_txd(data) or []
+        return _tag(_iv_textures(zlib.decompress(data[12:]), vs, levels='dxt' if keep_dxt else False), 'iv')
+    from apps.methods.nif_textures import is_nif_textures, parse_nif_textures
+    if is_nif_textures(data):
+        return _tag(parse_nif_textures(data), 'nif')
+    return _tag(parse_txd(data, 'dxt' if keep_dxt else False) or [], 'rw')
 
 
-def _shrink_texture(tex: dict, threshold: int, target: int) -> dict: #vers 1
+def _limit_texture(tex: dict, limits) -> dict: #vers 1
+    """Apply the limit for this texture's format group, if any."""
+    lim = (limits or {}).get(tex.get('_group', 'rw'))
+    return _shrink_texture(tex, *lim) if lim else tex
+
+
+def _shrink_texture(tex: dict, threshold: int, target: int) -> dict: #vers 2
     """Texture over threshold reduced to fit target (mip level reused); mips dropped."""
     w, h = tex.get('width', 0), tex.get('height', 0)
+    dxt = dict.get(tex, 'dxt_levels')
+    if dxt:                                   # stay compressed: drop larger levels
+        if max(w, h) <= threshold:
+            return tex
+        keep = [lv for lv in dxt if max(lv[0], lv[1]) <= target]
+        if keep:
+            tex.update(dxt_levels=keep, width=keep[0][0], height=keep[0][1], mipmaps=len(keep))
+            return tex
+        rgba = tex.get('rgba_data')           # no small mip: decode, resize below
+        del tex['dxt_levels']
+        tex['rgba_data'] = rgba
     levels = tex.pop('mipmap_levels', None) or []
     tex.pop('compressed_data', None)
     if max(w, h) <= threshold or not tex.get('rgba_data'):
@@ -163,15 +212,15 @@ def _shrink_texture(tex: dict, threshold: int, target: int) -> dict: #vers 1
     return tex
 
 
-def _parse_txd_job(blobs: List[bytes]) -> Optional[Dict[str, dict]]: #vers 2
-    """Worker process: merged textures from every blob, keyed by lowercase name."""
+def _parse_txd_job(blobs: List[bytes], limit=None, keep_dxt=False) -> Optional[Dict[str, dict]]: #vers 5
+    """Worker process: merged textures from every blob, shrunk before return."""
     merged = {}
     for data in blobs:
         try:
-            for t in _parse_textures(data):
+            for t in _parse_textures(data, keep_dxt):
                 name = t.get('name')
                 if name and name.lower() not in merged:
-                    merged[name.lower()] = t
+                    merged[name.lower()] = _limit_texture(t, limit) if limit else t
         except Exception:
             continue
     return merged or None
@@ -192,8 +241,10 @@ class ModelCache:
         self._txd_index: Dict[str, List[Tuple[str, object]]] = {}
         # GTA IV .wdd model name hash -> [(img_path, IMGEntry), ...]
         self._wdd_index: Dict[int, List[Tuple[str, object]]] = {}
-        # (threshold, target) applied to every loaded texture, None = full size
-        self.texture_limit: Optional[Tuple[int, int]] = None
+        # format group -> (threshold, target); groups missing = full size
+        self.texture_limit: Dict[str, Tuple[int, int]] = {}
+        # DXT textures kept compressed for GPU upload (Oct 12 2026)
+        self.keep_dxt: bool = False
         # GTA IV .wbd model hash and .wbn stem -> [(img_path, IMGEntry), ...]
         self._wbd_index: Dict[int, List[Tuple[str, object]]] = {}
         self._wbn_index: Dict[str, List[Tuple[str, object]]] = {}
@@ -281,7 +332,7 @@ class ModelCache:
         # once per texture lookup.
         self._opened_img_files: Dict[str, 'object'] = {}
 
-    def index_img_files(self, img_paths: List[str]): #vers 7
+    def index_img_files(self, img_paths: List[str]): #vers 8
         """Scan a list of IMG archive paths, building name -> (path,
         entry) indexes for .dff, .txd, and .col entries. Call once
         after a world loads (or its IMG set changes) - reading
@@ -333,9 +384,9 @@ class ModelCache:
                         continue
                     stem_lower = stem.lower()
                     ext_lower = ext.lower()
-                    if ext_lower in ('dff', 'wdr', 'wft', 'mdl'):     # mdl: LCS/VCS
+                    if ext_lower in ('dff', 'wdr', 'wft', 'mdl', 'nif'):   # mdl: LCS/VCS, nif: Bully
                         self._dff_index.setdefault(stem_lower, []).append((img_path, entry))
-                    elif ext_lower in ('txd', 'wtd', 'chk', 'xtx'):   # chk/xtx: LCS/VCS
+                    elif ext_lower in ('txd', 'wtd', 'chk', 'xtx', 'nft'):   # chk/xtx: LCS/VCS, nft: Bully
                         self._txd_index.setdefault(stem_lower, []).append((img_path, entry))
                     elif ext_lower == 'wdd':
                         self._index_wdd(img_path, entry)
@@ -363,18 +414,19 @@ class ModelCache:
         except Exception as e:
             self.index_errors.append(f"{img_path}/{entry.name}: {e}")
 
-    def set_texture_limit(self, enabled: bool, threshold: int, target: int) -> None: #vers 1
-        """Reduce textures on load (all formats); changing it drops cached textures."""
-        limit = (int(threshold), int(target)) if enabled else None
-        if limit != self.texture_limit:
-            self.texture_limit = limit
+    def set_texture_limit(self, limits: Dict[str, Tuple[int, int]], keep_dxt: bool = False) -> None: #vers 3
+        """Per-format limits {group: (over, down_to)} and DXT keep; change drops cache."""
+        limits = {g: (int(a), int(b)) for g, (a, b) in (limits or {}).items()}
+        if limits != self.texture_limit or bool(keep_dxt) != self.keep_dxt:
+            self.texture_limit = limits
+            self.keep_dxt = bool(keep_dxt)
             self._texture_cache.clear()
 
-    def _apply_limit(self, textures): #vers 1
-        """Texture limit applied to a {name: texture} dict (in place)."""
+    def _apply_limit(self, textures): #vers 2
+        """Per-format texture limit applied to a {name: texture} dict (in place)."""
         if textures and self.texture_limit:
             for t in textures.values():
-                _shrink_texture(t, *self.texture_limit)
+                _limit_texture(t, self.texture_limit)
         return textures
 
     def _index_wbd(self, img_path: str, entry) -> None: #vers 1
@@ -514,7 +566,7 @@ class ModelCache:
         result = None
         for img_path, entry in self._model_entries(key):
             try:
-                result = _parse_model(model_name, self._read_entry(img_path, entry))
+                result = _parse_model(model_name, self._read_entry(img_path, entry), self.keep_dxt)
                 if result is not None:
                     break
             except Exception:
@@ -582,7 +634,7 @@ class ModelCache:
                     data = self._read_entry(img_path, entry)
                     if not data:
                         continue
-                    textures = _parse_textures(data)
+                    textures = _parse_textures(data, self.keep_dxt)
                     if not textures:
                         continue
                     for t in textures:
@@ -672,7 +724,7 @@ class ModelCache:
 
     def prefetch(self, model_names, txd_names, workers: int, on_done=None,
                  is_cancelled=None, on_idle=None, on_stall=None,
-                 stall_seconds: float = 20.0) -> None: #vers 3
+                 stall_seconds: float = 20.0) -> None: #vers 4
         """Parse many DFFs/TXDs in parallel worker processes, filling the caches.
         on_done(kind, name, result) runs in this thread per finished item.
         Workers silent for stall_seconds are stopped; the rest parse here."""
@@ -695,8 +747,8 @@ class ModelCache:
         pool = ProcessPoolExecutor(max_workers=max(1, workers))
         futs = {}
         for kind, name, blobs in jobs:
-            f = (pool.submit(_parse_dff_job, name, blobs) if kind == 'dff'
-                 else pool.submit(_parse_txd_job, blobs))
+            f = (pool.submit(_parse_dff_job, name, blobs, self.texture_limit, self.keep_dxt)
+                 if kind == 'dff' else pool.submit(_parse_txd_job, blobs, self.texture_limit, self.keep_dxt))
             futs[f] = (kind, name, blobs)
         pending, last = set(futs), time.monotonic()
         stalled = False
@@ -728,7 +780,8 @@ class ModelCache:
                 if is_cancelled and is_cancelled():
                     break
                 kind, name, blobs = futs[f]
-                result = _parse_dff_job(name, blobs) if kind == 'dff' else _parse_txd_job(blobs)
+                result = (_parse_dff_job(name, blobs, self.texture_limit, self.keep_dxt) if kind == 'dff'
+                          else _parse_txd_job(blobs, self.texture_limit, self.keep_dxt))
                 self._store_parsed(kind, name, result, on_done)
 
     def _store_parsed(self, kind, name, result, on_done=None) -> None: #vers 2
