@@ -1717,7 +1717,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
     #    setup_ui
 
-    def setup_ui(self): #vers 1
+    def setup_ui_old(self): #vers 1
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -1753,6 +1753,47 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._status_bar = self._create_status_bar()
         main_layout.addWidget(self._status_bar)
         # Corner resize overlay set up in showEvent
+
+    def setup_ui(self): #vers 1
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(*self.get_content_margins())
+        main_layout.setSpacing(self.setspacing)
+
+        toolbar = self._create_toolbar()
+        main_layout.addWidget(toolbar)
+
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left panel — hidden (same pattern as template: None in standalone)
+        left = self._create_left_panel()
+        centre = self._create_centre_panel()
+        right  = self._create_right_panel()
+
+        self._draw_btns = {}
+
+        if left is not None:
+            main_splitter.addWidget(left)
+            main_splitter.addWidget(centre)
+            # Wrap only the right viewpoint panel with ribbons
+            main_splitter.addWidget(self.ribbon_wrap(right))
+            main_splitter.setStretchFactor(0, 1)
+            main_splitter.setStretchFactor(1, 2)
+            main_splitter.setStretchFactor(2, 5)
+        else:
+            main_splitter.addWidget(centre)
+            # Wrap only the right viewpoint panel with ribbons, leaving centre (tile list) free
+            main_splitter.addWidget(self.ribbon_wrap(right))
+            main_splitter.setStretchFactor(0, 1)
+            main_splitter.setStretchFactor(1, 4)
+
+        # Add the splitter directly to main_layout without wrapping the whole thing
+        main_layout.addWidget(main_splitter, 1)
+
+        self._build_ribbons()
+        self.ribbon_restore_state()
+
+        self._status_bar = self._create_status_bar()
+        main_layout.addWidget(self._status_bar)
 
 
     # - Toolbar
@@ -3818,17 +3859,36 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._render_mode     = 'color'
         self._alpha_key_color = None
         self._render_btns = {}
-        for mode, label, tip in (
-                ('color', "Colour",    "Full colour display"),
-                ('bw',    "B && W",    "Greyscale display"),
-                ('alpha', "Col>Alpha", "Colour to Alpha: press, then pick the colour "
-                                       "with the dropper - it becomes transparent")):
-            b = self.ribbon_button(tb, "", tip, lambda checked=False, m=mode: self._set_render_mode(m),
-                                   checkable=True, text=label)
-            b.setFixedSize(76, self._RIBBON_BTN)
-            self._render_btns[mode] = b
+        #TODO; function needs to be split, so each button can be compact, icons only mode?
+
+        # 1. Colour Button
+        b_color = self.ribbon_button(
+            tb, "", "Full colour display",
+            lambda checked=False, m='color': self._set_render_mode(m),
+            checkable=True, text="Colour"
+        )
+        b_color.setFixedSize(70, self._RIBBON_BTN)
+        self._render_btns['color'] = b_color
+
+        # 2. B&W Button
+        b_bw = self.ribbon_button(
+            tb, "", "Greyscale display",
+            lambda checked=False, m='bw': self._set_render_mode(m),
+            checkable=True, text="B && W"
+        )
+        b_bw.setFixedSize(60, self._RIBBON_BTN)
+        self._render_btns['bw'] = b_bw
+
+        # 3. Col>Alpha Button
+        b_alpha = self.ribbon_button(
+            tb, "", "Colour to Alpha: press, then pick the colour with the dropper - it becomes transparent",
+            lambda checked=False, m='alpha': self._set_render_mode(m),
+            checkable=True, text="Col>Alpha"
+        )
+        b_alpha.setFixedSize(85, self._RIBBON_BTN)
+        self._render_btns['alpha'] = b_alpha
+
         self._render_btns['color'].setChecked(True)
-        B(tb, "get_refresh_icon", "Redraw radar (rebuilds every tile from its data)", self._redraw_radar)
 
         tb = self.ribbon_toolbar("Grid")
         self.ribbon_label(tb, "Game")
@@ -3836,16 +3896,19 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._game_combo.addItems(list(GAME_PRESETS))
         self._game_combo.setCurrentText("SA PC")
         self._game_combo.currentTextChanged.connect(self._on_game_changed)
+        self._game_combo.setFixedSize(44, 26)
         tb.addWidget(self._game_combo)
         self._cols_spin = QSpinBox()
         self._cols_spin.setRange(1, 100); self._cols_spin.setValue(8)
         self._cols_spin.setPrefix("W "); self._cols_spin.setEnabled(False)
         self._cols_spin.valueChanged.connect(self._on_custom_changed)
+        self._cols_spin.setFixedSize(100, 26)
         tb.addWidget(self._cols_spin)
         self._rows_spin = QSpinBox()
         self._rows_spin.setRange(1, 100); self._rows_spin.setValue(8)
         self._rows_spin.setPrefix("H "); self._rows_spin.setEnabled(False)
         self._rows_spin.valueChanged.connect(self._on_custom_changed)
+        self._rows_spin.setFixedSize(100, 26)
         tb.addWidget(self._rows_spin)
 
         self._ribbon_mw.addToolBarBreak()      # Draw + Colour on their own row
@@ -3875,15 +3938,15 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._fg_color = QColor(255, 255, 255)
         _win = self.palette().color(self.palette().ColorRole.Window)
         self._bg_color = self._get_ui_color('viewport_bg') if _win.lightness() > 128 else QColor(0, 0, 0)
-        self.ribbon_label(tb, "FG")
+        self.ribbon_label(tb, "")
         self._fg_btn = QPushButton()
-        self._fg_btn.setFixedSize(44, 22)
+        self._fg_btn.setFixedSize(26, 26)
         self._fg_btn.setToolTip("Foreground (left-click to pick)")
         self._fg_btn.clicked.connect(self._pick_fg_color)
         tb.addWidget(self._fg_btn)
-        self.ribbon_label(tb, "BG")
+        self.ribbon_label(tb, "")
         self._bg_btn = QPushButton()
-        self._bg_btn.setFixedSize(44, 22)
+        self._bg_btn.setFixedSize(26, 26)
         self._bg_btn.setToolTip("Background (right-click palette for BG)")
         self._bg_btn.clicked.connect(self._pick_bg_color)
         tb.addWidget(self._bg_btn)

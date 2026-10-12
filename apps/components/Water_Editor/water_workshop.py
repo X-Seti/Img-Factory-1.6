@@ -1215,23 +1215,30 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return tb
 
 
-    def setup_ui(self): #vers 2
-        """Titlebar / [left panel | canvas tabs] inside the ribbon host / status bar."""
+    def setup_ui(self): #vers 3
+        """Titlebar / [left panel | ribbon-wrapped canvas tabs] / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
         ml.addWidget(self._create_toolbar())
 
         sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._create_left_panel())
-        sp.addWidget(self._create_centre_panel())
+
+        left_panel = self._create_left_panel()
+        centre_panel = self._create_centre_panel()
+
+        # Add left panel normally, but wrap ONLY the centre panel with the ribbons
+        sp.addWidget(left_panel)
+        sp.addWidget(self.ribbon_wrap(centre_panel))
+
         sp.setStretchFactor(0, 1)
         sp.setStretchFactor(1, 5)
         sp.setSizes([220, 1000])
         self._main_splitter = sp
 
         self._draw_btns = {}
-        ml.addWidget(self.ribbon_wrap(sp), 1)
+        # Add the splitter directly to the layout now that the wrapper is inside it
+        ml.addWidget(sp, 1)
         self._build_ribbons()
 
         self._status_widget = self._create_status_bar()
@@ -1299,12 +1306,14 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         tb.addSeparator()
         self.ribbon_label(tb, "Z")
         self._obj_z_spin = QDoubleSpinBox()
+        self._obj_z_spin.setFixedSize(100, 26)
         self._obj_z_spin.setRange(-1000, 1000); self._obj_z_spin.setDecimals(2)
         self._obj_z_spin.setToolTip("Z of the selected objects (also drag the depth gauge)")
         self._obj_z_spin.editingFinished.connect(lambda: self._obj_set_z(self._obj_z_spin.value()))
         tb.addWidget(self._obj_z_spin)
         self.ribbon_label(tb, "Snap")
         self._obj_snap_spin = QDoubleSpinBox()
+        self._obj_snap_spin.setFixedSize(100, 26)
         self._obj_snap_spin.setRange(0, 100); self._obj_snap_spin.setDecimals(1)
         self._obj_snap_spin.setValue(float(self.WS.get("object_snap", 2.0)))
         self._obj_snap_spin.setToolTip("Corner / move snap step (0 = off)")
