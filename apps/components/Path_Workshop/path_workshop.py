@@ -2106,34 +2106,22 @@ class PathWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
         #    World position / offset                                            
         from PyQt6.QtWidgets import QGroupBox, QFormLayout, QDoubleSpinBox
-        offset_box = QGroupBox("World position offset")
-        ofl        = QFormLayout(offset_box); ofl.setSpacing(1)
-        self._off_x = QDoubleSpinBox(); self._off_x.setRange(-9999,9999)
-        self._off_x.setDecimals(1); self._off_x.setMinimumHeight(26); self._off_x.setValue(0)
-        self._off_y = QDoubleSpinBox(); self._off_y.setRange(-9999,9999)
-        self._off_y.setDecimals(1); self._off_y.setMinimumHeight(26); self._off_y.setValue(0)
-        #TODO make the line below all on the same row.
-        ofl.addRow("dX:", self._off_x); ofl.addRow("dY:", self._off_y) #Apply icon button
-
-        #TODO ribbons moved around the viewpoint window, not the far edges, replicating other tools sytle.
-
-        from PyQt6.QtWidgets import QPushButton as _RPB
-        apply_off = _RPB("Apply"); apply_off.setMinimumHeight(26)
-        apply_off.setToolTip(
-            "Shift world-space origin by dX/dY for IPL World Map overlay.")
-        apply_off.clicked.connect(
-            lambda: self.set_world_offset(self._off_x.value(), self._off_y.value()))
-        ofl.addRow("", apply_off)
+        offset_box = QGroupBox("Path Nodes")
+        # TODO; Docked mode buttons, Load, Save, Undo
+        # Other path functions in the ribbons.
         vl.addWidget(offset_box)
+        # We only need to load the radar, so the editing radar functions can go.
 
         #    Tile search bar                                                     
         search_row = QHBoxLayout()
         self._tile_search = QLineEdit()
-        self._tile_search.setPlaceholderText("Search tiles…  e.g. 64-95 or radar")
+        self._tile_search.setPlaceholderText("Search e.g")
         self._tile_search.setClearButtonEnabled(True)
         self._tile_search.textChanged.connect(self._filter_tile_list)
         search_row.addWidget(self._tile_search)
         vl.addLayout(search_row)
+
+        # TODO; IPL path data should be here
 
         #    Tile list                                                          
         self._tile_list = QListWidget()
@@ -2144,11 +2132,11 @@ class PathWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._tile_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tile_list.customContextMenuRequested.connect(self._on_tile_list_context)
         self._tile_list.itemDoubleClicked.connect(lambda item: self._edit_tile_popup(item.idx))
-        vl.addWidget(self._tile_list, 1)
+        #vl.addWidget(self._tile_list, 1)
         # STUB: add bitdepth column after tile size
         self._dirty_lbl = QLabel("Modified: 0")
         self._dirty_lbl.setFont(self.infobar_font)
-        vl.addWidget(self._dirty_lbl)
+        #vl.addWidget(self._dirty_lbl)
 
         return panel
 
