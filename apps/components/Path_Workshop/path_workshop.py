@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 32
-# X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
-# Based on gui_template.py (GUIWorkshop base)
-# Layout: left panel hidden | centre=tile list | right=radar grid preview
-# Tool bar uses template pattern: titlebar + toolbar with all standard buttons
+#this belongs in apps/components/Path_Editor/path_workshop.py - Version: 3
+# X-Seti - Apr 2026 - IMG Factory 1.6 - Path Workshop
+
 
 import os, json, sys, threading, struct, re, math, shutil
 from datetime import datetime
@@ -34,6 +32,13 @@ from PyQt6.QtCore import pyqtSignal, Qt, QPoint, QSize, QThread, QTimer
 from PyQt6.QtGui import  QAction, QBrush, QColor, QFont, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut
 from apps.methods.img_factory_settings import get_user_config_dir
 
+# Import your shared path parsing/serialization tools from methods/core
+try:
+    from apps.methods.path_parser import read_gta_path_file, write_gta_path_file
+except ImportError:
+    # Fallback or placeholder if path parser lives in a different subfolder
+    pass
+
 
 # - Detect standalone vs docked
 def _is_standalone():
@@ -50,10 +55,10 @@ def _is_standalone():
 
 STANDALONE_MODE = _is_standalone()
 DEBUG_STANDALONE = False
-App_name  = "Radar Workshop"
-App_build = "Apr 2026"
+App_name  = "Path Workshop"
+App_build = "Oct 2026"
 App_auth  = "X-Seti"
-Build     = "Build 357"
+Build     = "Build 2"
 
 
 #    Infrastructure imports
@@ -560,7 +565,7 @@ class RadarGridWidget(QWidget):
         self._last_px    = None
         self._line_start = None
         self._preview_buf = None
-        self._workshop   = None      # set by RadarWorkshop after creation
+        self._workshop   = None      # set by PathWorkshop after creation
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
@@ -570,6 +575,57 @@ class RadarGridWidget(QWidget):
         self._alpha={}; self._scaled={}
         self._sel=-1; self._hover=-1
         self._names=names or [f"Tile {i}" for i in range(count)]; self.update()
+
+
+    def paint_paths(self, painter: QPainter): #vers 1
+        ws = getattr(self, '_workshop', None)
+        if not ws or not hasattr(ws, '_path_nodes'):
+            return
+
+        ts = self._ts()
+        px0, py0 = self._pan_x, self._pan_y
+
+        # Draw connections (edges) first so they sit under the nodes
+        painter.setPen(QPen(QColor(80, 180, 255, 200), 2))
+        for node in ws._path_nodes:
+            # Convert world or tile coordinates to screen position
+            # (Assuming node contains relative tile/pixel or world coords)
+            nx, ny = self.world_to_screen(node['x'], node['y'])
+            for target_id in node['links']:
+                if target_id > node['id']: # Draw each edge once
+                    target = ws._path_nodes[target_id]
+                    tx, ty = self.world_to_screen(target['x'], target['y'])
+                    painter.drawLine(int(nx), int(ny), int(tx), int(ty))
+
+        # Draw nodes (waypoints)
+        for node in ws._path_nodes:
+            nx, ny = self.world_to_screen(node['x'], node['y'])
+            is_selected = (ws._selected_node == node['id'])
+
+            painter.setBrush(QColor(255, 80, 80) if is_selected else QColor(80, 220, 100))
+            painter.setPen(QPen(QColor(255, 255, 255), 1))
+            painter.drawEllipse(int(nx) - 5, int(ny) - 5, 10, 10)
+
+
+    def save_paths_json(self, filepath: str): #vers 1
+        data = {
+            'version': 1.0,
+            'preset': self._game_preset.get('label', 'Custom'),
+            'nodes': self._path_nodes
+        }
+        Path(filepath).write_text(json.dumps(data, indent=2))
+        self._set_status(f"Saved {len(self._path_nodes)} path nodes to {Path(filepath).name}")
+
+
+    def load_paths_json(self, filepath: str): #vers 1
+        try:
+            content = json.loads(Path(filepath).read_text())
+            self._path_nodes = content.get('nodes', [])
+            self._radar.update()
+            self._set_status(f"Loaded {len(self._path_nodes)} path nodes from {Path(filepath).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Load Error", f"Failed to load path JSON:\n{e}")
+
 
     def _ts(self): #vers 2
         """Tile size in pixels, accounting for zoom factor."""
@@ -638,6 +694,34 @@ class RadarGridWidget(QWidget):
 
     def set_selected(self,idx): #vers 1
         self._sel=idx; self.update()
+
+
+    def screen_to_world(self, pos: QPoint) -> tuple:
+        ws = getattr(self, '_workshop', None)
+        if not ws:
+            return (float(pos.x()), float(pos.y()))
+
+        # Get world bounds from the preset configuration
+        min_x, max_x, min_y, max_y = ws.get_world_bounds()
+
+        # Calculate total map dimensions in pixels
+        cols = ws._game_preset.get("cols", 8)
+        rows = ws._game_preset.get("rows", 8)
+        total_w = cols * ws._tw
+        total_h = rows * ws._th
+
+        # Convert screen position relative to pan/zoom to pixel on full map
+        ts = self._ts()
+        map_px = (pos.x() - self._pan_x) * (ws._tw / ts)
+        map_py = (pos.y() - self._pan_y) * (ws._th / ts)
+
+        # Map pixel coordinates to game world space units
+        world_x = min_x + (map_px / total_w) * (max_x - min_x)
+        # Y is usually inverted between screen space and game world space
+        world_y = max_y - (map_py / total_h) * (max_y - min_y)
+
+        return (world_x, world_y)
+
 
     def paintEvent(self,ev): #vers 4
         """Tiles (scaled images cached per size), checkerboard under transparent ones."""
@@ -780,6 +864,16 @@ class RadarGridWidget(QWidget):
         if is_mid:
             self._pan_start = ev.pos()
             self._pan_start_xy = (self._pan_x, self._pan_y)
+            return
+
+        if tool == 'path_node' and is_left and ws:
+            # Convert screen position to world or relative map coordinates
+            # You can map screen pos -> tile idx -> world coordinates easily here
+            idx, px, py = self._pixel_pos_at(ev.pos())
+            if idx >= 0:
+                # Calculate world coordinates based on tile grid position and bounds
+                world_x, world_y = self.screen_to_world(ev.pos()) # Or map tile/pixel to world space
+                ws.add_path_node(world_x, world_y)
             return
 
         # Zoom tool: left=zoom in, right=zoom out around click pos
@@ -1547,8 +1641,8 @@ _GAME_WORLD_BOUNDS = {
 }
 
 
-class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
-    _ribbon_name = "radar_workshop"
+class PathWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
+    _ribbon_name = "path_workshop"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
     _RIBBON_LAYOUT_VERSION = 3
 
@@ -1677,6 +1771,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._img_path:     str = ""
         self._game_preset:  dict = GAME_PRESETS["SA PC"]
         self._current_idx:  int  = -1
+        self._init_path_system()
         self._render_mode: str   = 'color'
         self._alpha_pending: bool = False
         self._alpha_key_color     = None
@@ -2824,6 +2919,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             btn.setChecked(name == tool)
         cursors = {
             'pencil':    Qt.CursorShape.CrossCursor,
+            'path_node': Qt.CursorShape.PointingHandCursor,
             'line':      Qt.CursorShape.CrossCursor,
             'fill':      Qt.CursorShape.PointingHandCursor,
             'rect':      Qt.CursorShape.CrossCursor,
@@ -3921,6 +4017,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                 ('dropper_icon',      "Pick colour (K)",       'picker'),
                 ('rect_icon',         "Rect outline (R)",      'rect'),
                 ('rect_fill_icon',    "Filled rect (Shift+R)", 'rect_fill'),
+                ('map_icon',          "Add Path Node (N)",     'path_node'),
                 ('scissors_icon',     "Cut tile (X)",          'cut'),
                 ('paste_brush_icon',  "Paste (V)",             'paste'),
                 ('spray_icon',        "Spray / Airbrush",      'spray'),
@@ -3933,6 +4030,10 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                 tb, icon, tip, lambda checked=False, t=name: self._set_draw_tool(t),
                 checkable=True)
         self._draw_btns['pencil'].setChecked(True)
+
+        # Example action bindings in your file ribbon setup:
+        # open_path_action.triggered.connect(self.open_native_path_file)
+        # save_path_action.triggered.connect(self.save_native_path_file)
 
         tb = self.ribbon_toolbar("Colour")
         self._fg_color = QColor(255, 255, 255)
@@ -4534,6 +4635,87 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         dlg = _BoredomPuzzle(self._tile_rgba, cols, rows, TILE_W, TILE_H, self)
         dlg.exec()
 
+    # Path Logic
+    def _init_path_system(self): #vers 1
+        # List of nodes: each node is {'id': int, 'x': float, 'y': float, 'name': str, 'links': list}
+        self._path_nodes = []
+        self._selected_node = None
+        self._connecting_from = None
+
+
+    def add_path_node(self, world_x: float, world_y: float, name: str = ""): #vers 1
+        node_id = len(self._path_nodes)
+        if not name:
+            name = f"Node_{node_id:03d}"
+        node = {
+            'id': node_id,
+            'x': float(world_x),
+            'y': float(world_y),
+            'name': name,
+            'links': []
+        }
+        self._path_nodes.append(node)
+        self._set_status(f"Added path node {node_id} at ({world_x:.1f}, {world_y:.1f})")
+        self._radar.update()
+        return node_id
+
+
+    def link_nodes(self, id1: int, id2: int): #vers 1
+        if id1 != id2 and id1 < len(self._path_nodes) and id2 < len(self._path_nodes):
+            if id2 not in self._path_nodes[id1]['links']:
+                self._path_nodes[id1]['links'].append(id2)
+            if id1 not in self._path_nodes[id2]['links']:
+                self._path_nodes[id2]['links'].append(id1)
+            self._radar.update()
+
+
+    def open_native_path_file(self): #vers 1
+        filepath, _ = QFileDialog.getOpenFileName(
+            self, "Open GTA Path File", "", "GTA Path Files (*.dat *.path);;All Files (*.*)"
+        )
+        if not filepath:
+            return
+
+        try:
+            # Check if the shared parser function is available
+            if 'read_gta_path_file' in globals():
+                raw_nodes = read_gta_path_file(filepath)
+                # Map raw game node format to your workshop's internal structure
+                self._path_nodes = []
+                for node in raw_nodes:
+                    self._path_nodes.append({
+                        'id': node.get('id', len(self._path_nodes)),
+                        'x': float(node.get('x', 0.0)),
+                        'y': float(node.get('y', 0.0)),
+                        'name': node.get('name', f"Node_{len(self._path_nodes):03d}"),
+                        'links': node.get('links', [])
+                    })
+                self._radar.update()
+                self._set_status(f"Loaded {len(self._path_nodes)} nodes from native file: {Path(filepath).name}")
+            else:
+                QMessageBox.warning(self, "Parser Missing", "Shared path parser function not found in methods.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to parse native path file:\n{e}")
+
+    def save_native_path_file(self): #vers 1
+        filepath, _ = QFileDialog.getSaveFileName(
+            self, "Save GTA Path File", "", "GTA Path Files (*.dat *.path);;All Files (*.*)"
+        )
+        if not filepath:
+            return
+
+        try:
+            if 'write_gta_path_file' in globals():
+                write_gta_path_file(filepath, self._path_nodes)
+                self._set_status(f"Successfully saved to native file: {Path(filepath).name}")
+            else:
+                QMessageBox.warning(self, "Writer Missing", "Shared path writer function not found in methods.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save native path file:\n{e}")
+
+
+    # Settings and about
+
     def _show_about(self): #vers 2
         """Show Radar Workshop instructions and info dialog."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget,
@@ -5066,12 +5248,12 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
 def open_radar_workshop(main_window=None):
     try:
-        w = RadarWorkshop(None, main_window); w.show(); return w
+        w = PathWorkshop(None, main_window); w.show(); return w
     except Exception as e:
         if main_window: QMessageBox.critical(main_window,App_name+" Error",str(e))
         return None
 
-__all__ = ["RadarWorkshop", "open_radar_workshop"]
+__all__ = [App_name, "open_path_workshop"]
 
 # Standalone entry point
 
@@ -5081,7 +5263,7 @@ if __name__ == "__main__": #Vers 1
     print(App_name + " starting…")
     try:
         app = QApplication(sys.argv)
-        w = RadarWorkshop()
+        w = PathWorkshop()
         w.setWindowTitle(App_name + " – Standalone")
         w.resize(1300, 800); w.show(); sys.exit(app.exec())
     except Exception as e:
