@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 68
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 71
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -31,6 +31,7 @@ from PyQt6.QtCore import Qt
 # bumpmap_ext_icon
 # bumpmap_icon
 # bumpmap_imp_icon
+# bw_view_icon
 # checkerboard_icon
 # chip_icon
 # clear_face_groups_icon
@@ -38,6 +39,8 @@ from PyQt6.QtCore import Qt
 # col_workshop_icon
 # close_icon
 # color_picker_icon
+# colour_to_alpha_icon
+# colour_view_icon
 # compress_icon
 # controller_icon
 # convert_icon
@@ -59,6 +62,8 @@ from PyQt6.QtCore import Qt
 # export_cst_icon
 # export_icon
 # face_groups_icon
+# faces_connected_icon
+# faces_extrude_icon
 # faces_to_box_icon
 # file_icon
 # fit_icon
@@ -124,6 +129,7 @@ from PyQt6.QtCore import Qt
 # sphere_icon
 # stop_icon
 # swap_arrows_icon
+# swatch_icon
 # switch_view_icon
 # texture_export_icon
 # texture_import_icon
@@ -132,6 +138,7 @@ from PyQt6.QtCore import Qt
 # txd_workshop_icon
 # trash_icon
 # uncompress_icon
+# uv_map_icon
 # undo_icon
 # redo_icon
 # unhide_faces_icon
@@ -2166,6 +2173,16 @@ class SVGIconFactory: #vers 8
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
+    def edit_model_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Edit Model: 'Ed' in a rounded box"""
+        svg_data = '''<svg viewBox="0 0 24 24" fill="none">
+            <rect x="1.5" y="3.5" width="21" height="17" rx="3" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <text x="12" y="16.5" font-family="Arial,sans-serif" font-size="11" font-weight="bold"
+                  text-anchor="middle" fill="currentColor">Ed</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
     def surfaceedit_icon_b(size: int = 24, color: str = None) -> QIcon: #vers 1
         """Checkerboard with highlighted square"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
@@ -3893,6 +3910,27 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
+    def faces_connected_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Faces connected - two triangles sharing an edge, arrow up"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="2,20 11,8 11,20" fill="currentColor" opacity="0.6"/>
+            <polygon points="11,8 20,20 11,20" fill="#e03030" opacity="0.9"/>
+            <line x1="11" y1="8" x2="11" y2="20" stroke="currentColor" stroke-width="1.6"/>
+            <line x1="18" y1="9" x2="18" y2="3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <polygon points="18,1 15.9,4.2 20.1,4.2" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def faces_extrude_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Faces extrude - red face raised on side walls"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="2,20 8,16 22,16 16,20" fill="currentColor" opacity="0.5"/>
+            <polygon points="2,11 8,7 22,7 16,11" fill="#e03030" opacity="0.9"/>
+            <path d="M2 11v9M16 11v9M22 7v9" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <line x1="12" y1="6" x2="12" y2="2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
     def detach_faces_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
         """Detach faces - red triangle sliding off another, arrow right"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -4553,6 +4591,61 @@ class SVGIconFactory: #vers 8
             <path d="M17.5 10.3 20 12.8 14.2 18.6 11 19.4l0.8-3.2z" fill="#e8c878" stroke="#8a6b2e" stroke-width="0.4"/>
             <path d="M20 12.8 21.3 11.5a1 1 0 0 0 0-1.4l-1-1a1 1 0 0 0-1.4 0L17.5 10.3z" fill="#e88fa8"/>
         </svg>''', size, color, bg_color)
+
+
+    @staticmethod
+    def swatch_icon(fg: str, bg: str, size: int = 24) -> QIcon: #vers 1
+        """FG over BG colour swatch (paint-program style)."""
+        svg_data = f'''<svg viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" fill="{bg}" stroke="#888" stroke-width="1"/>
+            <rect x="2" y="2" width="13" height="13" fill="{fg}" stroke="#888" stroke-width="1"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, '#888')
+
+    @staticmethod
+    def uv_map_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """UV map - checker square with U/V axes"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="2" width="16" height="16" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <rect x="6" y="2" width="8" height="8" fill="currentColor" opacity="0.6"/>
+            <rect x="14" y="10" width="8" height="8" fill="#e03030" opacity="0.9"/>
+            <path d="M3 2v19h19" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def colour_view_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Full colour view: overlapping RGB circles."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="9" cy="9" r="6" fill="#e04040" fill-opacity="0.85"/>
+            <circle cx="15" cy="9" r="6" fill="#40c040" fill-opacity="0.85"/>
+            <circle cx="12" cy="15" r="6" fill="#4070e0" fill-opacity="0.85"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def bw_view_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Greyscale view: half filled circle."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M12 3 A9 9 0 0 1 12 21 Z" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def colour_to_alpha_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Colour to alpha: solid square into checkerboard."""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="2" width="9" height="9" fill="currentColor"/>
+            <path d="M12 7 H15 M13.5 5.5 L15 7 L13.5 8.5" stroke="currentColor" stroke-width="1.4" fill="none"/>
+            <rect x="11" y="11" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="11" y="11" width="3.7" height="3.7" fill="currentColor" opacity="0.6"/>
+            <rect x="18.3" y="11" width="3.7" height="3.7" fill="currentColor" opacity="0.6"/>
+            <rect x="14.7" y="14.7" width="3.6" height="3.6" fill="currentColor" opacity="0.6"/>
+            <rect x="11" y="18.3" width="3.7" height="3.7" fill="currentColor" opacity="0.6"/>
+            <rect x="18.3" y="18.3" width="3.7" height="3.7" fill="currentColor" opacity="0.6"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
 
 
 def get_extract_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2

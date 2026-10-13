@@ -1,4 +1,4 @@
-#this belongs in apps/methods/wdr_model.py - Version: 3
+#this belongs in apps/methods/wdr_model.py - Version: 4
 # X-Seti - October 07 2026 - IMG Factory 1.6 - GTA IV drawables
 
 """
@@ -11,7 +11,9 @@ GTA IV .wdr / .wdd / .wft (RSC5 drawables) to DFFModel geometry for Map Workshop
 # _cstr
 # _decode_vertices
 # _drawable_model
+# _encode_element
 # _ptr
+# _rsc5_flags
 # _shader_textures
 # _unpack
 # is_iv_drawable
@@ -20,6 +22,7 @@ GTA IV .wdr / .wdd / .wft (RSC5 drawables) to DFFModel geometry for Map Workshop
 # parse_wft
 # wdd_hashes
 # wdr_embedded_textures
+# write_wdr_model
 
 import struct
 import zlib
@@ -181,7 +184,7 @@ def _bone_matrices(z: bytes, vs: int, drawable: int) -> List[np.ndarray]: #vers 
 def _drawable_model(z: bytes, vs: int, drawable: int, name: str,
                     textures: Optional[List[str]] = None,
                     bones: Optional[List[np.ndarray]] = None,
-                    out: Optional[DFFModel] = None) -> DFFModel: #vers 3
+                    out: Optional[DFFModel] = None) -> DFFModel: #vers 4
     """Highest LOD of one drawable as a DFFModel, bone transforms applied."""
     if textures is None:
         textures = _shader_textures(z, vs, drawable)
@@ -216,6 +219,7 @@ def _drawable_model(z: bytes, vs: int, drawable: int, name: str,
             idx = np.frombuffer(z, '<u2', icount - icount % 3, idata).reshape(-1, 3)
             shader = struct.unpack_from('<H', z, smap + 2 * gi)[0] if smap is not None else 0
             geom = Geometry(flags=_GEOM_FLAGS)
+            geom._wdr = (g, m, drawable, mat)          # for write_wdr_model
             geom.vertices = [Vector3(*map(float, p)) for p in pos]
             if nrm is not None:
                 geom.normals = [Vector3(*map(float, n)) for n in nrm]
@@ -292,3 +296,151 @@ def wdr_embedded_textures(data: bytes, levels=False) -> List[dict]: #vers 3
     sg = _ptr(z, vs, drawable + 0x08) if drawable is not None else None
     td = _ptr(z, vs, sg + 0x04) if sg is not None else None
     return _iv_textures(z, vs, td, levels=levels) if td is not None else []
+
+
+def _encode_element(raw: np.ndarray, col: Tuple[int, int], vals: np.ndarray) -> None: #vers 1
+    """Write float values into one vertex element column (float, half or Dec3N)."""
+    o, t = col
+    n = {0: 1, 1: 2, 2: 3, 3: 4, 4: 1, 5: 2, 6: 3, 7: 4}.get(t)
+    if t in (4, 5, 6, 7):
+        cur = raw[:, o:o + 4 * n].copy().view('<f4')
+        cur[:, :vals.shape[1]] = vals[:, :n]
+        raw[:, o:o + 4 * n] = cur.view(np.uint8)
+    elif t in (0, 1, 2, 3):
+        cur = raw[:, o:o + 2 * n].copy().view('<f2')
+        cur[:, :vals.shape[1]] = vals[:, :n].astype(np.float16)
+        raw[:, o:o + 2 * n] = cur.view(np.uint8)
+    elif t == 10:
+        v = raw[:, o:o + 4].copy().view('<u4')[:, 0]
+        q = np.clip(np.rint(vals[:, :3] * 511.0), -511, 511).astype(np.int64) & 0x3FF
+        v = (v & 0xC0000000) | q[:, 0] | q[:, 1] << 10 | q[:, 2] << 20
+        raw[:, o:o + 4] = v.astype('<u4').reshape(-1, 1).view(np.uint8)
+    else:
+        raise ValueError(f"vertex element type {t} not writable")
+
+
+def _rsc5_flags(flags: int, vs: int, ps: int) -> Tuple[int, int]: #vers 1
+    """Flags with a new physical size (original page unit first); (flags, padded size)."""
+    for shift in range((flags >> 26) & 0xF, 16):
+        unit = 1 << (shift + 8)
+        count = -(-ps // unit)
+        if count <= 0x7FF:
+            return (flags & ~((0x7FF << 15) | (0xF << 26))) | count << 15 | shift << 26, count * unit
+    raise ValueError("physical segment too large")
+
+
+def write_wdr_model(original: bytes, model) -> Tuple[bytes, List[str]]: #vers 1
+    """Write edited geometry back into the original .wdr / .wft; (bytes, report)."""
+    from apps.methods.xtd_textures import _rsc5_sizes
+    z, vs = _unpack(original)
+    flags = struct.unpack_from('<I', original, 8)[0]
+    _vs, ps = _rsc5_sizes(flags)
+    frag = struct.unpack_from('<I', original, 4)[0] == _FRAGMENT_TYPE
+    base = {g._wdr[0]: g for g in (parse_wft(original) if frag else parse_wdr(original)).geometries}
+    z = bytearray(z)
+    report, grown = [], False
+    for gi, geom in enumerate(model.geometries):
+        info = getattr(geom, '_wdr', None)
+        old = base.get(info[0]) if info else None
+        if old is None:
+            report.append(f"not written: geometry {gi} was added after load")
+            continue
+        g, m, drawable, mat = info
+        pos = np.array([(v.x, v.y, v.z) for v in geom.vertices], np.float64).reshape(-1, 3)
+        nrm = np.array([(n.x, n.y, n.z) for n in geom.normals]) if len(geom.normals) == len(pos) else None
+        uv = np.array([(t.u, t.v) for t in geom.uv_layers[0]]) if geom.uv_layers and \
+            len(geom.uv_layers[0]) == len(pos) else None
+        tris = np.array([(t.v1, t.v2, t.v3) for t in geom.triangles], np.int64).reshape(-1, 3)
+        same = len(pos) == len(old.vertices) and \
+            [(t.v1, t.v2, t.v3) for t in geom.triangles] == [(t.v1, t.v2, t.v3) for t in old.triangles]
+        o_pos = np.array([(v.x, v.y, v.z) for v in old.vertices])
+        o_uv = np.array([(t.u, t.v) for t in old.uv_layers[0]]) if old.uv_layers else None
+        o_nrm = np.array([(n.x, n.y, n.z) for n in old.normals]) if old.normals else None
+        if same and np.allclose(pos, o_pos, atol=1e-6) and (uv is None or o_uv is None or np.allclose(uv, o_uv, atol=1e-6)) \
+                and (nrm is None or o_nrm is None or np.allclose(nrm, o_nrm, atol=1e-4)):
+            continue                                  # untouched
+        if len(pos) > 0xFFFF:
+            report.append(f"not written: geometry {gi} has over 65535 vertices")
+            continue
+        if mat is not None:                            # model space to bone space
+            inv = np.linalg.inv(mat[:3, :3].T)
+            pos = (pos - mat[:3, 3]) @ inv
+            if nrm is not None:
+                nrm = nrm @ inv
+        if nrm is not None:
+            ln = np.linalg.norm(nrm, axis=1, keepdims=True)
+            nrm = np.divide(nrm, ln, out=np.zeros_like(nrm), where=ln > 0)
+        vb, ib = _ptr(z, vs, g + 0x0C), _ptr(z, vs, g + 0x1C)
+        count = struct.unpack_from('<H', z, vb + 0x04)[0]
+        stride = struct.unpack_from('<I', z, vb + 0x0C)[0]
+        decl, data = _ptr(z, vs, vb + 0x10), _ptr(z, vs, vb + 0x18)
+        if data is None:
+            data = _ptr(z, vs, vb + 0x08)
+        used, _st, _a, _b, types = struct.unpack_from('<IHBBQ', z, decl)
+        cols, off = {}, 0
+        for bit in range(16):
+            if used & (1 << bit):
+                cols[bit] = (off, (types >> (4 * bit)) & 0xF)
+                off += _TYPE_SIZE[cols[bit][1]]
+        raw_old = np.frombuffer(bytes(z[data:data + count * stride]), np.uint8).reshape(count, stride)
+        if same:
+            raw = raw_old.copy()
+        else:                                          # other elements from the nearest old vertex
+            src = np.empty(len(pos), np.int64)
+            o_local = np.array(_decode_vertices(bytes(z), vs, vb)[0], np.float64)
+            for a in range(0, len(pos), 2048):
+                dd = ((pos[a:a + 2048, None, :] - o_local[None, :, :]) ** 2).sum(2)
+                src[a:a + 2048] = dd.argmin(1)
+            raw = raw_old[src].copy()
+        try:
+            _encode_element(raw, cols[_POS], pos)
+            if nrm is not None and _NORMAL in cols:
+                _encode_element(raw, cols[_NORMAL], nrm)
+            if uv is not None and _UV0 in cols:
+                _encode_element(raw, cols[_UV0], uv)
+        except ValueError as ex:
+            report.append(f"not written: geometry {gi} {ex}")
+            continue
+        if same:
+            z[data:data + count * stride] = raw.tobytes()
+            report.append(f"geometry {gi}: vertices updated")
+        else:
+            idx = tris.astype('<u2').tobytes()
+            at = (len(z) + 15) & ~15
+            z += bytes(at - len(z)) + raw.tobytes()
+            ia = (len(z) + 15) & ~15
+            z += bytes(ia - len(z)) + idx
+            vptr, iptr = 0x60000000 | (at - vs), 0x60000000 | (ia - vs)
+            struct.pack_into('<H', z, vb + 0x04, len(pos))
+            struct.pack_into('<I', z, vb + 0x08, vptr)
+            if _ptr(z, vs, vb + 0x18) is not None:
+                struct.pack_into('<I', z, vb + 0x18, vptr)
+            struct.pack_into('<2I', z, ib + 0x04, len(tris) * 3, iptr)
+            struct.pack_into('<2IH', z, g + 0x2C, len(tris) * 3, len(tris), len(pos))
+            grown = True
+            report.append(f"geometry {gi}: mesh rebuilt ({len(pos)} vertices, {len(tris)} triangles)")
+        bnd = _ptr(z, vs, m + 0x0C)                    # model bounds: [all,] per geometry
+        geoms = _collection(bytes(z), vs, m + 0x04)
+        if bnd is not None and g in geoms:
+            c = (pos.min(0) + pos.max(0)) / 2.0
+            r = float(np.linalg.norm(pos - c, axis=1).max())
+            k = geoms.index(g) + (1 if len(geoms) > 1 else 0)
+            struct.pack_into('<4f', z, bnd + 16 * k, *c.tolist(), r)
+            if k:                                      # grow the all-geometry sphere
+                c0, r0 = np.array(struct.unpack_from('<3f', z, bnd)), struct.unpack_from('<f', z, bnd + 12)[0]
+                struct.pack_into('<f', z, bnd + 12, max(r0, float(np.linalg.norm(c - c0)) + r))
+        world = np.array([(v.x, v.y, v.z) for v in geom.vertices])
+        lo = np.minimum(world.min(0), struct.unpack_from('<3f', z, drawable + 0x20))
+        hi = np.maximum(world.max(0), struct.unpack_from('<3f', z, drawable + 0x30))
+        struct.pack_into('<3f', z, drawable + 0x20, *lo.tolist())
+        struct.pack_into('<3f', z, drawable + 0x30, *hi.tolist())
+    if not any(r.startswith('geometry') for r in report):
+        return original, report
+    if grown:
+        flags, size = _rsc5_flags(flags, vs, len(z) - vs)
+        z += bytes(vs + size - len(z))
+    data = original[:8] + struct.pack('<I', flags) + zlib.compress(bytes(z), 9)
+    back = parse_wft(data) if frag else parse_wdr(data)
+    if len(back.geometries) != len(base):
+        raise ValueError("written file did not read back the same")
+    return data, report

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_reader.py - Version: 6
+#this belongs in apps/methods/txd_reader.py - Version: 7
 # X-Seti - October05 2026 - IMG Factory 1.6 - Shared texture file reader
 
 """
@@ -542,7 +542,7 @@ def read_rw_txd(data: bytes, levels: bool = True,
     return texs
 
 
-def read_texture_file(data: bytes, name: str = '', levels: bool = True) -> Tuple[str, List[Dict]]: #vers 2
+def read_texture_file(data: bytes, name: str = '', levels: bool = True) -> Tuple[str, List[Dict]]: #vers 3
     """(kind, textures) for any supported texture file."""
     from apps.methods.nif_textures import is_nif_textures, parse_nif_textures
     from apps.methods.pvr_texture import is_pvr_texture, parse_pvr_texture
@@ -555,7 +555,7 @@ def read_texture_file(data: bytes, name: str = '', levels: bool = True) -> Tuple
     if data[:4] == b'RSC\x05':
         from apps.methods.xtd_textures import parse_iv_wtd
         return 'wtd', parse_iv_wtd(data)
-    if name.lower().endswith(('.xtx', '.chk')):
+    if data[:4] == b'xet\x00' or name.lower().endswith(('.xtx', '.chk')):   # Stories by magic too
         from apps.methods.xtx_reader import parse_stories_textures
         return 'stories', parse_stories_textures(data)
     if detect_lc_android_txd(data):

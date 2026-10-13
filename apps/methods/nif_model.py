@@ -1,4 +1,4 @@
-#this belongs in apps/methods/nif_model.py - Version: 2
+#this belongs in apps/methods/nif_model.py - Version: 3
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Gamebryo NIF models
 
 """
@@ -9,12 +9,17 @@ NiTriShape / NiTriStrips, base texture names from NiSourceTexture.
 ##Methods list -
 # _av_object
 # _base_texture
+# _data_block
+# _data_layout
+# _patch_block
+# _same_arrays
 # _geometry_data
 # _material
 # _shape
 # _strip_tris
 # is_nif_model
 # parse_nif_model
+# write_nif_model
 
 import struct
 from typing import List, Optional, Tuple
@@ -23,7 +28,7 @@ import numpy as np
 
 from apps.methods.dff_classes import (BoundingSphere, DFFModel, Geometry, Material,
                                       RGBA, TexCoord, Triangle, Vector3)
-from apps.methods.nif_textures import _MAGIC, _blocks, _endian
+from apps.methods.nif_textures import _MAGIC, _blocks, _endian, _string_table
 
 _SHAPES = ('NiTriShape', 'NiTriStrips')
 _FLAGS_BASE = 0x02 | 0x04 | 0x20          # positions, textured, light
@@ -138,7 +143,7 @@ def _material(d: bytes, types, offs, strs, props: List[int], E: str = '<') -> Ma
     return mat
 
 
-def _shape(d: bytes, types, offs, strs, i: int, world: np.ndarray, E: str = '<') -> Optional[Geometry]: #vers 1
+def _shape(d: bytes, types, offs, strs, i: int, world: np.ndarray, E: str = '<') -> Optional[Geometry]: #vers 2
     """One NiTriShape / NiTriStrips to a Geometry in model space."""
     m, props, p = _av_object(d, offs[i], E)
     data_ref = struct.unpack_from(E + 'i', d, p)[0]
@@ -167,6 +172,7 @@ def _shape(d: bytes, types, offs, strs, i: int, world: np.ndarray, E: str = '<')
     centre = (v.min(0) + v.max(0)) / 2.0
     geom.bounding_sphere = BoundingSphere(Vector3(*centre.tolist()),
                                           float(np.linalg.norm(v - centre, axis=1).max()))
+    geom._nif = (data_ref, types[data_ref] == 'NiTriStripsData', mw)   # for write_nif_model
     return geom
 
 
@@ -195,3 +201,157 @@ def parse_nif_model(data: bytes, name: str = '') -> Optional[DFFModel]: #vers 2
             for c in struct.unpack_from(E + f'{n}i', data, p + 4):
                 stack.append((c, m @ world))
     return model if model.geometries else None
+
+
+def _data_layout(d: bytes, o: int, strips: bool, E: str = '<') -> dict: #vers 1
+    """Byte positions inside NiTriShapeData / NiTriStripsData (same walk as _geometry_data)."""
+    L = {'nv': o + 4}
+    nv = struct.unpack_from(E + 'H', d, o + 4)[0]
+    p = o + 8
+    has = d[p]; p += 1
+    L['verts'] = p if has else None
+    p += 12 * nv if has else 0
+    L['vflags'] = p
+    vflags = struct.unpack_from(E + 'H', d, p)[0]; p += 2
+    has = d[p]; p += 1
+    L['norms'] = p if has else None
+    if has:
+        p += 12 * nv + (24 * nv if vflags & 0x1000 else 0)
+    L['bound'] = p; p += 16
+    has = d[p]; p += 1
+    L['cols'] = p if has else None
+    p += 16 * nv if has else 0
+    L['uvs'] = p
+    p += 8 * nv * (vflags & 0x3F)
+    L['tail'] = p                                    # consistency + additional data
+    L['tris'] = p + 6
+    L.update(nv=nv, vflags=vflags)
+    return L
+
+
+def _data_block(d: bytes, o: int, strips: bool, geom, inv: np.ndarray, t: np.ndarray, E: str) -> bytes: #vers 2
+    """New geometry data block (positions back in the shape's local space)."""
+    L = _data_layout(d, o, strips, E)
+    nv = len(geom.vertices)
+    v = (np.array([[p.x, p.y, p.z] for p in geom.vertices], float) - t) @ inv
+    keep_tan = bool(L['vflags'] & 0x1000) and nv == L['nv'] and L['norms'] is not None \
+        and len(geom.normals) == nv                  # same vertices: tangents still valid
+    vflags = L['vflags'] if keep_tan else L['vflags'] & ~0x1000
+    nuv = vflags & 0x3F
+    f = E + 'f4'
+    out = bytearray(d[o:o + 4]) + struct.pack(E + 'H', nv) + d[o + 6:o + 8]
+    out += bytes([1]) + v.astype(f).tobytes()
+    out += struct.pack(E + 'H', vflags)
+    if L['norms'] is not None and len(geom.normals) == nv:
+        n = np.array([[p.x, p.y, p.z] for p in geom.normals], float) @ inv
+        n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9)
+        out += bytes([1]) + n.astype(f).tobytes()
+        if keep_tan:
+            out += d[L['norms'] + 12 * nv:L['norms'] + 36 * nv]
+    else:
+        out += bytes([0])
+    c = (v.min(0) + v.max(0)) / 2 if nv else np.zeros(3)
+    r = float(np.linalg.norm(v - c, axis=1).max()) if nv else 0.0
+    out += np.array([*c, r], float).astype(f).tobytes()
+    if L['cols'] is not None:
+        cols = (np.array([[q.r, q.g, q.b, q.a] for q in geom.colors], float) / 255.0
+                if len(geom.colors) == nv else np.ones((nv, 4)))
+        out += bytes([1]) + cols.astype(f).tobytes()
+    else:
+        out += bytes([0])
+    layers = list(geom.uv_layers or [])
+    for k in range(nuv):
+        uv = (np.array([[q.u, q.v] for q in layers[k]], float) if k < len(layers) and len(layers[k]) == nv
+              else np.zeros((nv, 2)))
+        out += uv.astype(f).tobytes()
+    out += d[L['tail']:L['tail'] + 6]                 # consistency, additional data
+    tris = [(q.v1, q.v2, q.v3) for q in geom.triangles]
+    if strips:                                        # one 3-point strip per triangle
+        out += struct.pack(E + 'HH', len(tris), len(tris))
+        out += struct.pack(E + f'{len(tris)}H', *([3] * len(tris)))
+        out += bytes([1]) + struct.pack(E + f'{3 * len(tris)}H', *[i for t3 in tris for i in t3])
+    else:
+        out += struct.pack(E + 'HI', len(tris), 3 * len(tris))
+        out += bytes([1]) + struct.pack(E + f'{3 * len(tris)}H', *[i for t3 in tris for i in t3])
+        out += struct.pack(E + 'H', 0)                # no match groups
+    return bytes(out)
+
+
+def _same_arrays(a, b) -> bool: #vers 1
+    """Same positions, normals, UVs and colours."""
+    def pts(x, y):
+        return len(x) == len(y) and all((p.x, p.y, p.z) == (q.x, q.y, q.z) for p, q in zip(x, y))
+    uv = lambda g: [(t.u, t.v) for l in (g.uv_layers or []) for t in l]
+    col = lambda g: [(c.r, c.g, c.b, c.a) for c in (g.colors or [])]
+    return pts(a.vertices, b.vertices) and pts(a.normals or [], b.normals or []) and uv(a) == uv(b) and col(a) == col(b)
+
+
+def _patch_block(d: bytes, o: int, size: int, strips: bool, geom, inv, t, E: str) -> bytes: #vers 1
+    """Same counts: positions, normals, UVs and colours written over the original block."""
+    L = _data_layout(d, o, strips, E)
+    nv = L['nv']
+    f = E + 'f4'
+    out = bytearray(d[o:o + size])
+    def put(pos, arr):
+        raw = arr.astype(f).tobytes()
+        out[pos - o:pos - o + len(raw)] = raw
+    v = (np.array([[p.x, p.y, p.z] for p in geom.vertices], float) - t) @ inv
+    if L['verts'] is not None:
+        put(L['verts'], v)
+    if L['norms'] is not None and len(geom.normals) == nv:
+        n = np.array([[p.x, p.y, p.z] for p in geom.normals], float) @ inv
+        put(L['norms'], n / np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9))
+    c = (v.min(0) + v.max(0)) / 2
+    put(L['bound'], np.array([*c, float(np.linalg.norm(v - c, axis=1).max())]))
+    if L['cols'] is not None and len(geom.colors) == nv:
+        put(L['cols'], np.array([[q.r, q.g, q.b, q.a] for q in geom.colors], float) / 255.0)
+    for k, layer in enumerate(list(geom.uv_layers or [])[:L['vflags'] & 0x3F]):
+        if len(layer) == nv:
+            put(L['uvs'] + 8 * nv * k, np.array([[q.u, q.v] for q in layer], float))
+    return bytes(out)
+
+
+def write_nif_model(original: bytes, model) -> Tuple[bytes, List[str]]: #vers 1
+    """Write edited NIF shape geometry back into the original file; (bytes, report)."""
+    if original[:20] != _MAGIC:
+        raise ValueError("source is not a Gamebryo NIF")
+    E = _endian(original)
+    types, offs, sizes, _strs = _blocks(original)
+    nb = len(sizes)
+    start, _end = _string_table(original)
+    sizes_pos = start - 4 * nb
+    blocks = [original[o:o + n] for o, n in zip(offs, sizes)]
+    base = {g._nif[0]: g for g in (parse_nif_model(original) or DFFModel()).geometries}
+    report = []
+    for gi, geom in enumerate(model.geometries):
+        info = getattr(geom, '_nif', None)
+        if info is None:
+            report.append(f"not written: geometry {gi} has no NIF shape (added after load)")
+            continue
+        ref, strips, mw = info
+        if len(geom.vertices) > 0xFFFF:
+            report.append(f"not written: geometry {gi} has over 65535 vertices")
+            continue
+        inv = np.linalg.inv(mw[:3, :3])
+        old = base.get(ref)
+        same_tris = old is not None and len(old.vertices) == len(geom.vertices) and \
+            [(t.v1, t.v2, t.v3) for t in old.triangles] == [(t.v1, t.v2, t.v3) for t in geom.triangles]
+        if same_tris and _same_arrays(old, geom):
+            continue                                  # untouched: original bytes kept
+        if same_tris:
+            blocks[ref] = _patch_block(original, offs[ref], sizes[ref], strips, geom, inv, mw[3, :3], E)
+            report.append(f"geometry {gi}: vertices updated")
+        else:
+            blocks[ref] = _data_block(original, offs[ref], strips, geom, inv, mw[3, :3], E)
+            report.append(f"geometry {gi}: mesh rebuilt ({len(geom.vertices)} vertices, {len(geom.triangles)} triangles)")
+    if not any(r.startswith('geometry') for r in report):
+        return original, report
+    out = bytearray(original[:offs[0]] if offs else original)
+    struct.pack_into(E + f'{nb}I', out, sizes_pos, *[len(b) for b in blocks])
+    tail = original[offs[-1] + sizes[-1]:] if offs else b''
+    data = bytes(out) + b''.join(blocks) + tail
+    back = parse_nif_model(data)
+    if back is None or [len(g.triangles) for g in back.geometries] != \
+            [len(g.triangles) for g in model.geometries if getattr(g, '_nif', None) is not None]:
+        raise ValueError("written NIF did not read back the same")
+    return data, report

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 2
+#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 3
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop model list
 
 """
@@ -1113,9 +1113,11 @@ class ModelListMixin: #vers 1
         ide_menu.addAction("Remove unreferenced by IDE…", self._remove_via_ide)
         menu.exec(source_list.mapToGlobal(position))
 
-    def _show_dff_material_context_menu(self, position, source_list, row): #vers 1
+    def _show_dff_material_context_menu(self, position, source_list, row): #vers 2
         """DFF mode right-click — texture and material channel operations."""
         menu = QMenu(self)
+        menu.addAction("Edit Model (mesh edit)…", self._edit_model)
+        menu.addSeparator()
         adapter  = (self._dff_adapters[row]
                     if self._dff_adapters and 0 <= row < len(self._dff_adapters)
                     else None)

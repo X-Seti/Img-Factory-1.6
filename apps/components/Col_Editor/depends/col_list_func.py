@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_list_func.py - Version: 3
+#this belongs in apps/components/Col_Editor/depends/col_list_func.py - Version: 6
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop model list
 
 """
@@ -11,6 +11,7 @@ COL Workshop model list - list population, selection, previews, thumbnails, info
 # _cycle_render_mode
 # _draw_col_model
 # _filter_col_list
+# _filter_collision_rows
 # _focus_search
 # _generate_collision_thumbnail
 # _on_col_selected
@@ -19,6 +20,7 @@ COL Workshop model list - list population, selection, previews, thumbnails, info
 # _populate_collision_list
 # _populate_compact_col_list
 # _project_model_2d
+# _reapply_collision_filter
 # refresh
 # _regenerate_all_thumbnails
 # reload_surface_table
@@ -153,7 +155,7 @@ class COLListMixin: #vers 1
             self.col_view_toggle_btn.setText("[T]")
             self.col_view_toggle_btn.setToolTip("Switch to compact thumbnail view")
 
-    def _populate_compact_col_list(self): #vers 1
+    def _populate_compact_col_list(self): #vers 2
         """Fill compact two-column list (icon + name/version/counts)."""
         try:
             self.col_compact_list.setRowCount(0)
@@ -194,6 +196,7 @@ class COLListMixin: #vers 1
             if hdr:
                 n = self.col_compact_list.rowCount()
                 hdr.setText(f"COL Models  ({n})" if n else "COL Models")
+            self._reapply_collision_filter()
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
@@ -219,15 +222,16 @@ class COLListMixin: #vers 1
             else:
                 QMessageBox.critical(self, "Error selecting COL", err)
 
-    def _show_col_search(self): #vers 1
-        """Toggle COL search box visibility."""
-        if hasattr(self, 'col_search_box'):
-            visible = not self.col_search_box.isVisible()
-            self.col_search_box.setVisible(visible)
+    def _show_col_search(self, box=None): #vers 2
+        """Toggle a search box (default: COL file list search)."""
+        box = box or getattr(self, 'col_search_box', None)
+        if box is not None:
+            visible = not box.isVisible()
+            box.setVisible(visible)
             if visible:
-                self.col_search_box.setFocus()
+                box.setFocus()
             else:
-                self.col_search_box.clear()
+                box.clear()
 
     def _filter_col_list(self, text: str): #vers 1
         """Filter COL list by search text."""
@@ -235,6 +239,25 @@ class COLListMixin: #vers 1
         for i in range(self.col_list_widget.count()):
             item = self.col_list_widget.item(i)
             item.setHidden(bool(text) and text.lower() not in item.text().lower())
+
+    def _filter_collision_rows(self, text: str): #vers 1
+        """Hide collision rows (detail and compact views) whose name lacks text."""
+        text = text.lower()
+        models = getattr(getattr(self, 'current_col_file', None), 'models', []) or []
+        for table in (getattr(self, 'collision_list', None), getattr(self, 'col_compact_list', None)):
+            if table is None:
+                continue
+            for row in range(table.rowCount()):
+                name = getattr(models[row], 'name', '') if row < len(models) else ''
+                if not name and table.item(row, 0) is not None:
+                    name = table.item(row, 0).text()
+                table.setRowHidden(row, bool(text) and text not in str(name).lower())
+
+    def _reapply_collision_filter(self): #vers 1
+        """Keep the collisions search filter after the lists are refilled."""
+        box = getattr(self, 'col_models_search_box', None)
+        if box is not None and box.text():
+            self._filter_collision_rows(box.text())
 
     def _project_model_2d(self, model, width, height, padding=8,
                           yaw=0.0, pitch=0.0,
@@ -468,7 +491,7 @@ class COLListMixin: #vers 1
         except Exception as e:
             print("_on_collision_selected error: " + str(e))
 
-    def _select_model_by_row(self, row): #vers 5
+    def _select_model_by_row(self, row): #vers 6
         """Load model by row index into preview — works for both list views."""
         try:
             if not self.current_col_file:
@@ -498,6 +521,9 @@ class COLListMixin: #vers 1
 
             # Push model into 2D viewport
             pw = getattr(self, 'preview_widget', None)
+            dock = getattr(self, '_detached_dock', None)
+            if dock is not None and dock.isVisible():
+                dock._refresh()                 # parts of the newly selected model
             if pw:
                 if isinstance(pw, COL3DViewport):
                     pw.set_current_model(model, row)
@@ -599,7 +625,7 @@ class COLListMixin: #vers 1
         clipboard = QApplication.clipboard()
         clipboard.setText(text)
 
-    def _populate_collision_list(self): #vers 7
+    def _populate_collision_list(self): #vers 8
         """Populate [T] detail table — 8 columns, icon badges on counts > 0."""
         try:
             self.collision_list.setRowCount(0)
@@ -703,6 +729,7 @@ class COLListMixin: #vers 1
 
             self.collision_list.setUpdatesEnabled(True)
             self.collision_list.viewport().update()
+            self._reapply_collision_filter()
 
         except Exception as e:
             import traceback; traceback.print_exc()

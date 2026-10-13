@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 32
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 34
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -578,6 +578,14 @@ class RadarGridWidget(QWidget):
         base = min(max(4, self.width()//self._cols), max(4, self.height()//rows))
         return max(4, int(base * self._zoom_factor))
 
+    def zoom_max(self) -> float: #vers 1
+        """Zoom limit: tiles up to 1024 px, so big grids (SOL, IV) zoom in further."""
+        if not self._count or not self._cols:
+            return 10.0
+        rows = (self._count + self._cols - 1) // self._cols
+        base = min(max(4, self.width()//self._cols), max(4, self.height()//rows))
+        return max(10.0, 1024.0 / base)
+
     def _idx_at(self,pos): #vers 2
         ts=self._ts()
         ax = pos.x() - self._pan_x
@@ -639,8 +647,8 @@ class RadarGridWidget(QWidget):
     def set_selected(self,idx): #vers 1
         self._sel=idx; self.update()
 
-    def paintEvent(self,ev): #vers 4
-        """Tiles (scaled images cached per size), checkerboard under transparent ones."""
+    def paintEvent(self,ev): #vers 5
+        """Tiles (scaled images cached per size), checkerboard under transparent and empty ones."""
         if not self._count: return
         ts=self._ts(); cols=self._cols; p=QPainter(self)
         px0, py0 = self._pan_x, self._pan_y
@@ -668,7 +676,10 @@ class RadarGridWidget(QWidget):
                     p.setBrushOrigin(x, y)
                     p.fillRect(x, y, ts, ts, chk_brush)
                 p.drawImage(x, y, cached[1])
-            else:
+            else:                                    # empty slot: dimmed checkerboard
+                p.setBrushOrigin(x, y)
+                p.fillRect(x, y, ts, ts, chk_brush)
+                empty.setAlpha(150)
                 p.fillRect(x, y, ts, ts, empty)
             if idx in self._dirty: p.fillRect(x+ts-6,y,6,6,QColor(255,60,60))
             if idx==self._hover: p.fillRect(x,y,ts,ts,QColor(255,255,255,30))
@@ -754,20 +765,25 @@ class RadarGridWidget(QWidget):
             return super().keyPressEvent(ev)
         self.update()
 
-    def wheelEvent(self, ev): #vers 1
+    def resizeEvent(self, ev): #vers 1
+        """Repaint at the new tile size (some compositors skip it)."""
+        super().resizeEvent(ev)
+        self.update()
+
+    def wheelEvent(self, ev): #vers 2
         """Scroll wheel: zoom in/out around cursor."""
         delta = ev.angleDelta().y()
         if delta == 0: return
         factor = 1.12 if delta > 0 else (1/1.12)
         cx, cy = ev.position().x(), ev.position().y()
         old_ts = self._ts()
-        self._zoom_factor = max(0.1, min(10.0, self._zoom_factor * factor))
+        self._zoom_factor = max(0.1, min(self.zoom_max(), self._zoom_factor * factor))
         new_ts = self._ts()
         self._pan_x = int(cx - (cx - self._pan_x) * new_ts / max(1, old_ts))
         self._pan_y = int(cy - (cy - self._pan_y) * new_ts / max(1, old_ts))
         self.update()
 
-    def mousePressEvent(self,ev): #vers 4
+    def mousePressEvent(self,ev): #vers 5
         idx = self._idx_at(ev.pos())
         is_left  = ev.button() == Qt.MouseButton.LeftButton
         is_right = ev.button() == Qt.MouseButton.RightButton
@@ -787,7 +803,7 @@ class RadarGridWidget(QWidget):
             factor = 1.3 if is_left else (1/1.3)
             cx, cy = ev.pos().x(), ev.pos().y()
             old_ts = self._ts()
-            self._zoom_factor = max(0.1, min(10.0, self._zoom_factor * factor))
+            self._zoom_factor = max(0.1, min(self.zoom_max(), self._zoom_factor * factor))
             new_ts = self._ts()
             # Zoom toward click point
             self._pan_x = cx - int((cx - self._pan_x) * new_ts / max(1, old_ts))
@@ -974,31 +990,36 @@ class RADSettings:
 #    Radar Palette Widget                                                        
 class RadarPaletteWidget(QWidget):
     """Simple colour palette strip — shows colours extracted from the current tile.
-    Click a cell to pick that colour. Right-click to set background colour."""
+    Click a cell to pick that colour. Right-click to set background colour.
+    Cells run down two columns, or along two rows in a horizontal ribbon."""
 
     color_picked   = pyqtSignal(QColor)   # left-click  → foreground
     color_picked_bg = pyqtSignal(QColor)  # right-click → background
 
-    CELL = 14   # cell size px — slightly smaller to fit more colors
+    CELL = 11   # cell size px: two columns in the 26px palette ribbon
 
-    def __init__(self, parent=None): #vers 1
+    def __init__(self, parent=None): #vers 2
         super().__init__(parent)
         self._colors: List[QColor] = []
         self._hover = -1
+        self._horiz = False
         self.setMouseTracking(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+    def set_horizontal(self, horiz): #vers 1
+        self._horiz = bool(horiz)
+        self.update()
 
     def set_colors(self, colors: List[QColor]): #vers 3
         self._colors = colors[:64]  # cap at 64 cells
         self.update()
         self.updateGeometry()  # tell layout to re-check sizeHint
 
-    def sizeHint(self): #vers 1
+    def sizeHint(self): #vers 3
         from PyQt6.QtCore import QSize
-        w = max(self.width(), 80)
-        cols = max(1, w // self.CELL)
-        rows = max(2, (len(self._colors) + cols - 1) // cols)
-        return QSize(w, rows * self.CELL + 2)
+        lanes = self._lanes()
+        n = max(2, (len(self._colors) + lanes - 1) // lanes) * self.CELL + 2
+        return QSize(n, self.height()) if self._horiz else QSize(self.width(), n)
 
     def minimumSizeHint(self): #vers 1
         from PyQt6.QtCore import QSize
@@ -1018,37 +1039,31 @@ class RadarPaletteWidget(QWidget):
                     break
         self.set_colors(list(seen.values()))
 
-    def _cols(self) -> int:
-        return max(1, self.width() // self.CELL)
+    def _lanes(self) -> int:
+        """Cells across the thin side (columns, or rows when horizontal)."""
+        return max(1, (self.height() if self._horiz else self.width()) // self.CELL)
+
+    def _cell_xy(self, i: int):
+        lane, step = i % self._lanes(), i // self._lanes()
+        return (step * self.CELL, lane * self.CELL) if self._horiz else (lane * self.CELL, step * self.CELL)
 
     def _idx_at(self, pos: QPoint) -> int:
-        col = pos.x() // self.CELL
-        row = pos.y() // self.CELL
-        idx = row * self._cols() + col
+        a, b = pos.x() // self.CELL, pos.y() // self.CELL
+        lane, step = (b, a) if self._horiz else (a, b)
+        if lane >= self._lanes():
+            return -1
+        idx = step * self._lanes() + lane
         return idx if 0 <= idx < len(self._colors) else -1
 
-    def paintEvent(self, ev): #vers 1
+    def paintEvent(self, ev): #vers 2
         p = QPainter(self)
-        cols = self._cols()
         for i, c in enumerate(self._colors):
-            col = i % cols
-            row = i // cols
-            x = col * self.CELL
-            y = row * self.CELL
+            x, y = self._cell_xy(i)
             p.fillRect(x, y, self.CELL, self.CELL, c)
             if i == self._hover:
                 p.setPen(QPen(QColor(255, 255, 255, 180), 1))
                 p.drawRect(x, y, self.CELL - 1, self.CELL - 1)
-        # Fill remaining space grey
-        total_cols = self._cols()
-        total_rows = max(1, (len(self._colors) + total_cols - 1) // total_cols)
-        used_h = total_rows * self.CELL
-
-        # this crashes the app.
-        #if used_h < self.height():
-            #p.fillRect(0, used_h, self.width(), self.height() - used_h, self._get_ui_color('viewport_bg'))
-            #p.fillRect(0, used_h, self.width(), self.height() - used_h)
-        #p.end()
+        p.end()
 
     def mouseMoveEvent(self, ev): #vers 1
         idx = self._idx_at(ev.pos())
@@ -1106,7 +1121,7 @@ class RadarPaletteWidget(QWidget):
 
 
 class _HeightGauge(QWidget):
-    """Vertical depth/height colour gauge: deep water to sand to dark green."""
+    """Depth/height colour gauge: deep water to sand to dark green (high at top, or right)."""
     color_picked    = pyqtSignal(QColor)   # left-click  -> foreground
     color_picked_bg = pyqtSignal(QColor)   # right-click -> background
 
@@ -1114,16 +1129,27 @@ class _HeightGauge(QWidget):
              (0.46, '#e6d39a', 'Sand'), (0.52, '#b8e2ff', 'Shore'), (0.66, '#2a86e8', 'Shallow water'),
              (0.84, '#0b3a7a', 'Water'), (1.00, '#040a1c', 'Deep water')]
 
-    def __init__(self, parent=None): #vers 1
+    def __init__(self, parent=None): #vers 2
         super().__init__(parent)
         self._mark = None
-        self.setMaximumSize(26, 220)
+        self._horiz = False
         self.setMouseTracking(True)
         self.setToolTip("Height gauge: left-click foreground, right-click background colour")
 
-    def _color_at(self, y) -> 'tuple': #vers 1
-        """(QColor, label) at widget y, interpolated between stops."""
-        t = max(0.0, min(1.0, y / max(1, self.height() - 1)))
+    def set_horizontal(self, horiz): #vers 1
+        self._horiz = bool(horiz)
+        self._mark = None
+        self.update()
+
+    def _t_at(self, pos) -> float: #vers 1
+        """Stop position 0 (forest) .. 1 (deep) under a mouse point."""
+        if self._horiz:
+            return 1.0 - max(0.0, min(1.0, pos.x() / max(1, self.width() - 1)))
+        return max(0.0, min(1.0, pos.y() / max(1, self.height() - 1)))
+
+    def _color_at(self, pos) -> 'tuple': #vers 2
+        """(QColor, label) under a mouse point, interpolated between stops."""
+        t = self._t_at(pos)
         for (t0, c0, _l0), (t1, c1, l1) in zip(self.STOPS, self.STOPS[1:]):
             if t <= t1:
                 f = (t - t0) / max(1e-6, t1 - t0)
@@ -1132,28 +1158,34 @@ class _HeightGauge(QWidget):
                               int(a.blue() + (b.blue() - a.blue()) * f)), (_l0 if f < 0.5 else l1)
         return QColor(self.STOPS[-1][1]), self.STOPS[-1][2]
 
-    def paintEvent(self, ev): #vers 1
+    def paintEvent(self, ev): #vers 2
         from PyQt6.QtGui import QLinearGradient, QPolygon
         p = QPainter(self)
-        g = QLinearGradient(0, 0, 0, self.height())
+        if self._horiz:
+            g = QLinearGradient(self.width(), 0, 0, 0)
+            r = self.rect().adjusted(0, 6, -1, 0)
+        else:
+            g = QLinearGradient(0, 0, 0, self.height())
+            r = self.rect().adjusted(6, 0, 0, -1)
         for t, c, _l in self.STOPS:
             g.setColorAt(t, QColor(c))
-        r = self.rect().adjusted(6, 0, 0, -1)
         p.fillRect(r, QBrush(g))
         p.setPen(QPen(QColor(0, 0, 0), 1)); p.drawRect(r)
         if self._mark is not None:
+            k = self._mark
             p.setBrush(QColor(0, 0, 0)); p.setPen(Qt.PenStyle.NoPen)
-            p.drawPolygon(QPolygon([QPoint(0, self._mark - 4), QPoint(6, self._mark), QPoint(0, self._mark + 4)]))
+            tri = [QPoint(k - 4, 0), QPoint(k, 6), QPoint(k + 4, 0)] if self._horiz else \
+                [QPoint(0, k - 4), QPoint(6, k), QPoint(0, k + 4)]
+            p.drawPolygon(QPolygon(tri))
         p.end()
 
-    def mouseMoveEvent(self, ev): #vers 1
-        c, label = self._color_at(ev.position().y())
+    def mouseMoveEvent(self, ev): #vers 2
+        c, label = self._color_at(ev.position())
         self.setToolTip(f"{label}  {c.name()}")
 
-    def mousePressEvent(self, ev): #vers 1
-        y = int(ev.position().y())
-        c, _label = self._color_at(y)
-        self._mark = y
+    def mousePressEvent(self, ev): #vers 2
+        c, _label = self._color_at(ev.position())
+        self._mark = int(ev.position().x() if self._horiz else ev.position().y())
         self.update()
         if ev.button() == Qt.MouseButton.RightButton:
             self.color_picked_bg.emit(c)
@@ -1550,7 +1582,7 @@ _GAME_WORLD_BOUNDS = {
 class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
     _ribbon_name = "radar_workshop"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
-    _RIBBON_LAYOUT_VERSION = 3
+    _RIBBON_LAYOUT_VERSION = 4
 
     """Radar Workshop – skeleton class"""
 
@@ -2001,7 +2033,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
 
     # - Centre panel:
-    def _create_centre_panel(self): #vers 6
+    def _create_centre_panel(self): #vers 7
         """Tile list with icon button row: Open/Save/Export/Import/Info."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -2017,18 +2049,19 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._off_x.setDecimals(1); self._off_x.setMinimumHeight(26); self._off_x.setValue(0)
         self._off_y = QDoubleSpinBox(); self._off_y.setRange(-9999,9999)
         self._off_y.setDecimals(1); self._off_y.setMinimumHeight(26); self._off_y.setValue(0)
-        #TODO make the line below all on the same row.
-        ofl.addRow("dX:", self._off_x); ofl.addRow("dY:", self._off_y) #Apply icon button
-
-        #TODO ribbons moved around the viewpoint window, not the far edges, replicating other tools sytle.
-
-        from PyQt6.QtWidgets import QPushButton as _RPB
-        apply_off = _RPB("Apply"); apply_off.setMinimumHeight(26)
-        apply_off.setToolTip(
-            "Shift world-space origin by dX/dY for IPL World Map overlay.")
+        from PyQt6.QtWidgets import QToolButton as _RTB
+        apply_off = _RTB()
+        apply_off.setFixedSize(26, 26)
+        apply_off.setIcon(SVGIconFactory.check_icon(20, self._get_icon_color()
+                                                    if hasattr(self, '_get_icon_color') else None))
+        apply_off.setToolTip("Apply: shift world-space origin by dX/dY for IPL World Map overlay.")
         apply_off.clicked.connect(
             lambda: self.set_world_offset(self._off_x.value(), self._off_y.value()))
-        ofl.addRow("", apply_off)
+        row = QHBoxLayout(); row.setSpacing(2)
+        for lbl, spin in (("dX", self._off_x), ("dY", self._off_y)):
+            row.addWidget(QLabel(lbl)); row.addWidget(spin, 1)
+        row.addWidget(apply_off)
+        ofl.addRow(row)
         vl.addWidget(offset_box)
 
         #    Tile search bar                                                     
@@ -2372,7 +2405,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
 
     # --- Right panel: settings
-    def _create_right_panel(self): #vers 9
+    def _create_right_panel(self): #vers 10
         """Radar grid + bottom palette strip + right sidebar: zoom/tools/swatches."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -2411,37 +2444,6 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
         self._view_tabs.currentChanged.connect(self._on_view_tab_changed)
         hl.addWidget(self._view_tabs, 1)
-
-        #    Right sidebar — palette of the current tile (tools live in the ribbons)
-        sidebar = QFrame()
-        sidebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        sidebar.setFixedWidth(80)
-        sl = QVBoxLayout(sidebar)
-        sl.setContentsMargins(2, 4, 2, 4)
-        sl.setSpacing(2)
-
-        #    Palette — colours from current tile                                
-        pal_lbl = QLabel("Palette")
-        pal_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pal_lbl.setStyleSheet("font-size:9px;")
-        sl.addWidget(pal_lbl)
-
-        self._palette_widget = RadarPaletteWidget()
-        self._palette_widget.color_picked.connect(self._on_palette_color)
-        self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
-        # Height sized dynamically based on colour count — min 2 rows
-        self._palette_widget.setMinimumHeight(RadarPaletteWidget.CELL * 2)
-        sl.addWidget(self._palette_widget)
-
-        gauge_lbl = QLabel("Height")
-        gauge_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        gauge_lbl.setStyleSheet("font-size:9px;")
-        sl.addWidget(gauge_lbl)
-        self._height_gauge = _HeightGauge()
-        self._height_gauge.color_picked.connect(self._on_palette_color)
-        self._height_gauge.color_picked_bg.connect(self._on_palette_color_bg)
-        sl.addWidget(self._height_gauge, 1)
-        hl.addWidget(sidebar)
 
         return panel
 
@@ -2858,13 +2860,11 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             self._bg_color = c
             self._update_swatch_buttons()
 
-    def _update_swatch_buttons(self): #vers 1
-        if hasattr(self, '_fg_btn'):
-            self._fg_btn.setStyleSheet(
-                f"background-color: {self._fg_color.name()}; border: 1px solid #888;")
-        if hasattr(self, '_bg_btn'):
-            self._bg_btn.setStyleSheet(
-                f"background-color: {self._bg_color.name()}; border: 1px solid #888;")
+    def _update_swatch_buttons(self): #vers 2
+        """FG/BG swatch icon follows the current colours."""
+        if hasattr(self, '_swatch_btn'):
+            self._swatch_btn.setIcon(SVGIconFactory.swatch_icon(
+                self._fg_color.name(), self._bg_color.name(), 24))
 
     def _on_palette_color(self, color: QColor): #vers 1
         """Palette cell left-clicked — set as foreground colour."""
@@ -3823,7 +3823,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._atomic_write(path, struct.pack('<III', 0x16, len(inner), rw) + inner)
         return [0], []
 
-    def _build_ribbons(self): #vers 3
+    def _build_ribbons(self): #vers 5
         """File / Edit / View / Grid / Draw / Colour ribbons."""
         B = self.ribbon_button
 
@@ -3859,35 +3859,14 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._render_mode     = 'color'
         self._alpha_key_color = None
         self._render_btns = {}
-        #TODO; function needs to be split, so each button can be compact, icons only mode?
-
-        # 1. Colour Button
-        b_color = self.ribbon_button(
-            tb, "", "Full colour display",
-            lambda checked=False, m='color': self._set_render_mode(m),
-            checkable=True, text="Colour"
-        )
-        b_color.setFixedSize(70, self._RIBBON_BTN)
-        self._render_btns['color'] = b_color
-
-        # 2. B&W Button
-        b_bw = self.ribbon_button(
-            tb, "", "Greyscale display",
-            lambda checked=False, m='bw': self._set_render_mode(m),
-            checkable=True, text="B && W"
-        )
-        b_bw.setFixedSize(60, self._RIBBON_BTN)
-        self._render_btns['bw'] = b_bw
-
-        # 3. Col>Alpha Button
-        b_alpha = self.ribbon_button(
-            tb, "", "Colour to Alpha: press, then pick the colour with the dropper - it becomes transparent",
-            lambda checked=False, m='alpha': self._set_render_mode(m),
-            checkable=True, text="Col>Alpha"
-        )
-        b_alpha.setFixedSize(85, self._RIBBON_BTN)
-        self._render_btns['alpha'] = b_alpha
-
+        for mode, icon, tip in (
+                ('color', "colour_view_icon",     "Full colour display"),
+                ('bw',    "bw_view_icon",         "Greyscale display"),
+                ('alpha', "colour_to_alpha_icon", "Colour to Alpha: press, then pick the colour with "
+                                                  "the dropper - it becomes transparent")):
+            self._render_btns[mode] = B(tb, icon, tip,
+                                        lambda checked=False, m=mode: self._set_render_mode(m),
+                                        checkable=True)
         self._render_btns['color'].setChecked(True)
 
         tb = self.ribbon_toolbar("Grid")
@@ -3938,21 +3917,28 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._fg_color = QColor(255, 255, 255)
         _win = self.palette().color(self.palette().ColorRole.Window)
         self._bg_color = self._get_ui_color('viewport_bg') if _win.lightness() > 128 else QColor(0, 0, 0)
-        self.ribbon_label(tb, "")
-        self._fg_btn = QPushButton()
-        self._fg_btn.setFixedSize(26, 26)
-        self._fg_btn.setToolTip("Foreground (left-click to pick)")
-        self._fg_btn.clicked.connect(self._pick_fg_color)
-        tb.addWidget(self._fg_btn)
-        self.ribbon_label(tb, "")
-        self._bg_btn = QPushButton()
-        self._bg_btn.setFixedSize(26, 26)
-        self._bg_btn.setToolTip("Background (right-click palette for BG)")
-        self._bg_btn.clicked.connect(self._pick_bg_color)
-        tb.addWidget(self._bg_btn)
+        self._swatch_btn = QToolButton()
+        self._swatch_btn.setFixedSize(26, 26)
+        self._swatch_btn.setIconSize(QSize(24, 24))
+        self._swatch_btn.setToolTip("Left-click: foreground colour   Right-click: background colour")
+        self._swatch_btn.clicked.connect(self._pick_fg_color)
+        self._swatch_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._swatch_btn.customContextMenuRequested.connect(lambda _p: self._pick_bg_color())
+        tb.addWidget(self._swatch_btn)
         self._update_swatch_buttons()
 
         #TODO add other buttons, and displays to ribbons
+
+
+        # Narrow right-hand ribbons: tile palette, height gauge
+        self._palette_widget = RadarPaletteWidget()
+        self._palette_widget.color_picked.connect(self._on_palette_color)
+        self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
+        self.ribbon_side_toolbar("Palette", self._palette_widget, width=26, length=200)
+        self._height_gauge = _HeightGauge()
+        self._height_gauge.color_picked.connect(self._on_palette_color)
+        self._height_gauge.color_picked_bg.connect(self._on_palette_color_bg)
+        self.ribbon_side_toolbar("Height", self._height_gauge, width=26, length=200)
 
     # - Tile selection
 
@@ -4380,10 +4366,10 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             QMessageBox.critical(self, "Import Error", str(e))
 
     # - Grid nav
-    def _zoom(self, f): #vers 3
+    def _zoom(self, f): #vers 4
         """Scale the radar grid — uses RadarGridWidget zoom factor."""
         if hasattr(self, '_radar'):
-            self._radar._zoom_factor = max(0.1, min(10.0, self._radar._zoom_factor * f))
+            self._radar._zoom_factor = max(0.1, min(self._radar.zoom_max(), self._radar._zoom_factor * f))
             self._radar.update()
 
     def _apply_grid_zoom(self): #vers 1
@@ -5019,8 +5005,10 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         super().resizeEvent(event)
         self._refresh_corner_overlay()
 
-    def showEvent(self, event): #vers 2
+    def showEvent(self, event): #vers 3
         super().showEvent(event)
+        QTimer.singleShot(0, self._radar.update)       # first paint after layout settles
+        QTimer.singleShot(250, self._radar.update)
         if self.standalone_mode:
             # Small delay ensures window geometry is finalised
             QTimer.singleShot(150, self._setup_corner_overlay)

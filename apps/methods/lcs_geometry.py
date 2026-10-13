@@ -1,4 +1,4 @@
-#this belongs in apps/methods/lcs_geometry.py - Version: 2
+#this belongs in apps/methods/lcs_geometry.py - Version: 4
 # X-Seti - October 07 2026 - IMG Factory 1.6 - LCS/VCS mobile native geometry
 
 """
@@ -12,6 +12,7 @@ holds PS2-style VIF packets. Decoded to DFFModel for Map Workshop.
 # _geometry
 # _material_names
 # _strip_triangles
+# _vif_commands
 # is_lcs_dff
 # parse_lcs_dff
 
@@ -29,7 +30,7 @@ _HEADER, _MESH = 0x40, 0x30
 # VIF unpack: format nibble -> (components, bits)
 _UNPACK = {0x0: (1, 32), 0x1: (1, 16), 0x2: (1, 8), 0x4: (2, 32), 0x5: (2, 16), 0x6: (2, 8),
            0x8: (3, 32), 0x9: (3, 16), 0xA: (3, 8), 0xC: (4, 32), 0xD: (4, 16), 0xE: (4, 8),
-           0xF: (4, 5)}
+           0xF: (1, 16)}                     # V4-5: one 16-bit word
 # RW geometry flags: positions, textured, prelit, light
 _GEOM_FLAGS = 0x02 | 0x04 | 0x08 | 0x20
 
@@ -73,37 +74,45 @@ def _material_names(d: bytes, off: int, end: int) -> List[str]: #vers 1
     return names
 
 
-def _batches(g: bytes, off: int, end: int, pos_formats=(0x8, 0x9), pos_slot=None) -> List[dict]: #vers 3
-    """VIF unpacks of one mesh grouped into strips (one per position unpack)."""
-    out, cur = [], None
+def _vif_commands(g: bytes, off: int, end: int): #vers 1
+    """(offset, size, cmd, num, imm) of VIF codes in a range."""
     while off + 4 <= end:
         imm, num, cmd = struct.unpack_from('<HBB', g, off)
         c = cmd & 0x7F
         if c >= 0x60:
             comps, bits = _UNPACK.get(c & 0xF, (0, 0))
-            n = num or 256
-            size = ((comps * bits * n + 31) // 32) * 4
-            raw = g[off + 4:off + 4 + size]
-            fmt = c & 0xF
-            if fmt in pos_formats and (pos_slot is None or (imm & 0x3FF) == pos_slot):
-                cur = {'n': n, 'pos': (raw, bits)}
-                out.append(cur)
-            elif cur is not None and fmt in (0x4, 0x5, 0x6):
-                cur['uv'] = (raw, bits)
-            elif cur is not None and fmt == 0xA:
-                cur['nrm'] = raw
-            elif cur is not None and fmt in (0xF, 0xE) and 'col' not in cur:
-                cur['col'] = (raw, fmt)
-            off += 4 + size
-            continue
-        if c in (0x50, 0x51):                          # DIRECT
-            off += 4 + imm * 16
+            size = 4 + ((comps * bits * (num or 256) + 31) // 32) * 4
+        elif c in (0x50, 0x51):                        # DIRECT
+            size = 4 + imm * 16
         elif c == 0x20:                                # STMASK
-            off += 8
+            size = 8
         elif c in (0x30, 0x31):                        # STROW / STCOL
-            off += 20
+            size = 20
         else:
-            off += 4
+            size = 4
+        yield off, size, c, num, imm
+        off += size
+
+
+def _batches(g: bytes, off: int, end: int, pos_formats=(0x8, 0x9), pos_slot=None) -> List[dict]: #vers 5
+    """VIF unpacks of one mesh grouped into strips (one per position unpack)."""
+    out, cur = [], None
+    for at, size, c, num, imm in _vif_commands(g, off, end):
+        if c < 0x60:
+            continue
+        n = num or 256
+        bits = _UNPACK.get(c & 0xF, (0, 0))[1]
+        raw = g[at + 4:at + size]
+        fmt = c & 0xF
+        if fmt in pos_formats and (pos_slot is None or (imm & 0x3FF) == pos_slot):
+            cur = {'n': n, 'pos': (raw, bits), 'pos_at': at + 4}
+            out.append(cur)
+        elif cur is not None and fmt in (0x4, 0x5, 0x6):
+            cur['uv'], cur['uv_at'] = (raw, bits), at + 4
+        elif cur is not None and fmt == 0xA:
+            cur['nrm'] = raw
+        elif cur is not None and fmt in (0xF, 0xE) and 'col' not in cur:
+            cur['col'], cur['col_at'] = (raw, fmt), at + 4
     return out
 
 
@@ -113,7 +122,7 @@ def _strip_triangles(n: int, base: int) -> List[Tuple[int, int, int]]: #vers 1
             (base + i + 1, base + i, base + i + 2) for i in range(n - 2)]
 
 
-def _geometry(g: bytes, names: List[str]) -> Geometry: #vers 1
+def _geometry(g: bytes, names: List[str]) -> Geometry: #vers 2
     """One native geometry block to a Geometry (all meshes merged)."""
     packed, = struct.unpack_from('<I', g, 0x10)
     num_meshes, data_end = packed >> 20, packed & 0xFFFFF
@@ -122,6 +131,7 @@ def _geometry(g: bytes, names: List[str]) -> Geometry: #vers 1
     pivot = np.array(struct.unpack_from('<3f', g, 0x34))
     geom = Geometry(flags=_GEOM_FLAGS, uv_layer_count=1)
     verts, uvs, cols = [], [], []
+    geom._vif = []                                    # per batch offsets, for write back
     for m in range(num_meshes):
         mo = _HEADER + m * _MESH
         us, vs = struct.unpack_from('<2f', g, mo + 0x10)
@@ -151,6 +161,8 @@ def _geometry(g: bytes, names: List[str]) -> Geometry: #vers 1
             else:
                 rgba = np.full((n, 4), 255)
             base = len(verts)
+            geom._vif.append((mo, n, b['pos_at'], bits, b.get('uv_at'), b['uv'][1] if 'uv' in b else 0,
+                              b.get('col_at') if 'col' in b and b['col'][1] == 0xF else None))
             verts.extend(map(tuple, p.tolist()))
             uvs.extend(map(tuple, t.tolist()))
             cols.extend(map(tuple, rgba.tolist()))

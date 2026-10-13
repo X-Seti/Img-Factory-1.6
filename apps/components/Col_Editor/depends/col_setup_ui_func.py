@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 13
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 15
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -956,7 +956,7 @@ class COLSetupUIMixin: #vers 1
         layout.addWidget(self.col_list_widget)
         return panel
 
-    def _create_middle_panel(self): #vers 8
+    def _create_middle_panel(self): #vers 9
         """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -972,6 +972,14 @@ class COLSetupUIMixin: #vers 1
         self._col_models_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         hdr_row.addWidget(self._col_models_header)
         hdr_row.addStretch()
+        self.col_models_search_btn = QPushButton()          # mag glass, icon only
+        self.col_models_search_btn.setFixedSize(24, 22)
+        self.col_models_search_btn.setIcon(self.icon_factory.search_icon(16, self._get_icon_color()))
+        self.col_models_search_btn.setIconSize(QSize(16, 16))
+        self.col_models_search_btn.setToolTip("Search collisions by name")
+        self.col_models_search_btn.clicked.connect(
+            lambda: self._show_col_search(self.col_models_search_box))
+        hdr_row.addWidget(self.col_models_search_btn)
 
         self._col_view_mode = 'detail'   # start in compact thumbnail view
         self.col_view_toggle_btn = QPushButton("[=]")
@@ -983,6 +991,12 @@ class COLSetupUIMixin: #vers 1
         self.col_view_toggle_btn.clicked.connect(self._toggle_col_view)
         hdr_row.addWidget(self.col_view_toggle_btn)
         layout.addLayout(hdr_row)
+        self.col_models_search_box = QLineEdit()
+        self.col_models_search_box.setPlaceholderText("Search collisions...")
+        self.col_models_search_box.setClearButtonEnabled(True)
+        self.col_models_search_box.setVisible(False)
+        self.col_models_search_box.textChanged.connect(self._filter_collision_rows)
+        layout.addWidget(self.col_models_search_box)
 
         #    Mini toolbar: Open / Save / Extract / Undo                    
         icon_color = self._get_icon_color()
@@ -1155,7 +1169,7 @@ class COLSetupUIMixin: #vers 1
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 10
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 11
         """Build all QToolBar instances using QAction (Model Workshop pattern,
         Build 388+). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_preview_controls panels."""
@@ -1338,6 +1352,7 @@ class COLSetupUIMixin: #vers 1
         #    Ribbon 7: Edit (selection tools; whole model when nothing selected)
         tb_edit = _tb("Edit", Qt.ToolBarArea.TopToolBarArea)
         IF = self.icon_factory
+        from apps.methods.imgfactory_svg_icons import list_icon
         for name, icon, cb, attr, chk in [
             ("Vertex Select Mode",         IF.vertex_select_icon,      self._edit_toggle_vertex_mode, 'vertex_mode_btn', True),
             ("Scale Gizmo [S]",            IF.dp_resize_icon,          lambda: pw._set_gizmo('scale'), 'scale_gizmo_btn', False),
@@ -1345,6 +1360,8 @@ class COLSetupUIMixin: #vers 1
             ("Centre to Origin",           IF.snap_to_center_icon,     self._edit_centre_origin,      'centre_btn',      False),
             (None, None, None, None, None),
             ("Detach Selected Faces",      IF.detach_faces_icon,        self._edit_detach,             'detach_btn',      False),
+            ("Detached Parts...",          lambda color=None: list_icon(20, color),
+                                                                       self._edit_detached_parts,     'detached_list_btn', False),
             ("Selection to New Model",     IF.new_icon,                self._edit_selection_to_model, 'sel_model_btn',   False),
             ("Save Selection as COL...",   IF.save_selection_icon,             self._edit_selection_to_file,  'sel_file_btn',    False),
             ("Delete Selected Faces",      IF.delete_face_icon,             self._edit_delete_faces,       'del_faces_btn',   False),
@@ -2030,7 +2047,7 @@ class COLSetupUIMixin: #vers 1
         self.info_name.selectAll()
         self.info_name.setFocus()
 
-    def _set_col_buttons_enabled(self, enabled: bool): #vers 4
+    def _set_col_buttons_enabled(self, enabled: bool): #vers 5
         """Enable/disable all transform buttons in BOTH icon and text panels.
         The text panel overwrites self.X refs, so when the icon panel is visible
         (narrow mode) those refs point to hidden buttons. Walk the icon panel too.
@@ -2041,7 +2058,7 @@ class COLSetupUIMixin: #vers 1
             'paint_btn', 'surface_type_btn', 'surface_edit_btn', 'build_from_txd_btn',
             'show_shadow_btn', 'create_shadow_btn', 'remove_shadow_btn',
             'compress_btn', 'uncompress_btn', 'switch_btn', 'convert_btn',
-            'vertex_mode_btn', 'scale_gizmo_btn', 'scale_btn', 'centre_btn', 'detach_btn',
+            'vertex_mode_btn', 'scale_gizmo_btn', 'scale_btn', 'centre_btn', 'detach_btn', 'detached_list_btn',
             'sel_model_btn', 'sel_file_btn', 'del_faces_btn', 'weld_btn', 'fill_hole_btn',
             'box_mesh_btn', 'sphere_mesh_btn', 'faces_box_btn', 'faces_sphere_btn', 'merge_btn', 'optimise_btn',
             'vert_pos_btn', 'add_face_btn', 'del_verts_btn', 'split_faces_btn', 'mirror_btn',

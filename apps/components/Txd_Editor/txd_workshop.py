@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 43
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 44
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -27,6 +27,7 @@ from apps.debug.debug_functions import img_debugger
 from apps.gui.tool_menu_mixin import ToolMenuMixin
 from apps.gui.txd_context_menu import setup_txd_context_menu
 from apps.methods.img_factory_settings import get_user_config_dir
+from apps.methods.doc_tabs import DocTabsMixin
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.grip_splitter import SplitterSizesMixin
@@ -56,10 +57,11 @@ from apps.methods.grip_splitter import SplitterSizesMixin
 # TXDLogicMixin - txd_logic_func.py
 # RibbonIconsMixin - methods/ribbon_dialog.py
 # SplitterSizesMixin - methods/grip_splitter.py
+# DocTabsMixin - methods/doc_tabs.py
 # Shared windows - methods/txd_dialogs.py, DXT encoders - methods/txd_dxt_encode.py
 
 
-class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, RibbonIconsMixin, SplitterSizesMixin, ToolMenuMixin, QWidget): #vers 7
+class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, RibbonIconsMixin, SplitterSizesMixin, ToolMenuMixin, QWidget): #vers 8
     """TXD Workshop - Main texture editing window"""
 
     workshop_closed = pyqtSignal()

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_mesh_ops.py - Version: 2
+#this belongs in apps/methods/dff_mesh_ops.py - Version: 3
 # X-Seti - October 12 2026 - IMG Factory 1.6 - DFF mesh edits via COL mesh ops
 
 """
@@ -9,6 +9,7 @@ take them from a same-position vertex or their face neighbours.
 
 ##Methods list -
 # _bounds
+# _split_uv_group
 # extract_geometry
 # _face_normal
 # apply_mesh_op
@@ -16,6 +17,7 @@ take them from a same-position vertex or their face neighbours.
 # mesh_to_geometry
 # optimum_sphere
 # prelight_geometry
+# uv_map
 #
 ##class MeshVertex: -
 #
@@ -169,6 +171,76 @@ def extract_geometry(geom, face_ids):  #vers 1
     new.bounding_sphere = _bounds(new.vertices)
     new.edited = True
     return new
+
+
+def _split_uv_group(m, group): #vers 1
+    """Own vertex copies (all attributes) for group faces shared with other faces."""
+    outside = set()
+    for fi, f in enumerate(m.faces):
+        if fi not in group:
+            outside.update((f.a, f.b, f.c))
+    remap = {}
+    for fi in group:
+        f = m.faces[fi]
+        for i in (f.a, f.b, f.c):
+            if i in outside and i not in remap:
+                v = m.vertices[i]
+                remap[i] = len(m.vertices)
+                m.vertices.append(MeshVertex(v.x, v.y, v.z, getattr(v, 'normal', None),
+                                             getattr(v, 'uvs', None), getattr(v, 'colour', None)))
+        f.a, f.b, f.c = remap.get(f.a, f.a), remap.get(f.b, f.b), remap.get(f.c, f.c)
+
+
+def uv_map(m, face_ids, mode='keep', su=1.0, sv=1.0, ou=0.0, ov=0.0, rot=0.0,
+           fit=False, layer=0): #vers 1
+    """UVs for faces (all if none): 'keep' | 'box' | 'planar_x/y/z', then fit, scale, rotate, offset."""
+    faces = sorted(face_ids) if face_ids else list(range(len(m.faces)))
+    groups = {}
+    for fi in faces:
+        if mode == 'box':
+            n = _face_normal(m, m.faces[fi])
+            ax = max(range(3), key=lambda k: abs(n[k]))
+        else:
+            ax = {'planar_x': 0, 'planar_y': 1, 'planar_z': 2}.get(mode)
+        groups.setdefault(ax, set()).add(fi)
+    if len(groups) > 1 or len(faces) < len(m.faces):
+        for g in groups.values():
+            _split_uv_group(m, g)
+    uv = {}
+    for ax, g in groups.items():
+        for fi in g:
+            f = m.faces[fi]
+            for i in (f.a, f.b, f.c):
+                v = m.vertices[i]
+                if ax is None:
+                    cur = getattr(v, 'uvs', None)
+                    uv[i] = cur[layer] if cur and layer < len(cur) else (0.0, 0.0)
+                else:
+                    p = (v.x, v.y, v.z)
+                    a, b = [k for k in range(3) if k != ax]
+                    uv[i] = (p[a], -p[b])
+    if not uv:
+        return 0
+    us, vs = [t[0] for t in uv.values()], [t[1] for t in uv.values()]
+    if fit:
+        du, dv = (max(us) - min(us)) or 1.0, (max(vs) - min(vs)) or 1.0
+        u0, v0 = min(us), min(vs)
+        uv = {i: ((u - u0) / du, (v - v0) / dv) for i, (u, v) in uv.items()}
+        us, vs = [t[0] for t in uv.values()], [t[1] for t in uv.values()]
+    cu, cv = (min(us) + max(us)) / 2, (min(vs) + max(vs)) / 2
+    c, s_ = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+    for i, (u, v) in uv.items():
+        x, y = (u - cu) * su, (v - cv) * sv
+        x, y = x * c - y * s_, x * s_ + y * c
+        new = (x + cu + ou, y + cv + ov)
+        vert = m.vertices[i]
+        cur = list(getattr(vert, 'uvs', None) or ())
+        cur += [(0.0, 0.0)] * (layer + 1 - len(cur))
+        cur[layer] = new
+        if not isinstance(vert, MeshVertex):
+            vert = m.vertices[i] = MeshVertex(vert.x, vert.y, vert.z)
+        vert.uvs = tuple(cur)
+    return len(uv)
 
 
 def optimum_sphere(geom) -> None:  #vers 1

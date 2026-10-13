@@ -1,4 +1,4 @@
-# this belongs in methods/ indexed_color_import.py - Version: 1
+# this belongs in methods/ indexed_color_import.py - Version: 2
 # X-Seti - October09 2025 - IMG Factory 1.5 - 8-bit Indexed Import
 """
 Comprehensive 8-bit indexed color format import for retro/legacy formats:
@@ -19,6 +19,9 @@ Comprehensive 8-bit indexed color format import for retro/legacy formats:
 # load_tga_8bit
 # _expand_palette_to_rgba
 # is_indexed_format
+# nearest_indices
+# read_bmp_indexed
+# write_bmp_indexed
 
 import struct
 from PIL import Image
@@ -429,3 +432,69 @@ def is_indexed_format(file_path): #vers 1
     """Quick check if file is a supported indexed format"""
     ext = file_path.lower().split('.')[-1]
     return ext in ('bmp', 'pcx', 'gif', 'png', 'tga', 'targa', 'lbm', 'iff', 'ilbm')
+
+
+def read_bmp_indexed(file_path): #vers 1
+    """Indexed BMP (1/2/4/8 bpp) as (width, height, bpp, palette [(r,g,b)], indices) or None."""
+    with open(file_path, 'rb') as f:
+        data = f.read()
+    if data[:2] != b'BM' or len(data) < 54:
+        return None
+    off, hsize, w, h, _pl, bpp, comp = struct.unpack_from('<I I i i H H I', data, 10)
+    if bpp > 8:
+        return None
+    if comp != 0:                                       # RLE4 / RLE8: let PIL decode
+        img = Image.open(file_path)
+        flat = img.getpalette() or []
+        pal = [tuple(flat[i * 3:i * 3 + 3]) for i in range(min(1 << bpp, len(flat) // 3))]
+        return img.width, img.height, bpp, pal, img.convert('P').tobytes() if img.mode != 'P' else img.tobytes()
+    ncol = struct.unpack_from('<I', data, 46)[0] or (1 << bpp)
+    pal = [(data[14 + hsize + i * 4 + 2], data[14 + hsize + i * 4 + 1], data[14 + hsize + i * 4])
+           for i in range(ncol)]
+    top_down, h = h < 0, abs(h)
+    row_bytes = ((w * bpp + 31) // 32) * 4
+    mask, out = (1 << bpp) - 1, bytearray(w * h)
+    for r in range(h):
+        y = r if top_down else h - 1 - r
+        row = data[off + r * row_bytes:off + (r + 1) * row_bytes]
+        for x in range(w):
+            bit = x * bpp
+            out[y * w + x] = (row[bit >> 3] >> (8 - bpp - (bit & 7))) & mask
+    return w, h, bpp, pal, bytes(out)
+
+
+def write_bmp_indexed(file_path, width, height, pixels, palette, bpp=8): #vers 1
+    """Write an indexed BMP (1, 2, 4 or 8 bpp), palette padded to 2**bpp entries."""
+    n = 1 << bpp
+    pal = (list(palette) + [(0, 0, 0)] * n)[:n]
+    row_bytes = ((width * bpp + 31) // 32) * 4
+    body = bytearray()
+    for y in range(height - 1, -1, -1):                 # bottom-up rows
+        row = pixels[y * width:(y + 1) * width]
+        out, acc, bits = bytearray(), 0, 0
+        for v in row:
+            acc = (acc << bpp) | (v & (n - 1))
+            bits += bpp
+            if bits == 8:
+                out.append(acc); acc = bits = 0
+        if bits:
+            out.append(acc << (8 - bits))
+        body += out + bytes(row_bytes - len(out))
+    pal_bytes = b''.join(bytes((b, g, r, 0)) for r, g, b in pal)
+    off = 14 + 40 + len(pal_bytes)
+    head = b'BM' + struct.pack('<IHHI', off + len(body), 0, 0, off)
+    info = struct.pack('<IiiHHIIiiII', 40, width, height, 1, bpp, 0, len(body), 2835, 2835, n, 0)
+    with open(file_path, 'wb') as f:
+        f.write(head + info + pal_bytes + bytes(body))
+
+
+def nearest_indices(rgba, palette): #vers 1
+    """Palette index nearest to each RGBA pixel (bytes, one per pixel)."""
+    import numpy as np
+    px = np.frombuffer(bytes(rgba), np.uint8).reshape(-1, 4)[:, :3].astype(np.int32)
+    pal = np.array(palette, np.int32).reshape(-1, 3)
+    out = np.empty(len(px), np.uint8)
+    for a in range(0, len(px), 65536):
+        d = ((px[a:a + 65536, None, :] - pal[None, :, :]) ** 2).sum(2)
+        out[a:a + 65536] = d.argmin(1)
+    return out.tobytes()

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 16
+#this belongs in apps/methods/gta_dat_parser.py - Version: 17
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -586,20 +586,16 @@ class WaterProFile: #vers 2
     source_file:  str = ""
 
 
-def _detile_sol_grid(raw: bytes, grid_width: int, map_w: int = 6) -> List[List[int]]: #vers 1
-    """ de-tiling fix for SOL's own waterpro.dat grid layout (Aug
-    20 2026)"""
+def _detile_sol_grid(raw: bytes, grid_width: int, map_w: int = 6) -> List[List[int]]: #vers 2
+    """SOL waterpro grid to [x][y]: tiles y-major, cells inside a tile x-major."""
     tile_w = grid_width // map_w
     out = [[0] * grid_width for _ in range(grid_width)]
     for tile_idx in range(map_w * map_w):
-        tile_col = tile_idx % map_w
-        tile_row = tile_idx // map_w
+        tx, ty = tile_idx % map_w, tile_idx // map_w
         base = tile_idx * tile_w * tile_w
-        for r in range(tile_w):
-            row_off = base + r * tile_w
-            py = tile_row * tile_w + r
-            px0 = tile_col * tile_w
-            out[py][px0:px0 + tile_w] = raw[row_off:row_off + tile_w]
+        for i in range(tile_w):
+            row_off = base + i * tile_w
+            out[tx * tile_w + i][ty * tile_w:(ty + 1) * tile_w] = raw[row_off:row_off + tile_w]
     return out
 
 

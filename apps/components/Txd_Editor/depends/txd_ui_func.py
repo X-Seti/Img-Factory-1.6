@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 12
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 13
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -279,7 +279,7 @@ class TXDUIMixin: #vers 1
         from apps.methods.button_mode import apply_button_mode_to_button
         apply_button_mode_to_button(button, text, self.button_display_mode)
 
-    def _create_toolbar(self): #vers 16
+    def _create_toolbar(self): #vers 17
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
         self.titlebar = QFrame()
         self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -329,6 +329,7 @@ class TXDUIMixin: #vers 1
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip("Workshop Settings")
         layout.addWidget(self.settings_btn)
+        self._build_doc_tabs_btn(layout)          # standalone file tabs drop-down
 
         layout.addStretch()
 

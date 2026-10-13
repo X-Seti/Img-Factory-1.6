@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 97
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 103
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -46,6 +46,7 @@ from PyQt6.QtGui import (
     QPainterPath, QKeySequence
 )
 from apps.methods.img_factory_settings import get_user_config_dir
+from apps.methods.doc_tabs import DocTabsMixin
 
 
 ##Methods list -
@@ -181,6 +182,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # DP5Workshop._apply_selection_rotation
 # DP5Workshop._apply_spectrum_clash
 # DP5Workshop._apply_theme
+# DP5Workshop._apply_view_state
 # DP5Workshop._apply_zx8x_dither
 # DP5Workshop._background_to_alpha
 # DP5Workshop._background_to_alpha_dialog
@@ -218,6 +220,14 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # DP5Workshop._dither_bayer_canvas
 # DP5Workshop._dither_checker_canvas
 # DP5Workshop._dither_floyd_steinberg
+# DP5Workshop._doc_current_path
+# DP5Workshop._doc_has_file
+# DP5Workshop._doc_mark_opened
+# DP5Workshop._doc_new
+# DP5Workshop._doc_open
+# DP5Workshop._doc_reset
+# DP5Workshop._doc_restore
+# DP5Workshop._doc_state
 # DP5Workshop._dp5_blur
 # DP5Workshop._dp5_edge_detect
 # DP5Workshop._dp5_emboss
@@ -251,6 +261,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # DP5Workshop._export_tga
 # DP5Workshop._export_vicprg
 # DP5Workshop._fill_canvas
+# DP5Workshop._fill_save_back_menu
 # DP5Workshop._fit_canvas_to_viewport
 # DP5Workshop._fit_img_pal_height
 # DP5Workshop._flip_h
@@ -331,6 +342,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # DP5Workshop._open_sprite_editor
 # DP5Workshop._open_zoom_lens
 # DP5Workshop._paint_variant_shape
+# DP5Workshop._park_bitmap_view
 # DP5Workshop._paste_selection
 # DP5Workshop._pick_sticker
 # DP5Workshop._pick_ts_font
@@ -345,6 +357,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # DP5Workshop._refresh_corner_overlay
 # DP5Workshop._refresh_icons
 # DP5Workshop._refresh_tool_settings_ribbon
+# DP5Workshop._remember_indexed_source
 # DP5Workshop._render_as_ansi
 # DP5Workshop._render_as_ascii
 # DP5Workshop._render_as_petscii
@@ -361,6 +374,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # DP5Workshop._rotate_90_cw
 # DP5Workshop._rotate_arbitrary
 # DP5Workshop._rotate_selection_dialog
+# DP5Workshop._save_back_indexed
 # DP5Workshop._save_current_canvas_tab
 # DP5Workshop._scale_canvas
 # DP5Workshop._select_all
@@ -411,6 +425,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 # DP5Workshop._update_status
 # DP5Workshop._update_transform_text_panel_visibility
 # DP5Workshop._update_zoom_label
+# DP5Workshop._view_state
 # DP5Workshop._write_amiga_info
 # DP5Workshop._write_icns
 # DP5Workshop._zoom_mode_menu
@@ -3864,9 +3879,12 @@ class DP5Canvas(QWidget):
         self.update()
         self.pixel_changed.emit(tx, ty)
 
-    def wheelEvent(self, e: QWheelEvent):  #vers 1
-        if not (e.modifiers() & Qt.KeyboardModifier.ControlModifier):
-            return   # pass non-Ctrl scroll to scroll area for panning
+    def wheelEvent(self, e: QWheelEvent):  #vers 2
+        """Wheel zooms at the mouse (Ctrl not needed); Shift+wheel scrolls the view."""
+        if e.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            e.ignore()          # scroll area pans
+            return
+        e.accept()
         d        = e.angleDelta().y()
         old_zoom = self.zoom
 
@@ -5983,7 +6001,7 @@ class _CornerOverlay(QWidget):
         painter.end()
 
 
-class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
+class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
     """Deluxe Paint 5 inspired bitmap editor — standalone + embeddable."""
 
     workshop_closed = pyqtSignal()
@@ -6182,7 +6200,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    UI construction                                                        
 
-    def setup_ui(self): #vers 1
+    def setup_ui(self): #vers 2
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
         main_layout.setSpacing(0)   # no gaps — each widget manages its own margin
@@ -6274,6 +6292,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._canvas_tabs.append(
                 {'label': '1', 'state': self._capture_canvas_tab_state()})
             self._active_canvas_tab_idx = 0
+        self._refresh_doc_menu()
 
         # Widget registry - each entry is a self-contained dock module
         # under depends/. Adding, removing, or swapping a widget for an
@@ -6513,6 +6532,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.settings_btn.setToolTip(App_name + " Settings")
         self.settings_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.settings_btn)
+        self._build_doc_tabs_btn(layout)          # title bar file tabs drop-down (canvas tabs)
 
         layout.addStretch()
 
@@ -6662,16 +6682,54 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         #    Left panel: bitmap list                                                
 
-    def _on_bitmap_selected(self, row: int): #vers 1
+    def _on_bitmap_selected(self, row: int): #vers 3
+        """Show another loaded image; each keeps its own zoom and scroll position."""
         if 0 <= row < len(self._bitmap_list):
+            old = getattr(self, '_current_bitmap', None)
+            if old is not None and old != row and 0 <= old < len(self._bitmap_list):
+                self._bitmap_list[old]['view'] = self._view_state()
             self._current_bitmap = row
             bm = self._bitmap_list[row]
             if self.dp5_canvas:
                 self.dp5_canvas.tex_w = bm['w']
                 self.dp5_canvas.tex_h = bm['h']
                 self.dp5_canvas.rgba  = bm['rgba']
+                self._canvas_width, self._canvas_height = bm['w'], bm['h']
+                self._indexed_source = bm.get('source')
+                self._apply_view_state(bm.get('view'))
                 self.dp5_canvas.update()
                 self._set_status(f"{bm['name']}  {bm['w']}×{bm['h']}")
+
+    def _park_bitmap_view(self): #vers 1
+        """Before a new image loads: keep the shown image's zoom / scroll in its list entry."""
+        cur = getattr(self, '_current_bitmap', -1)
+        if cur is not None and 0 <= cur < len(self._bitmap_list):
+            self._bitmap_list[cur]['view'] = self._view_state()
+        self._current_bitmap = None
+
+    def _view_state(self): #vers 1
+        """(zoom, horizontal scroll, vertical scroll) of the canvas view."""
+        sa = getattr(self, '_canvas_scroll', None)
+        z = self.dp5_canvas.zoom if self.dp5_canvas else 1.0
+        if sa is None:
+            return (z, 0, 0)
+        return (z, sa.horizontalScrollBar().value(), sa.verticalScrollBar().value())
+
+    def _apply_view_state(self, view): #vers 1
+        """Restore a saved zoom / scroll, or fit the image when there is none."""
+        if not view:
+            self._fit_canvas_to_viewport()
+            return
+        z, h, v = view
+        self._set_zoom(z)
+        sa = getattr(self, '_canvas_scroll', None)
+        if sa is not None:
+            from PyQt6.QtCore import QTimer
+            def _scroll():  #vers 1
+                sa.horizontalScrollBar().setValue(h)
+                sa.verticalScrollBar().setValue(v)
+            _scroll()
+            QTimer.singleShot(0, _scroll)          # again once the scroll range follows the resize
 
     def _delete_bitmap(self): #vers 1
         row = self._bitmap_lw.currentRow()
@@ -6741,7 +6799,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return panel
 
-    def _build_canvas_menus(self, mb): #vers 2
+    def _build_canvas_menus(self, mb): #vers 3
         """Populate a QMenuBar (topbar) or QMenu (docked/dropdown) with all DP5 menus.
         Both share the same addMenu()/addAction() API so one method serves all cases."""
         # File
@@ -6783,6 +6841,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         fm.addSeparator()
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
+        sb = fm.addMenu("Save Back (keep depth / size / colours)")
+        sb.aboutToShow.connect(lambda m=sb: self._fill_save_back_menu(m))
         fm.addSeparator()
         am = fm.addMenu("Animation")
         am.addAction("Export animated GIF…",  self._anim_export_gif)
@@ -10867,7 +10927,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Multi-canvas tabs                                                       
 
-    def _capture_canvas_tab_state(self): #vers 1
+    def _capture_canvas_tab_state(self): #vers 3
         """Snapshot everything needed to fully restore the currently
         active canvas later: image data, dimensions, pixel aspect, and
         this workshop's undo/redo stacks (which are shared/global, not
@@ -10883,9 +10943,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             'canvas_height': self._canvas_height,
             'undo_stack': deque(self._undo_stack, maxlen=self._undo_stack.maxlen),
             'redo_stack': deque(self._redo_stack, maxlen=self._redo_stack.maxlen),
+            'path': getattr(self, '_doc_path', None),
+            'indexed_source': getattr(self, '_indexed_source', None),
+            'view': self._view_state(),
         }
 
-    def _restore_canvas_tab_state(self, state): #vers 1
+    def _restore_canvas_tab_state(self, state): #vers 3
         """Apply a previously captured tab state back onto the active
         canvas widget/workshop attributes. Also clears transient,
         tab-independent UI state (selection, marching ants, in-progress
@@ -10902,6 +10965,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._canvas_height = state['canvas_height']
         self._undo_stack = deque(state['undo_stack'], maxlen=self._undo_stack.maxlen)
         self._redo_stack = deque(state['redo_stack'], maxlen=self._redo_stack.maxlen)
+        self._doc_path = state.get('path')
+        self._indexed_source = state.get('indexed_source')
 
         # Clear transient state that doesn't carry across documents
         c._sel_active = False
@@ -10919,11 +10984,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         c._preview_start = c._preview_end = None
 
         c.update()
-        self._fit_canvas_to_viewport()
+        self._apply_view_state(state.get('view'))      # each tab keeps its own zoom / pan
         if hasattr(self, '_status_size_lbl'):
             self._status_size_lbl.setText(f"{c.tex_w}×{c.tex_h}")
 
-    def _switch_canvas_tab(self, idx: int): #vers 1
+    def _switch_canvas_tab(self, idx: int): #vers 2
         """Switch to canvas tab idx - saves the current tab's state into
         its own slot first, then loads the target tab's saved state."""
         if idx == self._active_canvas_tab_idx:
@@ -10936,6 +11001,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._active_canvas_tab_idx = idx
         self._restore_canvas_tab_state(self._canvas_tabs[idx]['state'])
         self._refresh_canvas_tabs_ribbon()
+        self._refresh_doc_menu()
 
     def _save_current_canvas_tab(self): #vers 1
         """Call this BEFORE overwriting dp5_canvas's contents (New
@@ -10953,7 +11019,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         else:
             self._canvas_tabs[self._active_canvas_tab_idx]['state'] = state
 
-    def _add_canvas_tab(self, label=None): #vers 2
+    def _add_canvas_tab(self, label=None): #vers 3
         """Register the CURRENT canvas contents (already written by New
         Canvas/Load) as a brand new tab and switch to it. The caller
         must have already saved the outgoing tab's state - via
@@ -10969,8 +11035,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._canvas_tabs.append({'label': new_label, 'state': new_state})
         self._active_canvas_tab_idx = new_idx
         self._refresh_canvas_tabs_ribbon()
+        self._refresh_doc_menu()
 
-    def _refresh_canvas_tabs_ribbon(self): #vers 1
+    def _refresh_canvas_tabs_ribbon(self): #vers 2
         """Rebuild the numbered tab buttons to match self._canvas_tabs,
         with the active tab's button checked."""
         ribbon = getattr(self, '_canvas_tabs_ribbon', None)
@@ -10979,12 +11046,79 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         ribbon.clear()
         self._canvas_tab_btns = []
         for i, tab in enumerate(self._canvas_tabs):
-            act = QAction(tab['label'], ribbon)
+            act = QAction(tab.get('label', str(i + 1)), ribbon)
             act.setCheckable(True)
             act.setChecked(i == self._active_canvas_tab_idx)
             act.triggered.connect(lambda _, idx=i: self._switch_canvas_tab(idx))
             ribbon.addAction(act)
             self._canvas_tab_btns.append(act)
+
+    #    File tab hooks for DocTabsMixin (title bar drop-down = canvas tabs)
+
+    _DOC_KIND = "image"
+    _DOC_FILTER = ("Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.ilbm *.tga *.tif *.tiff *.gif "
+                   "*.pcx *.dds *.psd);;All Files (*)")
+    _docs = property(lambda self: self._canvas_tabs,
+                     lambda self, v: setattr(self, '_canvas_tabs', v))
+    _doc_idx = property(lambda self: self._active_canvas_tab_idx,
+                        lambda self, v: setattr(self, '_active_canvas_tab_idx', v))
+
+    def _doc_state(self): #vers 1
+        """Current canvas tab: label, path and full canvas state."""
+        i = self._active_canvas_tab_idx
+        tab = dict(self._canvas_tabs[i]) if 0 <= i < len(self._canvas_tabs) else {}
+        tab.setdefault('label', str(i + 1))
+        tab['state'] = self._capture_canvas_tab_state()
+        tab['path'] = getattr(self, '_doc_path', None)
+        return tab
+
+    def _doc_restore(self, st): #vers 1
+        self._restore_canvas_tab_state(st['state'])
+        self._refresh_canvas_tabs_ribbon()
+
+    def _doc_open(self, file_path): #vers 1
+        """Load a file into the current (new) canvas tab."""
+        self._import_dropped_file(file_path)
+        if getattr(self, '_doc_path', None) != file_path:
+            return False
+        self._canvas_tabs[self._active_canvas_tab_idx] = self._doc_state()
+        self._refresh_canvas_tabs_ribbon()
+        return True
+
+    def _doc_has_file(self): #vers 1
+        return bool(getattr(self, '_doc_path', None)) or bool(self._undo_stack)
+
+    def _doc_current_path(self): #vers 1
+        i = self._active_canvas_tab_idx
+        label = self._canvas_tabs[i].get('label') if 0 <= i < len(self._canvas_tabs) else None
+        return getattr(self, '_doc_path', None) or label
+
+    def _doc_new(self): #vers 1
+        """Fresh per-tab state before a file opens in a new tab."""
+        self._undo_stack.clear(); self._redo_stack.clear()
+        self._doc_path = None
+        self._indexed_source = None
+
+    def _doc_reset(self): #vers 1
+        """Last tab closed: one blank canvas tab."""
+        self._doc_new()
+        if self.dp5_canvas:
+            self.dp5_canvas.rgba[:] = b'\xff' * len(self.dp5_canvas.rgba)
+            self.dp5_canvas.update()
+        self._canvas_tabs = [{'label': '1', 'state': self._capture_canvas_tab_state()}]
+        self._active_canvas_tab_idx = 0
+        self._refresh_canvas_tabs_ribbon()
+
+    def _doc_mark_opened(self, path): #vers 1
+        """A file was loaded into the current canvas tab: name the tab after it."""
+        self._doc_path = path
+        i = self._active_canvas_tab_idx
+        if 0 <= i < len(self._canvas_tabs):
+            self._canvas_tabs[i]['label'] = os.path.basename(path)
+            self._canvas_tabs[i]['path'] = path
+        self._refresh_canvas_tabs_ribbon()
+        self._refresh_doc_menu()
+
 
     def _clear_canvas(self): #vers 1
         if not self.dp5_canvas: return
@@ -11024,45 +11158,38 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._refresh_corner_overlay()
 
 
-    def _set_zoom(self, z, anchor_widget_pos=None): #vers 1
+    def _set_zoom(self, z, anchor_widget_pos=None): #vers 2
         """
         Set zoom level.  anchor_widget_pos: QPoint in scroll-area viewport
         coordinates to keep fixed.  If None, anchors to viewport centre.
         """
         if not self.dp5_canvas: return
-        old_z = max(0.01, self.dp5_canvas.zoom)
+        c     = self.dp5_canvas
+        old_z = max(0.01, c.zoom)
         z     = max(0.05, min(64.0, float(z)))
-        self.dp5_canvas.zoom = z
-        self._canvas_zoom    = z
+        ax    = getattr(c, 'pixel_aspect_x', 1.0)
+        sa    = getattr(self, '_canvas_scroll', None)
+        if sa and anchor_widget_pos is None:
+            vp = sa.viewport()
+            anchor_widget_pos = QPoint(vp.width() // 2, vp.height() // 2)
+        if sa:      # texture point under the anchor (handles centred canvas)
+            cp = c.mapFrom(sa.viewport(), anchor_widget_pos)
+            fx, fy = cp.x() / (old_z * ax), cp.y() / old_z
+        c.zoom = z
+        self._canvas_zoom = z
         self._update_zoom_label()
 
         # Resize canvas widget to match new zoom
-        zx = z * getattr(self.dp5_canvas, 'pixel_aspect_x', 1.0)
-        new_w = max(200, int(self.dp5_canvas.tex_w * zx))
-        new_h = max(200, int(self.dp5_canvas.tex_h * z))
-        self.dp5_canvas.resize(new_w, new_h)
-        self.dp5_canvas.updateGeometry()
+        new_w = max(200, int(c.tex_w * z * ax))
+        new_h = max(200, int(c.tex_h * z))
+        c.resize(new_w, new_h)
+        c.updateGeometry()
 
-        # Scroll to keep anchor point fixed
-        sa = getattr(self, '_canvas_scroll', None)
+        # Scroll so the same texture point stays under the anchor
         if sa:
-            hb = sa.horizontalScrollBar()
-            vb = sa.verticalScrollBar()
-            if anchor_widget_pos is None:
-                # Default anchor: current viewport centre
-                vp = sa.viewport()
-                anchor_widget_pos = QPoint(vp.width() // 2, vp.height() // 2)
-            # Current scroll position + anchor gives the tex-space point
-            old_sx = hb.value() + anchor_widget_pos.x()
-            old_sy = vb.value() + anchor_widget_pos.y()
-            # New scroll position that keeps the same tex point under anchor
-            ratio  = z / old_z
-            new_sx = int(old_sx * ratio) - anchor_widget_pos.x()
-            new_sy = int(old_sy * ratio) - anchor_widget_pos.y()
-            hb.setValue(max(0, new_sx))
-            vb.setValue(max(0, new_sy))
-
-        self.dp5_canvas.update()
+            sa.horizontalScrollBar().setValue(max(0, int(fx * z * ax) - anchor_widget_pos.x()))
+            sa.verticalScrollBar().setValue(max(0, int(fy * z) - anchor_widget_pos.y()))
+        c.update()
 
     def _center_view_on(self, tx: int, ty: int): #vers 1
         """Pan the scroll area so texture point (tx, ty) sits at the
@@ -12008,15 +12135,25 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                           ctrl, apply_fn=_apply, generate_fn=None)
 
 
-    def _import_bitmap_path(self, path: str): #vers 3
+    def _import_bitmap_path(self, path: str): #vers 7
         """Load an image, auto-reduce to current mode constraints if locked."""
         if not path or not self.dp5_canvas: return
         # Save current canvas state into animation frame before overwriting
         if self._frames:
             self._anim_save_current_frame()
+        self._park_bitmap_view()
         try:
             from PIL import Image
-            img = Image.open(path).convert('RGBA')
+            r = None
+            if path.lower().endswith('.bmp'):            # 1/2/4/8 bit BMP (PIL lacks 2 bit)
+                from apps.methods.indexed_color_import import read_bmp_indexed
+                r = read_bmp_indexed(path)
+            if r:
+                img = Image.frombytes('P', (r[0], r[1]), r[4])
+                img.putpalette([v for c in r[3] for v in c])
+                img = img.convert('RGBA')
+            else:
+                img = Image.open(path).convert('RGBA')
             w, h = img.size
 
             mode = getattr(self, '_canvas_mode', 'free')
@@ -12132,8 +12269,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._bitmap_list.append({'name': name, 'rgba': new_rgba, 'w': w, 'h': h})
             self._bitmap_lw.addItem(name)
             self._bitmap_lw.setCurrentRow(len(self._bitmap_list)-1)
+            src = self._remember_indexed_source(path)
+            if self._bitmap_list:
+                self._bitmap_list[-1]['source'] = src     # each loaded image keeps its own
+            if src and src['palette'] and not (locked and mode == 'platform'):
+                self.pal_bar.set_palette_raw(src['palette'])    # the file's own colours
+            self._doc_mark_opened(path)
 
-            self._set_status(f"Opened: {name}  {w}×{h}  zoom {self.dp5_canvas.zoom:.2f}×")
+            self._set_status(f"Opened: {name}  {w}×{h}  zoom {self.dp5_canvas.zoom:.2f}×"
+                             + (f"  {src['bpp']}-bit" + (f", {len(src['palette'])} colours" if src['palette'] else "")
+                                if src else ""))
         except Exception as e:
             QMessageBox.warning(self, "Open Error", str(e))
 
@@ -12983,6 +13128,102 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "IFF Export Error", str(e))
 
 
+    def _remember_indexed_source(self, path: str): #vers 2
+        """Keep a BMP / IFF's bit depth, size and (indexed) palette for Save Back."""
+        import struct
+        self._indexed_source = None
+        low = path.lower()
+        if low.endswith('.bmp'):
+            from apps.methods.indexed_color_import import read_bmp_indexed
+            with open(path, 'rb') as f:
+                head = f.read(30)
+            if head[:2] != b'BM':
+                return None
+            r = read_bmp_indexed(path)
+            if r:
+                w, h, bpp, pal, _px = r
+            else:                                       # 16/24/32 bit: depth and size only
+                w, h = struct.unpack_from('<ii', head, 18)
+                w, h, bpp, pal = w, abs(h), struct.unpack_from('<H', head, 28)[0], None
+            self._indexed_source = {'path': path, 'kind': 'bmp', 'bpp': bpp, 'palette': pal, 'w': w, 'h': h}
+        elif low.endswith(('.iff', '.lbm', '.ilbm')):
+            from apps.methods.iff_ilbm import read_iff_ilbm, find_chunk
+            data = open(path, 'rb').read()
+            r = read_iff_ilbm(data)
+            planes = find_chunk(data, b'BMHD')[8]
+            if r:
+                w, h, pal, _px = r
+                indexed = planes <= 8 and bool(pal)
+                self._indexed_source = {'path': path, 'kind': 'iff', 'bpp': planes,
+                                        'palette': list(pal)[:1 << planes] if indexed else None, 'w': w, 'h': h}
+        return self._indexed_source
+
+    def _fill_save_back_menu(self, menu): #vers 1
+        """One Save Back entry, or one per loaded image that came from a BMP / IFF."""
+        menu.clear()
+        loaded = [(i, bm) for i, bm in enumerate(self._bitmap_list) if bm.get('source')]
+        if len(loaded) > 1:
+            for i, bm in loaded:
+                menu.addAction(f"Save Back: {bm['name']}  ({bm['w']}x{bm['h']}, {bm['source']['bpp']}-bit)",
+                               lambda _c=False, k=i: self._save_back_indexed(k))
+        else:
+            menu.addAction("Save Back...", self._save_back_indexed)
+
+    def _save_back_indexed(self, index=None): #vers 3
+        """Save the canvas (or loaded image index) as BMP or IFF keeping its file's depth, size and palette."""
+        if index is not None:
+            bm = self._bitmap_list[index]
+            src, w, h, rgba = bm.get('source'), bm['w'], bm['h'], bm['rgba']
+        else:
+            src = getattr(self, '_indexed_source', None)
+            w, h = self._canvas_width, self._canvas_height
+            rgba = self.dp5_canvas.rgba if self.dp5_canvas else None
+        if rgba is None or not src:
+            QMessageBox.information(self, "Save Back",
+                "Open a BMP or IFF first (its bit depth, size and colours are kept).")
+            return
+        if (w, h) != (src['w'], src['h']):
+            QMessageBox.warning(self, "Save Back",
+                f"Canvas is {w}x{h}; the original is {src['w']}x{src['h']}. Resize the canvas first.")
+            return
+        flt = "BMP (*.bmp);;IFF ILBM (*.iff)" if src['kind'] == 'bmp' else "IFF ILBM (*.iff);;BMP (*.bmp)"
+        path, chosen = QFileDialog.getSaveFileName(self, "Save Back", src['path'], flt)
+        if not path:
+            return
+        try:
+            from apps.methods.indexed_color_import import nearest_indices, write_bmp_indexed
+            from apps.methods.file_backup import backup_file
+            pal, bpp = src['palette'], src['bpp']
+            as_bmp = path.lower().endswith('.bmp') or (chosen.startswith("BMP") and not path.lower().endswith('.iff'))
+            if as_bmp and not path.lower().endswith('.bmp'):
+                path += '.bmp'
+            if not as_bmp and not path.lower().endswith(('.iff', '.lbm', '.ilbm')):
+                path += '.iff'
+            if os.path.exists(path):
+                backup_file(path)
+            rgba = bytes(rgba)
+            if pal:
+                px = nearest_indices(rgba, pal)
+                if as_bmp:
+                    write_bmp_indexed(path, w, h, px, pal, bpp)
+                else:
+                    from apps.methods.iff_ilbm import write_iff_ilbm
+                    open(path, 'wb').write(write_iff_ilbm(w, h, pal, px, n_planes=max(1, bpp)))
+                note = f"{bpp}-bit, {len(pal)} colours"
+            elif as_bmp:
+                from PIL import Image
+                img = Image.frombytes('RGBA', (w, h), rgba)
+                (img if bpp == 32 else img.convert('RGB')).save(path, 'BMP')
+                note = f"{32 if bpp == 32 else 24}-bit"
+            else:
+                from apps.methods.iff_ilbm import write_iff_24bit
+                open(path, 'wb').write(write_iff_24bit(rgba, w, h))
+                note = "24-bit"
+            self._set_status(f"Saved {os.path.basename(path)}: {w}x{h}, {note}")
+        except Exception as e:
+            QMessageBox.warning(self, "Save Back", str(e))
+
+
     def _export_iff_ham(self): #vers 2
         """Export Amiga IFF ILBM in HAM6 mode (6 bitplanes, CAMG=0x800)."""
         if not self.dp5_canvas: return
@@ -13482,9 +13723,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Art Studio Import Error", str(e))
 
 
-    def _load_rgba(self, rgba: bytearray, w: int, h: int, name: str = ""): #vers 2
+    def _load_rgba(self, rgba: bytearray, w: int, h: int, name: str = ""): #vers 3
         """Load raw RGBA data into canvas, update palette, fit zoom."""
         if not self.dp5_canvas: return
+        if name:
+            self._park_bitmap_view()
         self._canvas_width = w; self._canvas_height = h
         self.dp5_canvas.tex_w = w; self.dp5_canvas.tex_h = h
         self.dp5_canvas.rgba = rgba
@@ -14003,7 +14246,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Extended format imports / exports                                      
 
-    def _import_iff(self, path: str = None): #vers 3
+    def _import_iff(self, path: str = None): #vers 6
         """Import Amiga IFF ILBM — supports 8-bit indexed, 24-bit true colour,
         HAM6/HAM8, with or without palette, PackBits or uncompressed BODY."""
         if not path:
@@ -14025,6 +14268,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 bmhd = self._iff_find_chunk(data, b'BMHD')
                 w, h = struct.unpack_from('>HH', bmhd)
             self._load_rgba(rgba, w, h, os.path.basename(path))
+            src = self._remember_indexed_source(path)
+            if self._bitmap_list:
+                self._bitmap_list[-1]['source'] = src     # each loaded image keeps its own
+            if src and src['palette']:
+                self.pal_bar.set_palette_raw(src['palette'])
+            self._doc_mark_opened(path)
         except Exception as e:
             QMessageBox.warning(self, "IFF Import Error", str(e))
 
@@ -15730,22 +15979,20 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         else:
             event.ignore()
 
-    def dropEvent(self, event): #vers 1
-        """Load the first recognised image file dropped onto the workshop -
-        anywhere on the window, not just the canvas, so dropping onto a
-        dock/ribbon still works."""
+    def dropEvent(self, event): #vers 2
+        """Load every recognised image dropped anywhere on the window: the first into
+        the current canvas (a new tab if it holds a file), the rest each in a new tab."""
         if not event.mimeData().hasUrls():
             event.ignore()
             return
-        for url in event.mimeData().urls():
-            if not url.isLocalFile():
-                continue
-            path = url.toLocalFile()
-            if self._is_importable_ext(path):
-                event.acceptProposedAction()
-                self._import_dropped_file(path)
-                return
-        event.ignore()
+        paths = [u.toLocalFile() for u in event.mimeData().urls()
+                 if u.isLocalFile() and self._is_importable_ext(u.toLocalFile())]
+        if not paths:
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        for path in paths:
+            self._open_new_doc(path)
 
     def _is_importable_ext(self, path: str) -> bool: #vers 1
         """Extensions _import_dropped_file knows how to dispatch."""
@@ -15755,7 +16002,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                        '.pcx', '.dds', '.psd', '.psb',
                        '.iff', '.lbm', '.ilbm')
 
-    def _import_dropped_file(self, path: str): #vers 2
+    def _import_dropped_file(self, path: str): #vers 3
         """Dispatch a dropped file to whichever importer handles its
         format best - the same specialised importers the Import menu
         uses (TIFF page handling, animated GIF frames, IFF ILBM decoding,
@@ -15779,6 +16026,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         }
         importer = dispatch.get(ext, self._import_bitmap)
         importer(path)
+        self._doc_mark_opened(path)
 
         if (getattr(self, '_mode_locked', False) and
                 getattr(self, '_canvas_mode', 'free') == 'platform'):

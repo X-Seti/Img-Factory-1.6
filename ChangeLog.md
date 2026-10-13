@@ -1,5 +1,20 @@
-#this belongs in root /ChangeLog.md - Version: 259
+#this belongs in root /ChangeLog.md - Version: 260
 
+
+## Oct 13 2026 - Standalone repos synced
+- 14 standalone repos: shared files updated from main, missing modules added; all launch. Paths/Zon radar_workshop.py base restored.
+
+## Oct 13 2026 - Standalone builds
+- workshops.spec + tools/build_workshops.sh: PyInstaller builds of Map, Model, Radar, Water workshops (dist/<Name>Workshop, icons copied beside exe). Tested on Linux.
+
+## Oct 13 2026 - Model / COL Workshop gizmo
+- DP5: wheel zoom keeps the pixel under the cursor (centred canvas offset handled).
+- Mesh gizmo: cone arrows, X/Y/Z labels, centre dot (Model/Vehicle viewports).
+- Model face moves: Faces chip Connected/Detach/Extrude.
+- Face move mode: ribbon toggles synced with viewport chip and quad panes.
+- UV Map dialog: box/planar projection, fit 0-1, scale, rotate, offset.
+- Fill Hole works across DFF UV seams.
+- Detached faces drawn orange; Detached Parts dock (float, stay-on-top pin, select, reattach) in Model and COL workshops; auto-refreshes.
 
 ## Oct 12 2026 - Radar Workshop
 - Mixed tile sizes (LCS 128/256) handled everywhere: render modes, undo, draw tools, checkerboard fill, export/import sheet. Sheet export keeps alpha.
@@ -12,12 +27,58 @@
 ## TODO (next session, from Oct 12 2026)
 - Radar Workshop: PC radar writer always DXT1.
 - Emojis in Model Workshop log/print strings (~280): Keith removing.
-- DFF save: rebuild with SA night colours / skin; console, MDL, NIF, WDR save back.
+- Rebuilt MDL/WDR/WFT meshes untested in game; skinned MDL rebuild (face/vertex changes on peds) to do. DFF save: SA night colours / skin rebuild.
 - Map Workshop: Bully world (.ipb placements, Bully dat). 1 of 1118 Bully NFT fails.
 - Format audit: TXD/Model/COL Workshops open every format.
-- Map Workshop: water object editing with vertical depth gauge (Water Workshop done). SA_Realisted tearing (which folder?).
+- Map Workshop: water object editing (gauge shown, editing to do). Path Workshop: draw path nodes (paint_paths needs world_to_screen).
 - methods/txd_platform_pc.py unused, duplicate of txd_reader: suggest removal.
 - Staging rule: copy files to a new outputs/cNNNNNN folder per commit (same name sends stale cache).
+
+## Oct 13 2026 - DP5 / TXD file tabs
+- DP5 Save Back: any BMP (1-32 bit) or IFF keeps depth and size; dropped files register too. Title bar file tabs drop-down drives the canvas tabs.
+- TXD Workshop: title bar file tabs drop-down (switch, open in new tab, close), same as COL / Model Workshop.
+- DP5: each image (bitmap list and canvas tabs) keeps its own zoom and scroll; switching resizes the canvas to that image.
+- DP5: mouse wheel zooms without Ctrl (Shift+wheel scrolls); dropping several images opens each in its own tab.
+- DP5 Save Back: each loaded image keeps its own depth / size info; with several images the menu lists Save Back per image.
+
+## Oct 13 2026 - Detached faces / mesh tools parity
+- COL Workshop: detached faces (parts not joined to the main mesh) drawn with orange edges. col_mesh_ops.detached_faces.
+- Model Workshop: Position / Move dialog (absolute XYZ or relative), Show Vertices toggle, Mirror on the Mesh Edit ribbon.
+
+## Oct 13 2026 - Model Workshop mesh tools
+- dff_viewport: face picking fixed (ray hit distance used e1 not e2), clicks and hover now hit faces.
+- Edit modes: hover highlight; gizmo Move G / Rotate R / Scale S (rings, scale bars, centre = uniform), chip top right.
+- Render chip [V] cycles wire/solid/semi/textured; Shift+V wire hint over shaded models; face/vertex counts bottom left.
+
+## Oct 13 2026 - COL search / DP5 save back
+- COL Workshop: mag glass button on the collisions list; filters detail and compact views by name, kept after tab switch / reload.
+- DP5 Workshop: indexed BMP (1/2/4/8 bit) and IFF keep palette, depth, size; File > Save Back writes BMP or IFF with them. indexed_color_import: read/write_bmp_indexed.
+
+## Oct 13 2026 - Map viewport gauge / zoom
+- Map Workshop: viewport gauge (middle left/right, right-click to move/hide): water depth when water shown, drag sets water Z offset; radar height colours when radar on.
+- Radar and Water Workshop: zoom limit scales with grid size (SOL / IV zoom in further); Water zoom now works on grids wider than the view.
+
+## Oct 13 2026 - Water / Radar bugs
+- SOL waterpro: tiles were laid out wrong (tile order vs cell order). Water Workshop and Map Workshop now match SOL Water Editor (north up).
+- Water Workshop: undo/redo and BMP import/export used the wrong grid per tab; fixed. Only files named *water* open.
+- Water grid depth gauge now the Depth ribbon (drag picks paint level); in-canvas gauge removed. Header method list added.
+- Radar Workshop: empty grid slots show a dimmed checkerboard. dX/dY/Apply on one row; Colour/B&W/Col>Alpha icon buttons.
+- ribbon_side_toolbar v2: gauges and palette turn horizontal in top/bottom ribbons (Radar, Water, Map depth gauge).
+
+## Oct 13 2026 - Model save as / batch convert
+- nif_model.write_nif_model: NIF edits saved back (untouched shapes byte-identical, same counts patched, changed meshes rebuilt).
+- methods/model_convert.py: any model (DFF/MDL/WDR/WFT/NIF/OBJ) save as DFF III/VC/SA or OBJ. gui/batch_convert_dialog.py: source dir to dest dir. OBJ opens as a model.
+- txd_reader.read_texture_file v3: Stories CHK/XTX detected by xet magic; textures load in Model Workshop.
+- stories_mdl.write_stories_mdl: LCS/VCS PS2/PSP .mdl edits saved back; changed meshes rebuilt (new strips appended, relocations updated). lcs_geometry: V4-5 colour unpack size fixed.
+- wdr_model.write_wdr_model: GTA IV .wdr/.wft edits saved back; same counts patched, changed meshes appended to physical segment, bounds updated.
+- stories_mdl: ped MDLs (skinned, LCS/VCS PS2/PSP) open in bind pose; vertex edits save back.
+
+## Oct 13 2026 - Path Workshop / gauges
+- Model Workshop: V/E/F/P select never enabled (wrong attr names), mesh editing unreachable. Fixed; Object Select, "Ed" Edit Model button, "Edit Mode" viewport banner.
+- Path Workshop stripped to radar loading (IMG/TXD or whole-map image), view, path node tool. 5259 to 2600 lines; open_path_workshop added.
+- Radar Workshop: palette + height gauge as 26px right ribbons; blank view on start repainted.
+- Water Workshop / Map Workshop: depth gauge ribbons; water shaded by Z on the same scale (ui_color.water_depth_rgb, depth_range).
+- Map Workshop radar generation offers to load all IPLs, hides old radar while capturing, then offers Radar Workshop.
 
 ## Oct 12 2026 - Water Workshop objects
 - Water Objects tab for SA/IV quads+triangles and III/VC rects: select, box select, drag corners/objects, add, delete, snap, Z gauge, undo. VC rect translate fixed.

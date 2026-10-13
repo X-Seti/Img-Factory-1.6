@@ -1,4 +1,4 @@
-#this belongs in gui/col_workshop_dialogs.py - Version: 1
+#this belongs in gui/col_workshop_dialogs.py - Version: 3
 # X-Seti - December18 2025 - Col Workshop - Loading Dialogs
 """
 COL Workshop Dialogs - Progress and error dialogs for loading
@@ -6,7 +6,8 @@ COL Workshop Dialogs - Progress and error dialogs for loading
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QProgressBar, QTextEdit, QListWidget
+    QPushButton, QProgressBar, QTextEdit, QListWidget,
+    QDockWidget, QToolButton, QWidget
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
@@ -14,6 +15,10 @@ from PyQt6.QtGui import QFont, QColor
 ##Classes -
 # COLLoadErrorDialog
 # COLLoadProgressDialog
+# DetachedPartsDock (__init__, _apply_on_top, _build_title_bar, _refresh, _reattach,
+#                    _reattach_all, _selected, _set_on_top)
+##Functions -
+# show_detached_parts_dock
 
 class COLLoadProgressDialog(QDialog): #vers 1
     """Progress dialog for COL file loading"""
@@ -188,3 +193,127 @@ class COLLoadErrorDialog(QDialog): #vers 1
 
 
 __all__ = ['COLLoadProgressDialog', 'COLLoadErrorDialog']
+
+
+class DetachedPartsDock(QDockWidget): #vers 1
+    """Detached parts dock (COL / Model Workshop): click selects, Reattach joins back.
+    parts_fn() -> [(label, face_ids)]; select_fn(face_ids); reattach_fn(face_ids)."""
+
+    def __init__(self, parent, parts_fn, select_fn, reattach_fn, icon_color=None): #vers 1
+        super().__init__("Detached Parts", parent)
+        self.setObjectName("Detached Parts")
+        self.setMinimumWidth(220)
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                         QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+                         QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self._parts_fn, self._select_fn, self._reattach_fn = parts_fn, select_fn, reattach_fn
+        self._on_top = False
+        body = QWidget()
+        lay = QVBoxLayout(body)
+        lay.setContentsMargins(4, 4, 4, 4)
+        self._list = QListWidget()
+        self._list.currentRowChanged.connect(lambda r: self._select_fn(self._parts[r][1])
+                                             if 0 <= r < len(self._parts) else None)
+        lay.addWidget(self._list)
+        row = QHBoxLayout()
+        for text, slot in (("Reattach", self._reattach), ("Reattach All", self._reattach_all),
+                           ("Refresh", self._refresh)):
+            b = QPushButton(text)
+            b.clicked.connect(slot)
+            row.addWidget(b)
+        lay.addLayout(row)
+        self.setWidget(body)
+        self._build_title_bar(icon_color)
+        self.topLevelChanged.connect(self._apply_on_top)
+        self._refresh()
+
+    def _build_title_bar(self, icon_color): #vers 1
+        """Title, stay-on-top pin, float toggle, close; double-click collapses."""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory, get_pin_icon
+        bar = QWidget()
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(6, 2, 2, 2)
+        lay.setSpacing(2)
+        lbl = QLabel("Detached Parts")
+        font = getattr(self.parent(), 'section_title_font', None)
+        if font is not None:
+            lbl.setFont(font)
+        lay.addWidget(lbl)
+        lay.addStretch()
+        self._pin_btn = QToolButton()
+        self._pin_btn.setIcon(get_pin_icon(16, icon_color))
+        self._pin_btn.setCheckable(True)
+        self._pin_btn.setAutoRaise(True)
+        self._pin_btn.setToolTip("Stay on top (when floating)")
+        self._pin_btn.toggled.connect(self._set_on_top)
+        float_btn = QToolButton()
+        float_btn.setIcon(SVGIconFactory.get_tearoff_icon(16, icon_color))
+        float_btn.setAutoRaise(True)
+        float_btn.setToolTip("Float / dock")
+        float_btn.clicked.connect(lambda: self.setFloating(not self.isFloating()))
+        close_btn = QToolButton()
+        close_btn.setIcon(SVGIconFactory.close_icon(16, icon_color))
+        close_btn.setAutoRaise(True)
+        close_btn.setToolTip("Close")
+        close_btn.clicked.connect(self.close)
+        for b in (self._pin_btn, float_btn, close_btn):
+            b.setFixedSize(20, 20)
+            lay.addWidget(b)
+
+        def _dbl_click(event):
+            body = self.widget()
+            if body:
+                body.setVisible(not body.isVisible())
+        bar.mouseDoubleClickEvent = _dbl_click
+        lbl.mouseDoubleClickEvent = _dbl_click
+        self.setTitleBarWidget(bar)
+
+    def _set_on_top(self, on): #vers 1
+        self._on_top = bool(on)
+        self._apply_on_top(self.isFloating())
+
+    def _apply_on_top(self, floating): #vers 1
+        """Stay-on-top flag only applies to the floating window."""
+        if not floating:
+            return
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, self._on_top)
+        self.show()
+
+    def _refresh(self): #vers 1
+        self._parts = list(self._parts_fn())
+        self._list.blockSignals(True)
+        self._list.clear()
+        for label, faces in self._parts:
+            self._list.addItem(f"{label}  ({len(faces)} faces)")
+        self._list.blockSignals(False)
+        if not self._parts:
+            self._list.addItem("No detached parts")
+
+    def _selected(self): #vers 1
+        r = self._list.currentRow()
+        return self._parts[r][1] if 0 <= r < len(self._parts) else None
+
+    def _reattach(self): #vers 1
+        faces = self._selected()
+        if faces:
+            self._reattach_fn(faces)
+            self._refresh()
+
+    def _reattach_all(self): #vers 1
+        for _label, faces in list(self._parts):
+            self._reattach_fn(faces)
+            self._refresh()
+            if not self._parts:
+                break
+
+
+def show_detached_parts_dock(owner, main_window, parts_fn, select_fn, reattach_fn, icon_color=None): #vers 1
+    """Create once on owner._detached_dock, dock right of main_window, refresh, show."""
+    dock = getattr(owner, '_detached_dock', None)
+    if dock is None:
+        dock = owner._detached_dock = DetachedPartsDock(owner, parts_fn, select_fn,
+                                                        reattach_fn, icon_color)
+        main_window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+    dock._refresh()
+    dock.show(); dock.raise_()
+    return dock

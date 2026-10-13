@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 5
+#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 6
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop file logic
 
 """
@@ -7,6 +7,7 @@ Open, import, export, save, IDE/IMG links and COL data for ModelWorkshop.
 
 ##class ModelCoreLogicMixin: -
 # _analyze_collision
+# _batch_convert
 # _convert_surface
 # _copy_surface
 # _create_new_surface
@@ -71,6 +72,8 @@ Open, import, export, save, IDE/IMG links and COL data for ModelWorkshop.
 # save_col_file
 # _save_file
 # _save_file_as
+# _save_in_place
+# _save_model_as
 # _saveall_file
 # _show_dff
 # _show_shadow_mesh
@@ -489,39 +492,20 @@ class ModelCoreLogicMixin: #vers 1
                 f"Import of {ext.upper()} format is not yet implemented.\n"
                 f"Supported: OBJ")
 
-    def _import_obj(self, path: str): #vers 3
-        """Import Wavefront OBJ as a new DFF geometry."""
-        from PyQt6.QtWidgets import QMessageBox
-        verts, uvs, normals, faces = [], [], [], []
+    def _import_obj(self, path: str): #vers 4
+        """Open a Wavefront OBJ as a model (one geometry per object / group)."""
+        from apps.methods.model_convert import obj_to_model
         try:
-            with open(path, 'r', errors='replace') as fh:
-                for line in fh:
-                    t = line.split()
-                    if not t: continue
-                    if t[0] == 'v'  and len(t) >= 4:
-                        verts.append((float(t[1]), float(t[2]), float(t[3])))
-                    elif t[0] == 'vt' and len(t) >= 3:
-                        uvs.append((float(t[1]), float(t[2])))
-                    elif t[0] == 'vn' and len(t) >= 4:
-                        normals.append((float(t[1]), float(t[2]), float(t[3])))
-                    elif t[0] == 'f'  and len(t) >= 4:
-                        def _idx(s): return int(s.split('/')[0]) - 1  #vers 1
-                        faces.append((_idx(t[1]), _idx(t[2]), _idx(t[3])))
+            model = obj_to_model(path)
         except Exception as e:
             QMessageBox.critical(self, "OBJ Import Error", str(e))
             return
-        if not verts or not faces:
+        if model is None:
             QMessageBox.warning(self, "OBJ Import", "No geometry found in OBJ file.")
             return
-        # Build a minimal DFF geometry and add to current model or create new
-        fname = os.path.basename(path)
-        self._set_status(f"OBJ imported: {fname} ({len(verts)} verts, {len(faces)} faces)")
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(
-                f"Imported OBJ: {fname} — {len(verts)} vertices, {len(faces)} faces")
-        QMessageBox.information(self, "OBJ Import",
-            f"Imported: {fname}\n{len(verts)} vertices, {len(faces)} faces\n"
-            f"Note: OBJ geometry loaded as preview. DFF write-back in next session.")
+        self.current_col_file = None
+        self._show_dff(path, model)
+        self._set_status(f"OBJ opened: {os.path.basename(path)} - Save As to write DFF")
 
     def _export_model_menu(self): #vers 2
         """Show export format menu — DFF geometry + COL + other formats."""
@@ -587,7 +571,7 @@ class ModelCoreLogicMixin: #vers 1
         def _pick_dff():  #vers 1
             p, _ = QFileDialog.getOpenFileName(
                 dlg, "Open Model", start_dir,
-                "Models (*.dff *.mdl *.wdr *.wft *.nif);;DFF Models (*.dff);;All Files (*)")
+                "Models (*.dff *.mdl *.wdr *.wft *.nif *.obj);;DFF Models (*.dff);;All Files (*)")
             if p:
                 dff_edit.setText(p)
                 setattr(self, _settings_key, os.path.dirname(p))
@@ -640,7 +624,7 @@ class ModelCoreLogicMixin: #vers 1
 
 
     _DOC_KIND = "Model"
-    _DOC_FILTER = ("Model/Collision/Texture Files (*.dff *.mdl *.wdr *.wft *.nif *.col *.txd *.wtd *.nft *.chk *.xtx *.img);;"
+    _DOC_FILTER = ("Model/Collision/Texture Files (*.dff *.mdl *.wdr *.wft *.nif *.obj *.col *.txd *.wtd *.nft *.chk *.xtx *.img);;"
                    "Models (*.dff *.mdl *.wdr *.wft *.nif);;COL Files (*.col);;TXD Files (*.txd);;IMG Archives (*.img);;"
                    "All Files (*)")
 
@@ -651,12 +635,14 @@ class ModelCoreLogicMixin: #vers 1
         if file_path:
             self._open_path(file_path)
 
-    def _open_path(self, file_path): #vers 1
+    def _open_path(self, file_path): #vers 2
         """Open one model, COL, TXD or IMG path (dialog and drag & drop)."""
         try:
             ext = os.path.splitext(file_path)[1].lower()
             from apps.methods.dff_parser import MODEL_EXTS
-            if ext in MODEL_EXTS:
+            if ext == '.obj':
+                self._import_obj(file_path)
+            elif ext in MODEL_EXTS:
                 self.open_dff_file(file_path)
                 # Matching TXD into this scene: IDE name, same folder or open IMGs
                 self._auto_load_txd_from_imgs()
@@ -674,6 +660,63 @@ class ModelCoreLogicMixin: #vers 1
         except Exception as e:
             print(f"Error opening file: {str(e)}")
             QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
+
+    def _save_model_as(self): #vers 2
+        """Save the open model as DFF (III / VC / SA) or OBJ."""
+        from apps.methods.model_convert import CONVERT_TARGETS, TARGETS, save_model
+        model = getattr(self, '_current_dff_model', None)
+        if model is None:
+            QMessageBox.warning(self, "Save As", "Open a model first.")
+            return
+        src = getattr(self, '_current_dff_path', '') or ''
+        base = os.path.splitext(src)[0] if src else os.path.join(os.path.expanduser('~'), 'model')
+        filters = [f"{lab} (*{'.obj' if TARGETS[lab][0] == 'obj' else '.dff'})" for lab in CONVERT_TARGETS]
+        path, chosen = QFileDialog.getSaveFileName(self, "Save Model As", base + ".dff", ";;".join(filters))
+        if not path:
+            return
+        label = chosen.rsplit(' (', 1)[0] if chosen else CONVERT_TARGETS[0]
+        ext = '.obj' if TARGETS[label][0] == 'obj' else '.dff'
+        if not path.lower().endswith(ext):
+            path += ext
+        try:
+            from apps.methods.file_backup import backup_file
+            if os.path.exists(path):
+                backup_file(path)
+            report = save_model(model, path, label)
+        except Exception as e:
+            QMessageBox.critical(self, "Save As", f"{os.path.basename(path)}:\n{e}")
+            return
+        if ext == '.dff' and TARGETS[label][1] == 0x36003 and not src.lower().endswith('.dff'):
+            self._current_dff_path = path                 # now a DFF: Save writes here
+            model.source_path, model.raw = path, None
+        failed = [r for r in report if r.startswith("not written")]
+        self._set_status(f"Saved {os.path.basename(path)} as {label}")
+        if failed:
+            QMessageBox.information(self, "Save As", "Saved. Not written:\n\n" + "\n".join(failed))
+
+    def _save_in_place(self, model, path): #vers 3
+        """Write edits back into the open .nif / .mdl / .wdr / .wft (backup first)."""
+        from apps.methods.model_convert import TARGETS, save_model
+        from apps.methods.file_backup import backup_file
+        kind = os.path.splitext(path)[1].lower()[1:]
+        title = f"Save {kind.upper()}"
+        try:
+            backup_file(path)
+            report = save_model(model, path, next(lab for lab, (k, _v) in TARGETS.items() if k == kind))
+        except Exception as e:
+            QMessageBox.critical(self, title, f"{os.path.basename(path)}:\n{e}")
+            return
+        self._mesh_dirty = False
+        failed = [r for r in report if r.startswith("not written")]
+        self._set_status(f"Saved {os.path.basename(path)}: " + ("; ".join(r for r in report if not r.startswith('not')) or "no changes"))
+        if failed:
+            QMessageBox.information(self, title, "Saved. Not written:\n\n" + "\n".join(failed))
+
+    def _batch_convert(self): #vers 1
+        """Batch convert a folder of models (source dir -> dest dir)."""
+        from apps.gui.batch_convert_dialog import open_batch_convert
+        src = os.path.dirname(getattr(self, '_current_dff_path', '') or '')
+        open_batch_convert(self, src)
 
     #    File tab hooks for DocTabsMixin (apps/methods/doc_tabs.py)
 
@@ -1078,141 +1121,24 @@ class ModelCoreLogicMixin: #vers 1
             QMessageBox.critical(self, "DFF Error", f"Failed to open DFF:\n{e}")
 
 
-    def _export_dff_obj(self): #vers 1
-        """Export the currently loaded DFF model to Wavefront OBJ + MTL."""
+    def _export_dff_obj(self): #vers 2
+        """Export the open model to Wavefront OBJ + MTL."""
+        from apps.methods.model_convert import model_to_obj
         model = getattr(self, '_current_dff_model', None)
         if not model or not model.geometries:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "No Model", "Open a DFF file first.")
+            QMessageBox.warning(self, "No Model", "Open a model first.")
             return
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox
-        import os
-
-        base_name = os.path.splitext(
-            os.path.basename(getattr(self, '_current_dff_path', 'model.dff'))
-        )[0]
-        out_path, _ = QFileDialog.getSaveFileName(
-            self, "Export OBJ", base_name + ".obj",
-            "Wavefront OBJ (*.obj);;All Files (*)")
+        base = os.path.splitext(os.path.basename(getattr(self, '_current_dff_path', '') or 'model.dff'))[0]
+        out_path, _ = QFileDialog.getSaveFileName(self, "Export OBJ", base + ".obj",
+                                                  "Wavefront OBJ (*.obj);;All Files (*)")
         if not out_path:
             return
-
-        mtl_path = os.path.splitext(out_path)[0] + ".mtl"
-        mtl_name = os.path.basename(mtl_path)
-
         try:
-            lines_obj = [
-                f"# Exported by {App_name}",
-                f"# Source: {getattr(self, '_current_dff_path', 'unknown')}",
-                f"mtllib {mtl_name}",
-                "",
-            ]
-            lines_mtl = [f"# Material library — {App_name}", ""]
-
-            vertex_offset = 1   # OBJ is 1-indexed
-            uv_offset     = 1
-
-            for geom_idx, geom in enumerate(model.geometries):
-                # Find frame name via atomics
-                atomic = next(
-                    (a for a in model.atomics if a.geometry_index == geom_idx), None)
-                frame_name = (model.get_frame_name(atomic.frame_index)
-                              if atomic else f"geometry_{geom_idx}")
-                safe_name = frame_name.replace(' ', '_').replace('/', '_')
-
-                lines_obj.append(f"o {safe_name}")
-
-                # Vertices
-                for v in geom.vertices:
-                    lines_obj.append(f"v {v.x:.6f} {v.y:.6f} {v.z:.6f}")
-
-                # Normals
-                has_normals = bool(geom.normals)
-                if has_normals:
-                    for n in geom.normals:
-                        lines_obj.append(f"vn {n.x:.6f} {n.y:.6f} {n.z:.6f}")
-
-                # UV coordinates (first layer only)
-                has_uvs = bool(geom.uv_layers)
-                if has_uvs:
-                    for uv in geom.uv_layers[0]:
-                        lines_obj.append(f"vt {uv.u:.6f} {uv.v:.6f}")
-
-                # Materials
-                for mat_idx, mat in enumerate(geom.materials):
-                    mat_id = f"{safe_name}_mat{mat_idx}"
-                    lines_mtl.append(f"newmtl {mat_id}")
-                    r = mat.color.r / 255.0
-                    g = mat.color.g / 255.0
-                    b = mat.color.b / 255.0
-                    lines_mtl.append(f"Kd {r:.4f} {g:.4f} {b:.4f}")
-                    lines_mtl.append(f"Ka {mat.ambient:.4f} {mat.ambient:.4f} {mat.ambient:.4f}")
-                    lines_mtl.append(f"Ks {mat.specular:.4f} {mat.specular:.4f} {mat.specular:.4f}")
-                    lines_mtl.append(f"d 1.0")
-                    if mat.texture_name:
-                        lines_mtl.append(f"map_Kd {mat.texture_name}.png")
-                    lines_mtl.append("")
-
-                # Faces — grouped by material
-                tris_by_mat = {}
-                for tri in geom.triangles:
-                    tris_by_mat.setdefault(tri.material_id, []).append(tri)
-
-                for mat_id_idx, tris in sorted(tris_by_mat.items()):
-                    if geom.materials and mat_id_idx < len(geom.materials):
-                        mat_obj_name = f"{safe_name}_mat{mat_id_idx}"
-                        lines_obj.append(f"usemtl {mat_obj_name}")
-                    else:
-                        lines_obj.append("usemtl default")
-
-                    for tri in tris:
-                        v1 = tri.v1 + vertex_offset
-                        v2 = tri.v2 + vertex_offset
-                        v3 = tri.v3 + vertex_offset
-                        if has_uvs and has_normals:
-                            uv1 = tri.v1 + uv_offset
-                            uv2 = tri.v2 + uv_offset
-                            uv3 = tri.v3 + uv_offset
-                            lines_obj.append(
-                                f"f {v1}/{uv1}/{v1} {v2}/{uv2}/{v2} {v3}/{uv3}/{v3}")
-                        elif has_uvs:
-                            uv1 = tri.v1 + uv_offset
-                            uv2 = tri.v2 + uv_offset
-                            uv3 = tri.v3 + uv_offset
-                            lines_obj.append(
-                                f"f {v1}/{uv1} {v2}/{uv2} {v3}/{uv3}")
-                        elif has_normals:
-                            lines_obj.append(
-                                f"f {v1}//{v1} {v2}//{v2} {v3}//{v3}")
-                        else:
-                            lines_obj.append(f"f {v1} {v2} {v3}")
-
-                vertex_offset += len(geom.vertices)
-                if has_uvs:
-                    uv_offset += len(geom.uv_layers[0])
-                lines_obj.append("")
-
-            # Write files
-            with open(out_path, 'w') as f:
-                f.write("\n".join(lines_obj))
-            with open(mtl_path, 'w') as f:
-                f.write("\n".join(lines_mtl))
-
-            total_v = sum(len(g.vertices) for g in model.geometries)
-            total_f = sum(len(g.triangles) for g in model.geometries)
-            QMessageBox.information(
-                self, "OBJ Exported",
-                f"Exported {len(model.geometries)} geometr{'y' if len(model.geometries)==1 else 'ies'}\n"
-                f"{total_v:,} vertices  {total_f:,} triangles\n"
-                f"→ {os.path.basename(out_path)}\n"
-                f"→ {os.path.basename(mtl_path)}")
-            self._set_status(
-                f"Exported OBJ: {os.path.basename(out_path)}  "
-                f"({total_v:,}v {total_f:,}f)")
-
+            v, f = model_to_obj(model, out_path)
         except Exception as e:
-            import traceback; traceback.print_exc()
             QMessageBox.critical(self, "OBJ Export Error", str(e))
+            return
+        self._set_status(f"Exported OBJ: {os.path.basename(out_path)}  ({v:,}v {f:,}f)")
 
     # - IDE-linked operations
 
@@ -1501,7 +1427,7 @@ class ModelCoreLogicMixin: #vers 1
         else:
             QMessageBox.warning(self, "Extract Failed", msg)
 
-    def _save_file(self): #vers 5
+    def _save_file(self): #vers 10
         """Save current DFF model. Falls back to Save As if no path set."""
         from PyQt6.QtWidgets import QFileDialog
         dff_model = getattr(self, '_current_dff_model', None)
@@ -1510,14 +1436,13 @@ class ModelCoreLogicMixin: #vers 1
         if not dff_model:
             QMessageBox.warning(self, "Save", "No DFF model loaded to save.")
             return
+        if dff_path.lower().endswith(('.nif', '.mdl', '.wdr', '.wft')):
+            return self._save_in_place(dff_model, dff_path)
+        if dff_path and not dff_path.lower().endswith('.dff'):
+            return self._save_model_as()                # OBJ / other: pick a format
 
         if not dff_path:
-            path, _ = QFileDialog.getSaveFileName(
-                self, "Save DFF", '',
-                "DFF Files (*.dff);;MDL Files (*.mdl);;All Files (*)")
-            if not path:
-                return
-            dff_path = path
+            return self._save_model_as()                # built from scratch: pick format
 
         try:
             from apps.methods.dff_parser import DFFWriter
@@ -1551,8 +1476,10 @@ class ModelCoreLogicMixin: #vers 1
             QMessageBox.critical(self, "Save Error", str(e))
 
 
-    def _save_file_as(self): #vers 1
-        """Save As dialog"""
+    def _save_file_as(self): #vers 2
+        """Save As: model formats when a model is open, else COL."""
+        if getattr(self, '_current_dff_model', None) is not None and not getattr(self, 'current_col_file', None):
+            return self._save_model_as()
         try:
             file_path, _ = QFileDialog.getSaveFileName(
                 self,

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 11
+#this belongs in apps/components/Col_Editor/depends/col_viewport.py - Version: 12
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop 3D viewport
 
 """
@@ -10,6 +10,7 @@ COL 3D Viewport - QPainter preview of collision models.
 # _cycle_render_style
 # _edit_sets
 # _end_gizmo_drag
+# _detached_set
 # _find_workshop
 # fit_to_window
 # flip_horizontal
@@ -958,7 +959,7 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    paint                                                              
-    def paintEvent(self, event):  #vers 8
+    def paintEvent(self, event):  #vers 9
         """Fully self-contained paint — grid, mesh, boxes, spheres, bounds, gizmo, HUD."""
         from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush, QRadialGradient,
                                   QPolygonF, QLinearGradient)
@@ -1051,6 +1052,8 @@ class COL3DViewport(QWidget): #vers 2
         #    Mesh faces                                                     
         rs = self._render_style  # 'wireframe' | 'semi' | 'solid'
         if self._show_mesh and verts and faces:
+            detached = self._detached_set(model)
+            det_pen = QPen(QColor(255, 140, 40), 1.2)        # detached parts: orange edges
             for face_idx, face in enumerate(faces):
                 if face_idx in self._hidden_faces: continue
                 idx = getattr(face,'vertex_indices',None)
@@ -1082,6 +1085,8 @@ class COL3DViewport(QWidget): #vers 2
                 else:  # wireframe
                     p.setBrush(Qt.BrushStyle.NoBrush)
                     p.setPen(QPen(QColor(100,180,100),1))
+                if face_idx in detached and not is_selected:
+                    p.setPen(det_pen)
                 p.drawPolygon(QPolygonF(pts))
 
         #    Face group boxes (COL2/3)
@@ -1629,6 +1634,17 @@ class COL3DViewport(QWidget): #vers 2
         elif chosen == act_paint:
             if ws and hasattr(ws, '_open_paint_editor'):
                 ws._open_paint_editor()
+
+    def _detached_set(self, model): #vers 1
+        """Detached face ids (cached until the faces / vertices change)."""
+        faces = getattr(model, 'faces', None) or []
+        key = (id(model), len(faces), len(getattr(model, 'vertices', []) or []),
+               sum(f.a + 3 * f.b + 7 * f.c for f in faces) if faces and hasattr(faces[0], 'a') else 0)
+        if getattr(self, '_detached_key', None) != key:
+            from apps.methods.col_mesh_ops import detached_faces
+            self._detached_cache = detached_faces(model) if faces and hasattr(faces[0], 'a') else set()
+            self._detached_key = key
+        return self._detached_cache
 
     def _find_workshop(self):  #vers 2
         ref = getattr(self, '_workshop_ref', None)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 245
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 249
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -433,6 +433,8 @@ class MapSettings(QObject):
         # settings, but I'm not sure by how much").
         'water2_height_offset': 0.0,
         'water2_alpha': 0.45,
+        # Viewport gauge overlay: 'left', 'right' or 'off'
+        'viewport_gauge_side': 'right',
         # X/Y offsets (Aug 20 2026,  "6 squares offset on
         # the larger grid, or 14 on the smaller grid") - matches
         # water_workshop.py's own "World coordinate offset" X/Y/Z
@@ -735,6 +737,124 @@ class MapSettings(QObject):
             self._save_timer.start(800)
 
 
+
+
+class _MapWaterDepth: #vers 2
+    """Depth gauge source: water cell heights plus the Z offset; dragging sets the offset."""
+
+    def __init__(self, ws): #vers 1
+        self._ws = ws
+
+    def _cache(self): #vers 2
+        """(distinct heights, range, sea level), recomputed only when the cell list changes."""
+        from apps.methods.ui_color import depth_range
+        vp = getattr(self._ws, 'preview_widget', None)
+        cells = getattr(vp, '_water2_cells', None) or []
+        key = (id(cells), len(cells))
+        if getattr(self, '_key', None) != key:
+            zs = [round(c[4], 2) for c in cells]
+            lo, hi = depth_range(zs)
+            sea = max(set(zs), key=zs.count) if zs else 0.0
+            self._key, self._vals = key, sorted(set(zs))
+            self._rng, self._sea = (lo - 25.0, hi + 25.0), sea   # room to drag the offset
+        return self._vals, self._rng, self._sea
+
+    def _offset(self): #vers 1
+        vp = getattr(self._ws, 'preview_widget', None)
+        return float(getattr(vp, '_water2_height_offset', 0.0) or 0.0)
+
+    def z_values(self): #vers 3
+        off = self._offset()
+        return [z + off for z in self._cache()[0]]
+
+    def z_range(self): #vers 3
+        return self._cache()[1]
+
+    def selected_z(self): #vers 2
+        """Sea level (most common height) with the Z offset; None without water."""
+        vals, _rng, sea = self._cache()
+        return sea + self._offset() if vals else None
+
+    def set_selected_z(self, z, start=False): #vers 1
+        """Drag: Z offset = z - sea level (saved to the map settings)."""
+        off = round(z - self._cache()[2], 2)
+        vp = getattr(self._ws, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_water2_height_offset'):
+            vp.set_water2_height_offset(off)
+        self._ws.map_settings.set('water2_height_offset', off)
+        self._ws._set_status(f"Water Z offset {off:+.2f}")
+        for g in (getattr(self._ws, '_water_gauge', None), getattr(self._ws, '_vp_gauges', None)):
+            if g is not None:
+                g.update()
+
+
+class _ViewportGauges(QWidget): #vers 1
+    """Viewport overlay, middle left or right: water depth (drag = Z offset)
+    when water is shown, else the radar height colours when the radar layer is on."""
+
+    WIDTH = 26
+
+    def __init__(self, ws, vp): #vers 1
+        super().__init__(vp)
+        from PyQt6.QtWidgets import QVBoxLayout
+        from apps.components.Water_Editor.water_workshop import WaterZGauge
+        from apps.components.Radar_Editor.radar_workshop import _HeightGauge
+        self._ws, self._vp = ws, vp
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.water = WaterZGauge(_MapWaterDepth(ws))
+        self.height_gauge = _HeightGauge()
+        self.height_gauge.setToolTip("Radar height colours: forest (high) to deep water (low)")
+        lay.addWidget(self.water)
+        lay.addWidget(self.height_gauge)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._menu)
+        for w in (self.water, self.height_gauge):
+            w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            w.customContextMenuRequested.connect(lambda pos, w=w: self._menu(w.mapTo(self, pos)))
+        vp.installEventFilter(self)
+        self.refresh()
+
+    def eventFilter(self, obj, ev): #vers 1
+        from PyQt6.QtCore import QEvent
+        if obj is self._vp and ev.type() == QEvent.Type.Resize:
+            self._place()
+        return False
+
+    def refresh(self): #vers 1
+        """Pick water / radar / hidden from what the viewport shows."""
+        vp, side = self._vp, self._ws.map_settings.get('viewport_gauge_side') or 'right'
+        water = bool(getattr(vp, 'show_water', False) and getattr(vp, '_water2_cells', None))
+        radar = bool(getattr(vp, '_show_radar_tex_layer', False))
+        self.water.setVisible(water)
+        self.height_gauge.setVisible(radar and not water)
+        self.setVisible(side != 'off' and (water or radar))
+        self._place()
+        self.update()
+
+    def _place(self): #vers 1
+        vp = self._vp
+        h = max(120, vp.height() // 2)
+        side = self._ws.map_settings.get('viewport_gauge_side') or 'right'
+        x = 8 if side == 'left' else vp.width() - self.WIDTH - 8
+        self.setGeometry(x, (vp.height() - h) // 2, self.WIDTH, h)
+        self.raise_()
+
+    def update(self): #vers 1
+        super().update()
+        self.water.update()
+
+    def _menu(self, pos): #vers 1
+        """Right-click: move left / right, or hide."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        for label, side in (("Gauge Left", 'left'), ("Gauge Right", 'right'), ("Hide Gauge", 'off')):
+            menu.addAction(label, lambda s=side: self.set_side(s))
+        menu.exec(self.mapToGlobal(pos))
+
+    def set_side(self, side): #vers 1
+        self._ws.map_settings.set('viewport_gauge_side', side)
+        self.refresh()
 
 
 class _MapOverlayToggleButton(QToolButton): #vers 2
@@ -2517,7 +2637,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
     # saved, without ever being cleanly rejected as stale the way
     # this version check exists to guarantee. Bumping here forces any
     # such stale save to fall back to the default layout instead.
-    _RIBBON_LAYOUT_VERSION = 3
+    _RIBBON_LAYOUT_VERSION = 4
 
 
     def __init__(self, parent=None, main_window=None): #vers 12
@@ -9011,7 +9131,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 11
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 13
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -9268,6 +9388,17 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         # and moved in here afterwards, deferred, by _move_overlay_
         # buttons_to_ribbon.
         tb_overlays = _tb("Overlays", Qt.ToolBarArea.RightToolBarArea)
+        # Water depth gang (26px): same blue scale as the water cells
+        from apps.components.Water_Editor.water_workshop import WaterZGauge
+        tb_depth = _tb("Water Depth", Qt.ToolBarArea.RightToolBarArea)
+        tb_depth.setStyleSheet("QToolBar { padding: 0px; spacing: 0px; }")
+        self._water_gauge = WaterZGauge(_MapWaterDepth(self))
+        tb_depth.addWidget(self._water_gauge)
+        from apps.methods.ribbon_system import RibbonMixin as _RM
+        tb_depth._side = (self._water_gauge, 26, 0)       # turns with the ribbon
+        tb_depth.orientationChanged.connect(lambda _o, t=tb_depth: _RM.ribbon_fit_side(t))
+        _RM.ribbon_fit_side(tb_depth)
+        self._vp_gauges = _ViewportGauges(self, pw)       # middle left/right of the view
         # Cycle Zones/Cull (Aug 21 2026,  "on zons we could
         # also cycle through the entries list, and show the zon box
         # highlighted, with right click options, this would be a
@@ -18472,7 +18603,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self._set_status(
             f"Saved {len(matching)} instances from {ipl_name} to binary IPL: {path}")
 
-    def _on_show_radar_tex_layer_toggled(self, checked): #vers 2
+    def _on_show_radar_tex_layer_toggled(self, checked): #vers 3
         """Show/hide the radar tex layer - real fix (Aug 20 2026, per
          : "The radar button also needs to switch the radar on
         and off, and right-clicking the radar button should generate
@@ -18500,6 +18631,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 self._set_status("Radar on - zoomed out to show the map")
         else:
             vp.set_radar_tex_layer(False)
+        if getattr(self, '_vp_gauges', None) is not None:
+            self._vp_gauges.refresh()
 
     def _apply_ipl_controls_display_style(self): #vers 2
         """Switch every real overlay toggle button between its own
@@ -18559,9 +18692,21 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             if not btn.icon().isNull():
                 action.setIcon(btn.icon())
 
-    def _on_generate_radar_tiles_clicked(self): #vers 2
-        """Prompt for an output folder, then run _generate_radar_tiles
-        (Aug 20 2026)"""
+    def _on_generate_radar_tiles_clicked(self): #vers 3
+        """Offer to load every IPL, pick an output folder, generate, then offer Radar Workshop."""
+        hidden = sorted(getattr(self, '_hidden_ipls', set()))
+        if hidden and getattr(self, '_ipl_sections_table', None) is not None:
+            ans = QMessageBox.question(
+                self, "Generate Radar Tiles",
+                f"{len(hidden)} IPL(s) are not loaded - the radar will have gaps.\n\n"
+                "Load all IPLs first?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel)
+            if ans == QMessageBox.StandardButton.Cancel:
+                return
+            if ans == QMessageBox.StandardButton.Yes:
+                self._load_selected_ipl_sections(
+                    [self._ipl_display_order.index(n) for n in hidden if n in self._ipl_display_order])
         start_dir = self.map_settings.get('radar_tiles_output_dir') or os.path.expanduser("~")
         output_dir = QFileDialog.getExistingDirectory(
             self, "Select Output Folder for Radar Tiles", start_dir)
@@ -18569,8 +18714,13 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             return
         self.map_settings.set('radar_tiles_output_dir', output_dir)
         self._generate_radar_tiles(output_dir)
+        if getattr(self, '_last_radar_tile_paths', None) and QMessageBox.question(
+                self, "Generate Radar Tiles",
+                f"{len(self._last_radar_tile_paths)} tile(s) saved.\n\nOpen them as a radar map "
+                "in Radar Workshop?") == QMessageBox.StandardButton.Yes:
+            self._send_radar_tiles_to_radar_workshop()
 
-    def _generate_radar_tiles(self, output_dir, only=None): #vers 3
+    def _generate_radar_tiles(self, output_dir, only=None): #vers 4
         """Generate every real radar/minimap tile for the currently
         loaded world (Aug 20 2026). only: tile indices to redo, None = all."""
         loader = getattr(self, '_world_loader', None)
@@ -18600,6 +18750,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         #  paths of every tile actually saved this run (Aug 20 2026)
         if only is None or not getattr(self, '_last_radar_tile_paths', None):
             self._last_radar_tile_paths = []
+        radar_layer = getattr(vp, '_show_radar_tex_layer', False)
+        vp._show_radar_tex_layer = False            # old radar must not show through gaps
         for tile in tiles:
             if progress.wasCanceled():
                 break
@@ -18620,6 +18772,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 saved += 1
             except Exception as e:
                 print(f"[Radar Generator] Failed tile {tile.index}: {e}")
+        vp._show_radar_tex_layer = radar_layer
+        vp.update()
         progress.setValue(len(tiles))
         self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
 
@@ -20839,7 +20993,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             cells.append((min(xs), min(ys), max(xs), max(ys), sum(zs) / len(zs)))
         return cells
 
-    def _apply_water2_preload(self): #vers 3
+    def _apply_water2_preload(self): #vers 5
         """Combine whatever's been preloaded so far (Aug 20 2026, re-
         applied) - water cells and the water texture can be preloaded
         in either order, or independently, via separate _load_
@@ -20856,6 +21010,10 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         if cells is None:
             return   # texture preloaded alone, before any real water data
         vp.set_water2_data(cells, texture_path)
+        if getattr(self, '_water_gauge', None) is not None:
+            self._water_gauge.update()
+        if getattr(self, '_vp_gauges', None) is not None:
+            self._vp_gauges.refresh()
         water_btn = getattr(self, '_show_water_chk', None)
         if water_btn is not None:
             water_btn.setEnabled(True)
@@ -26112,7 +26270,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         else:
             self._set_status(f"Showing interior {value} only")
 
-    def _on_show_water_toggled(self, checked): #vers 3
+    def _on_show_water_toggled(self, checked): #vers 4
         """Show Water checked/unchecked.
 
         Re-applied (Aug 20 2026,  "get the water working,
@@ -26125,6 +26283,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         vp = getattr(self, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_show_water'):
             vp.set_show_water(checked)
+        if getattr(self, '_vp_gauges', None) is not None:
+            self._vp_gauges.refresh()
 
     def _on_water_layer_toggled(self, checked): #vers 2
         """Middle-click switches between waterpro.dat's own two real

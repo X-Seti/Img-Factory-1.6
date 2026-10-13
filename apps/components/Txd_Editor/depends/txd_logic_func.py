@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 12
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 13
 # X-Seti - October 07 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -44,6 +44,13 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _detect_y_flip
 # _dir_path
 # _display_mobile_textures
+# _doc_current_path
+# _doc_has_file
+# _doc_new
+# _doc_open
+# _doc_reset
+# _doc_restore
+# _doc_state
 # dragEnterEvent
 # dragMoveEvent
 # dropEvent
@@ -5388,7 +5395,7 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open IMG: {str(e)}")
 
-    def open_txd_file(self, file_path=None): #vers 9
+    def open_txd_file(self, file_path=None): #vers 10
         """Open standalone TXD file with version detection"""
         try:
             if not self._confirm_discard():
@@ -5495,6 +5502,58 @@ class TXDLogicMixin: #vers 1
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open TXD: {str(e)}")
+        finally:
+            if file_path and self.texture_list and self.current_txd_path == file_path:
+                self._doc_opened()                    # title bar file tabs
+
+    #    File tab hooks for DocTabsMixin (apps/methods/doc_tabs.py)
+
+    _DOC_KIND = "TXD"
+    _DOC_FILTER = ("All Texture Files (*.txd *.nft *.xtx *.txt *.dat *.chk *.wtd *.ytd *.pvr);;"
+                   "TXD Files (*.txd);;All Files (*)")
+    _DOC_ATTRS = ('_txd_kind', 'current_txd_data', 'current_txd_name', 'current_txd_path', 'texture_list',
+                  'selected_texture', 'txd_capabilities', 'txd_device_id', 'txd_game', 'txd_platform_name',
+                  'txd_version_id', 'txd_version_str', 'undo_stack', '_txd_modified')
+
+    def _doc_state(self): #vers 1
+        """Snapshot of the open texture file (textures, format info, undo, title)."""
+        st = {a: getattr(self, a, None) for a in self._DOC_ATTRS}
+        st['path'] = self.current_txd_path
+        st['title'] = self.windowTitle()
+        return st
+
+    def _doc_restore(self, st): #vers 1
+        """Show a saved tab: attributes back, table refilled."""
+        for a in self._DOC_ATTRS:
+            setattr(self, a, st.get(a))
+        self.texture_list = self.texture_list or []
+        self.undo_stack = self.undo_stack or []
+        self._reload_texture_table()
+        if self.texture_list and self.selected_texture is None:
+            self.texture_table.selectRow(0)
+        self._set_save_enabled(bool(self._txd_modified))
+        self.setWindowTitle(st.get('title') or "TXD Workshop")
+
+    def _doc_open(self, file_path): #vers 1
+        self.open_txd_file(file_path)
+        return self.current_txd_path == file_path and bool(self.texture_list)
+
+    def _doc_has_file(self): #vers 1
+        return bool(self.texture_list)
+
+    def _doc_current_path(self): #vers 1
+        return self.current_txd_path
+
+    def _doc_new(self): #vers 1
+        """Fresh per-file state before a new tab opens (no discard prompt)."""
+        self._txd_modified = False
+        self.undo_stack = []
+        self.selected_texture = None
+
+    def _doc_reset(self): #vers 1
+        """Empty workshop after the last tab closes."""
+        self._txd_modified = False
+        self._close_txd()
 
     def _selected_textures(self): #vers 1
         """Textures of every selected table row (Shift/Ctrl), in list order."""

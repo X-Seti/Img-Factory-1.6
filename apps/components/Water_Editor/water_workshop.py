@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 19
+#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 21
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -7,9 +7,178 @@
 # Section 2: Canvas widgets (WaterGridWidget, SaWaterCanvas)
 # Section 3: WaterWorkshop(GUIWorkshop) - panel overrides + menus
 # Section 4: Water logic - open/save/draw/undo/levels
-# TODO; Methodlist is missing
-# TODO; open files with the words *waterpro" "Water" water as a safeguard to any other file crashing the app.
-# When updating the themes, and hitting apply the effect changes all theme settings including the SVF icons.
+##Methods list -
+# _apply_dialog_theme
+# _atomic_write
+#
+##class WaterproParser: -
+# __init__
+# load
+# save
+#
+##class WaterDatParser: -
+# __init__
+# _fmt
+# load
+# save
+# to_text
+# translate_all
+# world_bbox
+#
+##class SaWaterParser: -
+# __init__
+# _fmt
+# _is_quad_line
+# _sig
+# is_iv
+# load
+# save
+# to_text
+# translate_all
+# world_bbox
+#
+##class WaterGridWidget: -
+# __init__
+# _base_ts
+# _cell_at
+# _cell_col
+# _cell_val
+# _depth_col
+# _flood_fill
+# _get_ui_color
+# _grid_idx
+# _levels_z
+# _rebuild_cache
+# _screen_index
+# _set_cell
+# _shape_cells
+# _ts
+# fit
+# minimumSizeHint
+# mouseMoveEvent
+# mousePressEvent
+# mouseReleaseEvent
+# paintEvent
+# selected_z
+# set_grid
+# set_selected_z
+# setup
+# sizeHint
+# wheelEvent
+# z_range
+# z_values
+# zoom_max
+#
+##class WaterObjectCanvas: -
+# __init__
+# _depth_col
+# _fit
+# _get_ui_color
+# _hit_corner
+# _hit_obj
+# _move_corner
+# _ordered
+# _s2w
+# _snap
+# _view_rect
+# _w2s
+# _z
+# _z_range
+# fit
+# keyPressEvent
+# mouseMoveEvent
+# mousePressEvent
+# mouseReleaseEvent
+# move_selected
+# paintEvent
+# selected_z
+# selection
+# set_selected_z
+# set_selection
+# setup
+# sizeHint
+# wheelEvent
+# z_range
+# z_values
+#
+##class WaterZGauge: -
+# __init__
+# _bar
+# _pos_of
+# _t_of
+# _z_at
+# mouseMoveEvent
+# mousePressEvent
+# mouseReleaseEvent
+# paintEvent
+# set_horizontal
+#
+##class WaterWorkshop: -
+# __init__
+# _active_canvas
+# _add_level
+# _bmp_index
+# _build_menus_into_qmenu
+# _build_ribbons
+# _clear_recent
+# _create_centre_panel
+# _create_left_panel
+# _create_toolbar
+# _current_parser
+# _del_level
+# _edit_level
+# _erase_all_grid
+# _export_bmp
+# _export_file
+# _fit
+# _flip_colours
+# _import_bmp
+# _import_file
+# _invert_grid
+# _is_binary_waterpro
+# _is_sa_water
+# _load_file
+# _load_sa_water
+# _load_waterdat
+# _load_waterpro
+# _mark_dirty
+# _obj_add
+# _obj_delete
+# _obj_edit_started
+# _obj_edited
+# _obj_refresh
+# _obj_set_objs
+# _obj_set_snap
+# _obj_set_z
+# _obj_undo_redo
+# _objs_to_rects
+# _on_grid_changed
+# _on_list_row
+# _on_quad_selected
+# _on_tab_changed
+# _open_file
+# _push_undo_grid
+# _rects_to_objs
+# _redo
+# _refresh_levels_list
+# _save_file
+# _save_file_as
+# _set_active_tool
+# _set_depth_view
+# _set_obj_tool
+# _show_offset_dialog
+# _show_stats
+# _spin_row
+# _toggle_grid
+# _undo
+# _water_objs
+# _write_water
+# _zoom
+# closeEvent
+# get_water_quads
+# get_water_rects
+# setup_ui
+# translate_water
 
 import sys, struct, re, math
 from pathlib import Path
@@ -363,7 +532,6 @@ class WaterGridWidget(QWidget):
         self._pan_start     = (0, 0)
         self._colour_flipped = False
         self._depth_mode    = False     # colour water cells by level Z
-        self._gauge_side    = ''        # depth gauge: '', 'left', 'right'
         self._paint_level   = 0         # level index painted by left-click
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
@@ -391,10 +559,10 @@ class WaterGridWidget(QWidget):
         wp = getattr(self._workshop, '_waterpro', None) if self._workshop else None
         return list(wp.water_level_data[:wp.water_levels_count]) if wp else []
 
-    def _depth_col(self, z: float, zmin: float, zmax: float) -> QColor: #vers 1
+    def _depth_col(self, z: float, zmin: float, zmax: float) -> QColor: #vers 2
         """Blue shade for a Z: deep/low dark, high light."""
-        t = 0.5 if zmax <= zmin else (z - zmin) / (zmax - zmin)
-        return QColor(int(8 + 112 * t), int(30 + 170 * t), int(80 + 175 * t))
+        from apps.methods.ui_color import water_depth_rgb
+        return QColor(*water_depth_rgb(0.5 if zmax <= zmin else (z - zmin) / (zmax - zmin)))
 
     def _cell_col(self, val: int) -> QColor: #vers 3
         levels = getattr(self, '_cache_levels', None)
@@ -406,12 +574,18 @@ class WaterGridWidget(QWidget):
             return self.COL_DRY if self._colour_flipped else self.COL_WATER
 
 
-    def _ts(self): #vers 1
+    def _ts(self): #vers 2
         if not self._grid_w:
             return 8
-        base = min(self.width() // self._grid_w, self.height() // self._grid_w)
-        ts = max(1, int(base * self._zoom))  # allow ts=1 for large grids (SOL 384x384)
-        return ts
+        return max(1, int(self._base_ts() * self._zoom))  # ts=1 allowed for SOL grids
+
+    def _base_ts(self) -> float: #vers 1
+        """Cell size at zoom 1 (fit), fractional for grids wider than the view."""
+        return max(1e-3, min(self.width(), self.height()) / max(1, self._grid_w))
+
+    def zoom_max(self) -> float: #vers 1
+        """Zoom limit: cells up to 64 px, whatever the grid size."""
+        return max(20.0, 64.0 / self._base_ts())
 
 
     def _cell_at(self, pos): #vers 2
@@ -427,18 +601,14 @@ class WaterGridWidget(QWidget):
         return -1, -1
 
 
-    def _grid_idx(self, cx, cy): #vers 2
-        """Convert screen cell (cx,cy) to byte index in grid storage."""
+    def _grid_idx(self, cx, cy): #vers 3
+        """Screen cell to byte index; SOL 6x6 tiles shown north-up, [x][y] cells."""
         gw = self._grid_w
         if gw % 6 == 0:
-            map_w = 6
-            tile_w = gw // map_w
-            tile_col = cx // tile_w
-            tile_row = cy // tile_w
-            tile_idx = tile_row * map_w + tile_col
-            local_c  = cx % tile_w
-            local_r  = cy % tile_w
-            return tile_idx * tile_w * tile_w + local_r * tile_w + local_c
+            tile_w = gw // 6
+            y = gw - 1 - cy                        # north up, as SOL Water Editor
+            tile_idx = (y // tile_w) * 6 + cx // tile_w
+            return tile_idx * tile_w * tile_w + (cx % tile_w) * tile_w + y % tile_w
         return cy * gw + cx
 
     def _cell_val(self, cx, cy): #vers 2
@@ -451,37 +621,31 @@ class WaterGridWidget(QWidget):
             self._grid[self._grid_idx(cx, cy)] = val
 
 
-    def _rebuild_cache(self): #vers 5
-        """Render grid data to QImage. SOL's own real grid genuinely
-        needs de-tiling: its own visible_map (384) and physical_map
-        (768) are both real, exact multiples of 6 (6x6 map tiles,
-        each tile stored sequentially) - the comment/logic below is
-        real and correct for SOL specifically."""
+    def _screen_index(self): #vers 1
+        """Grid byte index per screen cell (row-major), cached per width."""
+        import numpy as np
+        gw = self._grid_w
+        cached = getattr(self, '_sidx', None)
+        if cached is None or cached[0] != gw:
+            if gw % 6 == 0:
+                cy, cx = np.mgrid[0:gw, 0:gw]
+                t, y = gw // 6, gw - 1 - cy
+                idx = ((y // t) * 6 + cx // t) * t * t + (cx % t) * t + y % t
+            else:
+                idx = np.arange(gw * gw).reshape(gw, gw)
+            cached = self._sidx = (gw, idx)
+        return cached[1]
+
+    def _rebuild_cache(self): #vers 6
+        """Render grid data to QImage (SOL tiles via _grid_idx layout)."""
+        import numpy as np
         from PyQt6.QtGui import QImage
         gw = self._grid_w
         self._cache_levels = self._levels_z()
-        img = QImage(gw, gw, QImage.Format.Format_RGB32)
-        if gw % 6 == 0:
-            map_w = 6
-            tile_w = gw // map_w
-            tile_sz = tile_w * tile_w
-            for tile_idx in range(map_w * map_w):
-                tile_col = tile_idx % map_w
-                tile_row = tile_idx // map_w
-                base = tile_idx * tile_sz
-                for r in range(tile_w):
-                    for c in range(tile_w):
-                        v = self._grid[base + r * tile_w + c]
-                        px = tile_col * tile_w + c
-                        py = tile_row * tile_w + r
-                        img.setPixel(px, py, self._cell_col(v).rgb())
-        else:
-            for row in range(gw):
-                base = row * gw
-                for col in range(gw):
-                    v = self._grid[base + col]
-                    img.setPixel(col, row, self._cell_col(v).rgb())
-        self._img_cache  = img
+        lut = np.array([self._cell_col(v).rgb() & 0xFFFFFFFF for v in range(256)], np.uint32)
+        vals = np.frombuffer(bytes(self._grid), np.uint8)[self._screen_index()]
+        rgb = np.ascontiguousarray(lut[vals])
+        self._img_cache  = QImage(rgb.tobytes(), gw, gw, gw * 4, QImage.Format.Format_RGB32).copy()
         self._cache_flip = self._colour_flipped
         self._cache_key  = (self._colour_flipped, self._depth_mode, tuple(self._cache_levels))
 
@@ -545,51 +709,30 @@ class WaterGridWidget(QWidget):
         p.setFont(QFont("monospace", 8))
         p.drawText(4, self.height()-6,
                    f"{gw}x{gw}  z={self._zoom:.1f}x  [{tool}]  {paint}  R=land(128){hover}")
-        if self._gauge_side and levels:
-            self._paint_gauge(p, levels)
         p.end()
 
-    def _gauge_rect(self): #vers 1
-        """Screen rect of the depth gauge strip."""
-        from PyQt6.QtCore import QRect
-        w, top, h = 96, 8, max(60, self.height() - 36)
-        x = 8 if self._gauge_side == 'left' else self.width() - w - 8
-        return QRect(x, top, w, h)
+    # depth gauge source (WaterZGauge ribbon): picks the paint level
 
-    def _gauge_ticks(self, levels): #vers 1
-        """[(first level index, z, y)] for each distinct Z, top = highest."""
-        r = self._gauge_rect()
-        zmin, zmax = min(levels), max(levels)
-        bar_top, bar_h = r.top() + 10, r.height() - 20
-        out, seen = [], set()
-        for i, z in enumerate(levels):
-            if round(z, 3) in seen:
-                continue
-            seen.add(round(z, 3))
-            t = 0.5 if zmax <= zmin else (z - zmin) / (zmax - zmin)
-            out.append((i, z, int(bar_top + (1.0 - t) * bar_h)))
-        return out
+    def z_range(self): #vers 1
+        from apps.methods.ui_color import depth_range
+        return depth_range(self._levels_z() or [0.0])
 
-    def _paint_gauge(self, p, levels): #vers 1
-        """Depth gauge: blue Z bar, one tick per level height."""
-        from PyQt6.QtGui import QLinearGradient
-        r = self._gauge_rect()
-        zmin, zmax = min(levels), max(levels)
-        p.fillRect(r, QColor(10, 14, 24, 200))
-        bar_x, bar_top, bar_h = r.left() + 6, r.top() + 10, r.height() - 20
-        grad = QLinearGradient(0, bar_top, 0, bar_top + bar_h)
-        grad.setColorAt(0.0, self._depth_col(zmax, zmin, zmax))
-        grad.setColorAt(1.0, self._depth_col(zmin, zmin, zmax))
-        p.fillRect(bar_x, bar_top, 16, bar_h, grad)
-        p.setFont(QFont("monospace", 7))
-        cur_z = levels[self._paint_level] if self._paint_level < len(levels) else None
-        for i, z, y in self._gauge_ticks(levels):
-            sel = cur_z is not None and round(z, 3) == round(cur_z, 3)
-            p.setPen(QPen(self.COL_SEL if sel else QColor(255, 255, 255, 200), 2 if sel else 1))
-            p.drawLine(bar_x - 2, y, bar_x + 20, y)
-            p.drawText(bar_x + 24, y + 4, f"{z:.1f}")
-        p.setPen(QColor(255, 255, 255, 160))
-        p.drawText(r.left() + 4, r.bottom() + 12, "Z gauge")
+    def z_values(self): #vers 1
+        return self._levels_z()
+
+    def selected_z(self): #vers 1
+        levels = self._levels_z()
+        return levels[self._paint_level] if self._paint_level < len(levels) else None
+
+    def set_selected_z(self, z, start=False): #vers 1
+        """Gauge drag: paint level becomes the level nearest z."""
+        levels = self._levels_z()
+        if levels:
+            self._paint_level = min(range(len(levels)), key=lambda i: abs(levels[i] - z))
+            self.update()
+            g = getattr(self._workshop, '_depth_gauge', None) if self._workshop else None
+            if g is not None:
+                g.update()
 
 
     def mouseMoveEvent(self, ev): #vers 1
@@ -616,7 +759,7 @@ class WaterGridWidget(QWidget):
             self.update()
 
 
-    def mousePressEvent(self, ev): #vers 2
+    def mousePressEvent(self, ev): #vers 3
         is_left  = ev.button() == Qt.MouseButton.LeftButton
         is_right = ev.button() == Qt.MouseButton.RightButton
         is_mid   = ev.button() == Qt.MouseButton.MiddleButton
@@ -630,18 +773,13 @@ class WaterGridWidget(QWidget):
             f  = 1.3 if is_left else 1/1.3
             cx, cy = ev.pos().x(), ev.pos().y()
             old = self._ts()
-            self._zoom = max(0.1, min(20.0, self._zoom * f))
+            self._zoom = max(0.1, min(self.zoom_max(), self._zoom * f))
             new = self._ts()
             self._pan_x = cx - int((cx - self._pan_x) * new / max(1, old))
             self._pan_y = cy - int((cy - self._pan_y) * new / max(1, old))
             self.update()
             return
         levels = self._levels_z()
-        if self._gauge_side and levels and is_left and self._gauge_rect().contains(ev.pos()):
-            ticks = self._gauge_ticks(levels)
-            self._paint_level = min(ticks, key=lambda t: abs(t[2] - ev.pos().y()))[0]
-            self.update()
-            return
         cx, cy = self._cell_at(ev.pos())
         if cx < 0:
             return
@@ -691,14 +829,14 @@ class WaterGridWidget(QWidget):
         self.update()
 
 
-    def wheelEvent(self, ev): #vers 1
+    def wheelEvent(self, ev): #vers 2
         delta = ev.angleDelta().y()
         if not delta:
             return
         f  = 1.12 if delta > 0 else 1/1.12
         cx, cy = ev.position().x(), ev.position().y()
         old = self._ts()
-        self._zoom = max(0.1, min(20.0, self._zoom * f))
+        self._zoom = max(0.1, min(self.zoom_max(), self._zoom * f))
         new = self._ts()
         self._pan_x = int(cx - (cx - self._pan_x) * new / max(1, old))
         self._pan_y = int(cy - (cy - self._pan_y) * new / max(1, old))
@@ -788,10 +926,9 @@ class WaterObjectCanvas(QWidget):
     COL_SEL    = QColor(255, 200,   0, 230)
     COL_BORDER = QColor(80,  160, 255, 200)
     COL_BG     = QColor(20,   20,  20)
-    GAUGE_W    = 64
     HANDLE     = 5
 
-    def __init__(self, parent=None): #vers 2
+    def __init__(self, parent=None): #vers 3
         super().__init__(parent)
         self._quads     = []
         self._sel       = set()
@@ -805,6 +942,7 @@ class WaterObjectCanvas(QWidget):
         self._drag      = None            # ('corner'|'move'|'box'|'add'|'gauge', data)
         self.add_kind   = None            # 'quad' / 'tri' while adding
         self.snap       = 1.0
+        self.gauge      = None            # WaterZGauge ribbon, repainted with the canvas
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -829,17 +967,16 @@ class WaterObjectCanvas(QWidget):
     def _z(q): #vers 1
         return sum(c["f"][0] for c in q["corners"]) / len(q["corners"])
 
-    def _z_range(self): #vers 2
+    def _z_range(self): #vers 3
         """Shade / gauge Z range: 2nd-98th percentile so one odd height can't flatten the rest."""
-        zs = sorted(self._z(q) for q in self._quads) or [0.0]
-        lo, hi = zs[int(len(zs) * 0.02)], zs[min(len(zs) - 1, int(len(zs) * 0.98))]
-        return (lo - 5.0, hi + 5.0) if hi - lo < 10 else (lo, hi)
+        from apps.methods.ui_color import depth_range
+        return depth_range([self._z(q) for q in self._quads])
 
     @staticmethod
-    def _depth_col(z, zmin, zmax, alpha=170): #vers 1
+    def _depth_col(z, zmin, zmax, alpha=170): #vers 2
         """Blue shade for a Z: low dark, high light (matches the grid gauge)."""
-        t = 0.5 if zmax <= zmin else max(0.0, min(1.0, (z - zmin) / (zmax - zmin)))
-        return QColor(int(8 + 112 * t), int(30 + 170 * t), int(80 + 175 * t), alpha)
+        from apps.methods.ui_color import water_depth_rgb
+        return QColor(*water_depth_rgb(0.5 if zmax <= zmin else (z - zmin) / (zmax - zmin)), alpha)
 
     def _ordered(self, q): #vers 1
         """Corner indices in drawing order (corners are stored Z-order)."""
@@ -853,9 +990,8 @@ class WaterObjectCanvas(QWidget):
 
     #    view
 
-    def _view_rect(self): #vers 1
-        from PyQt6.QtCore import QRect
-        return QRect(0, 0, max(1, self.width() - self.GAUGE_W), self.height())
+    def _view_rect(self): #vers 2
+        return self.rect()
 
     def _fit(self): #vers 2
         x0, y0, x1, y1 = self._bbox
@@ -880,7 +1016,7 @@ class WaterObjectCanvas(QWidget):
 
     #    painting
 
-    def paintEvent(self, ev): #vers 2
+    def paintEvent(self, ev): #vers 3
         from PyQt6.QtCore import QPointF, QRectF
         from PyQt6.QtGui import QPolygonF
         p = QPainter(self)
@@ -918,51 +1054,9 @@ class WaterObjectCanvas(QWidget):
                 p.drawPolygon(QPolygonF([QPointF(ax, by), QPointF(bx, by), QPointF(ax, ay)]))
             else:
                 p.drawRect(QRectF(QPointF(ax, ay), QPointF(bx, by)).normalized())
-        self._paint_gauge(p, zmin, zmax)
         p.end()
-
-    def _gauge_rect(self): #vers 1
-        from PyQt6.QtCore import QRect
-        return QRect(self.width() - self.GAUGE_W + 6, 14, 18, max(60, self.height() - 40))
-
-    def _gauge_y(self, z, zmin, zmax): #vers 1
-        r = self._gauge_rect()
-        t = 0.5 if zmax <= zmin else (z - zmin) / (zmax - zmin)
-        return int(r.top() + (1.0 - t) * r.height())
-
-    def _gauge_z(self, y): #vers 1
-        zmin, zmax = self._z_range()
-        r = self._gauge_rect()
-        t = 1.0 - max(0.0, min(1.0, (y - r.top()) / max(1, r.height())))
-        return zmin + t * (zmax - zmin)
-
-    def _paint_gauge(self, p, zmin, zmax): #vers 1
-        """Depth gang: blue Z bar, ticks for each object Z, marker for the selection."""
-        from PyQt6.QtGui import QLinearGradient
-        r = self._gauge_rect()
-        p.fillRect(self.width() - self.GAUGE_W, 0, self.GAUGE_W, self.height(), QColor(10, 14, 24))
-        g = QLinearGradient(0, r.top(), 0, r.bottom())
-        g.setColorAt(0.0, self._depth_col(zmax, zmin, zmax, 255))
-        g.setColorAt(1.0, self._depth_col(zmin, zmin, zmax, 255))
-        p.fillRect(r, g)
-        p.setPen(QPen(QColor(255, 255, 255, 90), 1))
-        for z in sorted({round(self._z(q), 2) for q in self._quads}):
-            y = self._gauge_y(z, zmin, zmax)
-            p.drawLine(r.left(), y, r.right(), y)
-        p.setFont(QFont("monospace", 7))
-        p.setPen(QColor(255, 255, 255, 200))
-        p.drawText(r.right() + 3, r.top() + 4, f"{zmax:.0f}")
-        p.drawText(r.right() + 3, r.bottom() + 4, f"{zmin:.0f}")
-        sel = [self._quads[i] for i in self._sel if i < len(self._quads)]
-        if sel:
-            z = sum(self._z(q) for q in sel) / len(sel)
-            y = self._gauge_y(z, zmin, zmax)
-            p.setBrush(self.COL_SEL); p.setPen(Qt.PenStyle.NoPen)
-            p.drawPolygon(QPolygon([QPoint(r.left() - 6, y - 5), QPoint(r.left(), y), QPoint(r.left() - 6, y + 5)]))
-            p.setPen(self.COL_SEL)
-            p.drawText(r.right() + 3, y + 4, f"{z:.1f}")
-        p.setPen(QColor(255, 255, 255, 160))
-        p.drawText(self.width() - self.GAUGE_W + 4, self.height() - 8, "Z")
+        if self.gauge is not None:
+            self.gauge.update()
 
     #    picking
 
@@ -1021,27 +1115,36 @@ class WaterObjectCanvas(QWidget):
             for c in self._quads[idx]["corners"]:
                 c["x"] += dx; c["y"] += dy
 
-    def set_selected_z(self, z): #vers 1
+    def set_selected_z(self, z, start=False, emit=True): #vers 2
+        """Z of the selected objects; start / emit drive the undo + edited signals."""
+        if start:
+            self.edit_started.emit()
         for idx in self.selection():
             for c in self._quads[idx]["corners"]:
                 c["f"] = [z] + list(c["f"][1:])
+        if emit:
+            self.edited.emit()
+            self.update()
+
+    def z_range(self): #vers 1
+        return self._z_range()
+
+    def z_values(self): #vers 1
+        return [self._z(q) for q in self._quads]
+
+    def selected_z(self): #vers 1
+        sel = [self._quads[i] for i in self.selection()]
+        return sum(self._z(q) for q in sel) / len(sel) if sel else None
 
     #    mouse
 
-    def mousePressEvent(self, ev): #vers 3
+    def mousePressEvent(self, ev): #vers 4
         x, y = ev.position().x(), ev.position().y()
         if ev.button() == Qt.MouseButton.MiddleButton:
             self._pan_drag  = ev.pos()
             self._pan_start = (self._pan_x, self._pan_y)
             return
         if ev.button() != Qt.MouseButton.LeftButton:
-            return
-        if x >= self.width() - self.GAUGE_W:               # depth gauge: set Z of selection
-            if self.selection():
-                self.edit_started.emit()
-                self._drag = ('gauge', None)
-                self.set_selected_z(round(self._gauge_z(y), 2))
-                self.edited.emit(); self.update()
             return
         if self.add_kind:
             self._drag = ('add', [(x, y), (x, y)])
@@ -1065,7 +1168,7 @@ class WaterObjectCanvas(QWidget):
             return
         self._drag = ('box', [(x, y), (x, y), ctrl])
 
-    def mouseMoveEvent(self, ev): #vers 3
+    def mouseMoveEvent(self, ev): #vers 4
         x, y = ev.position().x(), ev.position().y()
         if self._pan_drag and ev.buttons() & Qt.MouseButton.MiddleButton:
             self._pan_x = self._pan_start[0] + ev.pos().x() - self._pan_drag.x()
@@ -1074,14 +1177,10 @@ class WaterObjectCanvas(QWidget):
             return
         if not self._drag:
             wx, wy = self._s2w(x, y)
-            self.setToolTip(f"Z {self._gauge_z(y):.1f}" if x >= self.width() - self.GAUGE_W
-                            else f"{wx:.0f}, {wy:.0f}")
+            self.setToolTip(f"{wx:.0f}, {wy:.0f}")
             return
         kind, data = self._drag
-        if kind == 'gauge':
-            self.set_selected_z(round(self._gauge_z(y), 2))
-            self.edited.emit()
-        elif kind == 'corner':
+        if kind == 'corner':
             wx, wy = self._s2w(x, y)
             self._move_corner(data[0], data[1], self._snap(wx), self._snap(wy))
             data[2] = True
@@ -1158,6 +1257,103 @@ class WaterObjectCanvas(QWidget):
         return QSize(600, 600)
 
 
+class WaterZGauge(QWidget):
+    """Depth gang ribbon (26px): same blue scale as the water shading, a tick per
+    water Z, marker for the selection; drag sets selection Z. source gives
+    z_range(), z_values(), selected_z() and set_selected_z(z) (None = read only).
+    Horizontal in a top/bottom ribbon: low Z left."""
+
+    def __init__(self, source, parent=None): #vers 3
+        super().__init__(parent)
+        self._src = source
+        self._dragging = False
+        self._horiz = False
+        self.setMinimumHeight(120)
+        self.setMouseTracking(True)
+
+    def set_horizontal(self, horiz): #vers 1
+        self._horiz = bool(horiz)
+        self.update()
+
+    def _bar(self): #vers 2
+        from PyQt6.QtCore import QRect
+        if self._horiz:
+            return QRect(22, 7, max(40, self.width() - 44), max(4, self.height() - 9))
+        return QRect(7, 16, max(4, self.width() - 9), max(40, self.height() - 32))
+
+    def _t_of(self, z, zmin, zmax): #vers 1
+        return 0.5 if zmax <= zmin else max(0.0, min(1.0, (z - zmin) / (zmax - zmin)))
+
+    def _pos_of(self, z, zmin, zmax): #vers 1
+        """Pixel along the bar for z (x when horizontal, else y)."""
+        r, t = self._bar(), self._t_of(z, zmin, zmax)
+        if self._horiz:
+            return int(r.left() + t * r.width())
+        return int(r.top() + (1.0 - t) * r.height())
+
+    def _z_at(self, pos): #vers 3
+        """Z under a mouse QPointF."""
+        zmin, zmax = self._src.z_range()
+        r = self._bar()
+        if self._horiz:
+            t = max(0.0, min(1.0, (pos.x() - r.left()) / max(1, r.width())))
+        else:
+            t = 1.0 - max(0.0, min(1.0, (pos.y() - r.top()) / max(1, r.height())))
+        return zmin + t * (zmax - zmin)
+
+    def paintEvent(self, ev): #vers 3
+        from PyQt6.QtGui import QLinearGradient
+        from apps.methods.ui_color import water_depth_rgb
+        zmin, zmax = self._src.z_range()
+        r = self._bar()
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor(10, 14, 24))
+        if self._horiz:
+            g = QLinearGradient(r.right(), 0, r.left(), 0)
+        else:
+            g = QLinearGradient(0, r.top(), 0, r.bottom())
+        g.setColorAt(0.0, QColor(*water_depth_rgb(1.0)))     # identical scale to the tiles
+        g.setColorAt(1.0, QColor(*water_depth_rgb(0.0)))
+        p.fillRect(r, g)
+        p.setPen(QPen(QColor(255, 255, 255, 110), 1))
+        for z in sorted({round(z, 2) for z in self._src.z_values()}):
+            k = self._pos_of(z, zmin, zmax)
+            if self._horiz:
+                p.drawLine(k, r.top(), k, r.bottom())
+            else:
+                p.drawLine(r.left(), k, r.right(), k)
+        p.setFont(QFont("monospace", 6))
+        p.setPen(QColor(255, 255, 255, 200))
+        if self._horiz:
+            p.drawText(1, self.height() // 2 + 3, f"{zmin:.0f}")
+            p.drawText(r.right() + 3, self.height() // 2 + 3, f"{zmax:.0f}")
+        else:
+            p.drawText(0, 10, f"{zmax:.0f}")
+            p.drawText(0, self.height() - 4, f"{zmin:.0f}")
+        z = self._src.selected_z()
+        if z is not None:
+            k = self._pos_of(z, zmin, zmax)
+            p.setBrush(QColor(255, 200, 0)); p.setPen(Qt.PenStyle.NoPen)
+            tri = [QPoint(k - 5, 0), QPoint(k, 6), QPoint(k + 5, 0)] if self._horiz else \
+                [QPoint(0, k - 5), QPoint(6, k), QPoint(0, k + 5)]
+            p.drawPolygon(QPolygon(tri))
+        p.end()
+
+    def mousePressEvent(self, ev): #vers 3
+        if ev.button() == Qt.MouseButton.LeftButton and self._src.selected_z() is not None:
+            self._dragging = True
+            self._src.set_selected_z(round(self._z_at(ev.position()), 2), start=True)
+
+    def mouseMoveEvent(self, ev): #vers 3
+        if self._dragging:
+            self._src.set_selected_z(round(self._z_at(ev.position()), 2))
+        else:
+            self.setToolTip(f"Z {self._z_at(ev.position()):.1f}")
+
+    def mouseReleaseEvent(self, ev): #vers 1
+        self._dragging = False
+
+
 # =============================================================================
 # SECTION 3 - WaterWorkshop: GUIWorkshop subclass
 # =============================================================================
@@ -1173,7 +1369,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
     config_key      = "water_workshop"
     _ribbon_name    = "water_workshop"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
-    _RIBBON_LAYOUT_VERSION = 2
+    _RIBBON_LAYOUT_VERSION = 3
 
 
     def __init__(self, parent=None, main_window=None): #vers 2
@@ -1246,7 +1442,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._status_widget.setVisible(self.WS.get("show_statusbar", True))
 
 
-    def _build_ribbons(self): #vers 2
+    def _build_ribbons(self): #vers 3
         """File / Edit / View / Draw ribbons (replaces the old right-hand
         tool sidebar and the titlebar/left-panel file buttons)."""
         B = self.ribbon_button
@@ -1320,6 +1516,8 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._obj_snap_spin.valueChanged.connect(self._obj_set_snap)
         tb.addWidget(self._obj_snap_spin)
         self._sa_canvas.snap = self._obj_snap_spin.value()
+        self._sa_canvas.gauge = self._depth_gauge = WaterZGauge(self._sa_canvas)
+        self._depth_tb = self.ribbon_side_toolbar("Depth", self._depth_gauge)
 
 
     def _build_menus_into_qmenu(self, pm): #vers 4
@@ -1421,7 +1619,6 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._vis_canvas = WaterGridWidget()
         self._vis_canvas._workshop = self
         for cv in (self._phys_canvas, self._vis_canvas):
-            cv._gauge_side = self.WS.get("depth_gauge_side", "")
             cv._depth_mode = bool(self.WS.get("depth_colour", False))
         sc2 = QScrollArea()
         sc2.setWidget(self._vis_canvas)
@@ -1478,31 +1675,37 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         for c in (self._phys_canvas, self._vis_canvas):
             if hasattr(c, "_img_cache"): del c._img_cache
 
-    def _on_tab_changed(self, idx: int): #vers 1
+    def _on_tab_changed(self, idx: int): #vers 2
+        """Track the active grid; the depth gauge follows the shown view."""
         self._active_grid = "phys" if idx == 0 else "vis"
+        g = getattr(self, '_depth_gauge', None)
+        if g is not None:
+            g._src = self._sa_canvas if idx == 2 or self._file_type != "waterpro" else self._active_canvas()
+            g.update()
 
     def _active_canvas(self): #vers 1
         return self._phys_canvas if self._active_grid == "phys" else self._vis_canvas
 
-    def _push_undo_grid(self): #vers 1
+    def _push_undo_grid(self): #vers 2
+        """Snapshot the active tab's grid (tab 0 canvas shows vis_grid)."""
         if self._active_grid == "phys" and self._waterpro:
-            self._undo_phys.append(bytearray(self._waterpro.phys_grid))
+            self._undo_phys.append(bytearray(self._waterpro.vis_grid))
             if len(self._undo_phys) > 20:
                 self._undo_phys.pop(0)
             self._redo_phys.clear()
         elif self._active_grid == "vis" and self._waterpro:
-            self._undo_vis.append(bytearray(self._waterpro.vis_grid))
+            self._undo_vis.append(bytearray(self._waterpro.phys_grid))
             if len(self._undo_vis) > 20:
                 self._undo_vis.pop(0)
             self._redo_vis.clear()
 
-    def _undo(self): #vers 2
+    def _undo(self): #vers 3
         if self._view_tabs.currentIndex() == 2:
             return self._obj_undo_redo(self._undo_objs, self._redo_objs, "Undo")
         if self._active_grid == "phys":
-            s, r, attr, canvas = self._undo_phys, self._redo_phys, "phys_grid", self._phys_canvas
+            s, r, attr, canvas = self._undo_phys, self._redo_phys, "vis_grid", self._phys_canvas
         else:
-            s, r, attr, canvas = self._undo_vis,  self._redo_vis,  "vis_grid",  self._vis_canvas
+            s, r, attr, canvas = self._undo_vis,  self._redo_vis,  "phys_grid", self._vis_canvas
         if not s:
             self._set_status("Nothing to undo")
             return
@@ -1513,13 +1716,13 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._set_status("Undo")
 
 
-    def _redo(self): #vers 2
+    def _redo(self): #vers 3
         if self._view_tabs.currentIndex() == 2:
             return self._obj_undo_redo(self._redo_objs, self._undo_objs, "Redo")
         if self._active_grid == "phys":
-            s, u, attr, canvas = self._redo_phys, self._undo_phys, "phys_grid", self._phys_canvas
+            s, u, attr, canvas = self._redo_phys, self._undo_phys, "vis_grid", self._phys_canvas
         else:
-            s, u, attr, canvas = self._redo_vis,  self._undo_vis,  "vis_grid",  self._vis_canvas
+            s, u, attr, canvas = self._redo_vis,  self._undo_vis,  "phys_grid", self._vis_canvas
         if not s:
             self._set_status("Nothing to redo")
             return
@@ -1530,9 +1733,9 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._set_status("Redo")
 
 
-    def _zoom(self, f): #vers 1
+    def _zoom(self, f): #vers 2
         for c in (self._phys_canvas, self._vis_canvas):
-            c._zoom = max(0.1, min(20.0, c._zoom * f))
+            c._zoom = max(0.1, min(c.zoom_max(), c._zoom * f))
             c.update()
 
 
@@ -1548,16 +1751,22 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             c.update()
 
 
-    def _set_depth_view(self, gauge_side=None, depth_colour=None): #vers 1
-        """Apply and save depth gauge side / depth colouring to both grids."""
+    def _set_depth_view(self, gauge_side=None, depth_colour=None): #vers 2
+        """Depth gauge ribbon off / left / right, and depth colouring of both grids."""
         if gauge_side is not None:
             self.WS._data["depth_gauge_side"] = gauge_side
+            tb = getattr(self, '_depth_tb', None)
+            if tb is not None:
+                if gauge_side:
+                    area = Qt.ToolBarArea.LeftToolBarArea if gauge_side == 'left' else Qt.ToolBarArea.RightToolBarArea
+                    self._ribbon_mw.addToolBar(area, tb)
+                tb.setVisible(bool(gauge_side))
+                self._ribbon_schedule_save()
         if depth_colour is not None:
             self.WS._data["depth_colour"] = bool(depth_colour)
         self.WS.save()
         for cv in (getattr(self, '_phys_canvas', None), getattr(self, '_vis_canvas', None)):
             if cv is not None:
-                cv._gauge_side = self.WS.get("depth_gauge_side", "")
                 cv._depth_mode = bool(self.WS.get("depth_colour", False))
                 cv.update()
 
@@ -1630,16 +1839,21 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return True
 
 
-    def _open_file(self, path=None): #vers 2
+    def _open_file(self, path=None): #vers 3
         if not path:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open Water File", "",
-                "Water Files (*.dat *.DAT);;All Files (*)")
+                "Water Files (*water*.dat *Water*.dat *WATER*.DAT *WATER*.dat)")
         if path:
             self._load_file(path)
 
 
-    def _load_file(self, path): #vers 3
+    def _load_file(self, path): #vers 4
+        """Open a water file; names without 'water' are refused (crash guard)."""
+        if "water" not in Path(path).name.lower():
+            QMessageBox.warning(self, "Open",
+                f"{Path(path).name} is not a water file (waterpro.dat / water.dat).")
+            return
         try:
             data = Path(path).read_bytes()
             if self._is_binary_waterpro(data):
@@ -1654,6 +1868,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             self._redo_phys.clear(); self._redo_vis.clear()
             self._undo_objs.clear(); self._redo_objs.clear()
             self._mark_dirty(False)
+            self._on_tab_changed(self._view_tabs.currentIndex())     # gauge follows the view
         except Exception as e:
             import traceback
             QMessageBox.critical(self, "Load Error",
@@ -1793,7 +2008,14 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._import_bmp()
 
 
-    def _export_bmp(self): #vers 2
+    def _bmp_index(self, canvas, w): #vers 1
+        """Grid byte index per BMP pixel: SOL as shown, others raw (rotated)."""
+        if w % 6 == 0:
+            return [canvas._grid_idx(x, y) for y in range(w) for x in range(w)]
+        return list(range(w * w))
+
+    def _export_bmp(self): #vers 3
+        """Visible and physical grids to BMP (land white)."""
         if not self._waterpro:
             QMessageBox.information(self, "Export", "Load a binary waterpro.dat first.")
             return
@@ -1802,24 +2024,22 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         stem = Path(self._file_path).stem if self._file_path else "water"
         try:
             from PIL import Image
-            def g2i(grid, w, h):
-                img = Image.new("L", (w, h), 0)
-                for i in range(w*h):
-                    img.putpixel((i%w, i//w), 128 if grid[i] == 128 else 0)
-                return img.rotate(90)
-            for grid, dflt, w, h in [
-                (wp.phys_grid, f"{stem}_physical.bmp", gw,   gw),
-                (wp.vis_grid,  f"{stem}_visible.bmp",  gw*2, gw*2),
+            for grid, dflt, w, canvas in [
+                (wp.vis_grid,  f"{stem}_visible.bmp",  gw,   self._phys_canvas),
+                (wp.phys_grid, f"{stem}_physical.bmp", gw*2, self._vis_canvas),
             ]:
                 p, _ = QFileDialog.getSaveFileName(self, "Export BMP", dflt, "BMP (*.bmp)")
                 if p:
-                    g2i(grid, w, h).save(p)
+                    px = bytes(255 if grid[i] == 128 else 0 for i in self._bmp_index(canvas, w))
+                    img = Image.frombytes("L", (w, w), px)
+                    (img if w % 6 == 0 else img.rotate(90)).save(p)
                     self._set_status(f"Exported {Path(p).name}")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
 
-    def _import_bmp(self): #vers 2
+    def _import_bmp(self): #vers 3
+        """BMP land mask into the matching grid; water cells keep their level."""
         if not self._waterpro:
             QMessageBox.information(self, "Import", "Load a binary waterpro.dat first.")
             return
@@ -1834,25 +2054,28 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             img    = Image.open(p).convert("L")
             w, h   = img.size
             if w == gw and h == gw:
-                target = "phys"
+                attr, canvas, undo, redo = "vis_grid", self._phys_canvas, self._undo_phys, self._redo_phys
             elif w == gw*2 and h == gw*2:
-                target = "vis"
+                attr, canvas, undo, redo = "phys_grid", self._vis_canvas, self._undo_vis, self._redo_vis
             else:
                 QMessageBox.warning(self, "Size Mismatch",
                     f"{w}x{h} doesn't match {gw}x{gw} or {gw*2}x{gw*2}")
                 return
-            img  = img.rotate(-90)
-            grid = bytearray(128 if img.getpixel((i%w, i//w)) > 64 else 0
-                             for i in range(w*h))
-            self._push_undo_grid()
-            if target == "phys":
-                wp.phys_grid = grid
-                self._phys_canvas.set_grid(grid)
-            else:
-                wp.vis_grid = grid
-                self._vis_canvas.set_grid(grid)
+            if w % 6:
+                img = img.rotate(-90)
+            px = img.tobytes()
+            old = getattr(wp, attr)
+            grid = bytearray(old)
+            for k, i in enumerate(self._bmp_index(canvas, w)):
+                if px[k] > 64:
+                    grid[i] = 128
+                elif old[i] == 128:
+                    grid[i] = 0
+            undo.append(bytearray(old)); redo.clear()
+            setattr(wp, attr, grid)
+            canvas.set_grid(grid)
             self._on_grid_changed()
-            self._set_status(f"Imported {target} grid from {Path(p).name}")
+            self._set_status(f"Imported {attr.split('_')[0]} grid from {Path(p).name}")
         except Exception as e:
             QMessageBox.critical(self, "Import Error", str(e))
 
@@ -2148,14 +2371,11 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         self._obj_edited()
         self._set_status(f"Deleted {len(sel)} object(s)")
 
-    def _obj_set_z(self, z): #vers 1
+    def _obj_set_z(self, z): #vers 2
         """Set Z of the selected objects (Z field)."""
         if not self._sa_canvas.selection():
             return
-        self._obj_edit_started()
-        self._sa_canvas.set_selected_z(z)
-        self._sa_canvas.update()
-        self._obj_edited()
+        self._sa_canvas.set_selected_z(z, start=True)
 
 
     def closeEvent(self, ev): #vers 1

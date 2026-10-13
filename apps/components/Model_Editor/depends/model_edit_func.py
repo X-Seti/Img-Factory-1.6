@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_edit_func.py - Version: 5
+#this belongs in apps/components/Model_Editor/depends/model_edit_func.py - Version: 11
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop editing
 
 """
@@ -27,6 +27,7 @@ Geometry edits, primitives, paint, materials, undo for ModelWorkshop.
 # _dff_rotate_ccw
 # _dff_rotate_cw
 # _dff_transform_vertices
+# _edit_model
 # _duplicate_selected_model
 # _exit_paint_mode
 # _extrude_dialog
@@ -38,9 +39,12 @@ Geometry edits, primitives, paint, materials, undo for ModelWorkshop.
 # _mesh_delete_faces
 # _mesh_delete_vertices
 # _mesh_detach
+# _mesh_detached_dialog
+# _mesh_detached_groups
 # _mesh_fill_hole
 # _mesh_frame_name
 # _mesh_gizmo_moved
+# _mesh_gizmo_xform
 # _mesh_hide_selected
 # _mesh_light_view
 # _mesh_lighting
@@ -50,6 +54,7 @@ Geometry edits, primitives, paint, materials, undo for ModelWorkshop.
 # _mesh_optimum_bounds
 # _mesh_preview
 # _mesh_push_undo
+# _mesh_record_detached
 # _mesh_region_circle
 # _mesh_region_window
 # _mesh_rotate_dialog
@@ -60,13 +65,16 @@ Geometry edits, primitives, paint, materials, undo for ModelWorkshop.
 # _mesh_select_verts
 # _mesh_selection_to_file
 # _mesh_selection_to_geometry
+# _mesh_set_face_mode
 # _mesh_show
+# _mesh_show_vertices
 # _mesh_split
 # _mesh_target
 # _mesh_toggle_gamepad
 # _mesh_toggle_lock
 # _mesh_undo_last
 # _mesh_unhide_all
+# _mesh_uv_dialog
 # _mesh_verts_to_faces
 # _mesh_weld
 # _mirror_dialog
@@ -1761,13 +1769,19 @@ class ModelEditMixin: #vers 1
             return set(vp._selected_faces), set()
         return set(), set()
 
-    def _mesh_show(self, idx, geom, fit=False, keep_sel=False): #vers 2
+    def _mesh_show(self, idx, geom, fit=False, keep_sel=False): #vers 4
         """Show one geometry in the viewport; selection kept if indices still valid."""
+        detached = set().union(*[g for g in self._mesh_detached_groups(geom)]) if \
+            getattr(geom, 'detached_groups', None) else set()
         for vp in self._live_viewports():
             vp.load_geometry(geom, geom.materials, fit=fit)
+            vp.set_detached_faces(detached)
             if not keep_sel:
                 vp._selected_verts.clear(); vp._selected_edges.clear(); vp._selected_faces.clear()
             vp.update()
+        dock = getattr(self, '_detached_dock', None)
+        if dock is not None and dock.isVisible():
+            dock._refresh()
 
     def _mesh_push_undo(self, idx, geom, label): #vers 1
         """Save a geometry copy (None = undo removes appended geometry idx)."""
@@ -1837,10 +1851,32 @@ class ModelEditMixin: #vers 1
             model.geometries[idx] = old
             self._mesh_after_edit(idx, old, f"Undo: {label}")
 
-    def _mesh_gizmo_moved(self, vert_ids, dx, dy, dz): #vers 1
-        """Viewport gizmo drag finished: move those vertices (undoable)."""
+    def _mesh_gizmo_moved(self, vert_ids, dx, dy, dz): #vers 2
+        """Viewport gizmo drag finished: move vertices, or faces (connected / detach / extrude)."""
         from apps.methods import col_mesh_ops as ops
+        vp = self.preview_widget
+        faces, _v = self._mesh_sel()
+        mode = getattr(vp, '_mesh_face_mode', 'connected')
+        if faces and mode != 'connected':
+            if self._mesh_run(f"Move faces ({mode})", ops.move_faces, faces, mode, dx, dy, dz) is not None \
+                    and mode == 'detach':
+                self._mesh_record_detached(faces)
+            for v in self._live_viewports():
+                v._selected_faces.clear(); v._selected_faces.update(faces); v.update()
+            return
         self._mesh_run("Move (gizmo)", ops.translate, set(), dx, dy, dz, set(vert_ids))
+
+    def _mesh_gizmo_xform(self, kind, vert_ids, axis, value, pivot): #vers 1
+        """Viewport gizmo rotate (degrees) or scale (factor) finished; undoable."""
+        from apps.methods import col_mesh_ops as ops
+        ids = set(vert_ids)
+        if kind == 'rotate':
+            self._mesh_run(f"Rotate {axis.upper()} {value:+.1f} (gizmo)", ops.rotate, set(), axis.upper(),
+                           value, pivot, ids)
+        else:
+            f = [value if axis in ('u', a) else 1.0 for a in 'xyz']
+            self._mesh_run(f"Scale {'all' if axis == 'u' else axis.upper()} x{value:.2f} (gizmo)",
+                           ops.scale, set(), *f, pivot, ids)
 
     def _dff_append_geometry(self, geom, src_idx, name, label): #vers 1
         """Append geom with its own frame (copy of src_idx's) and atomic; undoable."""
@@ -2023,6 +2059,16 @@ class ModelEditMixin: #vers 1
             vp._region_crossing = not checked
         self._set_status("Face region: window" if checked else "Face region: crossing")
 
+    def _edit_model(self): #vers 1
+        """Start mesh editing on the selected geometry (Face mode)."""
+        if not getattr(self, '_current_dff_model', None):
+            QMessageBox.information(self, "Edit Model", "Open a model (DFF / MDL / WDR / NIF) first.")
+            return
+        self._set_select_mode('face')
+        idx = max(0, self._dff_get_selected_geom_idx())
+        self._set_status(f"Editing geometry [{idx}]: click faces (Ctrl adds, drag a box), drag the gizmo, "
+                         "right-click for mesh tools. Object Select finishes.")
+
     def _mesh_hide_selected(self): #vers 1
         """Hide selected faces in the live viewports (not drawn or picked)."""
         faces, _v = self._mesh_sel()
@@ -2057,10 +2103,54 @@ class ModelEditMixin: #vers 1
         faces, _v = self._mesh_sel()
         self._mesh_run("Delete faces", ops.delete_faces, faces, need='faces')
 
-    def _mesh_detach(self): #vers 1
+    def _mesh_detach(self): #vers 2
         from apps.methods import col_mesh_ops as ops
         faces, _v = self._mesh_sel()
-        self._mesh_run("Detach", ops.detach_faces, faces, need='faces')
+        if self._mesh_run("Detach", ops.detach_faces, faces, need='faces') is not None:
+            self._mesh_record_detached(faces)
+
+    def _mesh_record_detached(self, faces): #vers 1
+        """Remember detached faces on the geometry (orange edges, Detached Parts list)."""
+        tgt = self._mesh_target()
+        if tgt is None or not faces:
+            return
+        idx, geom = tgt
+        groups = [g for g in self._mesh_detached_groups(geom) if not g & set(faces)]
+        geom.detached_groups = groups + [(frozenset(faces), len(geom.triangles))]
+        self._mesh_show(idx, geom, keep_sel=True)
+
+    def _mesh_detached_groups(self, geom): #vers 1
+        """Valid detached face groups (dropped once faces were deleted)."""
+        n = len(geom.triangles)
+        return [g for g, count in getattr(geom, 'detached_groups', []) if n >= count and max(g) < n]
+
+    def _mesh_detached_dialog(self): #vers 2
+        """List detached parts: click selects them, Reattach joins them back."""
+        from apps.gui.col_workshop_dialogs import show_detached_parts_dock
+        from apps.methods import col_mesh_ops as ops
+
+        def parts():
+            tgt = self._mesh_target()
+            return [(f"Part {i + 1}", sorted(g)) for i, g in
+                    enumerate(self._mesh_detached_groups(tgt[1]))] if tgt else []
+
+        def select(faces):
+            self._set_select_mode('face')
+            for vp in self._live_viewports():
+                vp._selected_faces.clear(); vp._selected_faces.update(faces); vp.update()
+
+        def reattach(faces):
+            tgt = self._mesh_target()
+            if tgt is None:
+                return
+            n = self._mesh_run("Reattach", ops.reattach_faces, set(faces))
+            idx, geom = self._mesh_target()
+            geom.detached_groups = [(g, c) for g, c in getattr(geom, 'detached_groups', [])
+                                    if set(g) != set(faces)]
+            self._mesh_show(idx, geom, keep_sel=True)
+            self._set_status(f"Reattached {n or 0} vertex(es)")
+        show_detached_parts_dock(self, self._outer_mw, parts, select, reattach,
+                                 self._get_icon_color())
 
     def _mesh_split(self): #vers 1
         from apps.methods import col_mesh_ops as ops
@@ -2071,6 +2161,63 @@ class ModelEditMixin: #vers 1
         from apps.methods import col_mesh_ops as ops
         faces, _v = self._mesh_sel()
         self._mesh_run("Fill hole", ops.fill_holes, faces, need='faces')
+
+    def _mesh_set_face_mode(self, mode): #vers 1
+        """Face move mode shared by every viewport chip and the ribbon toggles."""
+        self._mesh_face_mode = mode
+        for vp in self._live_viewports():
+            vp.set_mesh_face_mode(mode, notify=False)
+        for m in ('connected', 'detach', 'extrude'):
+            act = getattr(self, f'_mesh_fm_{m}_act', None)
+            if act is not None and act.isChecked() != (m == mode):
+                act.blockSignals(True); act.setChecked(m == mode); act.blockSignals(False)
+        self._set_status(f"Face move: {mode}")
+
+    def _mesh_uv_dialog(self): #vers 1
+        """UV map selected faces (or all): projection, fit 0-1, scale, rotate, offset."""
+        from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+                                     QDoubleSpinBox, QFormLayout, QSpinBox)
+        from apps.methods.dff_mesh_ops import uv_map
+        tgt = self._mesh_target()
+        if tgt is None:
+            return
+        geom = tgt[1]
+        if not geom.uv_layers:
+            self._set_status("UV Map: geometry has no UV layer")
+            return
+        faces, _v = self._mesh_sel()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"UV Map - {len(faces)} face(s)" if faces else "UV Map - whole geometry")
+        form = QFormLayout(dlg)
+        proj = QComboBox()
+        for label, key in (("Keep current UVs", 'keep'), ("Box", 'box'), ("Planar X", 'planar_x'),
+                           ("Planar Y", 'planar_y'), ("Planar Z", 'planar_z')):
+            proj.addItem(label, key)
+        form.addRow("Projection:", proj)
+        layer = QSpinBox(); layer.setRange(1, len(geom.uv_layers))
+        form.addRow("UV layer:", layer)
+        fit = QCheckBox("Fit to 0-1 (resize)")
+        form.addRow(fit)
+
+        def spin(val, lo, hi, step):
+            sp = QDoubleSpinBox(); sp.setRange(lo, hi); sp.setDecimals(4)
+            sp.setSingleStep(step); sp.setValue(val)
+            return sp
+        su, sv = spin(1.0, -1000, 1000, 0.1), spin(1.0, -1000, 1000, 0.1)
+        ou, ov = spin(0.0, -1000, 1000, 0.05), spin(0.0, -1000, 1000, 0.05)
+        rot = spin(0.0, -360, 360, 15)
+        for label, w in (("Scale U:", su), ("Scale V:", sv), ("Offset U:", ou),
+                         ("Offset V:", ov), ("Rotate:", rot)):
+            form.addRow(label, w)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        n = self._mesh_run("UV Map", uv_map, faces, proj.currentData(), su.value(), sv.value(),
+                           ou.value(), ov.value(), rot.value(), fit.isChecked(), layer.value() - 1)
+        if n is not None:
+            self._set_status(f"UV Map: {n} vertex UV(s) set")
 
     def _mesh_weld(self): #vers 1
         from apps.methods import col_mesh_ops as ops
@@ -2094,20 +2241,43 @@ class ModelEditMixin: #vers 1
         a, b, c = sorted(verts)
         self._mesh_run("Add face", ops.add_face, a, b, c, need='verts')
 
-    def _mesh_move_dialog(self): #vers 1
-        """Move selection (or whole geometry) by dx, dy, dz."""
-        from PyQt6.QtWidgets import QInputDialog
+    def _mesh_move_dialog(self): #vers 2
+        """Position of the selection (or whole geometry): absolute X/Y/Z of its centre, or move by."""
+        from PyQt6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout
         from apps.methods import col_mesh_ops as ops
-        txt, ok = QInputDialog.getText(self, "Move", "dx, dy, dz:", text="0, 0, 0")
-        if not ok:
-            return
-        try:
-            dx, dy, dz = (float(x) for x in txt.replace(' ', '').split(','))
-        except ValueError:
-            self._set_status("Move: enter three numbers")
+        tgt = self._mesh_target()
+        if tgt is None:
             return
         faces, verts = self._mesh_sel()
-        self._mesh_run("Move", ops.translate, faces, dx, dy, dz, verts or None)
+        cx, cy, cz = ops.selection_centre(self._mesh_preview(tgt[1]), faces or None, verts or None)
+        dlg = QDialog(self)
+        n = len(verts) or len(faces)
+        dlg.setWindowTitle(f"Position of {n} {'vertex(es)' if verts else 'face(s)'}" if n else "Position of geometry")
+        form = QFormLayout(dlg)
+        spins = []
+        for axis, val in zip("XYZ", (cx, cy, cz)):
+            sp = QDoubleSpinBox()
+            sp.setRange(-100000.0, 100000.0); sp.setDecimals(4); sp.setSingleStep(0.1); sp.setValue(val)
+            form.addRow(f"{axis}:", sp)
+            spins.append(sp)
+        rel = QCheckBox("Relative (move by)")
+        rel.toggled.connect(lambda on: [sp.setValue(0.0 if on else v) for sp, v in zip(spins, (cx, cy, cz))])
+        form.addRow(rel)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        x, y, z = (sp.value() for sp in spins)
+        dx, dy, dz = (x, y, z) if rel.isChecked() else (x - cx, y - cy, z - cz)
+        if dx or dy or dz:
+            self._mesh_run("Move", ops.translate, faces, dx, dy, dz, verts or None)
+
+    def _mesh_show_vertices(self, checked): #vers 1
+        """Vertex dots on the model in every edit mode."""
+        for vp in self._live_viewports():
+            vp._show_verts = bool(checked)
+            vp.update()
 
     def _mesh_scale_dialog(self): #vers 1
         """Scale selection (or whole geometry) about its centre."""
@@ -2209,7 +2379,7 @@ class ModelEditMixin: #vers 1
             if ok:
                 self._mesh_run(f"Decimate {r:g}", ops.decimate, r)
 
-    def _mesh_menu(self, menu=None): #vers 2
+    def _mesh_menu(self, menu=None): #vers 4
         """Mesh edit menu (ribbon button and viewport right-click)."""
         own = menu is None
         menu = menu or QMenu(self)
@@ -2223,6 +2393,7 @@ class ModelEditMixin: #vers 1
         fm = menu.addMenu("Faces")
         fm.addAction("Delete Faces", self._mesh_delete_faces)
         fm.addAction("Detach", self._mesh_detach)
+        fm.addAction("Detached Parts...", self._mesh_detached_dialog)
         fm.addAction("Split (centre vertex)", self._mesh_split)
         fm.addAction("Fill Hole", self._mesh_fill_hole)
         vm = menu.addMenu("Vertices")
@@ -2230,7 +2401,7 @@ class ModelEditMixin: #vers 1
         vm.addAction("Delete Vertices", self._mesh_delete_vertices)
         vm.addAction("Add Face (3 vertices)", self._mesh_add_face)
         tm = menu.addMenu("Transform")
-        tm.addAction("Move...", self._mesh_move_dialog)
+        tm.addAction("Position / Move...", self._mesh_move_dialog)
         tm.addAction("Rotate...", self._mesh_rotate_dialog)
         tm.addAction("Scale...", self._mesh_scale_dialog)
         tm.addAction("Mirror...", self._mirror_dialog)

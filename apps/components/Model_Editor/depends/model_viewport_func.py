@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_viewport_func.py - Version: 3
+#this belongs in apps/components/Model_Editor/depends/model_viewport_func.py - Version: 6
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop viewport
 
 """
@@ -421,17 +421,22 @@ class ModelViewportMixin: #vers 1
         except Exception:
             pass   # no saved settings — use defaults
 
-    def _set_select_mode(self, mode: str): #vers 5
+    def _set_select_mode(self, mode: str): #vers 9
         """Set viewport selection mode: vertex / edge / face / poly / object.
         Applied to every visible viewport (single or all 4 quad panes).
         Switching modes clears the other modes' selection sets, so there is
         no stale hidden selection left over when the user switches back.
         Sub-object modes show the list's geometry alone so it can be picked."""
         was = getattr(getattr(self, 'preview_widget', None), '_select_mode', 'object')
+        names = {'vertex': 'Vertex', 'edge': 'Edge', 'face': 'Face', 'poly': 'Polygon'}
         for vp in self._live_viewports():
             vp._select_mode = mode
+            vp.set_edit_mode_banner(f"Edit Mode - {names[mode]}" if mode in names else "")
             vp._mesh_context_callback = self._mesh_menu
             vp.set_mesh_gizmo_callback(self._mesh_gizmo_moved)
+            vp.set_mesh_xform_callback(self._mesh_gizmo_xform)
+            vp.set_mesh_face_mode_callback(self._mesh_set_face_mode)
+            vp.set_mesh_face_mode(getattr(self, '_mesh_face_mode', 'connected'), notify=False)
             if mode != 'vertex':
                 vp._selected_verts.clear()
             if mode != 'edge':
@@ -441,12 +446,16 @@ class ModelViewportMixin: #vers 1
             vp.update()
         if (mode == 'object') != (was == 'object') and getattr(self, '_current_dff_model', None):
             self._show_dff_geometry(max(0, self._dff_get_selected_geom_idx()))
+        act = getattr(self, {'object': '_sel_obj_act', 'vertex': '_sel_vert_act', 'edge': '_sel_edge_act',
+                             'face': '_sel_face_act', 'poly': '_sel_poly_act'}.get(mode, ''), None)
+        if act is not None and not act.isChecked():
+            act.setChecked(True)                    # ribbon shows the real mode
         self._set_status(f"Select mode: {mode}")
         mw = self.main_window
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(f"Model Workshop: select mode → {mode}")
 
-    def _update_select_mode_availability(self): #vers 2
+    def _update_select_mode_availability(self): #vers 3
         """Enable vertex/edge/face/poly select buttons only when there is
         an actual model (DFF geometry or COL surfaces) to select from.
         Called after load, after creating a primitive from scratch, and
@@ -456,8 +465,8 @@ class ModelViewportMixin: #vers 1
         has_col = bool(getattr(self, 'current_col_file', None) and
                        getattr(self.current_col_file, 'models', None))
         has_model = has_dff or has_col
-        for attr in ('_sel_vert_btn', '_sel_edge_btn',
-                     '_sel_face_btn', '_sel_poly_btn'):
+        for attr in ('_sel_vert_act', '_sel_edge_act',
+                     '_sel_face_act', '_sel_poly_act', '_edit_model_act'):
             b = getattr(self, attr, None)
             if b:
                 b.setEnabled(has_model)
@@ -471,11 +480,13 @@ class ModelViewportMixin: #vers 1
             grp = getattr(self, '_select_mode_group', None)
             if grp:
                 grp.setExclusive(False)
-                for attr in ('_sel_vert_btn', '_sel_edge_btn',
-                             '_sel_face_btn', '_sel_poly_btn'):
+                for attr in ('_sel_vert_act', '_sel_edge_act',
+                             '_sel_face_act', '_sel_poly_act'):
                     b = getattr(self, attr, None)
                     if b: b.setChecked(False)
                 grp.setExclusive(True)
+            if getattr(self, '_sel_obj_act', None):
+                self._sel_obj_act.setChecked(True)
 
     def _toggle_backface_cull(self): #vers 1
         """Toggle backface culling — when ON only the front face is visible/selectable."""
@@ -672,7 +683,7 @@ class ModelViewportMixin: #vers 1
                     self._toggle_pane_maximize(self._maximized_pane)  # restore all 4
             self._viewport_stack.setCurrentWidget(self.preview_widget)
 
-    def _sync_quad_from_main(self): #vers 2
+    def _sync_quad_from_main(self): #vers 3
         """Mirror the main viewport's loaded geometry, selection state and
         render mode into the 4 quad panes (so opening 4-Pane View shows
         whatever was already selected/set in the single view)."""
@@ -693,6 +704,8 @@ class ModelViewportMixin: #vers 1
             pane._selected_verts = set(getattr(src, '_selected_verts', set()))
             pane._selected_edges = set(getattr(src, '_selected_edges', set()))
             pane._selected_faces = set(getattr(src, '_selected_faces', set()))
+            pane.set_mesh_face_mode_callback(self._mesh_set_face_mode)
+            pane.set_mesh_face_mode(getattr(self, '_mesh_face_mode', 'connected'), notify=False)
             if hasattr(pane, 'set_render_mode') and hasattr(src, '_mode'):
                 pane.set_render_mode(src._mode)
             pane._auto_fit()

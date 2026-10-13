@@ -1,4 +1,4 @@
-#this belongs in apps/methods/col_mesh_ops.py - Version: 7
+#this belongs in apps/methods/col_mesh_ops.py - Version: 10
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Mesh Operations
 
 """
@@ -21,10 +21,13 @@ Face selections are sets of face indices; vertex selections sets of vertex indic
 # delete_isolated_vertices
 # delete_vertices
 # detach_faces
+# detached_faces
+# detached_parts
 # _dominant_material
 # _dot
 # _ear_clip
 # extract_faces
+# extrude_faces
 # face_group_bounds
 # faces_by_material
 # faces_of_vertices
@@ -39,9 +42,11 @@ Face selections are sets of face indices; vertex selections sets of vertex indic
 # merge_models
 # min_sphere
 # mirror
+# move_faces
 # _new_face
 # _normal
 # optimum_bounds
+# reattach_faces
 # recalc_bounds
 # _rot
 # rotate
@@ -443,6 +448,94 @@ def detach_faces(model, face_ids): #vers 1
     return len(remap)
 
 
+def detached_parts(model): #vers 1
+    """Face id sets of the parts not joined (by vertex) to the largest part, biggest first."""
+    faces = model.faces
+    parent = list(range(len(model.vertices)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    n = len(parent)
+    for f in faces:
+        ids = [i for i in (f.a, f.b, f.c) if 0 <= i < n]
+        for j in ids[1:]:
+            ra, rb = find(ids[0]), find(j)
+            if ra != rb:
+                parent[rb] = ra
+    groups = defaultdict(set)
+    for i, f in enumerate(faces):
+        if 0 <= f.a < n:
+            groups[find(f.a)].add(i)
+    parts = sorted(groups.values(), key=len, reverse=True)
+    return parts[1:]
+
+
+def detached_faces(model): #vers 2
+    """Faces outside the largest vertex-connected part (detached / separate pieces)."""
+    return set().union(*detached_parts(model)) if model.faces else set()
+
+
+def extrude_faces(model, face_ids): #vers 1
+    """Copy the selected faces' vertices, re-point the faces to them and add side walls
+    along the selection border. Returns the new vertex ids (move them to pull the extrusion)."""
+    sel = set(face_ids)
+    edges = Counter()
+    for fi in sel:
+        f = model.faces[fi]
+        for a, b in ((f.a, f.b), (f.b, f.c), (f.c, f.a)):
+            edges[(min(a, b), max(a, b))] += 1
+    remap = {}
+    for i in sorted(selection_vertices(model, sel)):
+        v = model.vertices[i]
+        remap[i] = len(model.vertices)
+        model.vertices.append(COLVertex(v.x, v.y, v.z))
+    walls = []
+    for fi in sel:
+        f = model.faces[fi]
+        for a, b in ((f.a, f.b), (f.b, f.c), (f.c, f.a)):
+            if edges[(min(a, b), max(a, b))] == 1:           # border edge: keep winding
+                walls.append(_new_face(a, b, remap[b], f))
+                walls.append(_new_face(a, remap[b], remap[a], f))
+        f.a, f.b, f.c = remap[f.a], remap[f.b], remap[f.c]
+    model.faces.extend(walls)
+    return set(remap.values())
+
+
+def move_faces(model, face_ids, mode, dx, dy, dz): #vers 1
+    """Move selected faces: 'connected' (neighbours stretch), 'detach' or 'extrude'."""
+    sel = set(face_ids)
+    if mode == 'extrude':
+        verts = extrude_faces(model, sel)
+    else:
+        if mode == 'detach':
+            detach_faces(model, sel)
+        verts = selection_vertices(model, sel)
+    translate(model, set(), dx, dy, dz, verts)
+    return verts
+
+
+def reattach_faces(model, face_ids, eps=1e-4): #vers 1
+    """Join a detached part back: its vertices take the matching vertex of the rest of
+    the mesh at the same position. Returns the number of vertices joined."""
+    sel = set(face_ids)
+    inside = selection_vertices(model, sel)
+    outside = selection_vertices(model, set(range(len(model.faces))) - sel)
+    key = lambda v: (round(v.x / eps), round(v.y / eps), round(v.z / eps))
+    at = {}
+    for i in outside:
+        at.setdefault(key(model.vertices[i]), i)
+    remap = {i: at[key(model.vertices[i])] for i in inside if key(model.vertices[i]) in at}
+    for fi in sel:
+        f = model.faces[fi]
+        f.a, f.b, f.c = remap.get(f.a, f.a), remap.get(f.b, f.b), remap.get(f.c, f.c)
+    if remap:
+        compact_vertices(model)
+    return len(remap)
+
+
 def extract_faces(model, face_ids, name): #vers 1
     """New model holding copies of the selected faces (same version); source unchanged."""
     new = copy.deepcopy(model)
@@ -488,23 +581,28 @@ def _dominant_material(faces): #vers 1
     return next(f for f in faces if int(getattr(f.material, 'material_id', f.material)) == top)
 
 
-def fill_holes(model, face_ids): #vers 1
+def fill_holes(model, face_ids): #vers 2
     """Close open edge loops (holes) whose every vertex belongs to the selected
-    faces (select the faces around the hole). Each loop is fanned from its centre.
-    Returns faces added."""
+    faces (select the faces around the hole). Vertices sharing a position count
+    as one (DFF UV seams). Each loop is fanned from its centre. Returns faces added."""
+    rep, first = [], {}
+    for i, v in enumerate(model.vertices):
+        rep.append(first.setdefault((round(v.x, 5), round(v.y, 5), round(v.z, 5)), i))
     edge_count = Counter()
     edge_face = {}
     for fi, f in enumerate(model.faces):
-        for a, b in ((f.a, f.b), (f.b, f.c), (f.c, f.a)):
-            k = (min(a, b), max(a, b))
-            edge_count[k] += 1
+        a0, b0, c0 = rep[f.a], rep[f.b], rep[f.c]
+        if len({a0, b0, c0}) < 3:
+            continue
+        for a, b in ((a0, b0), (b0, c0), (c0, a0)):
+            edge_count[(min(a, b), max(a, b))] += 1
             edge_face[(a, b)] = fi
     # boundary half-edges keep winding: reverse direction to face the hole
     nxt = defaultdict(list)
     for (a, b), fi in edge_face.items():
         if edge_count[(min(a, b), max(a, b))] == 1:
             nxt[b].append((a, fi))
-    near = selection_vertices(model, face_ids)
+    near = {rep[i] for i in selection_vertices(model, face_ids)}
     added, used = 0, set()
     for start in list(nxt):
         if start in used or not nxt[start]:
@@ -512,7 +610,7 @@ def fill_holes(model, face_ids): #vers 1
         loop, cur, guard = [start], start, 0
         while guard < 10000:
             guard += 1
-            opts = [(v, fi) for v, fi in nxt[cur] if v not in used]
+            opts = [(v, fi) for v, fi in nxt[cur] if v not in used and v not in loop[1:]]
             if not opts:
                 break
             v, fi = opts[0]
@@ -520,7 +618,7 @@ def fill_holes(model, face_ids): #vers 1
                 break
             loop.append(v)
             cur = v
-        if len(loop) < 3 or not set(loop) <= near:
+        if len(loop) < 3 or not set(loop) <= near or start not in [v for v, _ in nxt[cur]]:
             continue
         used.update(loop)
         like = model.faces[edge_face.get((loop[1], loop[0]), next(iter(face_ids)))]
@@ -904,7 +1002,7 @@ def decimate(model, ratio=0.5): #vers 1
     return before - len(model.faces)
 
 
-__all__ = ['box_to_mesh', 'compact_vertices', 'delete_faces', 'detach_faces', 'extract_faces',
+__all__ = ['box_to_mesh', 'compact_vertices', 'delete_faces', 'detach_faces', 'detached_faces', 'detached_parts', 'extrude_faces', 'move_faces', 'reattach_faces', 'extract_faces',
            'faces_to_box', 'faces_to_sphere', 'fill_holes', 'icosphere', 'merge_models',
            'recalc_bounds', 'rotate', 'scale', 'selection_centre', 'selection_vertices',
            'sphere_to_mesh', 'translate', 'weld_vertices',

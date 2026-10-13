@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 217
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 218
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -141,13 +141,14 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         """Return menu label for imgfactory menu bar."""
         return "DFF"
 
-    def _build_menus_into_qmenu(self, parent_menu): #vers 2
+    def _build_menus_into_qmenu(self, parent_menu): #vers 3
         """Populate parent_menu with Model Workshop actions."""
         fm = parent_menu.addMenu("File")
         fm.addAction("Open…",    self._open_file if hasattr(self, '_open_file') else lambda: None)
         fm.addAction("Open in New Tab…", self._open_file_new_tab)
         fm.addAction("Save",     self._save_file if hasattr(self, '_save_file') else lambda: None)
         fm.addAction("Save As…", self._save_file_as if hasattr(self, '_save_file_as') else lambda: None)
+        fm.addAction("Batch Convert…", self._batch_convert)
         fm.addSeparator()
         fm.addAction("Export…",  self._export_col_data if hasattr(self, '_export_col_data') else lambda: None)
 

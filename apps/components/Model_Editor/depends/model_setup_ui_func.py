@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 6
+#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 10
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop UI setup
 
 """
@@ -1220,7 +1220,7 @@ class ModelSetupUIMixin: #vers 1
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 11
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 15
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -1313,11 +1313,13 @@ class ModelSetupUIMixin: #vers 1
             setattr(self, attr, act)
             return act
 
+        _sel_act('_sel_obj_act',  'Object Select (finish editing)', 'object', 'dp_select_icon')
+        self._sel_obj_act.setEnabled(True)
         _sel_act('_sel_vert_act', 'Vertex Select', 'vertex', 'vertex_select_icon', 'vertex_select_icon')
         _sel_act('_sel_edge_act', 'Edge Select',   'edge',   'edge_select_icon',   'edge_select_icon')
         _sel_act('_sel_face_act', 'Face Select',   'face',   'face_select_icon',   'face_select_icon')
         _sel_act('_sel_poly_act', 'Polygon Select','poly',   'poly_select_icon',   'poly_select_icon')
-        self._sel_face_act.setChecked(True)
+        self._sel_obj_act.setChecked(True)          # viewport starts in object mode
         self._select_mode_group = sel_group
 
         # Selection count label — QToolBar widget (labels can't be QAction)
@@ -1400,6 +1402,9 @@ class ModelSetupUIMixin: #vers 1
 
         # - Ribbon 3: Edit Geometry
         tb_geo = _tb("Edit Geometry")
+        _act(tb_geo, "Edit Model (mesh edit, Face mode)", self.icon_factory.edit_model_icon,
+             callback=lambda *_: self._edit_model(), attr='_edit_model_act')
+        self._edit_model_act.setEnabled(False)
         _act(tb_geo, "Create Primitive",
              _icon(lambda color=icon_color: MaxSVGIcons.create_primitive_icon(
                  size=20, color=color), 'create_primitive_icon'),
@@ -1423,7 +1428,7 @@ class ModelSetupUIMixin: #vers 1
         self._mesh_act.setToolTip("Mesh edit tools (also right-click the viewport in Vertex/Face mode)")
 
         # - Mesh ribbons (Oct 12 2026): COL Workshop edit tools on DFF geometry
-        from apps.methods.imgfactory_svg_icons import get_select_all_icon, get_select_inverse_icon
+        from apps.methods.imgfactory_svg_icons import get_select_all_icon, get_select_inverse_icon, list_icon
         IF = self.icon_factory
         mw.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)      # mesh ribbons on their own row
         for group, entries in (
@@ -1440,21 +1445,32 @@ class ModelSetupUIMixin: #vers 1
                 ("Unhide All Faces",           IF.unhide_faces_icon,    lambda *_: self._mesh_unhide_all()),
                 ("Circle Region Select",       IF.region_circle_icon,   self._mesh_region_circle, '_mesh_circle_act'),
                 ("Window Face Select",         IF.region_window_icon,   self._mesh_region_window, '_mesh_window_act'),
+                ("Show Vertices",              IF.show_vertices_icon,   self._mesh_show_vertices, '_mesh_showv_act'),
                 ("Selection Lock [Space]",     IF.selection_lock_icon,  self._mesh_toggle_lock, '_mesh_lock_act'),
                 ("Game Controller",            IF.controller_icon,      self._mesh_toggle_gamepad, '_mesh_gamepad_act'),
             ]),
             ("Mesh Edit", [
-                ("Move...",                    IF.vertex_position_icon, lambda *_: self._mesh_move_dialog()),
+                ("Position / Move...",         IF.vertex_position_icon, lambda *_: self._mesh_move_dialog()),
                 ("Rotate...",                  IF.rotate_cw_icon,       lambda *_: self._mesh_rotate_dialog()),
                 ("Scale...",                   IF.bounds_icon,          lambda *_: self._mesh_scale_dialog()),
+                ("Mirror...",                  IF.mirror_icon,          lambda *_: self._mirror_dialog()),
                 ("Centre to Origin",           IF.snap_to_center_icon,  lambda *_: self._mesh_centre_origin()),
                 ("Detach Selected Faces",      IF.detach_faces_icon,    lambda *_: self._mesh_detach()),
+                ("Detached Parts...",          lambda color=None: list_icon(20, color),
+                 lambda *_: self._mesh_detached_dialog()),
                 ("Delete Selected Faces",      IF.delete_face_icon,     lambda *_: self._mesh_delete_faces()),
                 ("Weld Selected Vertices",     IF.converge_to_center_icon, lambda *_: self._mesh_weld()),
                 ("Create Face from 3 Vertices", IF.create_face_icon,    lambda *_: self._mesh_add_face()),
                 ("Delete Selected Vertices",   IF.delete_vertex_icon,   lambda *_: self._mesh_delete_vertices()),
                 ("Split Selected Faces",       IF.split_faces_icon,     lambda *_: self._mesh_split()),
                 ("Fill Hole",                  IF.fill_icon,            lambda *_: self._mesh_fill_hole()),
+                ("UV Map...",                  IF.uv_map_icon,          lambda *_: self._mesh_uv_dialog()),
+                ("Face Move: Keep Connected",  IF.faces_connected_icon,
+                 lambda on: on and self._mesh_set_face_mode('connected'), '_mesh_fm_connected_act'),
+                ("Face Move: Detach",          IF.detach_faces_icon,
+                 lambda on: on and self._mesh_set_face_mode('detach'), '_mesh_fm_detach_act'),
+                ("Face Move: Extrude",         IF.faces_extrude_icon,
+                 lambda on: on and self._mesh_set_face_mode('extrude'), '_mesh_fm_extrude_act'),
             ]),
             ("Mesh Optimise", [
                 ("Clean (keep UV seams)",      IF.filter_icon,          lambda *_: self._mesh_optimise('clean')),
@@ -1478,6 +1494,14 @@ class ModelSetupUIMixin: #vers 1
             for name, icon_fn, cb, *attr in entries:          # attr given: checkable toggle
                 _act(tb_mesh, name, icon_fn, callback=cb, checkable=bool(attr), attr=attr[0] if attr else None)
         self.preview_widget._lock_key_callback = self._mesh_lock_act.toggle
+        from PyQt6.QtGui import QActionGroup
+        fm_group = QActionGroup(self)
+        fm_group.setExclusive(True)
+        for m in ('connected', 'detach', 'extrude'):
+            fm_group.addAction(getattr(self, f'_mesh_fm_{m}_act'))
+        self._mesh_fm_connected_act.blockSignals(True)
+        self._mesh_fm_connected_act.setChecked(True)
+        self._mesh_fm_connected_act.blockSignals(False)
         from apps.methods.gamepad_input import gamepad_saved
         if gamepad_saved('model_workshop.json'):
             self._mesh_gamepad_act.setChecked(True)
