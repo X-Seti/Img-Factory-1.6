@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 112
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 114
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -2757,7 +2757,7 @@ class IMGFactory(QMainWindow):
         from apps.core.scan_img import scan_img_recent as _recent
         _recent(self)
 
-    def open_hybrid_load(self): #vers 2
+    def open_hybrid_load(self): #vers 3
         """Hybrid Load: open an IMG file and automatically pair each DFF entry
         with its matching COL data.
 
@@ -2860,17 +2860,15 @@ class IMGFactory(QMainWindow):
             #  4c. models/coll/ external archives (SA/SOL only)  
             col_external = {}  # stem -> source filename
             if is_sa_sol:
-                coll_dir = os.path.join(game_root, "models", "coll")
-                if os.path.isdir(coll_dir):
-                    for fname in os.listdir(coll_dir):
-                        if not fname.lower().endswith(".col"):
-                            continue
-                        try:
-                            with open(os.path.join(coll_dir, fname), "rb") as f:
-                                data = f.read()
-                            _index_col_binary(data, fname, col_external)
-                        except Exception as e:
-                            self.log_message(f"Hybrid: could not scan {fname}: {e}")
+                from apps.methods.gta_dat_parser import external_col_files
+                for col_path in external_col_files(game_root):
+                    fname = os.path.basename(col_path)
+                    try:
+                        with open(col_path, "rb") as f:
+                            data = f.read()
+                        _index_col_binary(data, fname, col_external)
+                    except Exception as e:
+                        self.log_message(f"Hybrid: could not scan {fname}: {e}")
 
             #  5. Pair DFF entries
             dff_entries = [e for e in img.entries
@@ -4894,7 +4892,7 @@ class IMGFactory(QMainWindow):
             'BreakableEditor', None,
             'Breakable', file_path or None)
 
-    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 1
+    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 2
         """Generic: import module, instantiate class, dock in tab. Reuses existing tab if open."""
         try:
             import importlib
@@ -4924,9 +4922,12 @@ class IMGFactory(QMainWindow):
             if file_path and hasattr(workshop, '_open_file'):
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(100, lambda: workshop._open_file(file_path))
-            idx = self.main_tab_widget.addTab(tab_container, tab_label)
+            icon = workshop.windowIcon()                 # workshop app icon
+            idx = self.main_tab_widget.addTab(tab_container, icon, tab_label)
             self.main_tab_widget.setCurrentIndex(idx)
             self._ensure_tab_area_visible()
+            self.register_tool(class_name.lower(), tab_label.replace(' Workshop', ''), icon,
+                               tab_container, workshop.windowTitle())
             self.log_message(f"{tab_label} opened")
             return workshop
         except Exception as e:
@@ -5045,6 +5046,34 @@ class IMGFactory(QMainWindow):
             import traceback
             self.log_message(f"Water Workshop error: {e}")
             traceback.print_exc()
+
+    def open_capture_workshop(self): #vers 1
+        """Open Capture Workshop docked in a tab; switch to it if open."""
+        from apps.components.Capture_Workshop.capture_workshop import CaptureWorkshop
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        from PyQt6.QtWidgets import QVBoxLayout, QWidget
+        for i in range(self.main_tab_widget.count()):
+            w = self.main_tab_widget.widget(i)
+            if w and w.findChildren(CaptureWorkshop):
+                self.main_tab_widget.setCurrentIndex(i)
+                return w.findChildren(CaptureWorkshop)[0]
+        tab_container = QWidget()
+        tab_container.file_type = "WORKSHOP"
+        lay = QVBoxLayout(tab_container)
+        lay.setContentsMargins(0, 0, 0, 0)
+        workshop = CaptureWorkshop(tab_container, self)
+        workshop.setWindowFlags(Qt.WindowType.Widget)
+        lay.addWidget(workshop)
+        idx = self.main_tab_widget.addTab(tab_container, SVGIconFactory.capture_workshop_icon(20), "Capture")
+        self.main_tab_widget.setCurrentIndex(idx)
+        workshop.show()
+        self._ensure_tab_area_visible()
+        from apps.gui.gui_layout import _register_tool_taskbar
+        _register_tool_taskbar(self, "capture", "Capture", SVGIconFactory.capture_workshop_icon,
+                               "Capture Workshop - device, screen and window capture",
+                               target=tab_container)
+        self.log_message("Capture Workshop opened (docked)")
+        return workshop
 
 
     def _ensure_tab_area_visible(self): #vers 2

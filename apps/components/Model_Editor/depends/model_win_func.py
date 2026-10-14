@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_win_func.py - Version: 4
+#this belongs in apps/components/Model_Editor/depends/model_win_func.py - Version: 5
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop window frame
 
 """
@@ -529,11 +529,15 @@ class ModelWindowMixin: #vers 1
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
-    def showEvent(self, event): #vers 3
-        """On first show, mark shown; files panel follows the open IMG tabs.
+    def showEvent(self, event): #vers 4
+        """Fill an empty files panel (game folder or open IMG tabs), else follow IMG tabs.
         Toolbar-layout restore is handled by _restore_toolbar_state."""
         super().showEvent(event)
-        self._sync_open_imgs()
+        lw = getattr(self, 'col_list_widget', None)
+        if self.main_window is not None and lw is not None and not lw.count():
+            self._populate_left_panel_from_open_imgs()
+        else:
+            self._sync_open_imgs()
         if not getattr(self, '_toolbar_layout_loaded', False):
             self._toolbar_layout_loaded = True
 

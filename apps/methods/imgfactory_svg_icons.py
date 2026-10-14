@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 73
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 75
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -12,6 +12,7 @@ from PyQt6.QtGui import QPixmap, QPainter, QIcon, QColor
 from PyQt6.QtCore import Qt
 
 ##Methods list -
+# _create_icon
 # add_icon
 # add_surface_icon
 # alpha_circle_icon
@@ -19,6 +20,7 @@ from PyQt6.QtCore import Qt
 # arrow_left_icon
 # arrow_right_icon
 # arrow_up_icon
+# asset_app_icon
 # attach_dff_icon
 # backface_icon
 # batch_convert_icon
@@ -26,18 +28,21 @@ from PyQt6.QtCore import Qt
 # bg_white_icon
 # box_icon
 # box_to_mesh_icon
+# breakable_app_icon
 # brush_freehand_icon
+# bug_report_icon
 # build_from_dff_icon
 # bumpmap_ext_icon
 # bumpmap_icon
 # bumpmap_imp_icon
 # bw_view_icon
+# capture_workshop_icon
 # checkerboard_icon
 # chip_icon
 # clear_face_groups_icon
 # clear_parts_icon
-# col_workshop_icon
 # close_icon
+# col_workshop_icon
 # color_picker_icon
 # colour_to_alpha_icon
 # colour_view_icon
@@ -50,11 +55,13 @@ from PyQt6.QtCore import Qt
 # create_shadow_icon
 # create_texture_icon
 # database_icon
+# delay_timer_icon
 # delete_face_icon
 # delete_icon
 # delete_surface_icon
 # delete_texture_icon
 # delete_vertex_icon
+# desktop_capture_icon
 # detach_faces_icon
 # duplicate_check_icon
 # duplicate_surface_icon
@@ -74,6 +81,8 @@ from PyQt6.QtCore import Qt
 # generate_alpha_icon
 # generate_mipmaps_icon
 # globe_icon
+# handling_app_icon
+# hex_app_icon
 # hide_faces_icon
 # import_exchange_icon
 # import_icon
@@ -85,6 +94,7 @@ from PyQt6.QtCore import Qt
 # lighting_icon
 # manage_bumpmaps_icon
 # manage_icon
+# map_app_icon
 # maximize_icon
 # mel_app_icon
 # merge_files_icon
@@ -98,10 +108,12 @@ from PyQt6.QtCore import Qt
 # paint_icon
 # paint_texture_icon
 # paste_icon
+# path_app_icon
 # pause_icon
 # prim_select_icon
 # properties_icon
 # record_icon
+# redo_icon
 # region_circle_icon
 # region_window_icon
 # remove_mipmaps_icon
@@ -113,45 +125,48 @@ from PyQt6.QtCore import Qt
 # save_icon
 # save_selection_icon
 # saveas_icon
+# scm_app_icon
 # screenshot_icon
 # search_icon
 # select_inside_icon
 # select_material_icon
 # select_none_icon
 # selection_lock_icon
+# settings_icon
 # show_backfaces_icon
 # show_face_groups_icon
 # show_vertices_icon
+# sphere_icon
 # sphere_to_mesh_icon
 # split_faces_icon
+# stop_icon
 # surfaces_from_dff_icon
 # svg_edit_icon
-# settings_icon
-# sphere_icon
-# stop_icon
 # swap_arrows_icon
 # swatch_icon
 # switch_view_icon
 # texture_export_icon
 # texture_import_icon
 # texture_properties_icon
+# timecyc_app_icon
+# trash_icon
 # triad_icon
 # txd_workshop_icon
-# trash_icon
 # uncompress_icon
-# uv_map_icon
 # undo_icon
-# redo_icon
 # unhide_faces_icon
+# uv_map_icon
 # vc_to_sa_icon
+# vehicle_app_icon
 # vertex_position_icon
+# video_device_icon
 # view_icon
 # view_reset_icon
 # volume_down_icon
 # volume_up_icon
+# window_capture_icon
 # zoom_in_icon
 # zoom_out_icon
-# _create_icon
 
 ##class SVGIconFactory -
 
@@ -3288,6 +3303,244 @@ class SVGIconFactory: #vers 8
             <line x1="28" y1="12" x2="36" y2="12" stroke="#e0e0e0" stroke-width="2" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def capture_workshop_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Capture Workshop application icon - monitor with record dot"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="capGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#4a2a7a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#2a1648;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#capGrad)"/>
+            <rect x="9" y="13" width="46" height="30" rx="3" fill="#120c1b" stroke="#e0e0e0" stroke-width="2.5"/>
+            <line x1="32" y1="43" x2="32" y2="51" stroke="#e0e0e0" stroke-width="2.5"/>
+            <line x1="22" y1="52" x2="42" y2="52" stroke="#e0e0e0" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M15 19 h6 M15 19 v6 M49 37 h-6 M49 37 v-6" stroke="#a279ff" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="32" cy="28" r="6" fill="#ff4d4d"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def desktop_capture_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Whole screen capture - monitor with corner marks"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="3" width="20" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <line x1="12" y1="17" x2="12" y2="20.5" stroke="currentColor" stroke-width="1.8"/>
+            <line x1="7.5" y1="21" x2="16.5" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M5 8V6h2M19 8V6h-2M5 12v2h2M19 12v2h-2" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def window_capture_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Single window capture - window frame with title bar"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="4" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <line x1="3" y1="8.5" x2="21" y2="8.5" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="6" cy="6.3" r="0.9" fill="currentColor"/>
+            <circle cx="8.8" cy="6.3" r="0.9" fill="currentColor"/>
+            <rect x="7" y="11.5" width="10" height="5.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.6 1.2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def video_device_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """HDMI / USB capture device - video camera"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="6.5" width="13.5" height="11" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M15.5 10.5 L21.5 7 V17 L15.5 13.5 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <circle cx="6" cy="10" r="1.2" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def delay_timer_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Capture delay - stopwatch"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="13.5" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <line x1="12" y1="13.5" x2="12" y2="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="12" y1="13.5" x2="15" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <line x1="9.5" y1="3" x2="14.5" y2="3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="12" y1="3" x2="12" y2="6" stroke="currentColor" stroke-width="1.8"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def bug_report_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Bug report - beetle"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="12" cy="14" rx="5" ry="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="12" cy="6.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <line x1="12" y1="9" x2="12" y2="20" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M7 11 L3.5 9 M7 14.5 H3 M7.5 18 L4 20.5 M17 11 L20.5 9 M17 14.5 H21 M16.5 18 L20 20.5"
+                  stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M10.3 4.3 L9 2.5 M13.7 4.3 L15 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def asset_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Asset Checker application icon - checklist"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="assetappicG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#4a3a6a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#2a2040;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#assetappicG)"/>
+            <rect x="18" y="8" width="28" height="34" rx="3" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+            <path d="M23 18 l3 3 l5 -6 M23 29 l3 3 l5 -6" fill="none" stroke="#7ee07e" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="34" y1="19" x2="41" y2="19" stroke="#ffffff" stroke-width="2"/>
+            <line x1="34" y1="30" x2="41" y2="30" stroke="#ffffff" stroke-width="2"/>
+            <text x="32" y="57" font-size="14" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">CHK</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def breakable_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Breakable Objects application icon - cracked crate"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="breakableaG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#6a4a2a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#3e2a16;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#breakableaG)"/>
+            <rect x="15" y="9" width="34" height="32" rx="2" fill="#8a6a40" stroke="#ffffff" stroke-width="2.5"/>
+            <path d="M33 9 L28 20 L36 25 L30 41" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M15 22 L24 24 M49 30 L40 27" stroke="#ffffff" stroke-width="1.8"/>
+            <text x="32" y="57" font-size="14" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">OBJ</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def handling_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Handling Editor application icon - steering wheel"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="handlingapG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#1a6a6a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#0e4444;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#handlingapG)"/>
+            <circle cx="32" cy="25" r="15" fill="none" stroke="#ffffff" stroke-width="3"/>
+            <circle cx="32" cy="25" r="4" fill="#ffffff"/>
+            <path d="M18 23 Q32 18 46 23 M32 29 L32 40" stroke="#ffffff" stroke-width="3" fill="none"/>
+            <text x="32" y="57" font-size="12" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">HAND</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def hex_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Hex Workshop application icon - hex bytes"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="hexappiconG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3a4a5a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#222c36;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#hexappiconG)"/>
+            <text x="32" y="28" font-size="17" fill="#7ec8ff" text-anchor="middle"
+                font-weight="bold" font-family="Courier New, monospace">0x1F</text>
+            <line x1="12" y1="35" x2="52" y2="35" stroke="#ffffff" stroke-width="1.5" opacity="0.6"/>
+            <text x="32" y="57" font-size="14" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">HEX</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def map_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Map Workshop application icon - folded map with marker"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="mapappiconG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#2a6a3a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#174a24;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#mapappiconG)"/>
+            <path d="M12 14 L24 9 L40 14 L52 9 V37 L40 42 L24 37 L12 42 Z" fill="#3e8a50" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+            <line x1="24" y1="9" x2="24" y2="37" stroke="#ffffff" stroke-width="1.6"/>
+            <line x1="40" y1="14" x2="40" y2="42" stroke="#ffffff" stroke-width="1.6"/>
+            <circle cx="32" cy="22" r="4" fill="#ff5050" stroke="#ffffff" stroke-width="1.5"/>
+            <text x="32" y="57" font-size="14" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">MAP</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def path_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Path Workshop application icon - linked path nodes"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="pathappicoG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#6a6a1a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#40400e;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#pathappicoG)"/>
+            <path d="M14 36 L24 18 L38 30 L50 12" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-dasharray="4 2"/>
+            <circle cx="14" cy="36" r="4" fill="#ffd040"/>
+            <circle cx="24" cy="18" r="4" fill="#ffd040"/>
+            <circle cx="38" cy="30" r="4" fill="#ffd040"/>
+            <circle cx="50" cy="12" r="4" fill="#ffd040"/>
+            <text x="32" y="57" font-size="12" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">PATH</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def scm_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """SCM Workshop application icon - script braces"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="scmappiconG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3a3a8a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#22225a;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#scmappiconG)"/>
+            <text x="32" y="36" font-size="30" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Courier New, monospace">{ }</text>
+            <text x="32" y="57" font-size="14" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">SCM</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def timecyc_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Timecyc Workshop application icon - sun over horizon"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="timecycappG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#8a4a1a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#5a2a10;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#timecycappG)"/>
+            <circle cx="32" cy="30" r="9" fill="#ffc040"/>
+            <path d="M32 11 V16 M18 17 L21.5 20.5 M46 17 L42.5 20.5 M12 30 H17 M47 30 H52" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+            <rect x="8" y="34" width="48" height="8" fill="#5a2a10"/>
+            <line x1="10" y1="34" x2="54" y2="34" stroke="#ffffff" stroke-width="2.5"/>
+            <text x="32" y="57" font-size="12" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">TCYC</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def vehicle_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Vehicle Workshop application icon - car"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="vehicleappG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#7a2a2a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#4a1616;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#vehicleappG)"/>
+            <path d="M10 32 L14 22 Q16 17 21 17 H43 Q48 17 50 22 L54 32 V38 H10 Z" fill="#b04040" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M18 23 L21 19 H43 L46 23 Z" fill="#9ad0ff" opacity="0.8"/>
+            <circle cx="20" cy="38" r="5" fill="#202020" stroke="#ffffff" stroke-width="2"/>
+            <circle cx="44" cy="38" r="5" fill="#202020" stroke="#ffffff" stroke-width="2"/>
+            <text x="32" y="57" font-size="14" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">VEH</text>
+        </svg>''', size, color)
 
     @staticmethod
     def col_workshop_icon(size: int = 64, color: str = None) -> QIcon: #vers 1

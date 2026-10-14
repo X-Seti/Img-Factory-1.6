@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 22
+#this belongs in apps/gui/gui_layout_custom.py - Version: 24
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -163,7 +163,7 @@ def _show_dat_browser(mw): #vers 5
             mw.log_message(f"DAT Browser show error: {e}")
 
 
-def _show_intro_panel(mw): #vers 5
+def _show_intro_panel(mw): #vers 6
     """Show welcome/intro screen in left_stack page 2 — same pattern as Dir Tree / DAT."""
     try:
         left_stack, splitter = _get_left_stack(mw)
@@ -195,6 +195,7 @@ def _show_intro_panel(mw): #vers 5
                     ws.open_water_workshop.connect(
                         lambda: mw.open_water_workshop()
                         if hasattr(mw, 'open_water_workshop') else None)
+                    ws.open_capture_workshop.connect(mw.open_capture_workshop)
                     ws.open_radar_workshop.connect(
                         lambda: mw.open_radar_map()
                         if hasattr(mw, 'open_radar_map') else None)
@@ -1577,7 +1578,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             except Exception:
                 pass
 
-    def _show_rw_reference(self): #vers 3
+    def _show_rw_reference(self): #vers 4
         """Show comprehensive GTA/RenderWare format reference — all researched binary layouts."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QTextEdit, QLabel, QSplitter)
@@ -2310,6 +2311,69 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 </table>
 </body>"""
 
+        # TAB: Stories MDL, IV WDR, water, prelight, indexed BMP (Oct 2026 findings)
+        new_html = css + """
+<h2>Stories MDL (LCS / VCS) - PSP and PS2</h2>
+<p>Relocatable chunk: pointers are offsets fixed up through a relocation table.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+04</td><td>4</td><td>shrink</td><td>Unused after load</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>file_end</td><td>Size of the chunk</td></tr>
+<tr><td class="hex">+0C</td><td>4</td><td>data_end</td><td>End of data, start of relocation table</td></tr>
+<tr><td class="hex">+10</td><td>4</td><td>reloc_table</td><td>Offset of pointer-slot list</td></tr>
+<tr><td class="hex">+14</td><td>4</td><td>num_relocs</td><td>Pointer slots to fix up</td></tr>
+<tr><td class="hex">+18</td><td>4</td><td>global_table</td><td>Root object</td></tr>
+</table>
+<p>Ped MDL: root pointer <code>+32</code> = collision model, <code>+36</code> = element group (skinned parts).</p>
+<h3>Geometry</h3>
+<table>
+<tr><th>Platform</th><th>Layout</th><th>Notes</th></tr>
+<tr><td>PSP</td><td>sPspGeometry, triangle strips</td><td>Position scale per axis is a power of two; fixed-point verts</td></tr>
+<tr><td>PS2</td><td>VIF packets, batches of max 70 verts</td><td>Batches overlap by 2 verts (strip restart). VIF UNPACK <code class="hex">0xF</code> (V4-5) = one 16-bit value per element, not 4 x 5 bits</td></tr>
+</table>
+<p class="note">IMG Factory rebuilds strips from triangles (welded first, so adjacency survives UV seams).</p>
+
+<h2>GTA IV WDR / WFT (RSC5 resource)</h2>
+<table>
+<tr><th>Part</th><th>Notes</th></tr>
+<tr><td>Header</td><td>Magic <code>RSC</code> + version 5, flags word</td></tr>
+<tr><td>Flags</td><td>Encode virtual (CPU) and physical (GPU) segment sizes</td></tr>
+<tr><td>Body</td><td>zlib stream of virtual segment then physical segment</td></tr>
+</table>
+<p class="note">Vertex/index buffers live in the physical segment; pointers into it use the physical base.</p>
+
+<h2>waterpro.dat Grid (SOL / VC / III)</h2>
+<p>Grid of tiles; tiles are stored <b>row-major by Y</b>, cells inside a tile <b>row-major by X</b>
+(<code>out[X][Y]</code>). Display north-up. SOL holds about 141,000 water cells.</p>
+<h3>water_offset.dat (IMG Factory, per game in data/)</h3>
+<pre>x 0.000          # world X offset
+y 0.000          # world Y offset
+z 14.000         # water height offset
+nudge 12.0 -4.0  # fine X/Y alignment to radar
+fix auto         # on / off / auto (VC grid fix)</pre>
+
+<h2>Prelighting (vertex colours)</h2>
+<table>
+<tr><th>Item</th><th>Notes</th></tr>
+<tr><td>Flag</td><td><code class="hex">0x08</code> rpGEOMETRYPRELIT on the Geometry</td></tr>
+<tr><td>Data</td><td>RGBA byte per vertex, after triangles in the Geometry struct</td></tr>
+<tr><td>Generate</td><td>ambient + sun x max(0, N.L), darkened by a sun shadow map (Map Workshop)</td></tr>
+<tr><td>Save</td><td>Only geometries that already carry colours are rewritten (same size, patched in place)</td></tr>
+</table>
+
+<h2>COL Spheres and Boxes</h2>
+<table>
+<tr><th>Item</th><th>Size</th><th>Fields</th></tr>
+<tr><td>Sphere</td><td>20</td><td>radius, centre (3 floats), surface (material, flag, brightness, light)</td></tr>
+<tr><td>Box</td><td>28</td><td>min (3 floats), max (3 floats), surface (4 bytes)</td></tr>
+</table>
+<p class="note">Boxes are axis-aligned: they move and scale but never rotate.</p>
+
+<h2>Indexed BMP (DP5 Save Back)</h2>
+<p>1, 2, 4 and 8-bit palette BMPs read and written with their original depth and palette;
+32-bit BMPs saved back as 32-bit.</p>
+"""
+
         tabs.addTab(make_tab(img_html),    "IMG Formats")
         tabs.addTab(make_tab(ver_html),    "RW Versions")
         tabs.addTab(make_tab(txd_html),    "TXD / Textures")
@@ -2318,6 +2382,7 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
         tabs.addTab(make_tab(dat_html),    "DAT / IDE / IPL")
         tabs.addTab(make_tab(matrix_html), "Platform Matrix")
         tabs.addTab(make_tab(radar_html),  "Radar Formats")
+        tabs.addTab(make_tab(new_html),    "MDL / WDR / Water")
         tabs.addTab(make_tab(notes_html),  "Troubleshooting")
 
         close_btn = QPushButton("Close")

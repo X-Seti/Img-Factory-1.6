@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 4
+#this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 5
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Path Workshop
 
 
@@ -980,7 +980,7 @@ class PathWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         vm.addSeparator()
         vm.addAction("About Path Workshop", self._show_about)
 
-    def __init__(self, parent=None, main_window=None): #Vers 1
+    def __init__(self, parent=None, main_window=None): #vers 2
         super().__init__(parent)
 
         self.main_window        = main_window
@@ -1047,7 +1047,7 @@ class PathWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
         self.setWindowTitle(App_name)
         try:
-            self.setWindowIcon(SVGIconFactory.radar_workshop_icon(64))
+            self.setWindowIcon(SVGIconFactory.path_app_icon(64))
         except Exception:
             pass
         self.resize(1400, 800)

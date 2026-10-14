@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 5
+#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 6
 # X-Seti - May08 2026 - Img Factory 1.6 - Time Cycle Editor
 
 """
@@ -436,6 +436,7 @@ class _RotatedHeaderView(QHeaderView): #vers 1
 
 class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
     App_name   = "Time Cycle Workshop"
+    App_icon   = "timecyc_app_icon"
     App_build  = "Build 2"
     App_auth   = "X-Seti"
     config_key = "timecyc_editor"

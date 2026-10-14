@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 6
+#this belongs in apps/methods/gui_workshop.py - Version: 8
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -108,7 +108,9 @@ class WorkshopSettings:
         "recent_files": [],
     }
 
-    def __init__(self, config_key: str = "gui_workshop"):
+    def __init__(self, config_key: str = "gui_workshop", extra_defaults=None): #vers 2
+        """extra_defaults: the workshop's own keys (only known keys are saved)."""
+        self.DEFAULTS = {**WorkshopSettings.DEFAULTS, **(extra_defaults or {})}
         cfg = get_user_config_dir()
         cfg.mkdir(parents=True, exist_ok=True)
         self._path = cfg / f"{config_key}.json"
@@ -963,6 +965,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     App_year        = "2026"
     App_description = "GUIWorkshop base template — IMG Factory 1.6"
     config_key      = "gui_workshop"
+    WS_DEFAULTS     = {}          # workshop's own settings keys (else not saved)
+    App_icon        = ""          # SVGIconFactory app icon name, e.g. "vehicle_app_icon"
 
     #  Signals
     workshop_closed = pyqtSignal()
@@ -1009,7 +1013,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             self.app_settings.theme_changed.connect(self._refresh_icons)
 
         # Per-app settings
-        self.WS = WorkshopSettings(self.config_key)
+        self.WS = WorkshopSettings(self.config_key, self.WS_DEFAULTS)
         if self.standalone_mode:
             self.resize(max(800, self.WS.get("window_w", 1400)),
                         max(500, self.WS.get("window_h",  800)))
@@ -1019,6 +1023,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self._load_fonts_from_settings()
         self.icon_factory = SVGIconFactory()
         self.setWindowTitle(self.App_name)
+        if self.App_icon:
+            self.setWindowIcon(getattr(SVGIconFactory, self.App_icon)(64))
         self.setMinimumSize(800, 500)
         self._active_tool = "pencil"
         self._draw_btns   = {}

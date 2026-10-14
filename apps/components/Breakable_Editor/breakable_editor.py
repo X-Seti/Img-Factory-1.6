@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 5
+#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 6
 # X-Seti - May08 2026 - Img Factory 1.6 - Breakable Objects Editor
 
 """
@@ -318,6 +318,7 @@ class BreakableParser: #vers 2
 
 class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
     App_name   = "Breakable Objects Editor"
+    App_icon   = "breakable_app_icon"
     App_build  = "Build 1"
     App_auth   = "X-Seti"
     config_key = "breakable_editor"

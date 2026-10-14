@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 15
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 16
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -100,7 +100,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         return get_ui_color(self, key)
 
 
-    def __init__(self, parent=None, main_window=None): #vers 10
+    def __init__(self, parent=None, main_window=None): #vers 11
         """Initialize Workshop"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
@@ -108,7 +108,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         super().__init__(parent)
         self.main_window = main_window
         self.setWindowTitle(App_name)
-        self.setWindowIcon(SVGIconFactory.txd_workshop_icon())
+        self.setWindowIcon(SVGIconFactory.asset_app_icon(64))
         self.icon_factory = SVGIconFactory()
 
         # Initialize app_settings for theme support

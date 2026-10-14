@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 3
+#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 4
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop model list
 
 """
@@ -675,10 +675,14 @@ class ModelListMixin: #vers 1
             if item:
                 item.setHidden(bool(text) and text not in item.text().lower())
 
-    def _on_col_selected(self, item): #vers 5
+    def _on_col_selected(self, item): #vers 6
         """Handle entry selection from left panel — routes by extension."""
         try:
-            entry = item.data(Qt.ItemDataRole.UserRole)
+            src = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(src, dict) and src.get('kind') == 'file':
+                self._open_path(src['path'])    # loose game file
+                return
+            entry = self._model_item_entry(item)
             if not entry:
                 return
             name = entry.name.lower()
@@ -716,7 +720,7 @@ class ModelListMixin: #vers 1
                 self.main_window.log_message(f"Error selecting entry: {e}")
 
 
-    def _mark_model_item(self, key, opened): #vers 1
+    def _mark_model_item(self, key, opened): #vers 2
         """Open icon + tooltip on list items whose model is open."""
         lw = getattr(self, 'col_list_widget', None)
         if lw is None:
@@ -724,8 +728,7 @@ class ModelListMixin: #vers 1
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
         for i in range(lw.count()):
             it = lw.item(i)
-            e = it.data(Qt.ItemDataRole.UserRole) if it else None
-            if e is not None and getattr(e, 'name', '').lower() == key:
+            if it is not None and it.text().lower() == key:
                 it.setIcon(SVGIconFactory.open_icon(16) if opened else QIcon())
                 it.setToolTip("Open - click to switch back, right-click to close" if opened else "")
 
@@ -737,13 +740,18 @@ class ModelListMixin: #vers 1
         except Exception:
             return True
 
-    def _on_model_list_menu(self, pos): #vers 1
-        """Right-click on the model list: close an open model / close all."""
+    def _on_model_list_menu(self, pos): #vers 2
+        """Right-click on the model list: close models; game list exclusions."""
         lw = self.col_list_widget
         it = lw.itemAt(pos)
-        e = it.data(Qt.ItemDataRole.UserRole) if it else None
         opened = getattr(self, '_open_models', {})
-        key = getattr(e, 'name', '').lower() if e is not None else ''
+        key = it.text().lower() if it else ''
+        root = getattr(self, '_game_model_root', None)
+        if root and getattr(self, '_panel_img_ids', 0) is None and key not in opened:
+            from apps.methods.game_file_list import game_list_menu
+            game_list_menu(self, lw, pos, self._ribbon_config_path(),
+                           lambda rescan: self._load_game_model_list(root, rescan))
+            return
         m = QMenu(self)
         a = m.addAction("Close model", lambda: self._close_open_model(key))
         a.setEnabled(key in opened)

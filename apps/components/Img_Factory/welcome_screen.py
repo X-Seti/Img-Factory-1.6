@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 23
+# apps/components/Img_Factory/welcome_screen.py — Version 25
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -177,6 +177,7 @@ class WelcomeScreen(QWidget):
     open_scm_workshop      = pyqtSignal()
     open_hex_workshop      = pyqtSignal()
     open_asset_checker     = pyqtSignal()
+    open_capture_workshop  = pyqtSignal()
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
@@ -382,7 +383,7 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 7
+    def _build_quickstart_tab(self): #vers 9
         from PyQt6.QtCore import Qt as _Qt
         # Scroll area — vertical scrollbar always visible (ready for future cards)
         scroll = QScrollArea()
@@ -450,18 +451,22 @@ class WelcomeScreen(QWidget):
              "Browse, export and replace GTA radar tile textures. "
              "Supports SA 12×12 radar grid and VC/III formats.",
              self.open_radar_workshop),
-            (_TI.get_timecyc_workshop_icon(36, _ic), "Timecyc Workshop",
+            (_SVG.timecyc_app_icon(36), "Timecyc Workshop",
              "Edit GTA time-of-day colour cycles. Supports GTA III, VC and SA "
              "timecyc.dat / timecycp.dat with sky preview and game conversion.",
              self.open_timecyc_workshop),
-            (_TI.get_vehicle_icon(36, _ic), "Vehicle Workshop",
+            (_SVG.vehicle_app_icon(36), "Vehicle Workshop",
              "Preview vehicle DFFs with steering, wheels and door animation. "
              "VC/SA dummy detection, frame hierarchy tree.",
              self.open_vehicle_workshop),
-            (_TI.get_asset_checker_icon(36, _ic), "Asset Checker",
+            (_SVG.asset_app_icon(36), "Asset Checker",
              "Cross-reference model names across an IMG archive, a COL file "
              "and an IDE file sharing the same base name.",
              self.open_asset_checker),
+            (_SVG.capture_workshop_icon(36), "Capture Workshop",
+             "Snapshots and video from HDMI / USB capture devices, the whole "
+             "screen or a chosen window.",
+             self.open_capture_workshop),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(eds):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
@@ -480,19 +485,19 @@ class WelcomeScreen(QWidget):
              "Edit item placement — object positions, rotations and interior "
              "links placed in the game world.",
              self.open_ipl_editor),
-            (_TI.get_handling_icon(36, _ic), "Handling Editor",
+            (_SVG.handling_app_icon(36), "Handling Editor",
              "Edit vehicle physics — handling.cfg mass, drag, suspension, "
              "traction and gear ratios.",
              self.open_handling_editor),
-            (_TI.get_breakable_icon(36, _ic), "Breakable Editor",
+            (_SVG.breakable_app_icon(36), "Breakable Editor",
              "Edit breakable object data — collision break models and "
              "object.dat / objects.ide breakable flags.",
              self.open_breakable_editor),
-            (_TI.get_scm_icon(36, _ic), "SCM Workshop",
+            (_SVG.scm_app_icon(36), "SCM Workshop",
              "Edit compiled GTA mission scripts — decompile, browse opcodes "
              "and patch main.scm / script.img.",
              self.open_scm_workshop),
-            (_TI.get_hex_workshop_icon(36), "Hex Workshop",
+            (_SVG.hex_app_icon(36), "Hex Workshop",
              "Raw hex/binary editor for any file — inspect and patch bytes "
              "directly with offset and ASCII views.",
              self.open_hex_workshop),

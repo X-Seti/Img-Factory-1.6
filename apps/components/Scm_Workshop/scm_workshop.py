@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Scm_Workshop/scm_workshop.py - Version: 4
+#this belongs in apps/components/Scm_Workshop/scm_workshop.py - Version: 5
 # X-Seti - September24 2026 - IMG Factory 1.6 - SCM Script Workshop
 # GTA III / VC / SA main.scm browser, coord searcher and patcher.
 
@@ -114,8 +114,9 @@ class SCMWorkshop(RibbonMixin, QWidget):
     # Bump when the set of ribbons changes (1 = File ribbon)
     _RIBBON_LAYOUT_VERSION=1
 
-    def __init__(self,parent=None,main_window=None):
+    def __init__(self,parent=None,main_window=None): #vers 2
         super().__init__(parent)
+        self.setWindowIcon(SVGIconFactory.scm_app_icon(64))
         self.main_window=main_window; self._parser=SCMParser()
         self._scm_path=''; self._search_thread=None
         self._build_ui()
@@ -353,7 +354,7 @@ will be world coords. Always keep a backup of the original main.scm.</p>
         self._hex_view.setPlainText(self._parser.hex_dump(offset,512))
 
 
-def open_scm_workshop(main_window, file_path=None):
+def open_scm_workshop(main_window, file_path=None): #vers 2
     try:
         mw=main_window
         if mw and hasattr(mw,'main_tab_widget'):
@@ -361,8 +362,10 @@ def open_scm_workshop(main_window, file_path=None):
             c=QWidget(); l=QVBoxLayout(c); l.setContentsMargins(0,0,0,0)
             w=SCMWorkshop(c,mw); l.addWidget(w)
             tw=mw.main_tab_widget
-            idx=tw.addTab(c,SVGIconFactory.get_terminal_icon(),"SCM Workshop")
+            idx=tw.addTab(c,SVGIconFactory.scm_app_icon(20),"SCM Workshop")
             tw.setCurrentIndex(idx)
+            if hasattr(mw, 'register_tool'):
+                mw.register_tool("scm", "SCM", SVGIconFactory.scm_app_icon(20), c, "SCM Workshop")
             if hasattr(mw, '_ensure_tab_area_visible'):
                 mw._ensure_tab_area_visible()
         else:

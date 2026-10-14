@@ -1,6 +1,48 @@
 #this belongs in root /ChangeLog.md - Version: 260
 
 
+## Oct 14 2026 - Radar save format
+- Radar Workshop: PC/Xbox tiles saved in their own format (DXT1/3/5, PAL8, 888) via shared TXD rebuild; was always DXT1.
+
+## Oct 14 2026 - ShaderManager.xml
+- ShaderManager.xml
+
+## Oct 14 2026 - retrevnoCnoneXvi.exe
+- retrevnoCnoneXvi.exe
+
+## Oct 14 2026 - Testing bug tracker
+- Testing bug tracker
+
+## Oct 14 2026 - Map docks shared
+- Map Workshop uses methods/dock_panels.py (collapsible dock titles, save/restore layout); own copies removed.
+
+## Oct 14 2026 - App icons
+- New app icons: Map, Timecyc, Hex, Vehicle, Handling, Breakable, SCM, Path, Asset. Used for window, docked tab, taskbar, right bar and Intro. GUIWorkshop App_icon attribute.
+
+## Oct 14 2026 - Bug tracker
+- Capture Workshop Bugs tab on TODO_bugs: priority colours, open/fixed filter, description, threaded comments with replies and images, Mark Fixed writes ChangeLog. Settings now saved (WS_DEFAULTS).
+
+## Oct 14 2026 - Capture Workshop
+- New Capture Workshop (GUIWorkshop base, app theme): HDMI/USB device, screen, window. Snapshot (PNG/JPG), record MP4/WebM, delay, hide. Linux uses desktop portal + GStreamer. Opens from Tools menu and Intro (docked tab). hdmi-usb.py replaced.
+
+## Oct 14 2026 - Map Workshop split
+- map_workshop.py (27.8k) split into 10 depends/map_*_func.py mixins + widgets. Sources verified identical; app-relative paths kept.
+
+## Oct 14 2026 - Model Workshop split
+- Settings, fonts, theme, hotkeys and About moved to depends/model_settings_func.py (ModelSettingsMixin). No behaviour change.
+
+## Oct 14 2026 - Vehicle Workshop split
+- vehicle_workshop.py split into depends/: vehicle_win, toolbar, layout, logic, tabs, common _func.py. No behaviour change; QSlider import added.
+
+## Oct 14 2026 - TXD docks
+- TXD Files / Textures are dock panels (move, float, collapse, layout saved). Shared methods/dock_panels.py, Model uses it too.
+
+## Oct 14 2026 - Model / Vehicle lists
+- Model Workshop lists every game DFF/TXD/COL when a game folder is set; exclusions menu. Vehicle Workshop loads models/vehicles.img (SOL) or gta3.img. models/vehicles|peds|weapons.col indexed with models/coll.
+
+## Oct 14 2026 - RW-Ref
+- New "MDL / WDR / Water" tab: Stories MDL, RSC5 WDR, waterpro grid, water_offset.dat, prelight, COL prims, indexed BMP.
+
 ## Oct 14 2026 - TXD list on show, app icons
 - TXD Workshop fills the game TXD list when its tab opens (no IMG needed).
 - Right bar, Intro and taskbar use each workshop app icon (COL, TXD, Model, Water, Radar, DP5, Hex, IPL); new icons for the rest. Encrypt/Refresh icons fixed.
@@ -66,7 +108,6 @@
 - Viewport: already-uploaded textures skipped before reading pixels (DXT textures were CPU-decoded on every refresh; SA load slow).
 
 ## TODO (next session, from Oct 12 2026)
-- Radar Workshop: PC radar writer always DXT1.
 - Emojis in Model Workshop log/print strings (~280): Keith removing.
 - Rebuilt MDL/WDR/WFT meshes untested in game; skinned MDL rebuild (face/vertex changes on peds) to do. DFF save: SA night colours / skin rebuild.
 - Map Workshop: Bully world (.ipb placements, Bully dat). 1 of 1118 Bully NFT fails.
@@ -76,7 +117,7 @@
 - Staging rule: copy files to a new outputs/cNNNNNN folder per commit (same name sends stale cache).
 - Low priority: GTA IV image formats (TODO_bugs ivCellConverter, ivXenonConverter, retrevnoCnoneXvi samples).
 - Low priority: re-sync all standalone repos (Col, DP5, Hex, Map, Model-Viewer, Model, Paths, Radar, Timecyc, Txd, Vehicle, Water, Zon) from main, ready for Windows exe builds.
-- Next: app icons for workshops without one (Vehicle, Handling, Peds, IFP, Weapons, Breakable, SCM, GXT, Menu, Timecyc, Map); then use them in IMG Factory right bar, Intro, taskbar.
+- App icons for Peds, IFP, Weapons, GXT, Menu: when those workshops exist.
 
 ## Oct 13 2026 - DP5 / TXD file tabs
 - DP5 Save Back: any BMP (1-32 bit) or IFF keeps depth and size; dropped files register too. Title bar file tabs drop-down drives the canvas tabs.

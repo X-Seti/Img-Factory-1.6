@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 15
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 16
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -65,7 +65,7 @@ from PyQt6.QtWidgets import QAbstractItemView, QColorDialog, QComboBox, QFrame, 
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.txd_dialogs import ZoomablePreview
-from apps.methods.grip_splitter import GripSplitter
+from apps.methods.dock_panels import add_outer_dock, make_outer_mw
 
 App_name = "Txd Workshop"
 App_build = "39"
@@ -122,7 +122,7 @@ class TXDUIMixin: #vers 1
         vm = parent_menu.addMenu("View")
         vm.addAction("TXD Info",             self._show_txd_info)
 
-    def setup_ui(self): #vers 10
+    def setup_ui(self): #vers 11
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -147,34 +147,26 @@ class TXDUIMixin: #vers 1
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
 
-        # Main splitter
-        main_splitter = GripSplitter(Qt.Orientation.Horizontal)
-
-        # Create all panels first
+        # Preview + ribbons central; TXD Files / Textures as docks
         left_panel = self._create_left_panel()
         middle_panel = self._create_middle_panel()
         right_panel = self._create_right_panel()
-
-        # Add panels to splitter based on mode
+        outer_mw = make_outer_mw(right_panel)
+        self._outer_mw = outer_mw
+        self._outer_docks = []
         if left_panel is not None:  # IMG Factory mode
-            main_splitter.addWidget(left_panel)
-            main_splitter.addWidget(middle_panel)
-            main_splitter.addWidget(right_panel)
-            # Set proportions (2:3:5)
-            main_splitter.setStretchFactor(0, 2)
-            main_splitter.setStretchFactor(1, 3)
-            main_splitter.setStretchFactor(2, 5)
-        else:  # Standalone mode
-            main_splitter.addWidget(middle_panel)
-            main_splitter.addWidget(right_panel)
-            # Set proportions (1:1)
-            main_splitter.setStretchFactor(0, 1)
-            main_splitter.setStretchFactor(1, 1)
-
-        self._main_splitter = main_splitter
-        self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
-        main_layout.addWidget(main_splitter)
-        QTimer.singleShot(0, self._restore_splitter_sizes)
+            self._outer_docks.append(add_outer_dock(self, outer_mw, "TXD Files", left_panel, 150))
+        tex_dock = add_outer_dock(self, outer_mw, "Textures", middle_panel, 250)
+        self._outer_docks.append(tex_dock)
+        if left_panel is not None:
+            outer_mw.splitDockWidget(self._outer_docks[0], tex_dock, Qt.Orientation.Horizontal)
+        def _tex_resized(event, _p=middle_panel):  #vers 1
+            QFrame.resizeEvent(_p, event)
+            self._apply_left_compact()
+        middle_panel.resizeEvent = _tex_resized
+        main_layout.addWidget(outer_mw)
+        QTimer.singleShot(400, self._restore_outer_layout)
+        self.window_closed.connect(self._save_outer_layout)
 
         # Apply themed icons now UI is fully built
         self._refresh_icons()
@@ -533,9 +525,9 @@ class TXDUIMixin: #vers 1
         layout.setSpacing(4)
 
         # Header label
-        self._textures_header = QLabel("Textures")
-        self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(self._textures_header)
+        #self._textures_header = QLabel()
+        #self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        #layout.addWidget(self._textures_header)
 
         #    Mini toolbar: 4 icon buttons — only shown when docked          
         # (toolbar has these too; in docked mode the toolbar is hidden)

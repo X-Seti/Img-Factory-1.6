@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 35
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 36
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -370,6 +370,20 @@ class RadarTxdReader:
             return build_lc_android_txd(texs, texs[0]['platform_id'], original)
         from apps.methods.txd_splice import rebuild_inplace_txd
         return rebuild_inplace_txd(original, texs)
+
+    @staticmethod
+    def write_pc(original: bytes, rgba: bytes, w: int, h: int, pad: bool = True) -> bytes: #vers 1
+        """PC / Xbox TXD with the first texture re-encoded in its own format
+        (DXT1/3/5, PAL8, 888...); other chunks kept. pad: IMG sector padding."""
+        from apps.methods.txd_reader import read_rw_txd
+        from apps.methods.txd_splice import tag_loaded_texture, txd_from_textures
+        texs = read_rw_txd(original, levels=False)
+        for t in texs:
+            tag_loaded_texture(t)
+        texs[0].update(rgba_data=bytes(rgba), width=w, height=h)
+        texs[0].pop('mipmap_levels', None)
+        data = txd_from_textures(texs, original)
+        return data + b'\x00' * ((-len(data)) % 2048) if pad else data
 
     @staticmethod
     def _raw_to_rgba(pd: bytes, w: int, h: int, raster_fmt: int) -> bytes: #vers 2
@@ -2196,7 +2210,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         filt = "LANCZOS" if rb_lanczos.isChecked() else "NEAREST"
         self._do_upscale(target, filt)
 
-    def _do_upscale(self, target_size: int, filter_name: str): #vers 3
+    def _do_upscale(self, target_size: int, filter_name: str): #vers 4
         """Perform upscale: resize all tiles, rebuild IMG, save as .new."""
         from PIL import Image
 
@@ -2241,9 +2255,13 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                 if idx >= len(self._tile_entries): continue
                 e = self._tile_entries[idx]
                 name = Path(e["name"]).stem
-                new_txd_data[idx] = RadarTxdReader.write(
-                    rgba, target_size, target_size, name,
-                    rw_ver=self._game_preset.get('rw_ver', 0x1803FFFF))
+                original = self._img_reader.get_entry_data(e)
+                if RadarTxdReader.native_kind(original):
+                    new_txd_data[idx] = RadarTxdReader.write(
+                        rgba, target_size, target_size, name,
+                        rw_ver=self._game_preset.get('rw_ver', 0x1803FFFF))
+                else:
+                    new_txd_data[idx] = RadarTxdReader.write_pc(original, rgba, target_size, target_size)
 
             #    Rebuild IMG: read all entries, replace radar TXDs              
             prog.setLabelText("Rebuilding IMG archive…")
@@ -3766,7 +3784,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             QMessageBox.critical(self, "Save Error",
                 f"Failed to save {Path(path).name}:\n{e}\n\n{traceback.format_exc()[-300:]}")
 
-    def _build_img_data(self): #vers 4
+    def _build_img_data(self): #vers 5
         """New IMG bytes with every dirty tile re-encoded into its own
         slot. A tile that would not fit is left untouched (never
         truncated) and reported. Returns (saved, skipped, bytes)."""
@@ -3787,9 +3805,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                     skipped.append(idx)
                     continue
             else:
-                new_data = RadarTxdReader.write(
-                    rgba, *_rgba_wh(rgba), Path(e["name"]).stem,
-                    rw_ver=self._game_preset.get('rw_ver', 0x1803FFFF))
+                new_data = RadarTxdReader.write_pc(original, rgba, *_rgba_wh(rgba))
             if len(new_data) > slot:
                 skipped.append(idx)
                 continue
@@ -3797,31 +3813,15 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             saved.append(idx)
         return saved, skipped, bytes(data)
 
-    def _save_standalone_txd(self, path: str): #vers 4
-        """Replace the first texture of a standalone TXD (PC, PSP/PS2, mobile),
-        keeping every other chunk byte-for-byte."""
-        from apps.methods.txd_splice import split_txd, build_native_chunk
+    def _save_standalone_txd(self, path: str): #vers 5
+        """Replace the first texture of a standalone TXD (PC, Xbox, PSP/PS2, mobile)
+        in its own format, keeping every other chunk byte-for-byte."""
         src = Path(self._img_path).read_bytes()
+        rgba = self._tile_rgba.get(0)
         if RadarTxdReader.native_kind(src):
-            self._atomic_write(path, RadarTxdReader.write_native(
-                src, self._tile_rgba.get(0), self._tw, self._th))
+            self._atomic_write(path, RadarTxdReader.write_native(src, rgba, self._tw, self._th))
             return [0], []
-        parts = split_txd(src)
-        if not parts or not parts[2]:
-            raise ValueError("Source TXD could not be parsed")
-        hdr, dstruct, chunks, tail = parts
-        if struct.unpack_from('<I', chunks[0], 24)[0] not in (8, 9):
-            raise ValueError("Only PC (D3D8/D3D9) radar TXDs can be saved - "
-                             "this file uses another platform.")
-        rw = struct.unpack_from('<I', src, 8)[0]
-        tw0, th0 = _rgba_wh(self._tile_rgba.get(0), (self._tw, self._th))
-        tex = {'name': Path(self._tile_entries[0]["name"]).stem, 'width': tw0,
-               'height': th0, 'rgba_data': self._tile_rgba.get(0), 'format': 'DXT1'}
-        chunk = build_native_chunk(tex, rw, struct.unpack_from('<I', chunks[0], 24)[0])
-        chunks[0] = chunk
-        inner = struct.pack('<III', 1, 4, rw) + struct.pack('<HH', len(chunks), struct.unpack_from('<H', dstruct, 14)[0]) \
-            + b''.join(chunks) + tail
-        self._atomic_write(path, struct.pack('<III', 0x16, len(inner), rw) + inner)
+        self._atomic_write(path, RadarTxdReader.write_pc(src, rgba, *_rgba_wh(rgba, (self._tw, self._th)), pad=False))
         return [0], []
 
     def _build_ribbons(self): #vers 6

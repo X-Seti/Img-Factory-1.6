@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 41
+#this belongs in apps/gui/gui_layout.py - Version: 42
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -1571,7 +1571,7 @@ class IMGFactoryGUILayout:
             return color
 
 
-    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 4
+    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 5
         """Get SVG icon based on icon name identifier"""
         icon_map = {
             # IMG file actions
@@ -1627,17 +1627,17 @@ class IMGFactoryGUILayout:
             "water-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.water_workshop_icon(size),
             "zones-cull": lambda size=24, color=None, bg_color=None: get_cull_zone_icon(size, color),
             "weap-edit": get_weapons_icon,
-            "vehi-edit": get_vehicle_icon,
+            "vehi-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.vehicle_app_icon(size),
             "peds-edit": get_peds_icon,
             "carcols": get_carcols_icon,
             "radar-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.radar_workshop_icon(size),
-            "paths-map": get_paths_map_icon,
-            "timecyc": get_timecyc_workshop_icon,
-            "hex-edit": lambda size=24, color=None, bg_color=None: get_hex_workshop_icon(size),
+            "paths-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.path_app_icon(size),
+            "timecyc": lambda size=24, color=None, bg_color=None: SVGIconFactory.timecyc_app_icon(size),
+            "hex-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.hex_app_icon(size),
             "weather": get_weather_icon,
-            "handling": get_handling_icon,
-            "ojs-breakble": get_breakable_icon,
-            "scm-code": get_scm_icon,
+            "handling": lambda size=24, color=None, bg_color=None: SVGIconFactory.handling_app_icon(size),
+            "ojs-breakble": lambda size=24, color=None, bg_color=None: SVGIconFactory.breakable_app_icon(size),
+            "scm-code": lambda size=24, color=None, bg_color=None: SVGIconFactory.scm_app_icon(size),
             "gxt-font": get_gxt_icon,
             "menu-font": get_menu_edit_icon,
         }

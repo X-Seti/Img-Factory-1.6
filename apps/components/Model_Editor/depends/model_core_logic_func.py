@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 6
+#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 7
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop file logic
 
 """
@@ -44,9 +44,11 @@ Open, import, export, save, IDE/IMG links and COL data for ModelWorkshop.
 # _import_surface
 # _import_via_ide
 # load_from_img_archive
+# _load_game_model_list
 # _load_img_col_list
 # _lookup_ide_for_dff
 # _lookup_ide_from_db
+# _model_item_entry
 # open_col_file
 # _open_col_file
 # _open_col_from_img_entry
@@ -1837,8 +1839,13 @@ class ModelCoreLogicMixin: #vers 1
             out.insert(0, ci)
         return out
 
-    def _populate_left_panel_from_open_imgs(self): #vers 1
-        """Files panel lists DFF/TXD/COL from every open IMG tab."""
+    def _populate_left_panel_from_open_imgs(self): #vers 2
+        """Files panel: every game DFF/TXD/COL when a game folder is set, else open IMG tabs."""
+        mw = self.main_window
+        root = getattr(mw, 'game_root', '') if mw else ''
+        if root and os.path.isdir(root):
+            self._load_game_model_list(root, rescan=False)
+            return
         imgs = self._open_imgs()
         self._panel_img_ids = tuple(id(i) for i in imgs)
         if not imgs:
@@ -1875,6 +1882,47 @@ class ModelCoreLogicMixin: #vers 1
             return                              # panel holds one chosen archive
         if tuple(id(i) for i in self._open_imgs()) != self._panel_img_ids:
             self._populate_left_panel_from_open_imgs()
+
+    def _load_game_model_list(self, root, rescan=True): #vers 1
+        """List every DFF/TXD/COL in the game: loose files and IMG entries."""
+        from PyQt6.QtGui import QColor
+        from apps.methods.game_file_list import fill_game_list, game_list_excludes, scan_game_files
+        exts = ('.dff', '.txd', '.col')
+        if rescan or getattr(self, '_game_model_items', None) is None or self._game_model_root != root:
+            self._game_model_items = scan_game_files(self, root, exts)
+        self._game_model_root = root
+        self._panel_img_ids = None              # game list, no tab sync
+        lw = self.col_list_widget
+        shown, hidden = fill_game_list(lw, self._game_model_items,
+                                       game_list_excludes(self._ribbon_config_path()),
+                                       getattr(self, '_game_list_show_excluded', False))
+        colours = {'.dff': '#4db6ac', '.col': '#ef5350', '.txd': '#ffa726'}
+        counts = dict.fromkeys(exts, 0)
+        for i in range(lw.count()):
+            it = lw.item(i)
+            ext = os.path.splitext(it.text())[1].lower()
+            counts[ext] += 1
+            if not it.toolTip().endswith("(excluded)"):
+                it.setForeground(QColor(colours[ext]))
+        hdr = getattr(self, '_left_panel_header', None)
+        if hdr:
+            hdr.setText(f"DFF ({counts['.dff']})  TXD ({counts['.txd']})  COL ({counts['.col']})")
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(f"Model Workshop: {shown} file(s) in {root} ({hidden} excluded)")
+
+    def _model_item_entry(self, item): #vers 1
+        """IMG entry of a list item (game list items resolve their IMG); None for loose files."""
+        from apps.methods.game_file_list import game_img
+        src = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(src, dict):
+            if src.get('kind') != 'img':
+                return None
+            img = game_img(self, src['img'])
+            entry = next((e for e in img.entries if e.name == src['name']), None)
+            if entry is not None:
+                self.__dict__.setdefault('_entry_img', {})[id(entry)] = img
+            return entry
+        return src
 
     def _extract_col_from_img(self, entry): #vers 3
         """Read an entry's data from the IMG it was listed from."""

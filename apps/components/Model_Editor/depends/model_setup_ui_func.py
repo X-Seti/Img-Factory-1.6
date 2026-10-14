@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 11
+#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 12
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop UI setup
 
 """
@@ -19,15 +19,12 @@ Toolbars, ribbons, panels, docks and toolbar state for ModelWorkshop.
 # _enable_dff_toolbar
 # _find_all_paint_btns
 # _info_ribbon_menu
-# _make_dock_collapsible
 # _move_info_ribbon
 # _on_menu_btn_clicked
 # _rebuild_toolbars
 # _refresh_icons
-# _restore_outer_layout
 # _restore_toolbar_state
 # _ribbon_config_path
-# _save_outer_layout
 # _save_toolbar_state
 # _set_col_buttons_enabled
 # _switch_icon_set
@@ -926,7 +923,7 @@ class ModelSetupUIMixin: #vers 1
         top-level dock widget so it can be independently dragged/floated.
         No internal header row - the dock's own title bar already shows
         'Frame Hierarchy', and collapsing is now done by double-clicking
-        that title bar (see _make_dock_collapsible) instead of a per-panel
+        that title bar (see DockPanelsMixin._make_dock_collapsible) instead of a per-panel
         toggle button."""
         from PyQt6.QtWidgets import QTreeWidget
         self._frame_tree_panel = QFrame()
@@ -944,61 +941,6 @@ class ModelSetupUIMixin: #vers 1
 
         return self._frame_tree_panel
 
-
-    def _make_dock_collapsible(self, dock, title): #vers 4
-        """Custom title bar for a QDockWidget: double-click anywhere on the
-        title (label or empty bar area) to collapse the dock down to just
-        this title bar, hiding its content; double-click again to restore.
-        Keeps float/close buttons so nothing is lost versus Qt's native
-        title bar - only mouseDoubleClickEvent is overridden, so single-
-        click-and-drag (moving the dock) still works exactly as before,
-        since that's handled by mousePressEvent/mouseMoveEvent, untouched
-        here."""
-
-        #TODO missing splitter between middle panel and right panel, or right panel, and newly placed "middle panel", that was moved to the right of the right panel.
-        #TODO
-        #X gadgets do not work, and right click menu recovery bar needs work.
-        #TODO
-        #I have disabled the float/dock function as this is meant to effect it's own bar open/collapse, not the surrounding bars that get collapsed.
-
-        from PyQt6.QtWidgets import QWidget as _QW, QToolButton as _QTB
-
-        bar = _QW()
-        lay = QHBoxLayout(bar)
-        lay.setContentsMargins(6, 2, 2, 2)
-        lay.setSpacing(2)
-
-        lbl = QLabel(title)
-        lbl.setFont(self.section_title_font)
-        lay.addWidget(lbl)
-        lay.addStretch()
-
-        #float_btn = _QTB()
-        #float_btn.setText("⧉") #keep disabled for now.
-        #float_btn.setToolTip("Float/dock")
-        #float_btn.setFixedSize(20, 20)
-        #float_btn.setAutoRaise(True)
-        #float_btn.clicked.connect(lambda: self._toggle_dock_floating(dock))
-        #lay.addWidget(float_btn)
-
-        #TODO double clicking the section header seems to work best.
-
-        close_btn = _QTB() #TODO needs checking, View menu does nothing yet.
-        close_btn.setText("×")
-        close_btn.setToolTip("Close (use the View menu or another dock's right-click menu to bring it back)")
-        close_btn.setFixedSize(20, 20)
-        close_btn.setAutoRaise(True)
-        close_btn.clicked.connect(dock.close)
-        lay.addWidget(close_btn)
-
-        def _dbl_click(event, d=dock): #vers 1
-            content = d.widget()
-            if content:
-                content.setVisible(not content.isVisible())
-        bar.mouseDoubleClickEvent = _dbl_click
-        lbl.mouseDoubleClickEvent = _dbl_click
-
-        dock.setTitleBarWidget(bar)
 
     def _wrap_middle_panel_with_own_dock_areas(self, content_panel): #vers 4
         """Give the middle panel its own nested QMainWindow (same pattern
@@ -1757,94 +1699,6 @@ class ModelSetupUIMixin: #vers 1
                 if tb is not None:
                     tb.setVisible(True)
                     tb.toggleViewAction().setChecked(True)
-
-    def _save_outer_layout(self): #vers 2
-        """Save _outer_mw's dock layout (Files/Models around the viewport)."""
-        mw = getattr(self, '_outer_mw', None)
-        if mw is None:
-            return
-        try:
-            import json
-            from pathlib import Path
-            path = get_user_config_dir() / 'model_workshop.json'
-            try:
-                data = json.loads(path.read_text())
-            except Exception:
-                data = {}
-            data['outer_layout_state'] = mw.saveState(self._OUTER_LAYOUT_VERSION).toHex().data().decode()
-            data['outer_layout_version'] = self._OUTER_LAYOUT_VERSION
-            path.write_text(json.dumps(data, indent=2))
-        except Exception as _e:
-            print(f"[ModelWorkshop] _save_outer_layout error: {_e}")
-
-    def _restore_outer_layout(self): #vers 2
-        """Restore _outer_mw's dock layout, with the same version-check +
-        force-visible safety net pattern as _restore_toolbar_state."""
-        mw = getattr(self, '_outer_mw', None)
-        if mw is None:
-            return
-        try:
-            import json
-            from pathlib import Path
-            from PyQt6.QtCore import QByteArray
-            path = get_user_config_dir() / 'model_workshop.json'
-            if path.exists():
-                data = json.loads(path.read_text())
-                state_hex = data.get('outer_layout_state')
-                saved_version = data.get('outer_layout_version')
-                if state_hex and saved_version == self._OUTER_LAYOUT_VERSION:
-                    mw.restoreState(QByteArray.fromHex(state_hex.encode()),
-                                     self._OUTER_LAYOUT_VERSION)
-        except Exception as _e:
-            print(f"[ModelWorkshop] _restore_outer_layout error: {_e}")
-        finally:
-            for dock in (getattr(self, '_left_dock', None),
-                         getattr(self, '_middle_dock', None),
-                         getattr(self, '_frame_hierarchy_dock', None),
-                         getattr(self, '_texture_dock', None)):
-                if dock is not None:
-                    dock.setVisible(True)
-                    dock.toggleViewAction().setChecked(True)
-
-            # Safety net: restoreState() reapplies whatever dock
-            # proportions were saved, regardless of whether they fit the
-            # current window/screen - if that state was saved from a
-            # wider session (or a different, wider screen), combined with
-            # each dock's hard setMinimumWidth() floor, restoring it can
-            # force the whole top-level window wider than the current
-            # screen. Clamp back down rather than leaving it oversized -
-            # this doesn't touch the dock proportions themselves, so the
-            # user's saved layout still applies, just bounded to what
-            # actually fits.
-            try:
-                top_level = self.window()
-                screen = top_level.screen() if hasattr(top_level, 'screen') else None
-                if screen is None:
-                    from PyQt6.QtWidgets import QApplication
-                    screen = QApplication.primaryScreen()
-                if screen is not None:
-                    avail = screen.availableGeometry()
-                    if top_level.width() > avail.width():
-                        top_level.resize(avail.width(), top_level.height())
-            except Exception as _e:
-                print(f"[ModelWorkshop] outer layout width clamp error: {_e}")
-
-        # Restore Model Name / IDE-TXD ribbon locations (middle panel vs
-        # right panel ribbon stack) - separate from the QMainWindow toolbar
-        # state above since these toolbars aren't always parented to
-        # _inner_mw.
-        try:
-            import json
-            from pathlib import Path
-            path = get_user_config_dir() / 'model_workshop.json'
-            if path.exists():
-                data = json.loads(path.read_text())
-                saved_locations = data.get('info_ribbon_locations', {})
-                for key, saved_location in saved_locations.items():
-                    if saved_location != self._info_ribbon_location.get(key):
-                        self._move_info_ribbon(key, saved_location)
-        except Exception as _e:
-            print(f"[ModelWorkshop] Info ribbon location restore error: {_e}")
 
     def _create_paint_bar(self): #vers 3
         """Floating paint bar — QWidget child of preview_widget, sits at top of viewport.

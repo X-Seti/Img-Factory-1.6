@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 6
+#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 7
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Handling Editor
 
 """
@@ -152,6 +152,7 @@ from apps.methods.ribbon_system import RibbonMixin
 
 class HandlingEditor(RibbonMixin, GUIWorkshop): #vers 2
     App_name   = "Handling Editor"
+    App_icon   = "handling_app_icon"
     App_build  = "Build 1"
     App_auth   = "X-Seti"
     config_key = "handling_editor"

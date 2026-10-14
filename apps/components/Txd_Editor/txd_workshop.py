@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 44
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 45
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -30,7 +30,7 @@ from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.doc_tabs import DocTabsMixin
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.ribbon_dialog import RibbonIconsMixin
-from apps.methods.grip_splitter import SplitterSizesMixin
+from apps.methods.dock_panels import DockPanelsMixin
 
 ##Methods list -
 # open_txd_workshop
@@ -56,13 +56,15 @@ from apps.methods.grip_splitter import SplitterSizesMixin
 # TXDUIMixin - txd_ui_func.py
 # TXDLogicMixin - txd_logic_func.py
 # RibbonIconsMixin - methods/ribbon_dialog.py
-# SplitterSizesMixin - methods/grip_splitter.py
+# DockPanelsMixin - methods/dock_panels.py
 # DocTabsMixin - methods/doc_tabs.py
 # Shared windows - methods/txd_dialogs.py, DXT encoders - methods/txd_dxt_encode.py
 
 
-class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, RibbonIconsMixin, SplitterSizesMixin, ToolMenuMixin, QWidget): #vers 8
+class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): #vers 9
     """TXD Workshop - Main texture editing window"""
+
+    _OUTER_LAYOUT_VERSION = 1      # TXD Files / Textures docks
 
     workshop_closed = pyqtSignal()
     window_closed = pyqtSignal()
@@ -118,6 +120,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         self.panel_font = QFont("Arial", 10)
         self.button_font = QFont("Arial", 10)
         self.infobar_font = QFont("Courier New", 9)
+        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)
 
         # Preview settings
         self._show_checkerboard = True

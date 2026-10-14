@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_win_func.py - Version: 5
+#this belongs in apps/components/Txd_Editor/depends/txd_win_func.py - Version: 6
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop window
 
 """
@@ -15,7 +15,6 @@ TXD Workshop window - frameless drag/resize, window flags, window menus.
 # mouseMoveEvent
 # mousePressEvent
 # mouseReleaseEvent
-# _on_splitter_moved
 # paintEvent
 # resizeEvent
 # _show_settings_context_menu
@@ -303,12 +302,6 @@ class TXDWindowMixin: #vers 1
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - 16, self.height() - 16)
-        self._update_transform_text_panel_visibility()
-        self._apply_left_compact()
-
-    def _on_splitter_moved(self, pos, index): #vers 4
-        """Main splitter dragged: save sizes, ribbon text mode, compact buttons."""
-        self._queue_splitter_save()
         self._update_transform_text_panel_visibility()
         self._apply_left_compact()
 

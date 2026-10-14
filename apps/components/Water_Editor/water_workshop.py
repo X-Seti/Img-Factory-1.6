@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 22
+#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 23
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -1368,6 +1368,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
     App_description = ("GTA III / VC / PS2 LC / SOL - waterpro.dat + water.dat\n"
                        "GTA SA - water.dat / water1.dat (quad format)")
     config_key      = "water_workshop"
+    WS_DEFAULTS     = {"depth_colour": False, "depth_gauge_side": "", "object_snap": 2.0}
     _ribbon_name    = "water_workshop"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
     _RIBBON_LAYOUT_VERSION = 3
