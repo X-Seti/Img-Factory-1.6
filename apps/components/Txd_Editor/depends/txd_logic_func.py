@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 13
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 14
 # X-Seti - October 07 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -82,6 +82,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _import_textures
 # _invert_grayscale
 # load_from_img_archive
+# _load_game_txd_list
 # _load_img_txd_list
 # _load_settings
 # _load_txd_textures
@@ -160,7 +161,9 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _texture_statistics
 # _toggle_alpha_invert
 # _transform_selection
+# _txd_item_entry
 # _txd_item_tooltip
+# _txd_list_menu
 # _uncompress_texture
 # _undo_last_action
 # _upscale_texture
@@ -1327,11 +1330,15 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.critical(self, "Import Error", f"Failed to import alpha: {str(e)}")
 
-    def _load_img_txd_list(self): #vers 3
-        """Load texture entries (.txd, .wtd, .nft) from IMG archive"""
+    def _load_img_txd_list(self): #vers 4
+        """Texture files of the loaded IMG, or every game TXD when a game folder is set"""
         try:
             # Safety check for standalone mode
             if self.standalone_mode or not hasattr(self, 'txd_list_widget') or self.txd_list_widget is None:
+                return
+            root = getattr(self.main_window, 'game_root', '') if self.main_window else ''
+            if root and os.path.isdir(root):
+                self._load_game_txd_list(root, rescan=False)
                 return
 
             self.txd_list_widget.clear()
@@ -1357,6 +1364,40 @@ class TXDLogicMixin: #vers 1
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error loading TXD list: {str(e)}")
+
+    def _load_game_txd_list(self, root, rescan=True): #vers 1
+        """List every texture file in the game: loose files and entries inside IMGs."""
+        from apps.methods.game_file_list import fill_game_list, game_list_excludes, scan_game_files
+        if rescan or getattr(self, '_game_txd_items', None) is None or self._game_txd_root != root:
+            self._game_txd_items = scan_game_files(self, root, ('.txd', '.wtd', '.nft'))
+        self._game_txd_root = root
+        shown, hidden = fill_game_list(self.txd_list_widget, self._game_txd_items,
+                                       game_list_excludes(self._ribbon_config_path()),
+                                       getattr(self, '_game_list_show_excluded', False))
+        hdr = getattr(self, '_txd_list_header', None)
+        if hdr:
+            hdr.setText(f"TXD Files  ({shown})")
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(f"TXD Workshop: {shown} texture file(s) in {root} ({hidden} excluded)")
+
+    def _txd_list_menu(self, pos): #vers 1
+        """Right-click on the TXD file list."""
+        from apps.methods.game_file_list import game_list_menu
+        root = getattr(self, '_game_txd_root', None)
+        if root:
+            game_list_menu(self, self.txd_list_widget, pos, self._ribbon_config_path(),
+                           lambda rescan: self._load_game_txd_list(root, rescan))
+
+    def _txd_item_entry(self, item): #vers 1
+        """IMG entry of a list item (switching current_img for game list items); None for loose files."""
+        from apps.methods.game_file_list import game_img
+        src = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(src, dict):
+            if src.get('kind') != 'img':
+                return None
+            self.current_img = game_img(self, src['img'])
+            return next((e for e in self.current_img.entries if e.name == src['name']), None)
+        return src
 
     def _create_blank_texture(self, width, height, with_alpha=False): #vers 3
         """Create blank RGBA texture data with optional alpha"""
@@ -2518,10 +2559,14 @@ class TXDLogicMixin: #vers 1
 
         dialog.exec()
 
-    def _on_txd_selected(self, item): #vers 4
-        """Load the selected IMG texture entry (any supported format)"""
+    def _on_txd_selected(self, item): #vers 5
+        """Load the selected texture file: loose game file or IMG entry (any supported format)"""
         try:
-            entry = item.data(Qt.ItemDataRole.UserRole)
+            src = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(src, dict) and src.get('kind') == 'file':
+                self.open_txd_file(src['path'])
+                return
+            entry = self._txd_item_entry(item)
             if entry and self._confirm_discard():
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Loading TXD: {entry.name} offset={hex(entry.offset)} size={entry.size}")
@@ -2597,14 +2642,20 @@ class TXDLogicMixin: #vers 1
                 cache[key] = []
         return cache[key]
 
-    def _txd_item_tooltip(self, item): #vers 1
-        """Hover tooltip lists the textures inside the TXD entry."""
+    def _txd_item_tooltip(self, item): #vers 2
+        """Hover tooltip lists the textures inside the TXD entry (IMG entries only)."""
         if item is None or item.data(Qt.ItemDataRole.UserRole + 1):
             return
-        entry = item.data(Qt.ItemDataRole.UserRole)
+        src = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(src, dict) and src.get('kind') != 'img':
+            return
+        entry = self._txd_item_entry(item)
+        if entry is None:
+            return
         names = self._entry_texture_names(entry)
         shown = '\n'.join(names[:40]) + (f"\n... {len(names) - 40} more" if len(names) > 40 else '')
-        item.setToolTip(f"{entry.name}\nSize: {entry.size / 1024:.1f} KB\n"
+        rel = src['rel'] + "\n" if isinstance(src, dict) else ""
+        item.setToolTip(f"{rel}{entry.name}\nSize: {entry.size / 1024:.1f} KB\n"
                         f"{len(names)} textures:\n{shown}")
         item.setData(Qt.ItemDataRole.UserRole + 1, True)
 

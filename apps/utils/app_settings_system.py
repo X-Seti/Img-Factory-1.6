@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 82
+#This goes in root/apps/utils/app_settings_system.py - version 83
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -1743,7 +1743,7 @@ THEME_EFFECT_KEYS = ("color_alpha", "panel_fill_dir", "panel_grad_dir", "panel_p
                      "panel_pattern_scale", "panel_effect_type",
                      "panel_bg_image", "panel_bg_image_mode", "panel_bg_image_opacity",
                      "panel_bg_image_all", "titlebar_opacity", "panel_opacity",
-                     "button_opacity", "widget_opacity",
+                     "button_opacity", "widget_opacity", "tabs_opacity", "splitter_opacity",
                      "button_style", "progressbar_style", "progressbar_height")
 
 _IMAGE_DIRS = []      # folders searched for relative panel image paths
@@ -3343,7 +3343,7 @@ class AppPanelEffect: #vers 2
         widget._panel_effect_installed = True
 
     @staticmethod
-    def install_under(widget, styled, app_settings): #vers 1
+    def install_under(widget, styled, app_settings): #vers 2
         """Image behind a list/toolbar/tab page: widget made transparent, its own
         colour laid over the image as a tint. styled = widget carrying the stylesheet."""
         from PyQt6.QtGui import QColor
@@ -3352,8 +3352,9 @@ class AppPanelEffect: #vers 2
             widget._panel_under_tint = QColor(widget.palette().color(role))
             widget._panel_under_styled = styled
             styled._panel_under_ss = styled.styleSheet()
+            styled.setProperty('panelUnder', True)          # selector hits this widget only
             styled.setStyleSheet(styled._panel_under_ss
-                                 + f"\n{type(styled).__name__} {{ background: transparent; }}")
+                                 + '\n*[panelUnder="true"] { background: transparent; }')
             widget.setAutoFillBackground(False)
             AppPanelEffect.install(widget, app_settings)
             widget._panel_effect_installed = False      # under mode only
@@ -3361,20 +3362,21 @@ class AppPanelEffect: #vers 2
         widget.update()
 
     @staticmethod
-    def remove_under(widget): #vers 1
+    def remove_under(widget): #vers 2
         """Undo install_under: original stylesheet back, no image."""
         styled = getattr(widget, '_panel_under_styled', None)
         if styled is not None:
+            styled.setProperty('panelUnder', False)
             styled.setStyleSheet(getattr(styled, '_panel_under_ss', ''))
         widget._panel_under_tint = None
         widget.update()
 
     @staticmethod
-    def _draw_under(widget): #vers 2
+    def _draw_under(widget): #vers 3
         """Paint image then the widget's own colour as a tint at Transparency
         opacity (Panels; Widgets for toolbars)."""
         from PyQt6.QtGui import QPainter, QColor
-        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtWidgets import QToolBar, QTabBar, QSplitterHandle, QStackedWidget
         cs = getattr(widget, '_app_settings_ref', None) or {}
         if not isinstance(cs, dict):
             cs = getattr(cs, 'current_settings', {})
@@ -3388,7 +3390,10 @@ class AppPanelEffect: #vers 2
             tint = QColor(widget._panel_under_tint)
             p.fillRect(r, tint)
             if AppPanelEffect._paint_image(p, r, cs, widget):
-                key = 'widget_opacity' if isinstance(widget, QToolBar) else 'panel_opacity'
+                key = ('widget_opacity' if isinstance(widget, QToolBar) else
+                       'splitter_opacity' if isinstance(widget, QSplitterHandle) else
+                       'tabs_opacity' if isinstance(widget, (QTabBar, QStackedWidget)) else
+                       'panel_opacity')
                 tint.setAlphaF(max(0, min(100, cs.get(key, 100))) / 100.0)
                 p.fillRect(r, tint)
         finally:
@@ -3685,9 +3690,11 @@ def apply_panel_effects(window, app_settings): #vers 5
     _apply_image_under(window, cs, bool(cs.get('panel_bg_image') and cs.get('panel_bg_image_all')))
 
 
-def _apply_image_under(window, cs, on): #vers 1
-    """Panel image behind lists, toolbars and tab pages (tinted), or removed when off."""
-    from PyQt6.QtWidgets import QAbstractScrollArea, QToolBar, QTabWidget, QStackedWidget
+def _apply_image_under(window, cs, on): #vers 2
+    """Panel image behind lists, ribbons, tab bars/pages, splitters and plain panels (tinted),
+    or removed when off. GL viewports are left alone."""
+    from PyQt6.QtWidgets import (QAbstractScrollArea, QToolBar, QTabWidget, QStackedWidget,
+                                 QTabBar, QSplitter, QFrame)
     from PyQt6.QtOpenGLWidgets import QOpenGLWidget
     targets = []
     for view in window.findChildren(QAbstractScrollArea):
@@ -3699,6 +3706,22 @@ def _apply_image_under(window, cs, on): #vers 1
         st = tw.findChild(QStackedWidget)
         if st is not None:
             targets.append((st, st))
+    targets += [(tb, tb) for tb in window.findChildren(QTabBar)]
+    for sp in window.findChildren(QSplitter):
+        for i in range(1, sp.count()):
+            h = sp.handle(i)
+            if h is not None:
+                targets.append((h, h))
+    def in_view(w):                                       # inside a 3D / 2D viewport
+        while w is not None:
+            if isinstance(w, QOpenGLWidget) or 'Viewport' in type(w).__name__:
+                return True
+            w = w.parent()
+        return False
+    for fr in window.findChildren(QFrame):                # plain panels; viewports keep their own paint
+        if (type(fr) is QFrame and not (fr.frameStyle() & QFrame.Shape.StyledPanel.value)
+                and fr.objectName() not in ('titlebar', 'gadgetbar') and not in_view(fr)):
+            targets.append((fr, fr))
     for target, styled in targets:
         w, skip = styled.parent(), False
         while w is not None:
@@ -8006,8 +8029,8 @@ Ready for operations..."""
         igl.addWidget(self._panel_img_opacity, 2, 1)
         igl.addWidget(self._panel_img_opacity_lbl, 2, 2)
 
-        self._panel_img_all = QCheckBox("Show through lists, toolbars and tabs (tinted by their colour)")
-        self._panel_img_all.setToolTip("Tint strength: Transparency below, Panels (lists, tabs) and Widgets (toolbars)")
+        self._panel_img_all = QCheckBox("Show through all panels, ribbons, tabs and splitters (not 3D views)")
+        self._panel_img_all.setToolTip("Tint strength per part: Transparency below (Panels, Widgets / Ribbons, Tabs, Splitters)")
         self._panel_img_all.setChecked(bool(cs.get("panel_bg_image_all", False)))
         self._panel_img_all.toggled.connect(
             lambda on: self.app_settings.current_settings.__setitem__("panel_bg_image_all", on))
@@ -8037,7 +8060,8 @@ Ready for operations..."""
         tgl.setColumnStretch(1, 1)
         for r, (label, key, default) in enumerate([
                 ("Titlebar", "titlebar_opacity", 100), ("Panels", "panel_opacity", 100),
-                ("Buttons", "button_opacity", 100), ("Widgets", "widget_opacity", 100)]):
+                ("Buttons", "button_opacity", 100), ("Widgets / Ribbons", "widget_opacity", 100),
+                ("Tabs", "tabs_opacity", 100), ("Splitters", "splitter_opacity", 100)]):
             sl = QSlider(Qt.Orientation.Horizontal)
             sl.setRange(0, 100)
             sl.setValue(cs.get(key, default))
@@ -8124,7 +8148,8 @@ Ready for operations..."""
             self._panel_img_mode.setCurrentIndex(int(cs.get("panel_bg_image_mode", 0)))
             self._panel_img_opacity.setValue(int(cs.get("panel_bg_image_opacity", 100)))
             self._panel_img_all.setChecked(bool(cs.get("panel_bg_image_all", False)))
-        for key in ("titlebar_opacity", "panel_opacity", "button_opacity", "widget_opacity"):
+        for key in ("titlebar_opacity", "panel_opacity", "button_opacity", "widget_opacity",
+                    "tabs_opacity", "splitter_opacity"):
             sl = getattr(self, f"_{key}_slider", None)
             if sl is not None:
                 sl.setValue(int(cs.get(key, 100)))

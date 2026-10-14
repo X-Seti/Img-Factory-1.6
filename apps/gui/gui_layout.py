@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 39
+#this belongs in apps/gui/gui_layout.py - Version: 41
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -19,6 +19,7 @@ except ImportError:
     from PyQt6.QtWidgets import QAction
 from apps.core.gui_search import ASearchDialog, SearchManager
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.grip_splitter import GripSplitter
 
 from apps.methods.imgfactory_svg_icons import (
     get_add_icon, get_open_icon, get_refresh_icon, get_close_icon, get_close_all_icon,
@@ -34,9 +35,27 @@ from apps.methods.imgfactory_svg_icons import (
     get_radar_workshop_icon, get_water_workshop_icon,
     get_dp5_panel_icon, get_ipl_editor_icon, get_paths_map_icon,
     get_weather_icon,
-    get_timecyc_workshop_icon, get_hex_workshop_icon
+    get_timecyc_workshop_icon, get_hex_workshop_icon,
+    get_vehicle_icon, get_handling_icon, get_carcols_icon, get_peds_icon, get_ipf_anim_icon,
+    get_weapons_icon, get_breakable_icon, get_scm_icon, get_gxt_icon, get_menu_edit_icon,
+    get_tree_icon, get_cull_zone_icon, get_dp5_workshop_icon
 )
 from apps.locals.localization import tr_button
+
+
+def _txd_app_icon(size=16, color=None): #vers 1
+    """TXD Workshop app icon (taskbar)."""
+    return SVGIconFactory.txd_workshop_icon(size)
+
+
+def _col_app_icon(size=16, color=None): #vers 1
+    """COL Workshop app icon (taskbar)."""
+    return SVGIconFactory.col_workshop_icon(size)
+
+
+def _model_app_icon(size=16, color=None): #vers 1
+    """Model Workshop app icon (taskbar)."""
+    return SVGIconFactory.mesh_icon(size, '#4a9fd4')
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass, field
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
@@ -86,7 +105,7 @@ def _register_tool_taskbar(main_window, key, label, icon_fn, tooltip="", target=
         pass
 
 
-def edit_txd_file(main_window): #vers 6
+def edit_txd_file(main_window): #vers 7
     """Open TXD Workshop.
     
     If a .txd entry is selected in the table or dir tree, open that file.
@@ -114,11 +133,11 @@ def edit_txd_file(main_window): #vers 6
         if selected and selected.lower().endswith('.txd'):
             if hasattr(main_window, '_load_txd_file_in_new_tab'):
                 main_window._load_txd_file_in_new_tab(selected)
-                _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop")
+                _register_tool_taskbar(main_window, "txd", "TXD", _txd_app_icon, "TXD Workshop")
             else:
                 from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
                 w = open_txd_workshop(main_window, selected)
-                _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop", w)
+                _register_tool_taskbar(main_window, "txd", "TXD", _txd_app_icon, "TXD Workshop", w)
             main_window.log_message(f"TXD Workshop opened: {os.path.basename(selected)}")
             return
 
@@ -137,7 +156,7 @@ def edit_txd_file(main_window): #vers 6
                     img_path = main_window.current_img.file_path
                 from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
                 w = open_txd_workshop(main_window, img_path)
-                _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop", w)
+                _register_tool_taskbar(main_window, "txd", "TXD", _txd_app_icon, "TXD Workshop", w)
                 main_window.log_message(f"TXD Workshop opened for: {filename}")
                 return
 
@@ -148,7 +167,7 @@ def edit_txd_file(main_window): #vers 6
         if hasattr(main_window, 'current_img') and main_window.current_img:
             img_path = main_window.current_img.file_path
         w = open_txd_workshop(main_window, img_path)
-        _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop", w)
+        _register_tool_taskbar(main_window, "txd", "TXD", _txd_app_icon, "TXD Workshop", w)
         if img_path:
             main_window.log_message(f"TXD Workshop opened (browse mode): {os.path.basename(img_path)}")
         else:
@@ -171,7 +190,7 @@ def edit_txd_file(main_window): #vers 6
         workshop = open_txd_workshop(main_window, img_path)
         if workshop:
             main_window.log_message(f"TXD Workshop opened for: {filename}")
-            _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop", workshop)
+            _register_tool_taskbar(main_window, "txd", "TXD", _txd_app_icon, "TXD Workshop", workshop)
     except Exception as e:
         main_window.log_message(f"Error opening TXD Workshop: {e}")
 
@@ -185,7 +204,7 @@ def _open_scm_workshop_from_gui(main_window):
         main_window.log_message(f"SCM Workshop error: {e}")
 
 
-def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
+def edit_col_file(main_window): #vers 5  # STUB: DFF file launcher pending
     """Open COL Workshop.
 
     Priority 1: dir tree .col selection  → open that file directly.
@@ -214,7 +233,7 @@ def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
         if selected and selected.lower().endswith('.col'):
             from apps.components.Col_Editor.col_workshop import open_col_workshop
             w = open_col_workshop(main_window, selected)
-            _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", w)
+            _register_tool_taskbar(main_window, "col", "COL", _col_app_icon, "COL Workshop", w)
             main_window.log_message(f"COL Workshop opened: {os.path.basename(selected)}")
             return
 
@@ -242,7 +261,7 @@ def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
                             from apps.components.Col_Editor.col_workshop import open_col_workshop
                             w = open_col_workshop(main_window, tmp.name)
                             _register_tool_taskbar(main_window, "col", "COL",
-                                get_col_workshop_icon, "COL Workshop", w)
+                                _col_app_icon, "COL Workshop", w)
                             main_window.log_message(f"COL Workshop: {filename}")
                             return
                     except Exception:
@@ -251,7 +270,7 @@ def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
                 img_path = img.file_path if img else None
                 from apps.components.Col_Editor.col_workshop import open_col_workshop
                 w = open_col_workshop(main_window, img_path)
-                _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", w)
+                _register_tool_taskbar(main_window, "col", "COL", _col_app_icon, "COL Workshop", w)
                 main_window.log_message(f"COL Workshop opened for: {filename}")
                 return
 
@@ -261,7 +280,7 @@ def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
         if hasattr(main_window, 'current_img') and main_window.current_img:
             img_path = main_window.current_img.file_path
         w = open_col_workshop(main_window, img_path)
-        _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", w)
+        _register_tool_taskbar(main_window, "col", "COL", _col_app_icon, "COL Workshop", w)
         if img_path:
             main_window.log_message(f"COL Workshop opened (browse mode): {os.path.basename(img_path)}")
         else:
@@ -270,7 +289,7 @@ def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
     except Exception as e:
         main_window.log_message(f"Error opening COL Workshop: {e}")
 
-def edit_dff_file(main_window): #vers 1
+def edit_dff_file(main_window): #vers 2
     """Open Model Workshop.
 
     Priority 1: dir tree .dff selection  → open that file directly.
@@ -280,13 +299,12 @@ def edit_dff_file(main_window): #vers 1
     try:
         import os
         from apps.gui.gui_layout import _register_tool_taskbar
-        from apps.methods.imgfactory_svg_icons import get_tba_icon as get_model_workshop_icon
 
         def _open(dff_path=None, original_name=None):
             from apps.components.Model_Editor.model_workshop import open_model_workshop
             w = open_model_workshop(main_window, dff_path, original_dff_name=original_name)
             _register_tool_taskbar(main_window, "model", "DFF",
-                get_model_workshop_icon, "Model Workshop", w)
+                _model_app_icon, "Model Workshop", w)
             display = original_name or (os.path.basename(dff_path) if dff_path else None)
             msg = f"Model Workshop: {display}" if display else "Model Workshop opened"
             main_window.log_message(msg)
@@ -1553,13 +1571,14 @@ class IMGFactoryGUILayout:
             return color
 
 
-    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 2
+    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 4
         """Get SVG icon based on icon name identifier"""
         icon_map = {
             # IMG file actions
             "new": get_add_icon,            "document-new": get_add_icon,
             "open": get_open_icon,          "document-open": get_open_icon,
             "reload": get_refresh_icon,     "document-reload": get_refresh_icon,
+            "view-refresh": get_refresh_icon, "document-send": get_export_icon,
             "rebuild": get_rebuild_icon,    "view-rebuild": get_rebuild_icon,
             "rebuild-all": get_rebuild_all_icon,
             "close": get_close_icon,        "window-close": get_close_icon,
@@ -1569,6 +1588,7 @@ class IMGFactoryGUILayout:
             "merge": get_merge_icon,        "document-merge": get_merge_icon,
             "split": get_split_icon,
             "convert": get_convert_icon,
+            "encrypt": lambda size=24, color=None, bg_color=None: SVGIconFactory.lock_icon(size, color),
 
             # File entry actions
             "import": get_import_icon,      "document-import": get_import_icon,
@@ -1586,9 +1606,10 @@ class IMGFactoryGUILayout:
             "pin_selected": get_pin_icon,   "pin": get_pin_icon,
 
             # Workshop editors
-            "col-edit": get_col_workshop_icon,
-            "txd-edit": get_txd_workshop_icon,
-            "paint-edit": get_dp5_panel_icon,
+            # Workshops: their own app (window) icons
+            "col-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.col_workshop_icon(size),
+            "txd-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.txd_workshop_icon(size),
+            "paint-edit": lambda size=24, color=None, bg_color=None: get_dp5_workshop_icon(size),
             "hybrid-load": get_hybrid_load_icon,
             "scan-folder": get_scan_folder_icon,
             "recent-scans": get_recent_scans_icon,
@@ -1596,24 +1617,29 @@ class IMGFactoryGUILayout:
             "dat-browser": get_dat_browser_icon,
             "ide-editor": get_ide_editor_icon,
 
-            # Other editor buttons - TBA where not yet implemented
-            "dff-edit": get_dff_edit_icon,   "ipf-edit": get_tba_icon,
-            "ide-edit": get_ide_editor_icon, "ipl-edit": get_ipl_editor_icon,
-            "dat-edit": get_edit_icon,
-            "zones-cull": get_tba_icon,
-            "weap-edit": get_tba_icon,
-            "vehi-edit": get_tba_icon,
-            "peds-edit": get_tba_icon,
-            "radar-map": get_radar_workshop_icon,
+            # Editor buttons (same icons as the Intro tiles)
+            "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.mesh_icon(size, '#4a9fd4'),
+            "ipf-edit": get_ipf_anim_icon,
+            "ide-edit": get_ide_editor_icon,
+            "ipl-edit": lambda size=24, color=None, bg_color=None: get_ipl_editor_icon(size),
+            "dat-edit": get_dat_browser_icon,
+            "dir-tree": lambda size=24, color=None, bg_color=None: get_tree_icon(size, color),
+            "water-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.water_workshop_icon(size),
+            "zones-cull": lambda size=24, color=None, bg_color=None: get_cull_zone_icon(size, color),
+            "weap-edit": get_weapons_icon,
+            "vehi-edit": get_vehicle_icon,
+            "peds-edit": get_peds_icon,
+            "carcols": get_carcols_icon,
+            "radar-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.radar_workshop_icon(size),
             "paths-map": get_paths_map_icon,
             "timecyc": get_timecyc_workshop_icon,
-            "hex-edit": get_hex_workshop_icon,
+            "hex-edit": lambda size=24, color=None, bg_color=None: get_hex_workshop_icon(size),
             "weather": get_weather_icon,
-            "handling": get_tba_icon,
-            "ojs-breakble": get_tba_icon,
-            "scm-code": get_tba_icon,
-            "gxt-font": get_tba_icon,
-            "menu-font": get_tba_icon,
+            "handling": get_handling_icon,
+            "ojs-breakble": get_breakable_icon,
+            "scm-code": get_scm_icon,
+            "gxt-font": get_gxt_icon,
+            "menu-font": get_menu_edit_icon,
         }
 
         fn = icon_map.get(icon_name, get_tba_icon)
@@ -1656,7 +1682,7 @@ class IMGFactoryGUILayout:
         return short_map.get(localized_label, localized_label)
 
 
-    def create_main_ui_with_splitters(self, main_layout): #vers 6
+    def create_main_ui_with_splitters(self, main_layout): #vers 7
 
         """Create the main UI with 3-panel layout similar to COL Workshop"""
 
@@ -1763,7 +1789,7 @@ class IMGFactoryGUILayout:
                 print(f"System top bar error: {_e}")
 
         # Create main horizontal splitter for 3 panels
-        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter = GripSplitter(Qt.Orientation.Horizontal)
         
         # LEFT: File list panel (like COL Workshop) #disabled
         #left_panel = self._create_left_file_list_panel()
@@ -1803,6 +1829,11 @@ class IMGFactoryGUILayout:
         # Add splitter to main layout
         main_layout.addWidget(self.main_splitter)
 
+        # Remember splitter positions between sessions
+        for sp in self._layout_splitters().values():
+            sp.splitterMoved.connect(self._queue_layout_splitter_save)
+        QTimer.singleShot(400, self._restore_layout_splitters)
+
         # QSizeGrip — visible in system-titlebar mode so the user can drag-resize
         # the window from the bottom-right corner. In frameless/custom mode the
         # custom corner overlay triangles handle resizing instead.
@@ -1819,6 +1850,48 @@ class IMGFactoryGUILayout:
         _is_frameless = bool(self.main_window.windowFlags() & _Qt.WindowType.FramelessWindowHint)
         self._size_grip.setVisible(not _is_frameless)
 
+
+    def _layout_splitters(self): #vers 1
+        """Main window splitters whose positions are remembered."""
+        names = ('main_splitter', 'middle_vertical_splitter', 'left_vertical_splitter', 'content_splitter')
+        return {n: getattr(self, n) for n in names if getattr(self, n, None) is not None}
+
+    def _layout_splitter_path(self): #vers 1
+        from apps.methods.img_factory_settings import get_user_config_dir
+        return get_user_config_dir() / 'imgfactory_layout.json'
+
+    def _queue_layout_splitter_save(self, *_): #vers 1
+        """Save splitter sizes 500 ms after the last drag."""
+        t = getattr(self, '_splitter_save_timer', None)
+        if t is None:
+            t = self._splitter_save_timer = QTimer(self.main_window)
+            t.setSingleShot(True)
+            t.timeout.connect(self._save_layout_splitters)
+        t.start(500)
+
+    def _save_layout_splitters(self): #vers 1
+        """Write every main splitter's sizes to imgfactory_layout.json."""
+        import json
+        path = self._layout_splitter_path()
+        data = json.loads(path.read_text()) if path.exists() else {}
+        data['splitters'] = {n: sp.sizes() for n, sp in self._layout_splitters().items()}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2))
+
+    def saved_splitter_sizes(self, name): #vers 1
+        """Saved sizes of one splitter, or None."""
+        import json
+        path = self._layout_splitter_path()
+        if not path.exists():
+            return None
+        return json.loads(path.read_text()).get('splitters', {}).get(name)
+
+    def _restore_layout_splitters(self): #vers 1
+        """Put saved splitter sizes back (content splitter: when the side panel is split open)."""
+        for name, sp in self._layout_splitters().items():
+            sizes = self.saved_splitter_sizes(name)
+            if name != 'content_splitter' and sizes and len(sizes) == sp.count():
+                sp.setSizes(sizes)
 
     def _create_left_file_list_panel_disabled(self): #vers 2
         """Create left panel for file list showing files in the same directory as the loaded IMG file (similar to COL Workshop left panel)"""
@@ -1860,7 +1933,7 @@ class IMGFactoryGUILayout:
         return panel
 
 
-    def _create_middle_file_window_panel(self): #vers 1
+    def _create_middle_file_window_panel(self): #vers 2
         """Create middle panel with file window (table with sub-tabs) - main content area"""
         middle_container = QWidget()
         middle_layout = QVBoxLayout(middle_container)
@@ -1868,7 +1941,7 @@ class IMGFactoryGUILayout:
         middle_layout.setSpacing(0)  # No spacing - splitter handles this
 
         # Create vertical splitter for the sections in middle panel
-        self.middle_vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.middle_vertical_splitter = GripSplitter(Qt.Orientation.Vertical)
 
         # 1. TOP: File Window (table with sub-tabs)
         self.file_window = self._create_file_window()
@@ -1892,7 +1965,7 @@ class IMGFactoryGUILayout:
         return middle_container
 
 
-    def _create_left_three_section_panel(self): #vers 3
+    def _create_left_three_section_panel(self): #vers 4
         """Create left panel with 3 sections: File Window, Status Window"""
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
@@ -1900,7 +1973,7 @@ class IMGFactoryGUILayout:
         left_layout.setSpacing(0)  # No spacing - splitter handles this
 
         # Create vertical splitter for the sections
-        self.left_vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.left_vertical_splitter = GripSplitter(Qt.Orientation.Vertical)
 
         # 1. MIDDLE: File Window (table with sub-tabs)
         file_window = self._create_file_window()
@@ -1924,7 +1997,7 @@ class IMGFactoryGUILayout:
         return left_container
 
 
-    def _create_file_window(self): #vers 5
+    def _create_file_window(self): #vers 6
         """Create file window with table as main content (tabs moved to toolbar)"""
         file_window = QWidget()
         file_layout = QVBoxLayout(file_window)
@@ -1932,9 +2005,8 @@ class IMGFactoryGUILayout:
         file_layout.setSpacing(3)
 
         # Splitter: left = stacked panel (dir tree / dat browser), right = main tab widget
-        self.content_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.content_splitter = GripSplitter(Qt.Orientation.Horizontal)
         self.content_splitter.setAutoFillBackground(True)
-        self.content_splitter.setHandleWidth(5)
         self.content_splitter.setOpaqueResize(True)
         # Left stacked panel — page 0: dir tree, page 1: DAT browser, page 2: intro
         from PyQt6.QtWidgets import QStackedWidget

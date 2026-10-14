@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 13
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 15
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -473,7 +473,7 @@ class TXDUIMixin: #vers 1
 
         return self.toolbar
 
-    def _create_left_panel(self): #vers 6
+    def _create_left_panel(self): #vers 7
         """Create left panel - TXD file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -516,6 +516,8 @@ class TXDUIMixin: #vers 1
         self.txd_list_widget.itemClicked.connect(self._on_txd_selected)
         self.txd_list_widget.setMouseTracking(True)
         self.txd_list_widget.itemEntered.connect(self._txd_item_tooltip)
+        self.txd_list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.txd_list_widget.customContextMenuRequested.connect(self._txd_list_menu)
         layout.addWidget(self.txd_list_widget)
 
         return panel
@@ -663,7 +665,7 @@ class TXDUIMixin: #vers 1
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 19
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 20
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -816,6 +818,7 @@ class TXDUIMixin: #vers 1
 
         self.info_name = QLineEdit()
         self.info_name.setPlaceholderText("Click to edit...")
+        self.info_name.setToolTip("Texture name")
         self.info_name.setReadOnly(True)
         self.info_name.setMinimumWidth(130)
         self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
@@ -831,6 +834,7 @@ class TXDUIMixin: #vers 1
 
         self.info_alpha_name = QLineEdit()
         self.info_alpha_name.setPlaceholderText("Click to edit...")
+        self.info_alpha_name.setToolTip("Alpha name")
         self.info_alpha_name.setReadOnly(True)
         self.info_alpha_name.setMinimumWidth(100)
         self.info_alpha_name.setStyleSheet(
@@ -848,6 +852,7 @@ class TXDUIMixin: #vers 1
         self.format_combo.addItems(["DXT1", "DXT3", "DXT5", "ARGB8888",
                                      "ARGB1555", "ARGB4444", "RGB888", "RGB565"])
         self.format_combo.currentTextChanged.connect(self._change_format)
+        self.format_combo.setToolTip("Texture format")
         self.format_combo.setEnabled(False)
         self.format_combo.setMaximumWidth(100)
         tb_format.addWidget(self.format_combo)

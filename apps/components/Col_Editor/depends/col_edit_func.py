@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 12
+#this belongs in apps/components/Col_Editor/depends/col_edit_func.py - Version: 13
 # X-Seti - Sept 30 2026 - IMG Factory 1.6 - COL Workshop edit tools
 
 """
@@ -14,7 +14,9 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 
 ##class COLEditMixin: -
 # _ask_copy_or_move
+# _edit_add_box
 # _edit_add_face
+# _edit_add_sphere
 # _edit_attach_to_dff
 # _edit_batch_convert
 # _edit_box_to_mesh
@@ -25,6 +27,7 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _edit_copy_as_lod
 # _edit_delete_faces
 # _edit_delete_isolated
+# _edit_delete_prim
 # _edit_delete_vertices
 # _edit_detach
 # _edit_detached_parts
@@ -43,6 +46,7 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _edit_mirror
 # _edit_optimise
 # _edit_optimum_bounds
+# _edit_prim_properties
 # _edit_region_circle
 # _edit_region_window
 # _edit_scale_dialog
@@ -57,6 +61,7 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _edit_surfaces_from_dff
 # _edit_toggle_gamepad
 # _edit_toggle_lock
+# _edit_toggle_prim_mode
 # _edit_toggle_vertex_mode
 # _edit_tools_menu
 # _edit_unhide_all
@@ -70,6 +75,10 @@ Geometry maths lives in apps/methods/col_mesh_ops.py.
 # _merge_col_files
 # _mesh_edited
 # _pick_items
+# _prim_added
+# _prim_insert_point
+# _prim_menu
+# _prim_selected
 # _vertex_selection
 
 import os
@@ -142,11 +151,173 @@ class COLEditMixin: #vers 1
             return None
         return labels.index(choice) - 1
 
-    def _edit_toggle_vertex_mode(self, checked): #vers 1
+    def _edit_toggle_vertex_mode(self, checked): #vers 2
         """Viewport vertex selection mode on/off."""
+        if checked and getattr(self, 'prim_mode_btn', None) is not None:
+            self.prim_mode_btn.blockSignals(True); self.prim_mode_btn.setChecked(False)
+            self.prim_mode_btn.blockSignals(False)
         self.preview_widget.set_select_mode('vertex' if checked else 'face')
         self._set_status("Vertex select: click, Ctrl+click adds, drag box selects" if checked
                          else "Face select")
+
+    def _edit_toggle_prim_mode(self, checked): #vers 1
+        """Sphere / box selection mode on/off (click selects, gizmo moves and scales)."""
+        if checked and getattr(self, 'vertex_mode_btn', None) is not None:
+            self.vertex_mode_btn.blockSignals(True); self.vertex_mode_btn.setChecked(False)
+            self.vertex_mode_btn.blockSignals(False)
+        self.preview_widget.set_select_mode('prim' if checked else 'face')
+        self._set_status("Sphere/Box select: click one, drag the gizmo, right-click for properties"
+                         if checked else "Face select")
+
+    def _prim_selected(self): #vers 1
+        """Status line for the viewport's selected sphere / box."""
+        prim = self.preview_widget._prim_obj()
+        if prim is None:
+            self._set_status("No sphere or box under the mouse")
+        elif hasattr(prim, 'radius'):
+            c = prim.center
+            self._set_status(f"Sphere {self.preview_widget._selected_prim[1]}: centre "
+                             f"({c.x:.2f}, {c.y:.2f}, {c.z:.2f}) radius {prim.radius:.2f}")
+        else:
+            self._set_status(f"Box {self.preview_widget._selected_prim[1]}: min ({prim.min.x:.2f}, "
+                             f"{prim.min.y:.2f}, {prim.min.z:.2f}) max ({prim.max.x:.2f}, "
+                             f"{prim.max.y:.2f}, {prim.max.z:.2f})")
+
+    def _prim_menu(self, global_pos): #vers 1
+        """Right-click on a sphere / box."""
+        from PyQt6.QtWidgets import QMenu
+        m = QMenu(self)
+        m.addAction("Properties...", self._edit_prim_properties)
+        m.addAction("Delete", self._edit_delete_prim)
+        m.addSeparator()
+        m.addAction("Add Sphere", self._edit_add_sphere)
+        m.addAction("Add Box", self._edit_add_box)
+        m.exec(global_pos)
+
+    def _prim_insert_point(self, model): #vers 1
+        """(centre, size) for a new sphere/box: selected faces, else model centre."""
+        pw = self.preview_widget
+        faces = set(pw._selected_faces) if pw._select_mode != 'prim' else set()
+        c = ops.selection_centre(model, faces or None, None)
+        b = getattr(model, 'bounds', None)
+        size = max(0.25, float(getattr(b, 'radius', 0.0) or 0.0) * 0.1) if b else 1.0
+        return c, size
+
+    def _edit_add_sphere(self): #vers 1
+        """Add a sphere at the selection (or model) centre and select it."""
+        from apps.methods.col_workshop_classes import COLSphere
+        sel = self._edit_selection(need_faces=False)
+        if not sel: return
+        model, idx, _ = sel
+        self._push_undo(idx, "Add sphere")
+        c, size = self._prim_insert_point(model)
+        model.spheres.append(COLSphere(size, c, 0, 0, 0, 0))
+        self._prim_added(model, ('sphere', len(model.spheres) - 1))
+
+    def _edit_add_box(self): #vers 1
+        """Add a box at the selection (or model) centre and select it."""
+        from apps.methods.col_workshop_classes import COLBox
+        sel = self._edit_selection(need_faces=False)
+        if not sel: return
+        model, idx, _ = sel
+        self._push_undo(idx, "Add box")
+        c, size = self._prim_insert_point(model)
+        model.boxes.append(COLBox(tuple(v - size for v in c), tuple(v + size for v in c), 0, 0, 0, 0))
+        self._prim_added(model, ('box', len(model.boxes) - 1))
+
+    def _prim_added(self, model, key): #vers 1
+        """Switch to sphere/box mode with the new item selected."""
+        ops.recalc_bounds(model)
+        self._mesh_edited(model, f"Added {key[0]} {key[1]}", reselect=False)
+        if getattr(self, 'prim_mode_btn', None) is not None and not self.prim_mode_btn.isChecked():
+            self.prim_mode_btn.setChecked(True)
+            self._edit_toggle_prim_mode(True)
+        self.preview_widget._selected_prim = key
+        self.preview_widget.update()
+        self._prim_selected()
+
+    def _edit_delete_prim(self): #vers 1
+        """Delete the selected sphere / box."""
+        pw = self.preview_widget
+        model = self._get_selected_model()
+        if model is None or pw._prim_obj() is None:
+            self._set_status("Select a sphere or box first (Sphere/Box select mode)")
+            return
+        kind, i = pw._selected_prim
+        self._push_undo(self.current_col_file.models.index(model), f"Delete {kind}")
+        (model.spheres if kind == 'sphere' else model.boxes).pop(i)
+        pw._selected_prim = None
+        ops.recalc_bounds(model)
+        self._mesh_edited(model, f"Deleted {kind} {i}", reselect=False)
+
+    def _edit_prim_properties(self): #vers 1
+        """Edit the selected sphere / box: position, size, material."""
+        from apps.methods.col_materials import COLGame, get_materials_for_version
+        from PyQt6.QtWidgets import QComboBox, QFormLayout, QSpinBox
+        pw = self.preview_widget
+        model = self._get_selected_model()
+        prim = pw._prim_obj()
+        if model is None or prim is None:
+            self._set_status("Select a sphere or box first (Sphere/Box select mode)")
+            return
+        kind, i = pw._selected_prim
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"{kind.title()} {i}")
+        form = QFormLayout(dlg)
+
+        def spin(v, lo=-100000.0, hi=100000.0):
+            sp = QDoubleSpinBox(); sp.setRange(lo, hi); sp.setDecimals(3); sp.setSingleStep(0.1)
+            sp.setValue(float(v))
+            return sp
+        if kind == 'sphere':
+            fields = [spin(v) for v in prim.center] + [spin(prim.radius, 0.001)]
+            for label, w in zip(("Centre X:", "Centre Y:", "Centre Z:", "Radius:"), fields):
+                form.addRow(label, w)
+        else:
+            fields = [spin(v) for v in prim.min] + [spin(v) for v in prim.max]
+            for label, w in zip(("Min X:", "Min Y:", "Min Z:", "Max X:", "Max Y:", "Max Z:"), fields):
+                form.addRow(label, w)
+        game = COLGame.VC if getattr(model.version, 'value', 3) == 1 else COLGame.SA
+        mat = QComboBox()
+        cur = prim.material_id
+        for mid, name, _col in get_materials_for_version(game, include_vehicle=True):
+            mat.addItem(f"{mid} - {name}", mid)
+        if mat.findData(cur) < 0:
+            mat.addItem(str(cur), cur)
+        mat.setCurrentIndex(mat.findData(cur))
+        form.addRow("Material:", mat)
+        extras = []
+        for label, attr in (("Flag:", 'flag'), ("Brightness:", 'brightness'), ("Light:", 'light')):
+            sp = QSpinBox(); sp.setRange(0, 255)
+            src = prim.material if hasattr(prim.material, attr) else prim
+            sp.setValue(int(getattr(src, attr, 0) or 0))
+            form.addRow(label, sp)
+            extras.append((attr, sp))
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._push_undo(self.current_col_file.models.index(model), f"{kind.title()} properties")
+        vals = [w.value() for w in fields]
+        if kind == 'sphere':
+            prim.center = type(prim.center)(*vals[:3])
+            prim.radius = vals[3]
+        else:
+            lo = [min(a, b) for a, b in zip(vals[:3], vals[3:])]
+            hi = [max(a, b) for a, b in zip(vals[:3], vals[3:])]
+            prim.min, prim.max = type(prim.min)(*lo), type(prim.max)(*hi)
+        new_mat = mat.currentData()
+        if hasattr(prim.material, 'material_id'):
+            prim.material.material_id = new_mat
+        else:
+            prim.material = new_mat
+        for attr, sp in extras:
+            target = prim.material if hasattr(prim.material, attr) else prim
+            setattr(target, attr, sp.value())
+        ops.recalc_bounds(model)
+        self._mesh_edited(model, f"{kind.title()} {i} updated", reselect=False)
+        self._prim_selected()
 
     def _edit_detach(self): #vers 1
         """Split selected faces from their neighbours so they move freely."""

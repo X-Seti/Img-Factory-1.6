@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 8
+#this belongs in apps/components/Col_Editor/depends/col_core_logic_func.py - Version: 10
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop core logic
 
 """
@@ -574,11 +574,15 @@ class COLCoreLogicMixin: #vers 1
         self._surf_parser.entries.insert(self._surf_cur_idx + 1, e)
         self._surf_refresh_list(self._surf_search.text())
 
-    def _load_img_col_list(self): #vers 3
-        """Load COL files from IMG archive"""
+    def _load_img_col_list(self): #vers 4
+        """Load COL files from IMG archive (every game COL when a game folder is set)"""
         try:
             # Safety check for standalone mode
             if self.standalone_mode or not hasattr(self, 'col_list_widget') or self.col_list_widget is None:
+                return
+            root = getattr(self.main_window, 'game_root', '') if self.main_window else ''
+            if root and os.path.isdir(root):
+                self._load_game_col_list(root, rescan=False)
                 return
 
             self.col_list_widget.clear()
@@ -1811,16 +1815,18 @@ class COLCoreLogicMixin: #vers 1
             for path in rest:
                 open_col_workshop(self.main_window, path)
 
-    def showEvent(self, event): #vers 1
-        """When COL workshop becomes visible, try to populate from loaded IMG."""
+    def showEvent(self, event): #vers 2
+        """Visible in IMG Factory: list every COL in the game (else the loaded IMG's)."""
         super().showEvent(event)
-        if (not self.standalone_mode and
-                hasattr(self, 'col_list_widget') and
-                self.col_list_widget is not None and
-                self.col_list_widget.count() == 0):
-            # Try to get current IMG from main window
-            if self.main_window and hasattr(self.main_window, 'current_img'):
-                img = self.main_window.current_img
-                if img and img != getattr(self, 'current_img', None):
-                    self.current_img = img
-                    self._load_img_col_list()
+        if (self.standalone_mode or getattr(self, 'col_list_widget', None) is None
+                or self.col_list_widget.count()):
+            return
+        mw = self.main_window
+        root = getattr(mw, 'game_root', '') if mw else ''
+        if root and os.path.isdir(root):
+            self._load_game_col_list(root)
+            return
+        img = getattr(mw, 'current_img', None) if mw else None
+        if img and img != getattr(self, 'current_img', None):
+            self.current_img = img
+            self._load_img_col_list()

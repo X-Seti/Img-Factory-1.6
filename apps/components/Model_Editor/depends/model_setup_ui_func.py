@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 10
+#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 11
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop UI setup
 
 """
@@ -1220,7 +1220,7 @@ class ModelSetupUIMixin: #vers 1
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 15
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 16
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -1324,6 +1324,7 @@ class ModelSetupUIMixin: #vers 1
 
         # Selection count label — QToolBar widget (labels can't be QAction)
         self._sel_count_label = _QL("")
+        self._sel_count_label.setToolTip("Selection count")
         self._sel_count_label.setStyleSheet(
             "color: palette(mid); font-size: 11px; padding: 0 4px;")
         tb_sel.addWidget(self._sel_count_label)

@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 22
+# apps/components/Img_Factory/welcome_screen.py — Version 23
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -382,7 +382,7 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 6
+    def _build_quickstart_tab(self): #vers 7
         from PyQt6.QtCore import Qt as _Qt
         # Scroll area — vertical scrollbar always visible (ready for future cards)
         scroll = QScrollArea()
@@ -426,15 +426,15 @@ class WelcomeScreen(QWidget):
         g2 = QGridLayout(); g2.setSpacing(12)
         g2.setColumnStretch(0, 1); g2.setColumnStretch(1, 1); g2.setColumnStretch(2, 1)
         eds = [
-            (_TI.get_txd_workshop_icon(36, _ic), "TXD Workshop",
+            (_SVG.txd_workshop_icon(36), "TXD Workshop",
              "Open any .txd inside an IMG or standalone. Preview, replace, export "
              "and convert textures for PC, PS2, Xbox and mobile.",
              self.open_txd_workshop),
-            (_TI.get_col_workshop_icon(36, _ic), "COL Workshop",
+            (_SVG.col_workshop_icon(36), "COL Workshop",
              "Inspect and edit collision data — spheres, boxes and mesh faces. "
              "Paint surface materials, export as OBJ or COL.",
              self.open_col_workshop),
-            (_TI.get_dff_edit_icon(36, _ic), "Model Workshop",
+            (_SVG.mesh_icon(36, '#4a9fd4'), "Model Workshop",
              "View DFF geometry and frame hierarchy. Load the linked TXD automatically "
              "via the DAT Browser IDE entry. Textured 3D preview.",
              self.open_model_workshop),
@@ -442,11 +442,11 @@ class WelcomeScreen(QWidget):
              "Deluxe Paint-style bitmap editor. Draw, spray, clone and edit textures "
              "directly — works on any IMG entry or standalone image.",
              self.open_dp5_workshop),
-            (_TI.get_water_workshop_icon(36, _ic), "Water Workshop",
+            (_SVG.water_workshop_icon(36), "Water Workshop",
              "Edit GTA water planes — adjust water zones, opacity and flow "
              "for SA, VC and III water.dat files.",
              self.open_water_workshop),
-            (_TI.get_radar_workshop_icon(36, _ic), "Radar Workshop",
+            (_SVG.radar_workshop_icon(36), "Radar Workshop",
              "Browse, export and replace GTA radar tile textures. "
              "Supports SA 12×12 radar grid and VC/III formats.",
              self.open_radar_workshop),
@@ -454,7 +454,7 @@ class WelcomeScreen(QWidget):
              "Edit GTA time-of-day colour cycles. Supports GTA III, VC and SA "
              "timecyc.dat / timecycp.dat with sky preview and game conversion.",
              self.open_timecyc_workshop),
-            (_SVG.view_icon(36, _ic), "Vehicle Workshop",
+            (_TI.get_vehicle_icon(36, _ic), "Vehicle Workshop",
              "Preview vehicle DFFs with steering, wheels and door animation. "
              "VC/SA dummy detection, frame hierarchy tree.",
              self.open_vehicle_workshop),
@@ -476,23 +476,23 @@ class WelcomeScreen(QWidget):
              "Edit object definitions — model names, collision flags, draw "
              "distances and 2dfx data for GTA III, VC and SA.",
              self.open_ide_editor),
-            (_TI.get_ipl_editor_icon(36, _ic), "IPL Editor",
+            (_TI.get_ipl_editor_icon(36), "IPL Editor",
              "Edit item placement — object positions, rotations and interior "
              "links placed in the game world.",
              self.open_ipl_editor),
-            (_SVG.get_settings_icon(36, _ic), "Handling Editor",
+            (_TI.get_handling_icon(36, _ic), "Handling Editor",
              "Edit vehicle physics — handling.cfg mass, drag, suspension, "
              "traction and gear ratios.",
              self.open_handling_editor),
-            (_SVG.get_warning_icon(36, _ic), "Breakable Editor",
+            (_TI.get_breakable_icon(36, _ic), "Breakable Editor",
              "Edit breakable object data — collision break models and "
              "object.dat / objects.ide breakable flags.",
              self.open_breakable_editor),
-            (_SVG.get_edit_icon(36, _ic), "SCM Workshop",
+            (_TI.get_scm_icon(36, _ic), "SCM Workshop",
              "Edit compiled GTA mission scripts — decompile, browse opcodes "
              "and patch main.scm / script.img.",
              self.open_scm_workshop),
-            (_TI.get_hex_workshop_icon(36, _ic), "Hex Workshop",
+            (_TI.get_hex_workshop_icon(36), "Hex Workshop",
              "Raw hex/binary editor for any file — inspect and patch bytes "
              "directly with offset and ASCII views.",
              self.open_hex_workshop),

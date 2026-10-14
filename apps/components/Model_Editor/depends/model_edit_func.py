@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_edit_func.py - Version: 11
+#this belongs in apps/components/Model_Editor/depends/model_edit_func.py - Version: 12
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop editing
 
 """
@@ -44,6 +44,7 @@ Geometry edits, primitives, paint, materials, undo for ModelWorkshop.
 # _mesh_fill_hole
 # _mesh_frame_name
 # _mesh_gizmo_moved
+# _mesh_gizmo_settings
 # _mesh_gizmo_xform
 # _mesh_hide_selected
 # _mesh_light_view
@@ -2162,6 +2163,13 @@ class ModelEditMixin: #vers 1
         faces, _v = self._mesh_sel()
         self._mesh_run("Fill hole", ops.fill_holes, faces, need='faces')
 
+    def _mesh_gizmo_settings(self): #vers 1
+        """Shared gizmo style (size, lines, arrows, letters) for every workshop."""
+        from apps.methods.gizmo_paint import edit_gizmo_style
+        if edit_gizmo_style(self):
+            for vp in self._live_viewports():
+                vp.update()
+
     def _mesh_set_face_mode(self, mode): #vers 1
         """Face move mode shared by every viewport chip and the ribbon toggles."""
         self._mesh_face_mode = mode
@@ -2379,10 +2387,12 @@ class ModelEditMixin: #vers 1
             if ok:
                 self._mesh_run(f"Decimate {r:g}", ops.decimate, r)
 
-    def _mesh_menu(self, menu=None): #vers 4
+    def _mesh_menu(self, menu=None): #vers 5
         """Mesh edit menu (ribbon button and viewport right-click)."""
         own = menu is None
         menu = menu or QMenu(self)
+        menu.addAction("Gizmo Settings...", self._mesh_gizmo_settings)
+        menu.addSeparator()
         sel = menu.addMenu("Select")
         sel.addAction("All Vertices", lambda: self._mesh_select_verts('all'))
         sel.addAction("No Vertices", lambda: self._mesh_select_verts('none'))

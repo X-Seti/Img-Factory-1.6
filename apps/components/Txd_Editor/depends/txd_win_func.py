@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_win_func.py - Version: 4
+#this belongs in apps/components/Txd_Editor/depends/txd_win_func.py - Version: 5
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop window
 
 """
@@ -320,12 +320,17 @@ class TXDWindowMixin: #vers 1
             return
         apply_compact_buttons(self._middle_compact_btns, row.width())
 
-    def showEvent(self, event): #vers 1
-        """Standalone frameless window: fix Windows 11 border on show."""
+    def showEvent(self, event): #vers 2
+        """Standalone: fix Windows 11 border. In IMG Factory: fill the TXD file list."""
         super().showEvent(event)
         if self.standalone_mode:
             from apps.methods.imgfactory_ui_settings import apply_windows_frame
             apply_windows_frame(self)
+        elif getattr(self, 'txd_list_widget', None) is not None and not self.txd_list_widget.count():
+            mw = self.main_window
+            if not getattr(self, 'current_img', None) and mw is not None:
+                self.current_img = getattr(mw, 'current_img', None)
+            self._load_img_txd_list()
 
     def _update_transform_text_panel_visibility(self): #vers 6
         """Apply the icon/text/both display mode to the ribbon toolbars via

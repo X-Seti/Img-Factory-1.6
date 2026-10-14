@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_list_func.py - Version: 6
+#this belongs in apps/components/Col_Editor/depends/col_list_func.py - Version: 8
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop model list
 
 """
@@ -9,11 +9,13 @@ COL Workshop model list - list population, selection, previews, thumbnails, info
 # _copy_model_info
 # _copy_text_to_clipboard
 # _cycle_render_mode
+# _col_list_menu
 # _draw_col_model
 # _filter_col_list
 # _filter_collision_rows
 # _focus_search
 # _generate_collision_thumbnail
+# _load_game_col_list
 # _on_col_selected
 # _on_collision_selected
 # _on_compact_col_selected
@@ -209,18 +211,43 @@ class COLListMixin: #vers 1
         except Exception as e:
             print("_on_compact_col_selected error: " + str(e))
 
-    def _on_col_selected(self, item): #vers 2
-        """Handle COL file selection from left panel list."""
-        try:
-            entry = item.data(Qt.ItemDataRole.UserRole)
-            if entry and self.current_img:
-                self._open_col_from_img_entry(self.current_img, entry)
-        except Exception as e:
-            err = str(e)
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Error selecting COL: {err}")
-            else:
-                QMessageBox.critical(self, "Error selecting COL", err)
+    def _on_col_selected(self, item): #vers 4
+        """Open the clicked COL: a loose game file, or an entry inside an IMG."""
+        from apps.methods.game_file_list import game_img
+        src = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(src, dict) and src.get('kind') == 'file':
+            self._open_new_doc(src['path'])
+        elif isinstance(src, dict) and src.get('kind') == 'img':
+            img = game_img(self, src['img'])
+            entry = next((e for e in img.entries if e.name == src['name']), None)
+            if entry is not None:
+                self._open_col_from_img_entry(img, entry)
+        elif src is not None and self.current_img:
+            self._open_col_from_img_entry(self.current_img, src)
+
+    def _load_game_col_list(self, root, rescan=True): #vers 2
+        """List every COL in the game: loose files and entries inside IMGs."""
+        from apps.methods.game_file_list import fill_game_list, game_list_excludes, scan_game_files
+        if self.col_list_widget is None:
+            return
+        if rescan or getattr(self, '_game_col_items', None) is None or self._game_col_root != root:
+            self._game_col_items = scan_game_files(self, root, ('.col',))
+        self._game_col_root = root
+        shown, hidden = fill_game_list(self.col_list_widget, self._game_col_items,
+                                       game_list_excludes(self._ribbon_config_path()),
+                                       getattr(self, '_game_list_show_excluded', False))
+        hdr = getattr(self, '_col_list_header', None)
+        if hdr:
+            hdr.setText(f"COL Files  ({shown})")
+        self._set_status(f"{shown} COL file(s) in {root} ({hidden} excluded)")
+
+    def _col_list_menu(self, pos): #vers 2
+        """Right-click on the COL file list."""
+        from apps.methods.game_file_list import game_list_menu
+        root = getattr(self, '_game_col_root', None)
+        if root:
+            game_list_menu(self, self.col_list_widget, pos, self._ribbon_config_path(),
+                           lambda rescan: self._load_game_col_list(root, rescan))
 
     def _show_col_search(self, box=None): #vers 2
         """Toggle a search box (default: COL file list search)."""

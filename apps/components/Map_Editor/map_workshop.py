@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 249
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 252
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -662,6 +662,7 @@ class MapSettings(QObject):
         # Prelight bake (Sep 24 2026)
         'prelight_ambient': (90, 90, 100), 'prelight_diffuse': (200, 190, 170),
         'prelight_azimuth': 135.0, 'prelight_elevation': 45.0, 'prelight_strength': 1.0,
+        'prelight_shadows': True, 'prelight_shadow_dark': 0.6, 'prelight_shadow_res': 2048,
         # The real "other grid options" this same comment block above
         # already flagged as coming later (Aug 20 2026)
         'grid_type': 'lines',
@@ -775,13 +776,14 @@ class _MapWaterDepth: #vers 2
         vals, _rng, sea = self._cache()
         return sea + self._offset() if vals else None
 
-    def set_selected_z(self, z, start=False): #vers 1
+    def set_selected_z(self, z, start=False): #vers 2
         """Drag: Z offset = z - sea level (saved to the map settings)."""
         off = round(z - self._cache()[2], 2)
         vp = getattr(self._ws, 'preview_widget', None)
         if vp is not None and hasattr(vp, 'set_water2_height_offset'):
             vp.set_water2_height_offset(off)
         self._ws.map_settings.set('water2_height_offset', off)
+        self._ws._write_water_offsets({'z': off})      # per game, data/water_offset.dat
         self._ws._set_status(f"Water Z offset {off:+.2f}")
         for g in (getattr(self._ws, '_water_gauge', None), getattr(self._ws, '_vp_gauges', None)):
             if g is not None:
@@ -4878,7 +4880,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                 limits[g] = (ms.get(f'tex_limit_{g}_over'), ms.get(f'tex_limit_{g}_to'))
         return limits
 
-    def _build_workshop_settings_tabs(self): #vers 9
+    def _build_workshop_settings_tabs(self): #vers 10
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -6383,6 +6385,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             self.map_settings.set('water2_y_offset', water2_y_spin.value())
             if vp_for_water2 is not None and hasattr(vp_for_water2, 'set_water2_y_offset'):
                 vp_for_water2.set_water2_y_offset(water2_y_spin.value())
+            self._write_water_offsets({'x': water2_x_spin.value(), 'y': water2_y_spin.value(),
+                                       'z': water2_height_spin.value()})
             mode = water2_mode_combo.currentData()
             self.map_settings.set('water2_offset_mode', mode)
             self.map_settings.set('water2_offset_vc_only', mode == 'vc')
@@ -9131,7 +9135,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 13
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 15
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -9238,6 +9242,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
 
         # Selection count label — QToolBar widget (labels can't be QAction)
         self._sel_count_label = _QL("")
+        self._sel_count_label.setToolTip("Selection count")
         self._sel_count_label.setStyleSheet(
             "color: palette(mid); font-size: 11px; padding: 0 4px;")
         tb_sel.addWidget(self._sel_count_label)
@@ -9564,6 +9569,10 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             "model, instead of each model's own auto-detected lighting -\n"
             "use this if a model is rendering unexpectedly dark.")
         prelight_btn.toggled.connect(self._on_toggle_force_prelight)
+        prelight_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        prelight_btn.customContextMenuRequested.connect(
+            lambda _p, b=prelight_btn: self._prelight_menu(b.mapToGlobal(_p)))
+        prelight_btn.setToolTip(prelight_btn.toolTip() + "\nRight-click: generate world prelighting with shadows.")
         tb_overlays.addWidget(prelight_btn)
 
         _act(tb_rend, "Render Settings",
@@ -18339,7 +18348,7 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         self._on_ipl_selection_changed(names)
 
 
-    def _on_hover_context_menu(self, inst): #vers 3
+    def _on_hover_context_menu(self, inst): #vers 5
         """Fired by DFFViewport.set_hover_context_callback on a right-
         click while an instance is currently hover-highlighted (Aug
         19 2026). Object actions work on the selection (or this object)."""
@@ -18357,6 +18366,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             align.addAction(ax.upper(), lambda a=ax: self._align_selected(a)).setEnabled(n > 1)
         menu.addAction("Distribute evenly", self._distribute_selected).setEnabled(n > 2)
         menu.addAction("Bake Prelight to DFF...", self._bake_prelight_selected)
+        menu.addAction("Generate World Prelighting...", self._generate_world_prelight)
+        menu.addAction("Save World Prelighting to DFFs...", self._save_world_prelight)
         menu.addSeparator()
         menu.addAction(f"Delete ({n})\tDel", self._delete_selected_instances)
         chosen = menu.exec(QCursor.pos())
@@ -19974,6 +19985,118 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         if cache is not None:
             cache._geometry_cache.pop(os.path.splitext(name)[0].lower(), None)
 
+    def _prelight_menu(self, global_pos): #vers 2
+        """Prelight button right-click: generate / clear world prelighting."""
+        menu = QMenu(self)
+        menu.addAction("Generate World Prelighting...", self._generate_world_prelight)
+        menu.addAction("Save World Prelighting to DFFs...", self._save_world_prelight)
+        menu.addAction("Clear World Prelighting", self._clear_world_prelight)
+        menu.exec(global_pos)
+
+    def _generate_world_prelight(self): #vers 1
+        """Sun + ambient + directional shadows into every displayed object's vertex colours."""
+        from PyQt6.QtWidgets import QProgressDialog
+        from apps.components.Map_Editor.depends.map_prelight import (PrelightDialog, light_vector,
+                                                                      world_prelight)
+        vp = getattr(self, 'preview_widget', None)
+        entries = list(getattr(vp, '_world_instances', None) or [])
+        if not entries:
+            self._set_status("World prelighting: load a world first")
+            return
+        dlg = PrelightDialog(self, self.map_settings, world=True)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        amb, dif, az, el, strength, shadows, dark, res = dlg.values()
+        prog = QProgressDialog("Generating prelighting...", None, 0, 100, self)
+        prog.setWindowTitle("World Prelighting")
+        prog.setMinimumDuration(0)
+
+        def tick(i, n):
+            prog.setValue(int(100 * i / max(1, n)))
+            QApplication.processEvents()
+        n = world_prelight(entries, light_vector(az, el), amb, dif, strength, shadows, dark, res, tick)
+        prog.close()
+        vp._clear_world_display_lists()
+        vp.update()
+        self._set_status(f"World prelighting: {n} object(s) lit" + (" with shadows" if shadows else ""))
+
+    def _save_world_prelight(self): #vers 1
+        """Write generated prelighting into each model's DFF (first lit instance per model); undoable."""
+        from apps.components.Map_Editor.depends.map_prelight import apply_instance_colours
+        from apps.methods.dff_parser import DFFParser, detect_dff
+        from apps.methods.dff_patch import patch_dff
+        vp = getattr(self, 'preview_widget', None)
+        cache = getattr(self, '_model_cache', None)
+        lit = [e for e in (getattr(vp, '_world_instances', None) or []) if e.get('inst_prelit')]
+        if not lit or cache is None:
+            self._set_status("Save prelighting: generate world prelighting first")
+            return
+        firsts, shared = {}, {}
+        for e in lit:
+            name = getattr(e.get('instance'), 'model_name', '') or ''
+            if name:
+                key = name.lower()
+                firsts.setdefault(key, e)
+                shared[key] = shared.get(key, 0) + 1
+        multi = sum(1 for v in shared.values() if v > 1)
+        if QMessageBox.question(
+                self, "Save World Prelighting",
+                f"Write prelighting into {len(firsts)} DFF(s) in the loaded IMGs?\n\n"
+                f"{multi} model(s) are placed more than once; they take the colours "
+                f"(and shadows) of their first placement.") != QMessageBox.StandardButton.Yes:
+            return
+        writes, notes = [], []
+        for key, e in firsts.items():
+            hit = None
+            for img_path, entry in cache._dff_index.get(key, []):
+                data = cache._read_entry(img_path, entry)
+                if data and detect_dff(data):
+                    hit = (img_path, entry, data)
+                    break
+            if hit is None:
+                notes.append(f"{key}: DFF not found in loaded IMGs")
+                continue
+            img_path, entry, data = hit
+            model = DFFParser(data, key).parse()
+            if not apply_instance_colours(model, e['inst_prelit']):
+                notes.append(f"{key}: no prelit colours in the DFF")
+                continue
+            try:
+                new, _rep = patch_dff(data, model)
+            except Exception as ex:
+                notes.append(f"{key}: {ex}")
+                continue
+            if new != data:
+                writes.append((img_path, entry.name, data, new))
+
+        def _apply(k):
+            for img_path, name, old, new in writes:
+                self._write_img_entry(img_path, name, (old, new)[k])
+
+        if writes:
+            try:
+                _apply(1)
+            except Exception as ex:
+                QMessageBox.warning(self, "Save World Prelighting", f"Write failed: {ex}")
+                return
+            self._push_map_undo(lambda: _apply(0), lambda: _apply(1), f"Save prelighting ({len(writes)} DFF)")
+        msg = f"Prelighting saved into {len(writes)} DFF(s)"
+        if notes:
+            QMessageBox.information(self, "Save World Prelighting", msg + "\n\n" + "\n".join(notes[:30]))
+        self._set_status(msg)
+
+    def _clear_world_prelight(self): #vers 1
+        """Back to each model's own vertex colours."""
+        vp = getattr(self, 'preview_widget', None)
+        n = 0
+        for e in getattr(vp, '_world_instances', None) or []:
+            if e.pop('inst_prelit', None) is not None:
+                n += 1
+        if vp is not None:
+            vp._clear_world_display_lists()
+            vp.update()
+        self._set_status(f"World prelighting cleared ({n} object(s))")
+
     def _bake_prelight_selected(self): #vers 1
         """Bake ambient + sun into the prelit colours of the selected objects' DFFs (undoable)."""
         insts = self._selected_instances()
@@ -20811,8 +20934,8 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
         root = getattr(self, '_game_root', '') or ''
         return os.path.join(root, 'radar_settings.json') if root and os.path.isdir(root) else ''
 
-    def _load_radar_settings(self): #vers 1
-        """Per-game alignment dict from radar_settings.json."""
+    def _load_radar_settings(self): #vers 2
+        """Per-game alignment: radar from radar_settings.json, water from data/water_offset.dat."""
         path = self._radar_settings_path()
         data = {'radar_offset': [0.0, 0.0], 'water_offset': [0.0, 0.0], 'water_fix': None}
         if path and os.path.isfile(path):
@@ -20821,21 +20944,83 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
                     data.update(json.load(f))
             except (OSError, ValueError) as e:
                 self._set_status(f"radar_settings.json unreadable: {e}")
+        wat = self._read_water_offsets()
+        if 'nudge' in wat:
+            data['water_offset'] = wat['nudge']
+        if 'fix' in wat:
+            data['water_fix'] = wat['fix']
         return data
 
-    def _save_radar_settings(self, data): #vers 1
-        """Write per-game alignment to radar_settings.json."""
+    def _save_radar_settings(self, data): #vers 2
+        """Radar offset to radar_settings.json; water nudge and fix to water_offset.dat."""
         path = self._radar_settings_path()
         if not path:
             self._set_status("No game loaded - alignment not saved")
             return
+        radar = {k: v for k, v in data.items() if k not in ('water_offset', 'water_fix')}
         try:
             with open(path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
+                json.dump(radar, f, indent=2)
         except OSError as e:
             self._set_status(f"Could not save radar_settings.json: {e}")
+        self._write_water_offsets({'nudge': list(data.get('water_offset', [0.0, 0.0])),
+                                   'fix': data.get('water_fix')})
 
-    def _apply_radar_settings(self): #vers 1
+    def _water_offset_path(self): #vers 1
+        """<game>/data/water_offset.dat (data folder any case), or ''."""
+        root = getattr(self, '_game_root', '') or ''
+        if not root or not os.path.isdir(root):
+            return ''
+        data_dir = next((os.path.join(root, d) for d in os.listdir(root)
+                         if d.lower() == 'data' and os.path.isdir(os.path.join(root, d))), '')
+        return os.path.join(data_dir, 'water_offset.dat') if data_dir else ''
+
+    def _read_water_offsets(self): #vers 1
+        """Keys x, y, z, nudge, fix from water_offset.dat; {} if none."""
+        path = self._water_offset_path()
+        out = {}
+        if not path or not os.path.isfile(path):
+            return out
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.split('#', 1)[0].split()
+                if len(parts) < 2:
+                    continue
+                key, vals = parts[0].lower(), parts[1:]
+                try:
+                    if key in ('x', 'y', 'z'):
+                        out[key] = float(vals[0])
+                    elif key == 'nudge' and len(vals) >= 2:
+                        out['nudge'] = [float(vals[0]), float(vals[1])]
+                    elif key == 'fix':
+                        out['fix'] = {'on': True, 'off': False}.get(vals[0].lower())
+                except ValueError:
+                    self._set_status(f"water_offset.dat: bad value on '{line.strip()}'")
+        return out
+
+    def _write_water_offsets(self, changes): #vers 1
+        """Merge changes into water_offset.dat (x/y/z offsets, nudge, fix)."""
+        path = self._water_offset_path()
+        if not path:
+            return
+        cur = getattr(self, '_radar_settings', None) or {}
+        vals = {'x': float(self.map_settings.get('water2_x_offset') or 0.0),     # current values seed a new file
+                'y': float(self.map_settings.get('water2_y_offset') or 0.0),
+                'z': float(self.map_settings.get('water2_height_offset') or 0.0),
+                'nudge': list(cur.get('water_offset', [0.0, 0.0])), 'fix': cur.get('water_fix')}
+        vals.update(self._read_water_offsets())
+        vals.update(changes)
+        fix = {True: 'on', False: 'off'}.get(vals['fix'], 'auto')
+        text = ("# IMG Factory - Map Workshop water offsets for this game\n"
+                f"x {vals['x']:.3f}\ny {vals['y']:.3f}\nz {vals['z']:.3f}\n"
+                f"nudge {vals['nudge'][0]:.3f} {vals['nudge'][1]:.3f}\nfix {fix}\n")
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(text)
+        except OSError as e:
+            self._set_status(f"Could not save water_offset.dat: {e}")
+
+    def _apply_radar_settings(self): #vers 2
         """Push saved radar/water offsets and fix to the viewport."""
         data = self._load_radar_settings()
         self._radar_settings = data
@@ -20848,6 +21033,14 @@ class ModelWorkshop(GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): 
             vp.set_water2_nudge(*data['water_offset'])
         if hasattr(vp, 'set_water2_fix_override'):
             vp.set_water2_fix_override(data.get('water_fix'))
+        wat = self._read_water_offsets()            # per-game X/Y/Z offsets win
+        for key, setting, setter in (('x', 'water2_x_offset', 'set_water2_x_offset'),
+                                     ('y', 'water2_y_offset', 'set_water2_y_offset'),
+                                     ('z', 'water2_height_offset', 'set_water2_height_offset')):
+            if key in wat:
+                self.map_settings.set(setting, wat[key])
+                if hasattr(vp, setter):
+                    getattr(vp, setter)(wat[key])
 
     def _radar_align_offset(self, layer): #vers 1
         """Current (x, y) offset for 'radar' or 'water'."""

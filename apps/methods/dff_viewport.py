@@ -1,18 +1,18 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 30
+# this belongs in apps/methods/dff_viewport.py - Version: 34
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
 Standalone tools import from their own methods/dff_viewport.py.
 
 ##Methods list -
+# _GizmoOverlay.__init__
+# _GizmoOverlay.paintEvent
 # DFFViewport._apply_move
 # DFFViewport._apply_rotate
 # DFFViewport._build_gizmo_chips
 # DFFViewport._constraint_axis
 # DFFViewport._cycle_constraint
-# DFFViewport._draw_axis_cone
-# DFFViewport._draw_axis_letter
 # DFFViewport._draw_detached_wires
 # DFFViewport._draw_mesh_hover
 # DFFViewport._draw_wire_hint
@@ -20,7 +20,6 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._mesh_render_menu
 # DFFViewport._mesh_ring
 # DFFViewport._place_mesh_chips
-# DFFViewport._screen_axes
 # DFFViewport._sync_mesh_chips
 # DFFViewport._update_mesh_hover
 # DFFViewport.cycle_render_mode
@@ -87,6 +86,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._pick_ray
 # DFFViewport._pick_vertex
 # DFFViewport._place_gizmo_chips
+# DFFViewport._project_in_paint
 # DFFViewport._point_seg_dist2
 # DFFViewport._quat_axis
 # DFFViewport._quat_mul
@@ -172,6 +172,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._upload_textures
 """
 
+import ctypes
 import math
 import struct
 import numpy as np
@@ -256,13 +257,34 @@ class _CRTTimeOverlay(QLabel):
             self.right_clicked.emit()
 
 
+class _GizmoOverlay(QWidget):
+    """Transparent layer over the GL view: draws the mesh gizmo with QPainter."""
+
+    def __init__(self, vp): #vers 1
+        super().__init__(vp)
+        self._vp = vp
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+
+    def paintEvent(self, event): #vers 1
+        data = getattr(self._vp, '_gizmo2d', None)
+        if not data:
+            return
+        from PyQt6.QtGui import QPainter
+        from apps.methods.gizmo_paint import paint_gizmo
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        paint_gizmo(p, *data)
+        p.end()
+
+
 class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     """OpenGL viewport for RenderWare DFF model rendering.
     Supports wireframe, solid, and textured modes.
     Shared base for Model Viewer, Model Workshop, Vehicle Workshop.
     """
 
-    def __init__(self, parent=None): #vers 2
+    def __init__(self, parent=None): #vers 3
         super().__init__(parent)
         # Mouse tracking (Aug 19 2026)
         self.setMouseTracking(True)
@@ -579,7 +601,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             "color: white; background: rgba(190, 50, 50, 190); font-size: 12px; "
             "font-weight: bold; padding: 2px 12px; border-radius: 4px;")
         self._edit_banner.hide()
+        self._gizmo2d = None
+        self._gizmo_overlay = _GizmoOverlay(self)  # mesh gizmo drawn with QPainter
         self._mesh_hover = None                   # hovered vertex / edge / face (mesh edit)
+        self._mesh_gizmo_hover = None             # hovered gizmo axis (gold)
         self._mesh_gizmo_mode = 'move'            # 'move' | 'rotate' | 'scale'
         self._mesh_xform_cb = None                # fn(kind, vert_ids, axis, value, pivot)
         self._mesh_face_mode = 'connected'        # face move: 'connected' | 'detach' | 'extrude'
@@ -1044,7 +1069,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             b.move(max(0, (self.width() - b.width()) // 2), 6)
             b.raise_()
 
-    def resizeGL(self, w, h): #vers 5
+    def resizeGL(self, w, h): #vers 6
+        self._gizmo_overlay.resize(self.size())
         self._place_edit_banner()
         self._place_mesh_chips()
         if not OPENGL_AVAILABLE: return
@@ -1062,8 +1088,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_MODELVIEW)
         self._label_widget.move(4, 2)
 
-    def paintGL(self): #vers 14
+    def paintGL(self): #vers 15
         if not OPENGL_AVAILABLE: return
+        self._gizmo2d = None                     # mesh gizmo screen data, set by _draw_mesh_gizmo
+        self._gizmo_overlay.update()
         bg = self._get_bg_color()
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -3393,7 +3421,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_va = (key + (self._water2_alpha,), v)
         return v
 
-    def _draw_water2(self): #vers 6
+    def _draw_water2(self): #vers 7
         """Water cells as one vertex-array draw (SOL has 140k cells)."""
         if not OPENGL_AVAILABLE or not self._water2_cells:
             return
@@ -3416,8 +3444,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         verts = self._water2_arrays(x_offset, y_offset, self._water2_height_offset)
         n = len(verts)
         alpha = self._water2_alpha
+        # raw pointer calls: PyOpenGL's pointer store needs a GLX context (fails on EGL/Wayland)
+        from OpenGL.raw.GL.VERSION.GL_1_1 import (glColorPointer as raw_color_ptr,
+                                                  glTexCoordPointer as raw_tex_ptr,
+                                                  glVertexPointer as raw_vertex_ptr)
         glEnableClientState(GL_VERTEX_ARRAY)
-        glVertexPointer(3, GL_FLOAT, 0, verts)
+        raw_vertex_ptr(3, GL_FLOAT, 0, verts.ctypes.data_as(ctypes.c_void_p))
         if tex_id:
             uv = getattr(self, '_water2_uv', None)
             if uv is None or len(uv) != n:
@@ -3426,7 +3458,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glEnable(GL_TEXTURE_2D)
             glBindTexture(GL_TEXTURE_2D, tex_id)
             glEnableClientState(GL_TEXTURE_COORD_ARRAY)
-            glTexCoordPointer(2, GL_FLOAT, 0, uv)
+            raw_tex_ptr(2, GL_FLOAT, 0, uv.ctypes.data_as(ctypes.c_void_p))
             glColor4f(1.0, 1.0, 1.0, alpha)
             glDrawArrays(GL_QUADS, 0, n)
             glDisableClientState(GL_TEXTURE_COORD_ARRAY)
@@ -3434,7 +3466,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glDisable(GL_TEXTURE_2D)
         else:                                            # shaded by Z, same scale as the gauge
             glEnableClientState(GL_COLOR_ARRAY)
-            glColorPointer(4, GL_FLOAT, 0, self._water2_col)
+            raw_color_ptr(4, GL_FLOAT, 0, self._water2_col.ctypes.data_as(ctypes.c_void_p))
             glDrawArrays(GL_QUADS, 0, n)
             glDisableClientState(GL_COLOR_ARRAY)
         glDisableClientState(GL_VERTEX_ARRAY)
@@ -3881,7 +3913,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dots_cube_list_id = list_id
         return list_id
 
-    def _draw_world_instances(self): #vers 5
+    def _draw_world_instances(self): #vers 6
         """Per instance: glPushMatrix/translate/rotate/scale, then
         replay a pre-compiled display list (Aug 1 2026)"""
         if not OPENGL_AVAILABLE: return
@@ -3957,7 +3989,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                           getattr(self, '_col_triangles', None))
         for entry in self._world_instances:
             model_key = entry.get('model_key', id(entry))
-            cache_key = (model_key, self._mode)
+            inst_p = entry.get('inst_prelit')          # generated world prelighting, per instance
+            cache_key = (('inst', id(entry)) if inst_p else model_key, self._mode)
             list_id = self._world_display_lists.get(cache_key)
             if list_id is None:
                 list_id = glGenLists(1)
@@ -3966,10 +3999,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._uvs       = entry.get('uvs', [])
                 self._triangles = entry.get('triangles', [])
                 self._materials = entry.get('materials', [])
-                self._prelit    = entry.get('prelit', [])
+                self._prelit    = inst_p or entry.get('prelit', [])
                 self._current_geom_flags = entry.get(
                     'geom_flags',
                     self.rpGEOMETRYLIGHT | self.rpGEOMETRYMODULATEMATERIALCOLOR | self.rpGEOMETRYNORMALS)
+                if inst_p:                              # baked colours replace real-time lighting
+                    self._current_geom_flags = ((self._current_geom_flags | self.rpGEOMETRYPRELIT
+                                                 | self.rpGEOMETRYMODULATEMATERIALCOLOR)
+                                                & ~self.rpGEOMETRYLIGHT)
                 glNewList(list_id, GL_COMPILE)
                 if   self._mode=='wireframe': self._draw_wireframe()
                 elif self._mode=='solid':     self._draw_solid()
@@ -4267,7 +4304,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                                                 | Qt.KeyboardModifier.ShiftModifier))
                 self._mesh_region = [mx, my, mx, my, add]   # empty space: region drag
 
-    def mouseMoveEvent(self, event): #vers 8
+    def mouseMoveEvent(self, event): #vers 9
         if getattr(self, '_mesh_drag', None) is not None and event.buttons() & Qt.MouseButton.LeftButton:
             self._mesh_gizmo_update(event.pos().x(), event.pos().y())
             self._last_pos = event.pos()
@@ -4385,6 +4422,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._gizmo_hover_axis = self._gizmo_pick_axis(event.pos().x(), event.pos().y())
         if event.buttons() == Qt.MouseButton.NoButton and getattr(self, '_select_mode', 'object') != 'object':
             self._update_mesh_hover(event.pos().x(), event.pos().y())
+            self._mesh_gizmo_hover = (self._mesh_gizmo_pick(event.pos().x(), event.pos().y())
+                                      if self._mesh_drag is None else None)
         self._last_pos = event.pos(); self.update()
 
         callback = getattr(self, '_lod_test_callback', None)
@@ -4448,9 +4487,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """World-instance entry of the gizmo target, or None."""
         return self._entry_for(self._gizmo_inst) if self._gizmo_inst is not None else None
 
-    def _gizmo_size(self, pos): #vers 1
-        """Arrow length: scales with camera distance so it stays readable."""
-        return max(0.5, self._dist * 0.12)
+    def _gizmo_size(self, pos): #vers 2
+        """Arrow length: scales with camera distance (gizmo size setting applied)."""
+        from apps.methods.gizmo_paint import gizmo_style
+        return max(0.5, self._dist * 0.12) * gizmo_style()['size']
+
+    def _project_in_paint(self, pts): #vers 1
+        """World points -> widget (x, y) with the current GL matrices (inside paintGL only)."""
+        mm = glGetDoublev(GL_MODELVIEW_MATRIX)
+        pm = glGetDoublev(GL_PROJECTION_MATRIX)
+        vpt = glGetIntegerv(GL_VIEWPORT)
+        dpr = self.devicePixelRatioF() or 1.0
+        out = []
+        for p in pts:
+            x, y, _z = gluProject(p[0], p[1], p[2], mm, pm, vpt)
+            out.append((x / dpr, (vpt[3] - y) / dpr))
+        return out
 
     def _gizmo_project(self, pts): #vers 1
         """World points -> widget pixels using the pick camera; None on failure."""
@@ -4656,85 +4708,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._mesh_xform_cb(d['mode'], set(d['orig']), d['axis'], d['delta'], d['pivot'])
         self.update()
 
-    def _draw_mesh_gizmo(self): #vers 3
-        """Move arrows, rotate rings or scale bars at the centre of the mesh selection."""
+    def _draw_mesh_gizmo(self): #vers 5
+        """COL Workshop style gizmo: screen data for the overlay painter (gizmo_paint)."""
         ids = self._mesh_gizmo_ids()
         if not ids:
             return
         c = self._mesh_gizmo_pivot(ids)
         L = self._gizmo_size(c)
-        mode = self._mesh_gizmo_mode
-        glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT | GL_POINT_BIT)
-        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
-        glLineWidth(3.0)
-        active = (self._mesh_drag or {}).get('axis')
-        cols = (('x', (1.0, 0.25, 0.25)), ('y', (0.3, 1.0, 0.3)), ('z', (0.3, 0.5, 1.0)))
+        mode = {'move': 'translate'}.get(self._mesh_gizmo_mode, self._mesh_gizmo_mode)
+        pts = self._project_in_paint([c, (c[0] + L, c[1], c[2]), (c[0], c[1] + L, c[2]), (c[0], c[1], c[2] + L)])
+        tips = dict(zip('XYZ', pts[1:]))
+        rings = {}
         if mode == 'rotate':
-            for axis, col in cols:
-                glColor3f(*((1.0, 1.0, 0.2) if axis == active else col))
-                glBegin(GL_LINE_LOOP)
-                for pt in self._mesh_ring(c, L * 0.8, axis):
-                    glVertex3f(*pt)
-                glEnd()
-        else:
-            right, up = self._screen_axes()
-            for k, (axis, col) in enumerate(cols):
-                colour = (1.0, 1.0, 0.2) if axis == active else col
-                glColor3f(*colour)
-                tip = list(c); tip[k] += L
-                glBegin(GL_LINES); glVertex3f(*c); glVertex3f(*tip); glEnd()
-                if mode == 'move':
-                    self._draw_axis_cone(c, k, L)
-                self._draw_axis_letter(tip, k, axis, L * 0.09, right, up)
-            glPointSize(10.0)
-            glBegin(GL_POINTS); glColor3f(0.85, 0.85, 0.85); glVertex3f(*c); glEnd()
-            glPointSize(7.0)
-            glBegin(GL_POINTS); glColor3f(0.05, 0.05, 0.05); glVertex3f(*c); glEnd()
-            if mode == 'scale':
-                glPointSize(9.0)
-                glBegin(GL_POINTS)
-                for k, (axis, col) in enumerate(cols):
-                    glColor3f(*((1.0, 1.0, 0.2) if axis == active else col))
-                    tip = list(c); tip[k] += L
-                    glVertex3f(*tip)
-                glColor3f(*((1.0, 1.0, 0.2) if active == 'u' else (0.9, 0.9, 0.9)))
-                glVertex3f(*c)
-                glEnd()
-        glPopAttrib()
-
-    def _screen_axes(self): #vers 1
-        """Camera right and up vectors in world space (from the modelview matrix)."""
-        m = glGetFloatv(GL_MODELVIEW_MATRIX)
-        m = [float(x) for x in np.asarray(m).flatten()]
-        return (m[0], m[4], m[8]), (m[1], m[5], m[9])
-
-    def _draw_axis_cone(self, c, k, L): #vers 1
-        """Solid arrow head at the tip of axis k (COL Workshop style)."""
-        h, r = L * 0.16, L * 0.055
-        tip = list(c); tip[k] += L
-        base = list(c); base[k] += L - h
-        u, v = [(1, 2), (0, 2), (0, 1)][k]
-        glBegin(GL_TRIANGLE_FAN)
-        glVertex3f(*tip)
-        for i in range(13):
-            a = 2 * math.pi * i / 12
-            p = list(base); p[u] += r * math.cos(a); p[v] += r * math.sin(a)
-            glVertex3f(*p)
-        glEnd()
-
-    def _draw_axis_letter(self, tip, k, axis, s, right, up): #vers 1
-        """X / Y / Z drawn as strokes facing the camera, just past the arrow tip."""
-        o = list(tip); o[k] += s * 2.2
-        strokes = {'x': [((-1, -1), (1, 1)), ((-1, 1), (1, -1))],
-                   'y': [((-1, 1), (0, 0)), ((1, 1), (0, 0)), ((0, 0), (0, -1))],
-                   'z': [((-1, 1), (1, 1)), ((1, 1), (-1, -1)), ((-1, -1), (1, -1))]}[axis]
-        glLineWidth(2.0)
-        glBegin(GL_LINES)
-        for p0, p1 in strokes:
-            for px, py in (p0, p1):
-                glVertex3f(*(o[i] + (right[i] * px + up[i] * py) * s for i in range(3)))
-        glEnd()
-        glLineWidth(3.0)
+            for axis in 'xyz':
+                rings[axis.upper()] = self._project_in_paint(self._mesh_ring(c, L * 0.8, axis))
+        active = ((self._mesh_drag or {}).get('axis') or self._mesh_gizmo_hover or '').upper() or None
+        order = sorted('XYZ', key=lambda k: tips[k][1], reverse=True)
+        self._gizmo2d = (mode, pts[0], tips, rings, active, order)
 
     def set_mesh_face_mode(self, mode, notify=True): #vers 2
         """How a face move drag applies: 'connected', 'detach' or 'extrude'."""
@@ -5349,7 +5339,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
         glPopAttrib()
 
-    def _draw_gizmo(self): #vers 3
+    def _draw_gizmo(self): #vers 4
         """Move: solid arrows + centre. Rotate: one ring. Plus footprint, height line, chip bar."""
         e = self._gizmo_entry()
         if e is None:
@@ -5369,20 +5359,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if g is not None and g < pz - 0.01:                     # height line to ground
             glColor3f(1.0, 0.95, 0.3); glLineWidth(2.0)
             glBegin(GL_LINES); glVertex3f(px, py, pz); glVertex3f(px, py, g); glEnd()
+        from apps.methods.gizmo_paint import gizmo_style
+        st = gizmo_style()
         if self._gizmo_mode == 'move':
             con = self._gizmo_constraint
             for axis, v in (('x', (1, 0, 0)), ('y', (0, 1, 0)), ('z', (0, 0, 1))):
                 on = active == axis or (active == 'free' and axis in con) or (not active and axis in con and con != 'xy')
                 glColor3f(*(hi if on else cols[axis]))
-                glLineWidth(5.0 if on else 3.0)
+                glLineWidth(st['line_active'] if on else st['line'])
                 tip = (px + v[0] * L, py + v[1] * L, pz + v[2] * L)
                 glBegin(GL_LINES); glVertex3f(px, py, pz); glVertex3f(*tip); glEnd()
-                self._draw_cone(tip, v, L * 0.22, L * 0.08)
+                self._draw_cone(tip, v, L * 0.22 * st['arrow'], L * 0.08 * st['arrow'])
         else:
             ax = self._rot_axis()
             on = active == 'r' + ax
             glColor3f(*(hi if on else (0.1, 0.85, 0.35)))
-            glLineWidth(5.0 if on else 3.5)
+            glLineWidth(st['line_active'] if on else st['line'] + 0.5)
             glBegin(GL_LINE_LOOP)
             for p in self._ring_points((px, py, pz), ax, L * 0.8):
                 glVertex3f(*p)

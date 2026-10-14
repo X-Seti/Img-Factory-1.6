@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 111
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 112
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -2214,7 +2214,7 @@ class IMGFactory(QMainWindow):
 
 
 
-    def _create_ui(self): #vers 13
+    def _create_ui(self): #vers 14
         """Create the main user interface - WITH TABS FIXED"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -2313,7 +2313,9 @@ class IMGFactory(QMainWindow):
                 tab_idx = 1 - tree_idx if tree_idx != -1 else 0
                 sizes = splitter.sizes()
                 if sizes[tab_idx] >= total * 0.9:
-                    splitter.setSizes([total // 2, total // 2])
+                    saved = self.gui_layout.saved_splitter_sizes('content_splitter')
+                    split_ok = saved and len(saved) == splitter.count() and min(saved) > 20
+                    splitter.setSizes(saved if split_ok else [total // 2, total // 2])
                 else:
                     s = [0, 0]
                     s[tab_idx] = total

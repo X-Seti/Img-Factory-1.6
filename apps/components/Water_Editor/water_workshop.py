@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 21
+#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 22
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -1263,8 +1263,9 @@ class WaterZGauge(QWidget):
     z_range(), z_values(), selected_z() and set_selected_z(z) (None = read only).
     Horizontal in a top/bottom ribbon: low Z left."""
 
-    def __init__(self, source, parent=None): #vers 3
+    def __init__(self, source, parent=None): #vers 4
         super().__init__(parent)
+        self.setObjectName("Depth Gauge")              # Ribbon Manager label
         self._src = source
         self._dragging = False
         self._horiz = False

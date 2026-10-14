@@ -1,6 +1,47 @@
 #this belongs in root /ChangeLog.md - Version: 260
 
 
+## Oct 14 2026 - TXD list on show, app icons
+- TXD Workshop fills the game TXD list when its tab opens (no IMG needed).
+- Right bar, Intro and taskbar use each workshop app icon (COL, TXD, Model, Water, Radar, DP5, Hex, IPL); new icons for the rest. Encrypt/Refresh icons fixed.
+
+## Oct 14 2026 - TXD Files panel
+- TXD Workshop (in IMG Factory) lists every TXD/WTD/NFT in the game, loose and in IMGs; exclude menu. Shared methods/game_file_list.py, COL panel uses it too.
+
+## Oct 14 2026 - Ribbon / splitters
+- Ribbon Manager: hidden gauges, combos, labels now saved (toolbar/label key) and restored next session.
+- IMG Factory: grip splitters; positions saved to imgfactory_layout.json and restored; side panel split reuses saved size.
+
+## Oct 14 2026 - Background image through panels
+- app_settings_system: image shows through panels, ribbons, tab bars, splitters (not viewports); new Tabs / Splitters opacity sliders. Also App-Settings-System repo.
+
+## Oct 14 2026 - World prelighting
+- Map Workshop: Generate World Prelighting (prelight button right-click, object menu): sun, ambient, directional shadows (sun shadow map) into every displayed object. Clear restores. Save World Prelighting to DFFs writes colours (first placement per model), undoable.
+
+## Oct 14 2026 - Shared gizmo
+- methods/gizmo_paint.py: COL-style gizmo for COL, Model, Vehicle; Gizmo Settings (size, lines, arrows, letters) shared. COL: Edit Mode banner + render/gizmo/select chips.
+
+## Oct 14 2026 - COL spheres and boxes
+- Sphere/Box Select Mode: click selects, gizmo moves/scales, right-click menu. Add Sphere, Add Box, Properties (position, size, material, flags), Delete; undoable.
+
+## Oct 14 2026 - COL Files panel
+- COL Workshop (in IMG Factory) lists every COL in the game: loose files and IMG entries. Right-click: exclude file/folder/IMG, show excluded, refresh.
+
+## Oct 14 2026 - Gizmo style
+- Model/Vehicle mesh gizmo and COL gizmo use Map Workshop style: bold axes, large cones, white centre, hovered handle gold. X/Y/Z labels kept.
+
+## Oct 14 2026 - Ribbon Manager labels
+- Unnamed ribbon widgets named (selection count, depth gauge, palette, game preset, TXD name/format, DP5 tool settings); no more "Action" entries.
+
+## Oct 14 2026 - Ribbon Manager crash
+- ribbon_dialog: toolbars/actions kept in Python lists, items store index; PyQt returned bare QObject from item data.
+
+## Oct 14 2026 - Map Workshop water offsets per game
+- Water X/Y/Z offsets, nudge and fix saved to <game>/data/water_offset.dat; applied on world load. radar_settings.json keeps radar offset only.
+
+## Oct 14 2026 - Map Workshop crash
+- dff_viewport _draw_water2: raw GL pointer calls; PyOpenGL pointer store crashed without GLX context (Wayland).
+
 ## Oct 13 2026 - Standalone repos synced
 - 14 standalone repos: shared files updated from main, missing modules added; all launch. Paths/Zon radar_workshop.py base restored.
 
@@ -33,6 +74,9 @@
 - Map Workshop: water object editing (gauge shown, editing to do). Path Workshop: draw path nodes (paint_paths needs world_to_screen).
 - methods/txd_platform_pc.py unused, duplicate of txd_reader: suggest removal.
 - Staging rule: copy files to a new outputs/cNNNNNN folder per commit (same name sends stale cache).
+- Low priority: GTA IV image formats (TODO_bugs ivCellConverter, ivXenonConverter, retrevnoCnoneXvi samples).
+- Low priority: re-sync all standalone repos (Col, DP5, Hex, Map, Model-Viewer, Model, Paths, Radar, Timecyc, Txd, Vehicle, Water, Zon) from main, ready for Windows exe builds.
+- Next: app icons for workshops without one (Vehicle, Handling, Peds, IFP, Weapons, Breakable, SCM, GXT, Menu, Timecyc, Map); then use them in IMG Factory right bar, Intro, taskbar.
 
 ## Oct 13 2026 - DP5 / TXD file tabs
 - DP5 Save Back: any BMP (1-32 bit) or IFF keeps depth and size; dropped files register too. Title bar file tabs drop-down drives the canvas tabs.

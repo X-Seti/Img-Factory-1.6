@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 71
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 73
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -99,6 +99,7 @@ from PyQt6.QtCore import Qt
 # paint_texture_icon
 # paste_icon
 # pause_icon
+# prim_select_icon
 # properties_icon
 # record_icon
 # region_circle_icon
@@ -4015,6 +4016,15 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
+    def prim_select_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Sphere / box select - sphere and box outlines, red pointer"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="7" cy="8" r="5" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <rect x="11" y="11" width="9" height="9" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <polygon points="3,14 3,23 6,20 9,23 10.5,21.5 7.5,18.5 11,18" fill="#e03030"/>
+        </svg>''', size, color)
+
+    @staticmethod
     def box_to_mesh_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
         """Box to mesh - box with triangulated faces"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -5827,6 +5837,76 @@ def get_db_delete_icon(size: int = 24, color: str = None, bg_color: str = None) 
               stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
         <line x1="22" y1="13" x2="15" y2="20"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_vehicle_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Vehicle - car side outline with wheels"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 15v-3l2-4h10l4 4h2v3z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/><circle cx="7" cy="16" r="2" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="17" cy="16" r="2" stroke="currentColor" stroke-width="2" fill="none"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_handling_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Handling - steering wheel"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M3.5 10.5h6M14.5 10.5h6M12 14.5V21" stroke="currentColor" stroke-width="2" fill="none"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_carcols_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Car colours - car with paint drop"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 16v-3l2-3h8l3 3h1v3z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/><circle cx="6" cy="17" r="1.6" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="13" cy="17" r="1.6" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M19 3c-2 3-3 4.5-3 6a3 3 0 0 0 6 0c0-1.5-1-3-3-6z" stroke="currentColor" stroke-width="1.8" fill="none"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_peds_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Peds - standing person"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="4.5" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 7v8M8 10h8M12 15l-3 7M12 15l3 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_ipf_anim_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """IFP animation - running figure with motion lines"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="4" r="2.2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M13 7l-2 6 4 3v5M11 13l-4 3M13 8l4 3M2 9h4M1 13h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_weapons_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Weapons - crosshair"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_breakable_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Breakable objects - cracked box"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 7l9-4 9 4v10l-9 4-9-4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M12 3l-1 5 3 3-2 4 1 6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_scm_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """SCM scripts - code braces"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 4c-3 0-3 2-3 4s-1 3-2 4c1 1 2 2 2 4s0 4 3 4M16 4c3 0 3 2 3 4s1 3 2 4c-1 1-2 2-2 4s0 4-3 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M10 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_gxt_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """GXT text - letters A a"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 20L7 4l5 16M4 14h6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 20v-6a3 3 0 0 0-6 0M21 17c0 2-1.5 3-3 3s-3-1-3-2.5 1.5-2.5 6-2.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_menu_edit_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Menu editor - menu panel with lines"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M7 8h10M7 12h10M7 16h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     </svg>''', size, color, bg_color)
 
 

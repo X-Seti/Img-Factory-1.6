@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 15
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 17
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -903,7 +903,7 @@ class COLSetupUIMixin: #vers 1
         sp.splitterMoved.connect(lambda *_: self._apply_left_compact())
         return tab
 
-    def _create_left_panel(self): #vers 5
+    def _create_left_panel(self): #vers 6
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -953,6 +953,8 @@ class COLSetupUIMixin: #vers 1
         self.col_list_widget.setAlternatingRowColors(True)
         #self.col_list_widget.setAutoFillBackground(True)
         self.col_list_widget.itemClicked.connect(self._on_col_selected)
+        self.col_list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.col_list_widget.customContextMenuRequested.connect(self._col_list_menu)
         layout.addWidget(self.col_list_widget)
         return panel
 
@@ -1169,7 +1171,7 @@ class COLSetupUIMixin: #vers 1
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 11
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 12
         """Build all QToolBar instances using QAction (Model Workshop pattern,
         Build 388+). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_preview_controls panels."""
@@ -1355,6 +1357,7 @@ class COLSetupUIMixin: #vers 1
         from apps.methods.imgfactory_svg_icons import list_icon
         for name, icon, cb, attr, chk in [
             ("Vertex Select Mode",         IF.vertex_select_icon,      self._edit_toggle_vertex_mode, 'vertex_mode_btn', True),
+            ("Sphere/Box Select Mode",     IF.prim_select_icon,        self._edit_toggle_prim_mode,   'prim_mode_btn',   True),
             ("Scale Gizmo [S]",            IF.dp_resize_icon,          lambda: pw._set_gizmo('scale'), 'scale_gizmo_btn', False),
             ("Scale...",                   IF.bounds_icon,             self._edit_scale_dialog,       'scale_btn',       False),
             ("Centre to Origin",           IF.snap_to_center_icon,     self._edit_centre_origin,      'centre_btn',      False),
@@ -1374,6 +1377,10 @@ class COLSetupUIMixin: #vers 1
             ("Fill Hole",                  IF.fill_icon,               self._edit_fill_hole,          'fill_hole_btn',   False),
             ("Optimise Mesh...",           IF.filter_icon,             self._edit_optimise,           'optimise_btn',    False),
             (None, None, None, None, None),
+            ("Add Sphere",                 IF.sphere_icon,             self._edit_add_sphere,         'add_sphere_btn',  False),
+            ("Add Box",                    IF.box_icon,                self._edit_add_box,            'add_box_btn',     False),
+            ("Sphere/Box Properties...",   IF.properties_icon,         self._edit_prim_properties,    'prim_props_btn',  False),
+            ("Delete Sphere/Box",          IF.delete_icon,             self._edit_delete_prim,        'del_prim_btn',    False),
             ("Box to Mesh",                IF.box_to_mesh_icon,                self._edit_box_to_mesh,        'box_mesh_btn',    False),
             ("Sphere to Mesh",             IF.sphere_to_mesh_icon,             self._edit_sphere_to_mesh,     'sphere_mesh_btn', False),
             ("Faces to Box",               IF.faces_to_box_icon,               self._edit_faces_to_box,       'faces_box_btn',   False),
@@ -2047,7 +2054,7 @@ class COLSetupUIMixin: #vers 1
         self.info_name.selectAll()
         self.info_name.setFocus()
 
-    def _set_col_buttons_enabled(self, enabled: bool): #vers 5
+    def _set_col_buttons_enabled(self, enabled: bool): #vers 6
         """Enable/disable all transform buttons in BOTH icon and text panels.
         The text panel overwrites self.X refs, so when the icon panel is visible
         (narrow mode) those refs point to hidden buttons. Walk the icon panel too.
@@ -2058,7 +2065,8 @@ class COLSetupUIMixin: #vers 1
             'paint_btn', 'surface_type_btn', 'surface_edit_btn', 'build_from_txd_btn',
             'show_shadow_btn', 'create_shadow_btn', 'remove_shadow_btn',
             'compress_btn', 'uncompress_btn', 'switch_btn', 'convert_btn',
-            'vertex_mode_btn', 'scale_gizmo_btn', 'scale_btn', 'centre_btn', 'detach_btn', 'detached_list_btn',
+            'vertex_mode_btn', 'prim_mode_btn', 'add_sphere_btn', 'add_box_btn', 'prim_props_btn',
+            'del_prim_btn', 'scale_gizmo_btn', 'scale_btn', 'centre_btn', 'detach_btn', 'detached_list_btn',
             'sel_model_btn', 'sel_file_btn', 'del_faces_btn', 'weld_btn', 'fill_hole_btn',
             'box_mesh_btn', 'sphere_mesh_btn', 'faces_box_btn', 'faces_sphere_btn', 'merge_btn', 'optimise_btn',
             'vert_pos_btn', 'add_face_btn', 'del_verts_btn', 'split_faces_btn', 'mirror_btn',

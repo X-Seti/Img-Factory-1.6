@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 103
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 104
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -7984,7 +7984,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
     }
     _TEXT_TOOLS = {TOOL_TEXT}
 
-    def _create_tool_settings_ribbon(self): #vers 1
+    def _create_tool_settings_ribbon(self): #vers 2
         """Tool Settings ribbon - always-visible, top-right (per my
         request), showing the CURRENTLY SELECTED tool's Size (GIMP-style
         plain numeric field, label changes per tool - 'Pen Size',
@@ -8055,6 +8055,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
 
         wa = QWidgetAction(tb)
         wa.setDefaultWidget(container)
+        wa.setText("Tool Settings")                    # Ribbon Manager label
         tb.addAction(wa)
 
         self._tool_settings_ribbon = tb

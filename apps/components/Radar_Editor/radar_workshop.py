@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 34
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 35
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -998,8 +998,9 @@ class RadarPaletteWidget(QWidget):
 
     CELL = 11   # cell size px: two columns in the 26px palette ribbon
 
-    def __init__(self, parent=None): #vers 2
+    def __init__(self, parent=None): #vers 3
         super().__init__(parent)
+        self.setObjectName("Palette")                  # Ribbon Manager label
         self._colors: List[QColor] = []
         self._hover = -1
         self._horiz = False
@@ -3823,7 +3824,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._atomic_write(path, struct.pack('<III', 0x16, len(inner), rw) + inner)
         return [0], []
 
-    def _build_ribbons(self): #vers 5
+    def _build_ribbons(self): #vers 6
         """File / Edit / View / Grid / Draw / Colour ribbons."""
         B = self.ribbon_button
 
@@ -3874,6 +3875,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         self._game_combo = QComboBox()
         self._game_combo.addItems(list(GAME_PRESETS))
         self._game_combo.setCurrentText("SA PC")
+        self._game_combo.setToolTip("Game preset")
         self._game_combo.currentTextChanged.connect(self._on_game_changed)
         self._game_combo.setFixedSize(44, 26)
         tb.addWidget(self._game_combo)
