@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 2
+#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 4
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Capture Workshop
 # Built on GUIWorkshop base (same as Water Workshop)
 
@@ -81,8 +81,12 @@ from apps.components.Capture_Workshop.depends.capture_sources_func import (
     DeviceSource, FrameRecorder, grab_screen, grab_window_area, is_linux, list_devices,
     list_windows)
 
+from apps.components.Capture_Workshop.depends.capture_sources_func import (
+    DeviceSource, FrameRecorder, AudioSource, AudioRecorder, HAS_PYAUDIO,
+    grab_screen, grab_window_area, is_linux, list_devices, list_windows)
+
 App_name  = "Capture Workshop"
-Build     = "Build 1"
+Build     = "Build 4"
 IMAGE_EXT = ('.png', '.jpg', '.jpeg')
 VIDEO_EXT = ('.mp4', '.webm')
 
@@ -113,6 +117,8 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         super().__init__(parent, main_window)
         self.setWindowIcon(SVGIconFactory.capture_workshop_icon(64))
         self.ribbon_restore_state()
+        self._audio_source = AudioSource()
+        self._audio_recorder = None
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._set_mode(self.WS.get("source_mode", 'device'))
@@ -147,10 +153,12 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         ml.addWidget(self._status_widget)
         self._status_widget.setVisible(self.WS.get("show_statusbar", True))
 
+
     def _build_ribbons(self): #vers 2
         """Source / Capture / Output / Bugs ribbons."""
         B = self.ribbon_button
         tb = self.ribbon_toolbar("Source")
+
         self._mode_btns = {
             'device': B(tb, "video_device_icon", "HDMI / USB capture device",
                         lambda checked=False: self._set_mode('device'), checkable=True),
@@ -169,6 +177,9 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         B(tb, "screenshot_icon", "Snapshot  (F9)", self.snapshot)
         self._rec_btn = B(tb, "record_icon", "Record / stop  (F10)", self._toggle_recording,
                           checkable=True)
+        self._audio_btn = B(tb, "sound_icon", "Toggle audio monitoring / recording",
+                            self._toggle_audio, checkable=True)
+        self._audio_btn.setChecked(bool(self.WS.get("audio_enabled", True)))
         tb.addSeparator()
         B(tb, "delay_timer_icon", "Delay before capture (seconds)", lambda: self._delay_spin.setFocus())
         self._delay_spin = QSpinBox()
@@ -320,6 +331,9 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             if not self._device.open(data):
                 self._preview.setText(f"Could not open device {data}")
                 return
+            if self.WS.get("audio_enabled", True):
+                self._audio_source.open()
+            #self._timer.start(30)
             w, h = self._device.size()
             self._set_status(f"Device {data}: {w}x{h}")
             self._timer.start(30)
@@ -347,6 +361,16 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         if self._rec_start:
             secs = int((datetime.now() - self._rec_start).total_seconds())
             self._set_status(f"Recording  {secs // 60:02d}:{secs % 60:02d}")
+        if self._mode == 'device':
+            frame, img = self._device.read()
+            if img is None:
+                return
+            audio_data = self._audio_source.read_and_play() if self._audio_btn.isChecked() else None
+            if self._recorder:
+                self._recorder.add(frame=frame)
+                if self._audio_recorder and audio_data:
+                    self._audio_recorder.add(audio_data)
+
 
     def _show_image(self, img): #vers 1
         if img is None or img.isNull():
@@ -464,6 +488,15 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             menu.addAction("Copy Image", lambda: QGuiApplication.clipboard().setImage(self._last_image))
         menu.exec(self._preview.mapToGlobal(pos))
 
+    # Audio
+    def _toggle_audio(self):
+        enabled = self._audio_btn.isChecked()
+        self.WS.set("audio_enabled", enabled)
+        if enabled:
+            self._set_status("Audio enabled")
+        else:
+            self._set_status("Audio muted")
+
     # Capture
 
     def _delayed(self, fn, screen=True): #vers 1
@@ -544,6 +577,10 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._portal_cast.failed.connect(self._portal_cast_failed)
             self._portal_cast.stopped.connect(self._portal_cast_stopped)
             self._portal_cast.start(self._mode == 'window', self._capture_name(f"{self._mode}_rec", fmt), fmt)
+            audio_path = path.replace('.mp4', '_audio.wav')
+            if self._audio_btn.isChecked() and HAS_PYAUDIO:
+                self._audio_recorder = AudioRecorder(audio_path)
+            self._rec_audio_path = audio_path
             return
         self._after_capture()
         if self._mode == 'device':
@@ -562,6 +599,7 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._recorder = None
             QMessageBox.warning(self, "Record", "Could not start the video writer (mp4v codec).")
             return
+
         self._rec_path = path
         self._record_started()
 
@@ -580,6 +618,29 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._recorder = None
             self._load_captures(select=self._rec_path)
             self._set_status(f"Saved {Path(self._rec_path).name}")
+        if self._recorder:
+            self._recorder.close()
+            self._recorder = None
+            if hasattr(self, '_audio_recorder') and self._audio_recorder:
+                self._audio_recorder.close()
+                self._audio_recorder = None
+                # Optional: Mux video and audio together using ffmpeg if available
+                if shutil.which('ffmpeg') and hasattr(self, '_rec_audio_path') and Path(self._rec_path).exists():
+                    muxed_path = self._rec_path.replace('.mp4', '_muxed.mp4')
+                    subprocess.run([
+                        'ffmpeg', '-y', '-i', self._rec_path, '-i', self._rec_audio_path,
+                        '-c:v', 'copy', '-c:a', 'aac', muxed_path
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if Path(muxed_path).exists():
+                        shutil.move(muxed_path, self._rec_path)
+                        try:
+                            os.remove(self._rec_audio_path)
+                        except Exception:
+                            pass
+
+            self._load_captures(select=self._rec_path)
+            self._set_status(f"Saved {Path(self._rec_path).name} with audio")
+
         self._rec_start = None
         self._rec_btn.setChecked(False)
         self._rec_btn.setIcon(SVGIconFactory.record_icon(self._RIBBON_ICON))

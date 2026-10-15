@@ -34,6 +34,12 @@ import sys
 
 from PyQt6.QtCore import QRect
 from PyQt6.QtGui import QGuiApplication, QImage
+import wave
+try:
+    import pyaudio
+    HAS_PYAUDIO = True
+except ImportError:
+    HAS_PYAUDIO = False
 
 GST_MP4 = ('pipewiresrc', 'videoconvert', 'x264enc', 'h264parse', 'mp4mux')
 GST_WEBM = ('pipewiresrc', 'videoconvert', 'vp8enc', 'webmmux')
@@ -140,6 +146,87 @@ class DeviceSource: #vers 1
         if self.cap is not None:
             self.cap.release()
             self.cap = None
+
+
+class AudioSource:
+    """PyAudio live stream for monitoring capture device audio."""
+    def __init__(self, rate=44100, channels=2, chunk=1024):
+        self.rate = rate
+        self.channels = channels
+        self.chunk = chunk
+        self.p = None
+        self.stream = None
+        self.is_active = False
+
+    def open(self, device_index=None):
+        if not HAS_PYAUDIO:
+            return False
+        try:
+            self.p = pyaudio.PyAudio()
+            self.stream = self.p.open(
+                format=pyaudio.paInt16,
+                channels=self.channels,
+                rate=self.rate,
+                input=True,
+                output=True, # enables live playback monitoring if desired
+                frames_per_buffer=self.chunk
+            )
+            self.is_active = True
+            return True
+        except Exception as e:
+            print(f"Audio open error: {e}")
+            self.close()
+            return False
+
+    def read_and_play(self):
+        """Read audio chunk and return data for recording."""
+        if not self.is_active or not self.stream:
+            return None
+        try:
+            data = self.stream.read(self.chunk, exception_on_overflow=False)
+            # Write to output stream for live monitoring/speakers if needed
+            self.stream.write(data)
+            return data
+        except Exception:
+            return None
+
+    def close(self):
+        self.is_active = False
+        if self.stream:
+            try:
+                self.stream.stop_stream()
+                self.stream.close()
+            except Exception:
+                pass
+            self.stream = None
+        if self.p:
+            try:
+                self.p.terminate()
+            except Exception:
+                pass
+            self.p = None
+
+
+class AudioRecorder:
+    """Records audio chunks to a temporary WAV file during video capture."""
+    def __init__(self, path, rate=44100, channels=2):
+        if not HAS_PYAUDIO:
+            return
+        self.path = path
+        self.rate = rate
+        self.channels = channels
+        self.wf = wave.open(path, 'wb')
+        self.wf.setnchannels(channels)
+        self.wf.setsampwidth(pyaudio.PyAudio().get_sample_size(pyaudio.paInt16))
+        self.wf.setframerate(rate)
+
+    def add(self, data):
+        if data and hasattr(self, 'wf'):
+            self.wf.writeframes(data)
+
+    def close(self):
+        if hasattr(self, 'wf'):
+            self.wf.close()
 
 
 class FrameRecorder: #vers 1
