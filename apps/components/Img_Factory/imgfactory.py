@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 114
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 116
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -460,6 +460,7 @@ class IMGFactory(QMainWindow):
         # Apply button display mode from settings
         self._apply_button_display_mode_from_settings()
         self._apply_button_settings_at_startup()
+        QTimer.singleShot(0, self._apply_panel_effects_now)   # image / see-through at startup
 
         integrate_remove_functions(self)
         from apps.core.rename import integrate_rename_functions
@@ -873,6 +874,14 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Dir tree autoload error: {e}")
 
+
+    def _apply_panel_effects_now(self, widget=None): #vers 2
+        """Panel image, button and see-through settings, same path as Settings Apply."""
+        if getattr(self, 'app_settings', None) is None:
+            return
+        from apps.utils.app_settings_system import apply_panel_effects
+        self.setStyleSheet(self.app_settings.get_stylesheet())   # tints read from window QSS
+        apply_panel_effects(self, self.app_settings)
 
     def _apply_button_settings_at_startup(self): #vers 1
         """Apply button sizing and spacing settings at startup"""
@@ -4892,7 +4901,7 @@ class IMGFactory(QMainWindow):
             'BreakableEditor', None,
             'Breakable', file_path or None)
 
-    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 2
+    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 3
         """Generic: import module, instantiate class, dock in tab. Reuses existing tab if open."""
         try:
             import importlib
@@ -4928,6 +4937,7 @@ class IMGFactory(QMainWindow):
             self._ensure_tab_area_visible()
             self.register_tool(class_name.lower(), tab_label.replace(' Workshop', ''), icon,
                                tab_container, workshop.windowTitle())
+            QTimer.singleShot(0, self._apply_panel_effects_now)
             self.log_message(f"{tab_label} opened")
             return workshop
         except Exception as e:
@@ -5076,11 +5086,12 @@ class IMGFactory(QMainWindow):
         return workshop
 
 
-    def _ensure_tab_area_visible(self): #vers 2
+    def _ensure_tab_area_visible(self): #vers 3
         """Ensure main_tab_widget is visible and has space in the content splitter.
         Works whether or not an IMG file is loaded.
         """
         try:
+            QTimer.singleShot(0, self._apply_panel_effects_now)   # effects on new workshop tab
             # Ensure the tab widget itself is shown
             if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
                 if not self.main_tab_widget.isVisible():

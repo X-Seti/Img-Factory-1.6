@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 8
+#this belongs in apps/methods/gui_workshop.py - Version: 11
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -38,6 +38,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 from apps.methods.img_factory_settings import get_user_config_dir
+from apps.methods.dock_panels import DockPanelsMixin, add_outer_dock, make_outer_mw
 
 
 # SECTION 1 — GUI Core
@@ -610,14 +611,17 @@ class _ToolbarMixin:
                 pass
         return "#4682FF"
 
-    def _apply_theme(self):
-        """Apply QSS from AppSettings."""
+    def _apply_theme(self): #vers 2
+        """Apply QSS from AppSettings; standalone also gets image / see-through."""
         if self.app_settings:
             try:
                 qss = self.app_settings.get_stylesheet()
                 if qss: self.setStyleSheet(qss)
             except Exception:
                 pass
+            if self.standalone_mode and hasattr(self.app_settings, 'current_settings'):
+                from apps.utils.app_settings_system import apply_panel_effects
+                apply_panel_effects(self, self.app_settings)
 
     def _refresh_icons(self):
         """Called on theme change — re-apply theme and rebuild toolbar icons."""
@@ -945,7 +949,7 @@ class _LogicStubsMixin:
 # ═════════════════════════════════════════════════════════════════════════════
 
 class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
-                  ToolMenuMixin, QWidget):
+                  DockPanelsMixin, ToolMenuMixin, QWidget):
     """Reusable workshop base.  Subclass this, override App_name/config_key
     and the stubs in Section 4.  All chrome, theme, settings, and window
     management are inherited from the four sections above.
@@ -967,6 +971,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     config_key      = "gui_workshop"
     WS_DEFAULTS     = {}          # workshop's own settings keys (else not saved)
     App_icon        = ""          # SVGIconFactory app icon name, e.g. "vehicle_app_icon"
+    _OUTER_LAYOUT_VERSION = 1     # bump when a workshop's dock set changes
+    DROP_EXTS       = ()          # e.g. ('.dat',): drop opens with _open_file
 
     #  Signals
     workshop_closed = pyqtSignal()
@@ -1041,6 +1047,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             self.setup_ui()
         self._setup_shortcuts()
         self._apply_theme()
+        if self.DROP_EXTS:
+            self.setAcceptDrops(True)       # dropped files open via _open_file
 
     def _load_fonts_from_settings(self):
         ws = self.WS
@@ -1053,6 +1061,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self.infobar_font = QFont(ws.get("font_info_family",   "Courier New"),
                                   ws.get("font_info_size",       9))
         self.button_display_mode = ws.get("button_display_mode", "both")
+        self.section_title_font = QFont(self.panel_font.family(), 11, QFont.Weight.Bold)
 
     def get_content_margins(self):
         return (self.contmergina, self.contmerginb,
@@ -1076,9 +1085,9 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             lambda: self._set_active_tool("rect_fill"))
 
     #  Window chrome
-    def showEvent(self, ev):
+    def showEvent(self, ev): #vers 2
         super().showEvent(ev)
-        if not self.standalone_mode:                 # docked: no corner handles
+        if self.is_docked:                           # docked: no corner handles
             if hasattr(self, "_corner_overlay"):
                 self._corner_overlay.hide()
             return
@@ -1094,8 +1103,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         if hasattr(self, "_corner_overlay"):
             self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
 
-    def _get_resize_corner(self, pos):
-        if not self.standalone_mode:
+    def _get_resize_corner(self, pos): #vers 2
+        if self.is_docked:
             return None
         s = self.corner_size; x, y = pos.x(), pos.y()
         w, h = self.width(), self.height()
@@ -1161,7 +1170,76 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         if self.isMaximized(): self.showNormal()
         else: self.showMaximized()
 
-    def toggle_dock_mode(self): pass  # override if dock support needed
+    def _dropped_paths(self, event): #vers 1
+        """Local dropped files matching DROP_EXTS."""
+        md = event.mimeData()
+        if not md.hasUrls():
+            return []
+        return [u.toLocalFile() for u in md.urls()
+                if u.isLocalFile() and u.toLocalFile().lower().endswith(self.DROP_EXTS)]
+
+    def dragEnterEvent(self, event): #vers 1
+        """Accept files this workshop opens."""
+        if self._dropped_paths(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event): #vers 1
+        self.dragEnterEvent(event)
+
+    def dropEvent(self, event): #vers 1
+        """Open the first dropped file."""
+        paths = self._dropped_paths(event)
+        if not paths:
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        self._open_file(paths[0])
+
+    def _ribbon_config_path(self): #vers 1
+        """Dock layout file (ribbons keep their own file)."""
+        return get_user_config_dir() / f"{self.config_key}_docks.json"
+
+    def _dock_layout(self, centre, docks): #vers 1
+        """Centre widget with side panels as docks: [(title, widget, min_w, area)]."""
+        from PyQt6.QtCore import QTimer
+        mw = make_outer_mw(centre)
+        self._outer_mw = mw
+        self._outer_docks = [add_outer_dock(self, mw, t, w, mn, area) for t, w, mn, area in docks]
+        QTimer.singleShot(400, self._restore_outer_layout)
+        self.window_closed.connect(self._save_outer_layout)
+        return mw
+
+    def toggle_dock_mode(self): #vers 2
+        """Tear off to a window, or return to the IMG Factory tab."""
+        if self.is_docked:
+            self._undock_from_main()
+        else:
+            self._dock_to_main()
+
+    def _undock_from_main(self): #vers 1
+        """Torn-off window: titlebar shown, corner handles active."""
+        if self.main_window is None:
+            return
+        size = self.size()
+        self.is_docked = False
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        self.toolbar.setVisible(True)
+        self.resize(max(800, size.width()), max(500, size.height()))
+        self.show()
+        self.raise_()
+
+    def _dock_to_main(self): #vers 1
+        """Return a torn-off workshop to its IMG Factory tab."""
+        from apps.methods.dock_panels import redock_to_tab
+        self.is_docked = True
+        if not redock_to_tab(self):          # tab gone: stay a window
+            self.is_docked = False
+            return
+        self.toolbar.setVisible(False)
+        if hasattr(self, "_corner_overlay"):
+            self._corner_overlay.hide()
 
     def closeEvent(self, ev):
         if self.standalone_mode:

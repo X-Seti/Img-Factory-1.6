@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 7
+#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 8
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Handling Editor
 
 """
@@ -159,6 +159,7 @@ class HandlingEditor(RibbonMixin, GUIWorkshop): #vers 2
     _ribbon_name = "handling_editor"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Tools)
     _RIBBON_LAYOUT_VERSION = 1
+    DROP_EXTS = ('.cfg',)          # handling.cfg
 
     def __init__(self, main_window=None, parent=None): #vers 2
         self._defer_setup_ui = True
@@ -325,13 +326,13 @@ class HandlingEditor(RibbonMixin, GUIWorkshop): #vers 2
         lay.addWidget(grp)
         return w
 
-    def setup_ui(self): #vers 3
-        """Titlebar / [vehicle list | fields | stats] inside the ribbon host / status bar."""
+    def setup_ui(self): #vers 4
+        """Titlebar / Vehicles dock | ribbon-wrapped fields | Stats dock / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
         ml.addWidget(self._create_toolbar())
-        ml.addWidget(self.ribbon_wrap(self._create_centre_panel()), 1)
+        ml.addWidget(self._create_centre_panel(), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
@@ -426,13 +427,11 @@ class HandlingEditor(RibbonMixin, GUIWorkshop): #vers 2
         self._last_undo_key = None
         self._apply_snap(self._redo_stack.pop())
 
-    def _create_centre_panel(self): #vers 1
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._build_left_panel(self))
-        sp.addWidget(self._build_centre_panel(self))
-        sp.addWidget(self._build_right_panel(self))
-        sp.setSizes([200, 600, 220])
-        return sp
+    def _create_centre_panel(self): #vers 2
+        """Fields central; vehicle list and stats as docks."""
+        return self._dock_layout(self.ribbon_wrap(self._build_centre_panel(self)), [
+            ("Vehicles", self._build_left_panel(self), 180, Qt.DockWidgetArea.LeftDockWidgetArea),
+            ("Stats", self._build_right_panel(self), 180, Qt.DockWidgetArea.RightDockWidgetArea)])
 
     def _open_file(self, path=None): #vers 2
         if path is None:

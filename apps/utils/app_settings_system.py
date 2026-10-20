@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 83
+#This goes in root/apps/utils/app_settings_system.py - version 87
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -1744,7 +1744,7 @@ THEME_EFFECT_KEYS = ("color_alpha", "panel_fill_dir", "panel_grad_dir", "panel_p
                      "panel_bg_image", "panel_bg_image_mode", "panel_bg_image_opacity",
                      "panel_bg_image_all", "titlebar_opacity", "panel_opacity",
                      "button_opacity", "widget_opacity", "tabs_opacity", "splitter_opacity",
-                     "button_style", "progressbar_style", "progressbar_height")
+                     "see_through", "viewport_solid", "image_titlebar", "button_style", "progressbar_style", "progressbar_height")
 
 _IMAGE_DIRS = []      # folders searched for relative panel image paths
 
@@ -1916,6 +1916,9 @@ class AppSettings:
             'panel_bg_image_mode':       0,
             'panel_bg_image_opacity':    100,
             'panel_bg_image_all':        False,
+            'see_through':               False,       # no image: desktop shows through
+            'viewport_solid':            True,        # viewports / canvases never bleed through
+            'image_titlebar':            0,           # 0 panels + titlebar, 1 panels only, 2 titlebar only
             'button_style':              'flat',
             'progressbar_style':         'system',
             'progressbar_fill':          '#4a7a9b',
@@ -3311,11 +3314,16 @@ class AppPanelEffect: #vers 2
     effects from app_settings. Install with AppPanelEffect.install(widget, settings)."""
 
     _filter = None
+    _alive = {}                                          # id -> widget, wrappers kept alive
 
     @staticmethod
-    def install(widget, app_settings, effect_type="auto"): #vers 2
+    def install(widget, app_settings, effect_type="auto"): #vers 3
         """Hook panel effect painting onto widget via a shared event filter.
         Works on widgets that already painted (instance paintEvent patches did not)."""
+        key = id(widget)
+        if key not in AppPanelEffect._alive:                 # keep wrapper so attrs persist
+            AppPanelEffect._alive[key] = widget
+            widget.destroyed.connect(lambda _=None, k=key: AppPanelEffect._alive.pop(k, None))
         widget._app_settings_ref = app_settings
         widget._panel_effect_type = effect_type
         if getattr(widget, '_panel_effect_installed', False):
@@ -3372,9 +3380,9 @@ class AppPanelEffect: #vers 2
         widget.update()
 
     @staticmethod
-    def _draw_under(widget): #vers 3
-        """Paint image then the widget's own colour as a tint at Transparency
-        opacity (Panels; Widgets for toolbars)."""
+    def _draw_under(widget): #vers 4
+        """Image then the widget's colour as a tint at Transparency opacity;
+        see-through (no image): the tint alone, desktop shows behind."""
         from PyQt6.QtGui import QPainter, QColor
         from PyQt6.QtWidgets import QToolBar, QTabBar, QSplitterHandle, QStackedWidget
         cs = getattr(widget, '_app_settings_ref', None) or {}
@@ -3388,13 +3396,19 @@ class AppPanelEffect: #vers 2
         try:
             r = widget.rect()
             tint = QColor(widget._panel_under_tint)
-            p.fillRect(r, tint)
-            if AppPanelEffect._paint_image(p, r, cs, widget):
-                key = ('widget_opacity' if isinstance(widget, QToolBar) else
-                       'splitter_opacity' if isinstance(widget, QSplitterHandle) else
-                       'tabs_opacity' if isinstance(widget, (QTabBar, QStackedWidget)) else
-                       'panel_opacity')
-                tint.setAlphaF(max(0, min(100, cs.get(key, 100))) / 100.0)
+            key = ('titlebar_opacity' if widget.objectName() == 'titlebar' else
+                   'widget_opacity' if isinstance(widget, QToolBar) else
+                   'splitter_opacity' if isinstance(widget, QSplitterHandle) else
+                   'tabs_opacity' if isinstance(widget, (QTabBar, QStackedWidget)) else
+                   'panel_opacity')
+            alpha = max(0, min(100, cs.get(key, 100))) / 100.0
+            if cs.get('panel_bg_image'):
+                p.fillRect(r, tint)
+                if AppPanelEffect._paint_image(p, r, cs, widget):
+                    tint.setAlphaF(alpha)
+                    p.fillRect(r, tint)
+            else:                                      # see-through: tint only
+                tint.setAlphaF(alpha * tint.alphaF())
                 p.fillRect(r, tint)
         finally:
             p.end()
@@ -3627,13 +3641,24 @@ class AppPanelEffect: #vers 2
                 p.drawRect(r.left(), r.top()+row*scale, r.width(), scale)
 
 
-def apply_panel_effects(window, app_settings): #vers 5
+def apply_panel_effects(window, app_settings): #vers 7
     """Walk a window's panels and apply the current panel effect to each.
-    Skips: AppSettings dialog itself.
+    Also: translucent buttons and see-through windows. Skips the settings dialog.
     """
     from PyQt6.QtWidgets import QGroupBox, QFrame, QAbstractScrollArea
     cs = app_settings.current_settings
     effect = cs.get('panel_effect_type', 'none')
+    image_all = bool(cs.get('panel_bg_image') and cs.get('panel_bg_image_all'))
+    tb_mode = cs.get('image_titlebar', 0)
+    bars = _titlebars(window)
+    see = bool(cs.get('see_through')) and not cs.get('panel_bg_image')
+    if 'Settings' not in type(window).__name__ and 'Dialog' not in type(window).__name__:
+        if see:
+            _apply_image_under(window, cs, True)        # tints captured before containers clear
+        _apply_see_through(window, cs, see)
+        _apply_button_alpha(window, app_settings, image_all or see)
+        if see:
+            return
 
     if effect == 'none' and not cs.get('panel_bg_image', ''):
         from PyQt6.QtWidgets import QWidget
@@ -3671,6 +3696,10 @@ def apply_panel_effects(window, app_settings): #vers 5
             parent = parent.parent() if hasattr(parent, 'parent') else None
         if skip:
             continue
+        if tb_mode == 2:                                  # titlebar only
+            widget._panel_effect_installed = False
+            widget.update()
+            continue
         widget._app_settings_ref = cs  # pass merged cs
         AppPanelEffect.install(widget, cs)
         widget.update()
@@ -3683,6 +3712,11 @@ def apply_panel_effects(window, app_settings): #vers 5
         if isinstance(widget, QAbstractScrollArea):      # painted via viewport, not the frame
             continue
         if widget.frameStyle() & QFrame.Shape.StyledPanel.value:
+            is_bar = widget in bars
+            if not (tb_mode == 0 or (tb_mode == 1 and not is_bar) or (tb_mode == 2 and is_bar)):
+                widget._panel_effect_installed = False   # excluded by titlebar option
+                widget.update()
+                continue
             widget._app_settings_ref = cs
             AppPanelEffect.install(widget, cs)
             widget.update()
@@ -3690,16 +3724,100 @@ def apply_panel_effects(window, app_settings): #vers 5
     _apply_image_under(window, cs, bool(cs.get('panel_bg_image') and cs.get('panel_bg_image_all')))
 
 
-def _apply_image_under(window, cs, on): #vers 2
+_VIEW_WORDS = ('Viewport', 'View', 'Canvas', 'Preview', 'Grid', 'Gauge')
+
+
+def _is_view(w, solid=True): #vers 2
+    """True inside a 3D view; with solid also any 2D viewport / canvas (keeps its paint)."""
+    from PyQt6.QtWidgets import QScrollArea
+    from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+    while w is not None:
+        name = type(w).__name__
+        if isinstance(w, QOpenGLWidget):
+            return True
+        if not solid:
+            w = w.parent()
+            continue
+        if not name.startswith('Q') and any(k in name for k in _VIEW_WORDS):
+            return True
+        if isinstance(w, QScrollArea) and w.widget() is not None:
+            inner = type(w.widget()).__name__              # scroll area around a canvas
+            if not inner.startswith('Q') and any(k in inner for k in _VIEW_WORDS):
+                return True
+        w = w.parent()
+    return False
+
+
+def _titlebars(window): #vers 1
+    """Workshop title bars: frames named 'titlebar' and each workshop's top toolbar."""
+    from PyQt6.QtWidgets import QWidget, QFrame
+    bars = [f for f in window.findChildren(QFrame) if f.objectName() == 'titlebar']
+    for w in [window] + window.findChildren(QWidget):
+        tb = w.__dict__.get('_workshop_toolbar')
+        if isinstance(tb, QFrame) and tb not in bars:
+            bars.append(tb)
+    return bars
+
+
+def _apply_see_through(window, cs, on): #vers 4
+    """Containers transparent and the top window translucent with its own tint:
+    desktop shows through (no image). Viewports stay opaque."""
+    from PyQt6.QtWidgets import (QWidget, QFrame, QMainWindow, QSplitter, QStackedWidget,
+                                 QDockWidget, QScrollArea, QTabWidget, QGroupBox)
+    from PyQt6.QtCore import Qt
+    containers = (QWidget, QFrame, QMainWindow, QSplitter, QStackedWidget,
+                  QDockWidget, QScrollArea, QTabWidget, QGroupBox)
+    solid = cs.get('viewport_solid', True)
+    top = window.window()
+    for w in [top] + top.findChildren(QWidget):
+        if type(w) in containers and not _is_view(w, solid) and bool(w.property('seeThrough')) != on:
+            w.setProperty('seeThrough', on)
+            w.style().unpolish(w); w.style().polish(w)
+    if on:
+        AppPanelEffect.install_under(top, top, cs)      # window base tint (Panels opacity)
+    elif getattr(top, '_panel_under_tint', None) is not None:
+        AppPanelEffect.remove_under(top)
+    rule = '\n*[seeThrough="true"] { background: transparent; }'
+    ss = top.styleSheet().replace(rule, '')
+    top.setStyleSheet(ss + rule if on else ss)
+    if top.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground) != on:
+        top.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on)
+        if top.isVisible() and top.isWindow():         # native window must be recreated
+            geo = top.geometry()
+            top.hide(); top.show(); top.setGeometry(geo)
+
+
+def _apply_button_alpha(window, app_settings, on): #vers 1
+    """Buttons drawn at the Buttons transparency so the image / desktop shows."""
+    import re
+    from PyQt6.QtGui import QColor
+    cs = app_settings.current_settings
+    tc = app_settings.get_theme_colors() or {}
+    a = max(0, min(100, cs.get('button_opacity', 100))) / 100.0
+    def rgba(key, fallback, alpha): #vers 1
+        c = QColor(tc.get(key, fallback))
+        return f"rgba({c.red()}, {c.green()}, {c.blue()}, {round(alpha * 255)})"
+    ss = re.sub(r'/\*btn-alpha\*/.*?/\*btn-alpha-end\*/', '', window.styleSheet(), flags=re.S)
+    if on and a < 1.0:
+        ss += ("/*btn-alpha*/ QPushButton { background-color: %s; } "
+               "QPushButton:hover { background-color: %s; } "
+               "QPushButton:pressed { background-color: %s; } /*btn-alpha-end*/"
+               % (rgba('button_normal', '#3c3c46', a), rgba('button_hover', '#50505a', min(1.0, a + 0.2)),
+                  rgba('button_pressed', '#28282e', min(1.0, a + 0.3))))
+    window.setStyleSheet(ss)
+
+
+def _apply_image_under(window, cs, on): #vers 6
     """Panel image behind lists, ribbons, tab bars/pages, splitters and plain panels (tinted),
     or removed when off. GL viewports are left alone."""
     from PyQt6.QtWidgets import (QAbstractScrollArea, QToolBar, QTabWidget, QStackedWidget,
                                  QTabBar, QSplitter, QFrame)
     from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+    solid = cs.get('viewport_solid', True)
     targets = []
     for view in window.findChildren(QAbstractScrollArea):
         vp = view.viewport()
-        if vp is not None and not isinstance(vp, QOpenGLWidget):
+        if vp is not None and not isinstance(vp, QOpenGLWidget) and not _is_view(view, solid):
             targets.append((vp, view))
     targets += [(tb, tb) for tb in window.findChildren(QToolBar)]
     for tw in window.findChildren(QTabWidget):
@@ -3712,16 +3830,36 @@ def _apply_image_under(window, cs, on): #vers 2
             h = sp.handle(i)
             if h is not None:
                 targets.append((h, h))
-    def in_view(w):                                       # inside a 3D / 2D viewport
-        while w is not None:
-            if isinstance(w, QOpenGLWidget) or 'Viewport' in type(w).__name__:
-                return True
-            w = w.parent()
-        return False
+    in_view = lambda w: _is_view(w, solid)               # viewports / canvases keep their paint
+    see = bool(cs.get('see_through')) and not cs.get('panel_bg_image')
+    bars = _titlebars(window)
     for fr in window.findChildren(QFrame):                # plain panels; viewports keep their own paint
-        if (type(fr) is QFrame and not (fr.frameStyle() & QFrame.Shape.StyledPanel.value)
-                and fr.objectName() not in ('titlebar', 'gadgetbar') and not in_view(fr)):
+        if in_view(fr) or fr.objectName() == 'gadgetbar' or fr in bars:
+            continue
+        if type(fr) is QFrame and (see or not (fr.frameStyle() & QFrame.Shape.StyledPanel.value)):
             targets.append((fr, fr))
+    tb_mode = cs.get('image_titlebar', 0)             # 0 panels + titlebar, 1 panels, 2 titlebar
+    if tb_mode == 1:
+        keep = [t for t in targets if not any(t[0] is b or b.isAncestorOf(t[0]) for b in bars)]
+        for t, _st in targets:
+            if (t, _st) not in keep and getattr(t, '_panel_under_tint', None) is not None:
+                AppPanelEffect.remove_under(t)
+        targets = keep
+    elif tb_mode == 2:
+        drop = targets
+        targets = []
+        if not on:
+            targets = drop
+        else:
+            for t, _st in drop:                         # clear any earlier non-titlebar tint
+                if getattr(t, '_panel_under_tint', None) is not None:
+                    AppPanelEffect.remove_under(t)
+    if tb_mode in (0, 2):
+        targets += [(b, b) for b in bars]               # Titlebar transparency slider
+    elif not on or tb_mode == 1:
+        for b in bars:
+            if getattr(b, '_panel_under_tint', None) is not None:
+                AppPanelEffect.remove_under(b)
     for target, styled in targets:
         w, skip = styled.parent(), False
         while w is not None:
@@ -8035,6 +8173,13 @@ Ready for operations..."""
         self._panel_img_all.toggled.connect(
             lambda on: self.app_settings.current_settings.__setitem__("panel_bg_image_all", on))
         igl.addWidget(self._panel_img_all, 3, 0, 1, 3)
+        self._panel_img_titlebar = QComboBox()
+        self._panel_img_titlebar.addItems(["Panels and titlebar", "Panels only (not titlebar)", "Titlebar only"])
+        self._panel_img_titlebar.setCurrentIndex(int(cs.get("image_titlebar", 0)))
+        self._panel_img_titlebar.currentIndexChanged.connect(
+            lambda i: self.app_settings.current_settings.__setitem__("image_titlebar", i))
+        igl.addWidget(QLabel("Titlebar:"), 4, 0)
+        igl.addWidget(self._panel_img_titlebar, 4, 1)
         il.addWidget(img_group)
 
         def _img_set():  #vers 1
@@ -8075,6 +8220,20 @@ Ready for operations..."""
             tgl.addWidget(sl, r, 1)
             tgl.addWidget(lbl, r, 2)
             setattr(self, f"_{key}_slider", sl)
+        self._see_through_chk = QCheckBox("See-through windows when no image is set (needs a compositor)")
+        self._see_through_chk.setToolTip("Desktop shows through panels, ribbons, tabs, splitters and buttons "
+                                         "at the opacities above; 3D views stay solid")
+        self._see_through_chk.setChecked(bool(cs.get("see_through", False)))
+        self._see_through_chk.toggled.connect(
+            lambda on: self.app_settings.current_settings.__setitem__("see_through", on))
+        tgl.addWidget(self._see_through_chk, 6, 0, 1, 3)
+        self._viewport_solid_chk = QCheckBox("Keep viewports solid (no bleed-through)")
+        self._viewport_solid_chk.setToolTip("Off: 2D canvases and previews also show the image / desktop; "
+                                            "3D views always stay solid")
+        self._viewport_solid_chk.setChecked(bool(cs.get("viewport_solid", True)))
+        self._viewport_solid_chk.toggled.connect(
+            lambda on: self.app_settings.current_settings.__setitem__("viewport_solid", on))
+        tgl.addWidget(self._viewport_solid_chk, 7, 0, 1, 3)
         il.addWidget(trans_group)
         il.addStretch()
 
@@ -8137,7 +8296,7 @@ Ready for operations..."""
             alpha[key] = int(value)
         self.app_settings.current_settings["color_alpha"] = alpha
 
-    def _load_panel_controls(self): #vers 2
+    def _load_panel_controls(self): #vers 5
         """Show current panel image, transparency and colour alpha settings."""
         cs = self.app_settings.current_settings
         for key, ed in getattr(self, 'color_editors', {}).items():
@@ -8148,11 +8307,15 @@ Ready for operations..."""
             self._panel_img_mode.setCurrentIndex(int(cs.get("panel_bg_image_mode", 0)))
             self._panel_img_opacity.setValue(int(cs.get("panel_bg_image_opacity", 100)))
             self._panel_img_all.setChecked(bool(cs.get("panel_bg_image_all", False)))
+            self._panel_img_titlebar.setCurrentIndex(int(cs.get("image_titlebar", 0)))
         for key in ("titlebar_opacity", "panel_opacity", "button_opacity", "widget_opacity",
                     "tabs_opacity", "splitter_opacity"):
             sl = getattr(self, f"_{key}_slider", None)
             if sl is not None:
                 sl.setValue(int(cs.get(key, 100)))
+        if hasattr(self, '_see_through_chk'):
+            self._see_through_chk.setChecked(bool(cs.get("see_through", False)))
+            self._viewport_solid_chk.setChecked(bool(cs.get("viewport_solid", True)))
 
     def _browse_panel_bg_image(self): #vers 1
         """Browse for panel background image."""
@@ -9816,7 +9979,7 @@ Ready for operations..."""
                     self._extra_apply_callbacks.append(apply_fn)
         return contributions
 
-    def _apply_settings(self): #vers 6
+    def _apply_settings(self): #vers 7
         """Apply settings permanently and save to appfactory.settings.json AND theme files"""
         new_settings = self._get_dialog_settings()
         old_theme = self.app_settings.current_settings["theme"]
@@ -9887,12 +10050,18 @@ Ready for operations..."""
 
         self.settingsChanged.emit()
 
-        # Apply panel effects and button/progressbar styles to main window
+        # Apply panel effects and button/progressbar styles to main window,
+        # then every other open top-level window (standalone / torn-off workshops)
         try:
             mw = getattr(self, 'main_window', None) or self.parent()
             if mw and hasattr(mw, 'setStyleSheet'):
+                mw.setStyleSheet(self.app_settings.get_stylesheet())   # before effects: they append rules
                 apply_panel_effects(mw, self.app_settings)
-                mw.setStyleSheet(self.app_settings.get_stylesheet())
+            from PyQt6.QtWidgets import QApplication, QDialog
+            for top in QApplication.topLevelWidgets():
+                if (top is not mw and top.isVisible() and not isinstance(top, QDialog)
+                        and top.parent() is None and top.findChildren(QWidget)):
+                    apply_panel_effects(top, self.app_settings)
             # Always re-apply to the dialog itself
             self.setStyleSheet(self.app_settings.get_stylesheet())
         except Exception as _pe:

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dock_panels.py - Version: 2
+#this belongs in apps/methods/dock_panels.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Workshop dock panels
 
 """
@@ -10,6 +10,7 @@ _ribbon_config_path and section_title_font.
 ##Methods list -
 # add_outer_dock
 # make_outer_mw
+# redock_to_tab
 
 ##class DockPanelsMixin: -
 # _make_dock_collapsible
@@ -49,6 +50,21 @@ def add_outer_dock(owner, mw, title, widget, min_width, area=Qt.DockWidgetArea.L
     mw.addDockWidget(area, dock)
     owner._make_dock_collapsible(dock, title)
     return dock
+
+
+def redock_to_tab(ws): #vers 1
+    """Put a torn-off workshop back in its IMG Factory tab."""
+    tabs = getattr(getattr(ws, 'main_window', None), 'main_tab_widget', None)
+    holder = ws.parentWidget()
+    if tabs is None or holder is None or tabs.indexOf(holder) < 0:
+        return False
+    ws.setWindowFlags(Qt.WindowType.Widget)
+    lay = holder.layout()
+    if lay is not None and lay.indexOf(ws) < 0:
+        lay.addWidget(ws)
+    ws.show()
+    tabs.setCurrentIndex(tabs.indexOf(holder))
+    return True
 
 
 class DockPanelsMixin: #vers 1

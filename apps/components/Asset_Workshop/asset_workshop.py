@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 16
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 18
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -29,6 +29,7 @@ from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, Q
 from PyQt6.QtSvg import QSvgRenderer
 
 from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.dock_panels import DockPanelsMixin, add_outer_dock, make_outer_mw
 from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow, ZoomablePreview
 from apps.methods.txd_versions import ( detect_txd_version, get_platform_name, get_game_from_version, get_version_capabilities, get_platform_capabilities, is_mipmap_supported, is_bumpmap_supported, validate_txd_format, TXDPlatform, detect_platform_from_data)
 
@@ -77,7 +78,7 @@ class _NumericSortItem(QTableWidgetItem): #vers 1
 
 
 
-class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
+class AssetWorkshop(RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): #vers 6
     """Workshop - Main texture editing window"""
 
     workshop_closed = pyqtSignal()
@@ -93,6 +94,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
     # 6 = removed Name/Format/Mipmaps ribbons and Transform's flip/
     # rotate/switch/invert/generate-alpha actions.
     _RIBBON_LAYOUT_VERSION = 7
+    _OUTER_LAYOUT_VERSION = 1      # Textures dock
 
     def _get_ui_color(self, key): #vers 2
         """Theme QColor via shared helper."""
@@ -100,7 +102,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         return get_ui_color(self, key)
 
 
-    def __init__(self, parent=None, main_window=None): #vers 11
+    def __init__(self, parent=None, main_window=None): #vers 12
         """Initialize Workshop"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
@@ -141,6 +143,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self.setFont(default_font)
         self.title_font = QFont("Arial", 14)
         self.panel_font = QFont("Arial", 10)
+        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)
         self.button_font = QFont("Arial", 10)
         self.infobar_font = QFont("Courier New", 9)
 
@@ -244,6 +247,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         # Setup UI FIRST
         self.setup_ui()
+        self.setAcceptDrops(True)       # .dat/.img/.col/.ide/.txd dropped here
 
         # THEN setup context menu
 
@@ -304,7 +308,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         vm = parent_menu.addMenu("View")
         vm.addAction("TXD Info",             self._show_txd_info)
 
-    def setup_ui(self): #vers 9
+    def setup_ui(self): #vers 10
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -329,25 +333,21 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
 
-        # Main splitter
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        # Create all panels first
+        # Viewport + ribbons central; Textures list as a dock
         #left_panel = self._create_left_panel() # Disabled pane.
         middle_panel = self._create_middle_panel()
         self._middle_panel = middle_panel
-        middle_panel.setVisible(False)   # hidden until a TXD is actually loaded
         right_panel = self._create_right_panel()
-
-        # Left panel disabled - just middle (texture list) + right (viewport)
-        main_splitter.addWidget(middle_panel)
-        main_splitter.addWidget(right_panel)
-        main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 2)
-
-        self._main_splitter = main_splitter
-        self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
-        main_layout.addWidget(main_splitter)
+        outer_mw = make_outer_mw(right_panel)
+        self._outer_mw = outer_mw
+        self._outer_docks = []          # Textures dock follows TXD load state
+        self._tex_dock = add_outer_dock(self, outer_mw, "Textures", middle_panel, 250)
+        self._tex_dock.setVisible(False)   # hidden until a TXD is actually loaded
+        main_layout.addWidget(outer_mw)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(400, self._restore_outer_layout)
+        QTimer.singleShot(450, self._update_texture_panel_visibility)
+        self.window_closed.connect(self._save_outer_layout)
 
         # Apply themed icons now UI is fully built
         self._refresh_icons()
@@ -726,7 +726,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         paths = self.result.ide_paths or ([self.result.ide_path] if self.result.ide_path else None)
         open_master_ide_workshop(self.main_window, ide_paths=paths)
 
-    def _on_load_from_dat(self): #vers 1
+    def _on_load_from_dat(self): #vers 2
         """Load a whole game's real IMG/COL/IDE via its .dat, same
         resolution open_asset_workshop's own dat_path branch uses -
         needed standalone, where nothing else can hand this a path."""
@@ -734,8 +734,11 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             self, "Load from .dat", "",
             "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat "
             "gtasol.dat gta_quick.dat);;All files (*.dat)")
-        if not dat_path:
-            return
+        if dat_path:
+            self._load_from_dat_path(dat_path)
+
+    def _load_from_dat_path(self, dat_path): #vers 1
+        """Check a whole game from its .dat file."""
         img_path, col_path, ide_paths, game = find_game_asset_files(
             dat_path, auto_find_gta3_img=getattr(self, 'auto_find_gta3_img', True))
         if not img_path and not col_path and not ide_paths:
@@ -746,6 +749,45 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self._all_img_paths, self._all_col_paths, self._all_ide_paths = [], [], []   # new game - recapture
         self.dat_path, self._dat_game = dat_path, game
         self.load_result(result)
+
+    def _dropped_files(self, event): #vers 1
+        """Local .dat/.img/.col/.ide/.txd paths in a drag."""
+        md = event.mimeData()
+        if not md.hasUrls():
+            return []
+        exts = ('.dat', '.img', '.col', '.ide', '.txd')
+        return [u.toLocalFile() for u in md.urls()
+                if u.isLocalFile() and u.toLocalFile().lower().endswith(exts)]
+
+    def dragEnterEvent(self, event): #vers 1
+        """Accept game asset files."""
+        if self._dropped_files(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event): #vers 1
+        """Keep accepting while over the workshop."""
+        self.dragEnterEvent(event)
+
+    def dropEvent(self, event): #vers 1
+        """.dat loads a game; img/col/ide are checked; .txd opens."""
+        paths = self._dropped_files(event)
+        if not paths:
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        by = lambda ext: [p for p in paths if p.lower().endswith(ext)]
+        dats = by('.dat')
+        if dats:
+            self._load_from_dat_path(dats[0])
+            return
+        imgs, cols, ides = by('.img'), by('.col'), by('.ide')
+        if imgs or cols or ides:
+            self._all_img_paths, self._all_col_paths, self._all_ide_paths = [], [], []
+            self.load_result(check_assets(img_path=imgs, col_path=cols, ide_path=ides))
+        for p in by('.txd'):
+            self.open_txd_file(p)
 
     def _on_integrity_check(self): #vers 2
         """Read-only consistency report: orphaned IPL/2dfx/path, duplicate
@@ -1769,8 +1811,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 9
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 10
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -1779,13 +1821,9 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True
@@ -2242,10 +2280,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
 
-    def _on_splitter_moved(self, pos, index): #vers 3
-        """Main splitter dragged - refresh ribbon text mode."""
-        self._update_transform_text_panel_visibility()
-
     def _update_transform_text_panel_visibility(self): #vers 6
         """Apply the icon/text/both display mode to the ribbon toolbars via
         QToolBar's native setToolButtonStyle - replaces the old approach of
@@ -2446,7 +2480,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         return None
 
         #Been disabled as this is no longer needed in Asset_Browser
-    def _create_middle_panel(self): #vers 6
+    def _create_middle_panel(self): #vers 7
         """Create middle panel - just the texture list. The old mini
         toolbar (Open/Save/Extract/Undo) was dropped (Sep 17 2026) -
         those are all still reachable via the Tools menu and their
@@ -2463,10 +2497,10 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(4)
 
-        # Header label
-        self._textures_header = QLabel("Textures")
-        self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(self._textures_header)
+        # Header label - dock title shows "Textures" now
+        #self._textures_header = QLabel("Textures")
+        #self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        #layout.addWidget(self._textures_header)
 
         #    Texture table
         self.texture_table = QTableWidget()
@@ -5733,15 +5767,15 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                     break
         self._update_texture_panel_visibility()
 
-    def _update_texture_panel_visibility(self): #vers 1
+    def _update_texture_panel_visibility(self): #vers 2
         """Show the texture list panel only while a TXD is actually
         loaded (Sep 17 2026, per Keith: "any reason for it, maybe
         hide it when not in use") - Asset Workshop's real job is the
         checker + Master IDE, texture editing is secondary, so this
         panel should stay out of the way until there's something in
         it."""
-        if hasattr(self, '_middle_panel'):
-            self._middle_panel.setVisible(bool(self.texture_list))
+        if hasattr(self, '_tex_dock'):
+            self._tex_dock.setVisible(bool(self.texture_list))
 
 
     def _save_undo_state(self, action_name): #vers 2

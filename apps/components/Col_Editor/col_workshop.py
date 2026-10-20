@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 128
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 130
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -45,7 +45,7 @@ from apps.components.Col_Editor.depends.col_core_logic_func import COLCoreLogicM
 from apps.components.Col_Editor.depends.col_setup_ui_func import COLSetupUIMixin, App_name, App_build
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.doc_tabs import DocTabsMixin
-from apps.methods.grip_splitter import SplitterSizesMixin
+from apps.methods.dock_panels import DockPanelsMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 
 
@@ -87,7 +87,7 @@ DEBUG_STANDALONE = False
 # SplitterSizesMixin - methods/grip_splitter.py
 
 
-class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, DocTabsMixin, RibbonIconsMixin, SplitterSizesMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 14
+class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, DocTabsMixin, RibbonIconsMixin, DockPanelsMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 15
     """COL Workshop - Main window"""
 
     #    ToolMenuMixin implementation                                      
@@ -103,6 +103,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # 2 = added Name/Format/Shadow Mesh ribbons (replacing the old
     # dual text/icon bottom info panel).
     _RIBBON_LAYOUT_VERSION = 4
+    _OUTER_LAYOUT_VERSION = 1      # COL Files / Models docks
 
     def __init__(self, parent=None, main_window=None): #vers 12
         """initialize_features"""
@@ -140,6 +141,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         self.setFont(default_font)
         self.title_font = QFont("Arial", 14)
         self.panel_font = QFont("Arial", 10)
+        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)
         self.button_font = QFont("Arial", 10)
         self.infobar_font = QFont("Courier New", 9)
         self.standalone_mode = (main_window is None)
@@ -812,8 +814,8 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 9
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 10
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -822,13 +824,9 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True

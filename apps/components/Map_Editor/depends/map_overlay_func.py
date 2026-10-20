@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop overlays
 
 """
@@ -279,7 +279,7 @@ class MapOverlayMixin: #vers 1
         progress.setValue(len(tiles))
         self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
 
-    def _on_radar_tiles_context_menu(self, button, pos): #vers 5
+    def _on_radar_tiles_context_menu(self, button, pos): #vers 7
         """Right-click menu on the Radar button - "Send to TXD
         Workshop" (Aug 20 2026)"""
         menu = QMenu(button)
@@ -289,6 +289,13 @@ class MapOverlayMixin: #vers 1
         fix.setCheckable(True)
         fix.setChecked(self._water_fix_active())
         fix.toggled.connect(self._set_water_fix)
+        cur = self._water_scale()
+        sm = menu.addMenu(f"Water scale ({cur * 100:.1f} %)")
+        sm.addAction("Custom... (Alignment window)", self._show_radar_align_dialog)
+        for label, val in (("50 %", 0.5), ("66.7 %", 2.0 / 3), ("100 %", 1.0), ("200 %", 2.0)):
+            act = sm.addAction(label, lambda v=val: self._set_water_scale(v))
+            act.setCheckable(True)
+            act.setChecked(abs(cur - val) < 1e-6)
         menu.addSeparator()
         regen = menu.addAction("Regenerate tiles touched by unsaved edits")
         regen.setEnabled(bool(getattr(self, '_dirty_ipls', None)))

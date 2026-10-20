@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 5
+#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 6
 # X-Seti - March 2026 - AI Workshop: Ollama chat interface
 # Based on COL Workshop template (col_workshop.py)
 
@@ -2087,7 +2087,11 @@ class AIWorkshop(QWidget):
         else:
             self._dock_to_main()
 
-    def _dock_to_main(self):
+    def _dock_to_main(self): #vers 2
+        """Return a torn-off workshop to its IMG Factory tab."""
+        from apps.methods.dock_panels import redock_to_tab
+        if not redock_to_tab(self):      # no tab to return to
+            return
         self.is_docked = True
         self.standalone_mode = False
         if hasattr(self, '_workshop_toolbar'):
@@ -2098,10 +2102,10 @@ class AIWorkshop(QWidget):
             self.dock_btn.setVisible(False)
         self.show(); self.raise_()
 
-    def _undock_from_main(self):
+    def _undock_from_main(self): #vers 2
         self.standalone_mode = True
         self.is_docked = False
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
         if hasattr(self, '_workshop_toolbar'):
             self._workshop_toolbar.setVisible(True)
         if hasattr(self, 'docked_settings_btn'):
@@ -2109,7 +2113,7 @@ class AIWorkshop(QWidget):
         if hasattr(self, 'settings_btn'):
             self.settings_btn.setVisible(True)
         if hasattr(self, 'dock_btn'):
-            self.dock_btn.setVisible(False)
+            self.dock_btn.setVisible(True)      # D docks back
         self.resize(1300, 800)
         self.show(); self.raise_()
 

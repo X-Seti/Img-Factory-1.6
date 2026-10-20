@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 4
+#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Capture Workshop
 # Built on GUIWorkshop base (same as Water Workshop)
 
@@ -57,6 +57,7 @@ Bugs tab: bug tracker on the TODO_bugs folder (capture_bugs_func.py).
 
 import os
 import shutil
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -77,10 +78,6 @@ from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.ribbon_system import RibbonMixin
 from apps.components.Capture_Workshop.depends.capture_bugs_func import CaptureBugsMixin
-from apps.components.Capture_Workshop.depends.capture_sources_func import (
-    DeviceSource, FrameRecorder, grab_screen, grab_window_area, is_linux, list_devices,
-    list_windows)
-
 from apps.components.Capture_Workshop.depends.capture_sources_func import (
     DeviceSource, FrameRecorder, AudioSource, AudioRecorder, HAS_PYAUDIO,
     grab_screen, grab_window_area, is_linux, list_devices, list_windows)
@@ -134,20 +131,15 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 btn.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 1
-        """Titlebar / [captures list | ribbon-wrapped preview] / status bar."""
+    def setup_ui(self): #vers 2
+        """Titlebar / Captures dock | ribbon-wrapped preview / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
         ml.addWidget(self._create_toolbar())
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._create_left_panel())
-        sp.addWidget(self.ribbon_wrap(self._create_centre_panel()))
-        sp.setStretchFactor(0, 1)
-        sp.setStretchFactor(1, 5)
-        sp.setSizes([240, 1000])
-        self._main_splitter = sp
-        ml.addWidget(sp, 1)
+        left = self._create_left_panel()
+        ml.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()),
+                                       [("Captures", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
@@ -567,7 +559,7 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         else:
             self._stop_recording()
 
-    def _start_recording(self): #vers 1
+    def _start_recording(self): #vers 2
         """Device / Windows screen: frame recorder. Linux screen: portal ScreenCast."""
         fmt = self._vid_fmt.currentText().lower()
         if self._mode != 'device' and is_linux():
@@ -576,8 +568,9 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._portal_cast.started.connect(self._portal_cast_started)
             self._portal_cast.failed.connect(self._portal_cast_failed)
             self._portal_cast.stopped.connect(self._portal_cast_stopped)
-            self._portal_cast.start(self._mode == 'window', self._capture_name(f"{self._mode}_rec", fmt), fmt)
-            audio_path = path.replace('.mp4', '_audio.wav')
+            path = self._capture_name(f"{self._mode}_rec", fmt)
+            self._portal_cast.start(self._mode == 'window', path, fmt)
+            audio_path = os.path.splitext(path)[0] + '_audio.wav'   # mp4 or webm
             if self._audio_btn.isChecked() and HAS_PYAUDIO:
                 self._audio_recorder = AudioRecorder(audio_path)
             self._rec_audio_path = audio_path

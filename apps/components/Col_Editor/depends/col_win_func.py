@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 11
+#this belongs in apps/components/Col_Editor/depends/col_win_func.py - Version: 12
 # X-Seti - Sept 2026 - IMG Factory 1.6 - COL Workshop window functions
 
 from PyQt6.QtCore import Qt
@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import QPushButton
 # mouseMoveEvent
 # mousePressEvent
 # mouseReleaseEvent
-# _on_splitter_moved
+# _on_models_resized
 # paintEvent
 # resizeEvent
 # _set_icon_display_mode
@@ -361,9 +361,8 @@ class COLWindowMixin: #vers 1
                 btn.setMaximumWidth(16777215)
 
 
-    def _on_splitter_moved(self, pos, index): #vers 6
-        """Main splitter dragged: save sizes, update compact buttons."""
-        self._queue_splitter_save()
+    def _on_models_resized(self): #vers 1
+        """Models dock resized: update compact buttons."""
         self._apply_left_compact()
         try:
             from apps.methods.imgfactory_ui_settings import apply_compact_buttons

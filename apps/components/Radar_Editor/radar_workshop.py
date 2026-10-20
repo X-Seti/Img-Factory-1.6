@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 36
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 37
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -4696,7 +4696,11 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         else:
             self._dock_to_main()
 
-    def _dock_to_main(self): #Vers 1
+    def _dock_to_main(self): #vers 2
+        """Return a torn-off workshop to its IMG Factory tab."""
+        from apps.methods.dock_panels import redock_to_tab
+        if not redock_to_tab(self):      # no tab to return to
+            return
         self.is_docked = True
         self.standalone_mode = False
         if hasattr(self, '_workshop_toolbar'):
@@ -4714,10 +4718,10 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                 getattr(self, attr).setVisible(False)
         self.show(); self.raise_()
 
-    def _undock_from_main(self): #Vers 1
+    def _undock_from_main(self): #vers 2
         self.standalone_mode = True
         self.is_docked = False
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
         if hasattr(self, '_workshop_toolbar'):
             self._workshop_toolbar.setVisible(True)
         if hasattr(self, 'docked_settings_btn'):
@@ -4725,7 +4729,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         if hasattr(self, 'settings_btn'):
             self.settings_btn.setVisible(True)
         if hasattr(self, 'dock_btn'):
-            self.dock_btn.setVisible(False)
+            self.dock_btn.setVisible(True)      # D docks back
         # Restore the same window-chrome-style elements _dock_to_main
         # hides (Aug 20 2026, see that method's own comment for the
         # fuller reasoning) - the reverse half of that same fix, so

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 23
+#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 25
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -1372,6 +1372,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
     _ribbon_name    = "water_workshop"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
     _RIBBON_LAYOUT_VERSION = 3
+    DROP_EXTS = ('.dat',)          # waterpro.dat / water.dat
 
 
     def __init__(self, parent=None, main_window=None): #vers 2
@@ -1413,30 +1414,17 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return tb
 
 
-    def setup_ui(self): #vers 3
-        """Titlebar / [left panel | ribbon-wrapped canvas tabs] / status bar."""
+    def setup_ui(self): #vers 4
+        """Titlebar / Water dock | ribbon-wrapped canvas tabs / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
         ml.addWidget(self._create_toolbar())
-
-        sp = QSplitter(Qt.Orientation.Horizontal)
-
         left_panel = self._create_left_panel()
         centre_panel = self._create_centre_panel()
-
-        # Add left panel normally, but wrap ONLY the centre panel with the ribbons
-        sp.addWidget(left_panel)
-        sp.addWidget(self.ribbon_wrap(centre_panel))
-
-        sp.setStretchFactor(0, 1)
-        sp.setStretchFactor(1, 5)
-        sp.setSizes([220, 1000])
-        self._main_splitter = sp
-
         self._draw_btns = {}
-        # Add the splitter directly to the layout now that the wrapper is inside it
-        ml.addWidget(sp, 1)
+        ml.addWidget(self._dock_layout(self.ribbon_wrap(centre_panel),
+                                       [("Water", left_panel, 200, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
         self._build_ribbons()
 
         self._status_widget = self._create_status_bar()
@@ -2040,8 +2028,9 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             QMessageBox.critical(self, "Export Error", str(e))
 
 
-    def _import_bmp(self): #vers 3
-        """BMP land mask into the matching grid; water cells keep their level."""
+    def _import_bmp(self): #vers 4
+        """BMP land mask (white = land) into the matching grid; water cells keep
+        their level. Colour lake pixels (SOL Water Editor BMPs) stay water."""
         if not self._waterpro:
             QMessageBox.information(self, "Import", "Load a binary waterpro.dat first.")
             return
@@ -2069,7 +2058,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
             old = getattr(wp, attr)
             grid = bytearray(old)
             for k, i in enumerate(self._bmp_index(canvas, w)):
-                if px[k] > 64:
+                if px[k] > 127:                     # white land; red/blue lakes are darker
                     grid[i] = 128
                 elif old[i] == 128:
                     grid[i] = 0

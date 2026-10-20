@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_win_func.py - Version: 2
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_win_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop window base
 
 """
@@ -25,6 +25,7 @@ Settings store, corner overlay and GUIWorkshop window base.
 
 ##class GUIWorkshop: -
 # __init__
+# _dock_to_main
 # _get_resize_corner
 # _get_resize_direction
 # _handle_corner_resize
@@ -36,6 +37,7 @@ Settings store, corner overlay and GUIWorkshop window base.
 # _setup_corner_overlay
 # _setup_shortcuts
 # _toggle_maximize
+# _undock_from_main
 # _update_cursor
 # closeEvent
 # get_content_margins
@@ -330,8 +332,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
 
 
     #    Window chrome
-    def _get_resize_corner(self, pos): #Vers 2  #vers 1
-        if not self.standalone_mode:           # docked: no corner resize
+    def _get_resize_corner(self, pos): #vers 2
+        if self.is_docked:                     # docked: no corner resize
             return None
         s = self.corner_size; x, y = pos.x(), pos.y()
         w, h = self.width(), self.height()
@@ -458,8 +460,33 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         else: self.showMaximized()
 
 
-    def toggle_dock_mode(self): #vers 1
-        pass  # override if dock support needed
+    def toggle_dock_mode(self): #vers 2
+        """Tear off to a window, or return to the IMG Factory tab."""
+        if self.is_docked:
+            self._undock_from_main()
+        else:
+            self._dock_to_main()
+
+    def _undock_from_main(self): #vers 1
+        """Torn-off frameless window with corner handles."""
+        if self.main_window is None:
+            return
+        size = self.size()
+        self.is_docked = False
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        self.resize(max(800, size.width()), max(500, size.height()))
+        self.show()
+        self.raise_()
+
+    def _dock_to_main(self): #vers 1
+        """Return a torn-off workshop to its IMG Factory tab."""
+        from apps.methods.dock_panels import redock_to_tab
+        self.is_docked = True
+        if not redock_to_tab(self):          # tab gone: stay a window
+            self.is_docked = False
+            return
+        if getattr(self, '_corner_overlay', None) is not None:
+            self._corner_overlay.hide()
 
 
     def mouseReleaseEvent(self, event): #Vers 2  #vers 1
@@ -506,15 +533,16 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
 
-    def _setup_corner_overlay(self): #vers 4
+    def _setup_corner_overlay(self): #vers 5
         """Create or refresh the corner resize overlay."""
-        if not self.standalone_mode:
+        if self.is_docked:
             return
         # Destroy stale overlay if window was resized before it was created
         existing = getattr(self, '_corner_overlay', None)
         if existing is not None:
             existing.setGeometry(0, 0, self.width(), self.height())
             existing.raise_()
+            existing.show()
             existing.update()
             return
         overlay = _CornerOverlay(self)
@@ -531,13 +559,13 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
                 self.app_settings)
             self._corner_overlay.raise_()
 
-    def showEvent(self, event): #vers 3
-        """Standalone: corner overlay. In IMG Factory: empty list loads the game's models IMG."""
+    def showEvent(self, event): #vers 4
+        """Window: corner overlay. In IMG Factory: empty list loads the game's models IMG."""
         super().showEvent(event)
-        if self.standalone_mode:
+        if not self.is_docked:
             # Small delay ensures window geometry is finalised
             QTimer.singleShot(150, self._setup_corner_overlay)
-        elif not self._img_list.count() and getattr(self, '_current_img', None) is None:
+        if not self.standalone_mode and not self._img_list.count() and getattr(self, '_current_img', None) is None:
             self._load_game_vehicle_img()
 
     def _load_game_vehicle_img(self): #vers 2

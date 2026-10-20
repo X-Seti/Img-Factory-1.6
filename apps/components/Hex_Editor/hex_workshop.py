@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 10
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 11
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -90,7 +90,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                 b.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 4
+    def setup_ui(self): #vers 5
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
@@ -130,19 +130,8 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
         self._tabs.addTab(self.bookmarks, "Bookmarks")
         self._tabs.addTab(self.compare, "Compare")
 
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(left)
-        sp.addWidget(centre)
-        sp.addWidget(self._tabs)
-        sp.setStretchFactor(1, 4)
-        sp.setCollapsible(1, False)
-        sp.setSizes(self._load_splitter() or [300, 700, 380])
-        self._splitter = sp
-        self._split_timer = QTimer(self)
-        self._split_timer.setSingleShot(True)
-        self._split_timer.timeout.connect(self._save_splitter)
-        sp.splitterMoved.connect(lambda _p, _i: self._split_timer.start(500))
-        ml.addWidget(self.ribbon_wrap(sp), 1)
+        ml.addWidget(self._dock_layout(self.ribbon_wrap(centre), [
+            ("Inspector", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea), ("Tools", self._tabs, 300, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
@@ -171,24 +160,6 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                          ("Shift+F3", lambda: self.search._emit_find(False)), ("Ctrl+B", self._add_bookmark)):
             QShortcut(QKeySequence(keys), self, activated=fn)
 
-    def _splitter_path(self) -> Path: #vers 2
-        """Splitter sizes file beside the other workshop settings."""
-        return get_user_config_dir() / f"{config_key}_splitter.json"
-
-    def _load_splitter(self): #vers 1
-        try:
-            s = json.loads(self._splitter_path().read_text()).get("sizes")
-            return s if isinstance(s, list) and len(s) == 3 and sum(s) > 0 else None
-        except Exception:
-            return None
-
-    def _save_splitter(self): #vers 1
-        try:
-            p = self._splitter_path()
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(json.dumps({"sizes": self._splitter.sizes()}))
-        except Exception as ex:
-            print(f"[hex_workshop] splitter save error: {ex}")
 
     def _build_ribbons(self): #vers 2
         B, C = self.ribbon_button, self.canvas
@@ -394,7 +365,6 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                 if self.doc.modified:
                     ev.ignore()
                     return
-        self._save_splitter()
         self.ribbon_save_state()
         super().closeEvent(ev)
 

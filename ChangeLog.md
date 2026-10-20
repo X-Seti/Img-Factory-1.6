@@ -1,6 +1,63 @@
 #this belongs in root /ChangeLog.md - Version: 260
 
 
+- Oct 20 2026 - Panel image limited to some areas: AppPanelEffect keeps widget wrappers alive (tint attrs lost on GC). IMG Factory applies effects like Settings Apply on start and new workshop tabs.
+- Oct 20 2026: app_settings v86: panel image Titlebar option - panels and titlebar / panels only / titlebar only; workshop top bars (COL/TXD/Model/Map/GUIWorkshop) treated alike.
+
+- Oct 20 2026: app_settings v85: "Keep viewports solid (no bleed-through)" option (default on); off lets 2D canvases show image / desktop, 3D views always solid.
+
+- Oct 20 2026: app_settings v84: panel image through titlebar and buttons (Titlebar/Buttons opacity), canvases/viewports excluded; new See-through windows option (no image); effects applied at startup, workshop open and to all open windows.
+
+- Oct 20 2026: COL Workshop: COL Files + Models are docks (DockPanelsMixin, layout saved); main splitter and SplitterSizesMixin removed. Col-Workshop synced.
+
+- Oct 20 2026: Path Workshop drag and drop: radar files (.img/.txd/images) load the map, path files (.ipl/.dat/.dtz/.rrr, several, Shift adds) load paths.
+
+- Oct 20 2026: SA car recordings (.rrr in carrec.img, 32-byte frames) parsed in sa_path_parser; Path Workshop shows them (view), SA game load includes carrec.img.
+
+- Oct 20 2026: Path Workshop Node Properties condensed: 3 fields per row (type/next/cross, x/y/z, median/left/right, flags), group row, world line.
+
+- Oct 20 2026: Path Workshop crash (segfault) fixed: Node Properties field deleted inside its own edit signal; rebuild now deferred, old fields deleteLater.
+
+- Oct 20 2026: Path Workshop: load several path files at once (Shift+click in dialog), Shift+Load adds to loaded set, file dialogs remember last folder.
+
+- Oct 20 2026: Path Workshop loads gta3.img nodes (Carcer City etc.) and LCS/VCS game.dtz paths (view). Parser keeps SA IPL 13th path field; CC/VC paths.ipl save identical.
+
+- Oct 20 2026: Path Workshop: delete group, reverse flow, group header edit, path colours/sizes, shift/rotate + edit + save tracks, SA roadblocks and III chase paths (view). Faster numpy draw/pick.
+
+- Oct 20 2026: Path Workshop zoom max 10x -> 200x; zoom buttons keep view centre; deep zoom draws visible tile part only.
+
+- Oct 20 2026: Path Workshop split: depends/path_ui_func (UI, RadarGridWidget), path_logic_func (radar load, presets), path_win_func (window, corner overlay). Main keeps class + __init__. Paths-Workshop synced.
+
+- Oct 19 2026: Path Workshop loads single .ipl, nodesN.dat, tracks/flight/spath .dat (view only). VC ped groups (type 0) green. Parser keeps crossroad field and fractional flag3; VC paths.ipl saves byte-identical.
+
+- Oct 19 2026: Capture Workshop: Linux portal recording crashed (undefined path, missing subprocess import); duplicate capture_sources import removed.
+
+- Oct 19 2026: Docks: Water (Water), Hex (Inspector/Tools), Timecyc (Colours/Sky Preview), IPL (Sections), Handling (Vehicles/Stats), Capture (Captures). Drop-open for Water/Timecyc/IPL/Handling. Standalones synced.
+
+- Oct 19 2026: GUIWorkshop: _dock_layout (side panels as docks) and DROP_EXTS drag-and-drop open. Breakable Editor: Objects / Reference docks, drop object.dat. Standalones synced.
+
+- Oct 19 2026: Map Workshop IPL save wrote path x/y/z without x16 - now uses shared ipl_path_section_lines. Map-workshop synced.
+
+- Oct 19 2026: Path Workshop: radar as one image, Path Nodes / Node Properties docks, load III/VC/SOL/SA paths, select/drag/add/link/delete/undo, save IPL/IDE path sections and SA nodes (backups). New methods/path_nodes.py.
+
+- Oct 19 2026: Paths-Workshop standalone re-synced to main path_workshop.py (radar layer via Radar_Editor). Launcher updated. Old Paths_Workshop fork moved to _to_delete.
+
+- Oct 19 2026: Radar, Path, AI, Vehicle tear-off now a real window; D / tab Dock Back returns it to its tab. Standalones synced.
+
+- Oct 19 2026: GUIWorkshop tools (Water, Hex, Timecyc, IPL, Handling, Breakable, Capture) can tear off and dock back. Tab right-click: Tear Off Workshop / Dock Back.
+
+- Oct 19 2026: Asset Workshop: Textures list is now a dock (DockPanelsMixin, shown when TXD loaded). Drop .dat/.img/.col/.ide to check, .txd to open.
+
+- Oct 19 2026: D (dock back) button now re-docks torn-off COL, TXD, Model, Map, Asset into their tab. Shared redock_to_tab in methods/dock_panels.py. Standalones synced.
+
+- Oct 19 2026: Checklists audited (comments added). Col-Workshop app_settings_system and Txd-Workshop txd_ui_func standalones synced to main.
+
+## Oct 19 2026 - Water BMP import
+- Water Workshop: BMP import only treats white as land; SOL red/blue lake pixels stay water (were turned into land). Edit + save verified byte-exact (1 cell = 1 byte).
+
+## Oct 19 2026 - Map water scale
+- Map Workshop: water grid scale in the Radar/Water Alignment window (10-400 %, 0.5 % steps, 50 / 66.7 / 100 % buttons) and Radar right-click menu. Saved per game as "scale" in data/water_offset.dat.
+
 ## Oct 14 2026 - Radar save format
 - Radar Workshop: PC/Xbox tiles saved in their own format (DXT1/3/5, PAL8, 888) via shared TXD rebuild; was always DXT1.
 
@@ -108,6 +165,9 @@
 - Viewport: already-uploaded textures skipped before reading pixels (DXT textures were CPU-decoded on every refresh; SA load slow).
 
 ## TODO (next session, from Oct 12 2026)
+- Panel image mode 5 (Across window): titlebar no longer painted, full window. Check _titlebars / tb_mode 0 path after wrapper fix.
+- SA car recordings (.rrr): edit / re-time frames in Path Workshop and save back into carrec.img (currently view only).
+- LCS/VCS game.dtz: read and write back (paths first, then objects/instances/water). Path Workshop shows dtz paths view-only now.
 - Emojis in Model Workshop log/print strings (~280): Keith removing.
 - Rebuilt MDL/WDR/WFT meshes untested in game; skinned MDL rebuild (face/vertex changes on peds) to do. DFF save: SA night colours / skin rebuild.
 - Map Workshop: Bully world (.ipb placements, Bully dat). 1 of 1118 Bully NFT fails.

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 18
+#this belongs in apps/methods/gta_dat_parser.py - Version: 20
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -180,7 +180,7 @@ class IPLInstance:
     raw_line:    str  = ""
 
 @dataclass
-class PathNode: #vers 1
+class PathNode: #vers 3
     """One sub-node within a path group (Aug 1 2026)"""
     node_type:  int
     next_id:    int
@@ -192,7 +192,9 @@ class PathNode: #vers 1
     right:      int   = 0
     flag1:      int   = 0
     flag2:      int   = 0
-    flag3:      int   = 0
+    flag3:      float = 0.0   # VC: fractional (e.g. 0.5)
+    cross:      int   = 0     # 3rd field: crossroad (not always 0)
+    extra:      tuple = ()    # fields after 12 (SA IPLs have a 13th), kept as text
 
 
 @dataclass
@@ -1769,7 +1771,7 @@ class IPLParser: #vers 3
             self.stats.warnings.append(f"path group line {lineno}: {e}")
             return None
 
-    def _parse_path_node(self, line: str, lineno: int): #vers 1
+    def _parse_path_node(self, line: str, lineno: int): #vers 4
         """One sub-node line within a path group - twelve fields per
         Project Cerbera's VC path documentation: Type, Next, 0, X, Y,
         Z, Median, Left, Right, Flag1, Flag2, Flag3.
@@ -1782,7 +1784,7 @@ class IPLParser: #vers 3
                 return None
             node_type = int(float(parts[0]))
             next_id   = int(float(parts[1]))
-            # parts[2] is the documented-always-zero, unused field
+            cross = int(float(parts[2]))     # crossroad flag, real files use 1
             x = float(parts[3]) / 16.0
             y = float(parts[4]) / 16.0
             z = float(parts[5]) / 16.0
@@ -1791,10 +1793,11 @@ class IPLParser: #vers 3
             right  = int(float(parts[8])) if len(parts) > 8 else 0
             flag1  = int(float(parts[9]))  if len(parts) > 9  else 0
             flag2  = int(float(parts[10])) if len(parts) > 10 else 0
-            flag3  = int(float(parts[11])) if len(parts) > 11 else 0
+            flag3  = float(parts[11]) if len(parts) > 11 else 0.0
+            extra  = tuple(parts[12:])
             return PathNode(node_type=node_type, next_id=next_id, x=x, y=y, z=z,
                              median=median, left=left, right=right,
-                             flag1=flag1, flag2=flag2, flag3=flag3)
+                             flag1=flag1, flag2=flag2, flag3=flag3, cross=cross, extra=extra)
         except (ValueError, IndexError) as e:
             self.stats.warnings.append(f"path node line {lineno}: {e}")
             return None
@@ -2334,6 +2337,8 @@ class GTAWorldLoader: #vers 4
         self.waterpro: Optional[object] = None
         # GTA III chase-scene car paths (Aug 19 2026)
         self.chase_paths: Dict[str, List[object]] = {}
+        # SA car recordings, carrec.img .rrr (Oct 20 2026)
+        self.car_recordings: Dict[str, List[object]] = {}
         # (phase, type, abs_path, success)
         self.load_log:   List[Tuple[str, str, str, bool]] = []
         self.stats       = ParseStats()
@@ -2516,13 +2521,14 @@ class GTAWorldLoader: #vers 4
         self._load_dat_extras(game_root, data_dir)
         return True
 
-    def _load_dat_extras(self, game_root: str, data_dir: str): #vers 2
+    def _load_dat_extras(self, game_root: str, data_dir: str): #vers 3
         """Tracks, SA nodes/roadblox/water, III chase, waterpro (both load paths)."""
         self.load_tracks_dat(data_dir)
         if self.game == GTAGame.SA:
             # SA-only (Aug 19 2026)
             self.load_sa_nodes(game_root, data_dir)
             self.load_sa_roadblox(data_dir)
+            self.load_sa_carrec(data_dir)
             self.load_water_dat(data_dir)
         if self.game == GTAGame.GTA3:
             # GTA III-only (Aug 19 2026)
@@ -2684,6 +2690,18 @@ class GTAWorldLoader: #vers 4
                     self.waterpro = result
                     self.load_log.append(("water", "WATERPRO", fallback_path, True))
                     return
+
+    def load_sa_carrec(self, data_dir: str): #vers 1
+        """SA car recordings: data/Paths/carrec.img (.rrr frames)."""
+        paths = _resolve_ci(data_dir, 'paths/carrec.img') if data_dir else None
+        if not paths or not os.path.isfile(paths):
+            return
+        try:
+            from apps.methods.sa_path_parser import load_carrec_img
+            self.car_recordings = load_carrec_img(paths)
+            self.load_log.append(("carrec", "CARREC", paths, True))
+        except Exception as e:
+            self.stats.errors.append(f"Could not read car recordings from {paths}: {e}")
 
     def load_chase_dat(self, data_dir: str): #vers 1
         """Load every real GTA III CHASE*.DAT chase-scene car path

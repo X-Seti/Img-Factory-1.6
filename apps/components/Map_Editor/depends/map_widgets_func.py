@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop widgets
 
 """
@@ -1108,7 +1108,7 @@ class _PathGroupEditDialog(QDialog): #vers 1
     """Path Group Editor - add/move/delete/connect nodes within one
     path group (Aug 16 2026)"""
 
-    def __init__(self, group, workshop, parent=None): #vers 1
+    def __init__(self, group, workshop, parent=None): #vers 2
         super().__init__(parent)
         self.group = group
         self.workshop = workshop
@@ -1193,8 +1193,10 @@ class _PathGroupEditDialog(QDialog): #vers 1
 
             flag_row = []
             for col, val in ((9, node.flag1), (10, node.flag2), (11, node.flag3)):
-                spin = QSpinBox()
+                spin = QDoubleSpinBox() if col == 11 else QSpinBox()   # flag3 fractional
                 spin.setRange(0, 255)
+                if col == 11:
+                    spin.setDecimals(3)
                 spin.setValue(val)
                 self._table.setCellWidget(i, col, spin)
                 flag_row.append(spin)
@@ -1237,8 +1239,9 @@ class _PathGroupEditDialog(QDialog): #vers 1
         for spin in self._flag_spins[row]:
             spin.setValue(0)
 
-    def _apply(self): #vers 1
+    def _apply(self): #vers 3
         from apps.methods.gta_dat_parser import PathNode
+        old = list(self.group.nodes)
         self.group.header_a = self._header_a_spin.value()
         self.group.header_b = self._header_b_spin.value()
         new_nodes = []
@@ -1253,6 +1256,8 @@ class _PathGroupEditDialog(QDialog): #vers 1
                 flag1=self._flag_spins[i][0].value(),
                 flag2=self._flag_spins[i][1].value(),
                 flag3=self._flag_spins[i][2].value(),
+                cross=getattr(old[i], 'cross', 0) if i < len(old) else 0,   # keep crossroad
+                extra=getattr(old[i], 'extra', ()) if i < len(old) else (),
             ))
         self.group.nodes = new_nodes
         if hasattr(self.workshop, '_refresh_path_visualization'):

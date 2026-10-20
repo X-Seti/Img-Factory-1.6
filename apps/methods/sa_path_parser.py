@@ -1,4 +1,4 @@
-#this belongs in apps/methods/sa_path_parser.py - Version: 1
+#this belongs in apps/methods/sa_path_parser.py - Version: 2
 # X-Seti - Aug 14 2026 - IMG Factory 1.6 - SA Path Node Parser (nodesXX.dat)
 
 """
@@ -15,6 +15,8 @@ from typing import Dict, List, Optional
 
 ##Methods list -
 # find_nodes_dat_in_img #vers 1
+# load_carrec_img #vers 1
+# parse_rrr #vers 1
 # load_all_nodes_dat_from_dir #vers 1
 # load_nodes_dat #vers 1
 # load_nodes_dat_from_img_entry #vers 1
@@ -388,3 +390,52 @@ def load_nodes_dat_from_img_entry(img, entry, area_id: int) -> Optional[SAPathFi
         return None
     source = f"{getattr(img, 'file_path', getattr(img, 'path', ''))}:{getattr(entry, 'name', '')}"
     return parse_nodes_dat(data, area_id, source_path=source)
+
+
+@dataclass
+class CarRecFrame: #vers 1
+    """One 32-byte frame of an SA car recording (.rrr in carrec.img)."""
+    time_ms: int
+    vel_x: float
+    vel_y: float
+    vel_z: float
+    right: tuple
+    top: tuple
+    steering: float
+    gas: float
+    brake: float
+    handbrake: bool
+    pos_x: float
+    pos_y: float
+    pos_z: float
+    source_file: str = ""
+    frame_index: int = 0
+
+
+def parse_rrr(data: bytes, source: str = "") -> List[CarRecFrame]: #vers 1
+    """Headerless run of 32-byte frames (time, velocity, axes, pedals, position)."""
+    frames = []
+    for i in range(len(data) // 32):
+        o = i * 32
+        t, vx, vy, vz = struct.unpack_from('<ihhh', data, o)
+        if i and t == 0:
+            break                                  # IMG sector padding after the last frame
+        rx, ry, rz, tx, ty, tz, steer, gas, brake, hb = struct.unpack_from('<10b', data, o + 10)
+        px, py, pz = struct.unpack_from('<fff', data, o + 20)
+        frames.append(CarRecFrame(t, vx / 16383.5, vy / 16383.5, vz / 16383.5,
+                                  (rx / 127.0, ry / 127.0, rz / 127.0), (tx / 127.0, ty / 127.0, tz / 127.0),
+                                  steer / 20.0, gas / 100.0, brake / 100.0, bool(hb),
+                                  px, py, pz, source, i))
+    return frames
+
+
+def load_carrec_img(img_path: str) -> Dict[str, List[CarRecFrame]]: #vers 1
+    """Every .rrr recording in an IMG (SA data/Paths/carrec.img)."""
+    from apps.methods.img_core_classes import IMGFile
+    arc = IMGFile(img_path)
+    arc.open()
+    out = {}
+    for e in arc.entries:
+        if e.name.lower().endswith('.rrr'):
+            out[e.name] = parse_rrr(arc.read_entry_data(e), e.name)
+    return out

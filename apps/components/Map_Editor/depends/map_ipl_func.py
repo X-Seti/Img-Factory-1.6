@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_ipl_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_ipl_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop IPL files
 
 """
@@ -1400,7 +1400,7 @@ class MapIplMixin: #vers 1
             f"Saved {total_written} entries across {len(section_order)} section(s) "
             f"from {ipl_name} to {path}")
 
-    def _build_ipl_text_lines(self, ipl_name, target_game=None): #vers 3
+    def _build_ipl_text_lines(self, ipl_name, target_game=None): #vers 4
         """Text IPL lines for all sections; (lines, count, sections) or None.
         target_game other than the loaded game writes inst only, in that game's layout."""
         loader = getattr(self, '_world_loader', None)
@@ -1504,17 +1504,11 @@ class MapIplMixin: #vers 1
                 lines_out.append("end")
 
             elif section == 'path':
+                from apps.methods.path_nodes import ipl_path_section_lines
                 matching = [g for g in getattr(loader, 'paths', []) if g.source_ipl == ipl_name]
                 lines_out.append("path")
-                for g in matching:
-                    lines_out.append(f"{g.header_a}, {g.header_b}")
-                    for n in g.nodes:
-                        lines_out.append(
-                            f"\t{n.node_type}, {n.next_id}, 0, "
-                            f"{_fmt(n.x)}, {_fmt(n.y)}, {_fmt(n.z)}, "
-                            f"{_fmt(n.median)}, {n.left}, {n.right}, "
-                            f"{n.flag1}, {n.flag2}, {n.flag3}")
-                    total_written += 1
+                lines_out.extend(ipl_path_section_lines(matching))   # x16 on disk
+                total_written += len(matching)
                 lines_out.append("end")
 
             elif section == 'grge':

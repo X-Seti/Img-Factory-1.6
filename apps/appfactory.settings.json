@@ -12,7 +12,7 @@
   "show_tooltips": true,
   "show_menu_icons": true,
   "auto_save": true,
-  "panel_opacity": 90,
+  "panel_opacity": 80,
   "debug_categories": [
     "IMG_LOADING",
     "TABLE_POPULATION",
@@ -72,10 +72,13 @@
   "panel_pattern_dark": "#141428",
   "copper_light": "#b87333",
   "copper_dark": "#7a4a1a",
-  "panel_bg_image": "images/purple_nebula.png",
+  "panel_bg_image": "images/raindrops.jpg",
   "panel_bg_image_mode": 5,
-  "panel_bg_image_opacity": 50,
+  "panel_bg_image_opacity": 76,
   "panel_bg_image_all": true,
+  "see_through": true,
+  "viewport_solid": true,
+  "image_titlebar": 0,
   "button_style": "gradient_45",
   "progressbar_style": "system",
   "progressbar_fill": "#4a7a9b",
@@ -122,9 +125,9 @@
   "button_height": 32,
   "button_spacing_vertical": 6,
   "button_spacing_horizontal": 6,
-  "titlebar_opacity": 90,
-  "button_opacity": 90,
-  "widget_opacity": 90,
+  "titlebar_opacity": 80,
+  "button_opacity": 80,
+  "widget_opacity": 80,
   "color_alpha": {
     "bg_primary": 80,
     "bg_secondary": 80,
@@ -142,5 +145,7 @@
     "splitter_color_background": 80,
     "scrollbar_background": 80,
     "dialog_bg": 80
-  }
+  },
+  "tabs_opacity": 80,
+  "splitter_opacity": 80
 }

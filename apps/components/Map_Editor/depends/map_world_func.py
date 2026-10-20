@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop world load
 
 """
@@ -47,6 +47,7 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _save_radar_settings
 # _set_radar_align_offset
 # _set_water_fix
+# _set_water_scale
 # _show_load_options_dialog
 # _show_preload_dialog
 # _show_radar_align_dialog
@@ -54,6 +55,7 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _to_gamedata_role_marker
 # _try_auto_water2_from_loader
 # _water2_offset_mode
+# _water_scale
 # _water_fix_active
 # _water_offset_path
 # _water_shapes_to_cells
@@ -1131,8 +1133,8 @@ class MapWorldMixin: #vers 1
                          if d.lower() == 'data' and os.path.isdir(os.path.join(root, d))), '')
         return os.path.join(data_dir, 'water_offset.dat') if data_dir else ''
 
-    def _read_water_offsets(self): #vers 1
-        """Keys x, y, z, nudge, fix from water_offset.dat; {} if none."""
+    def _read_water_offsets(self): #vers 2
+        """Keys x, y, z, nudge, fix, scale from water_offset.dat; {} if none."""
         path = self._water_offset_path()
         out = {}
         if not path or not os.path.isfile(path):
@@ -1144,7 +1146,7 @@ class MapWorldMixin: #vers 1
                     continue
                 key, vals = parts[0].lower(), parts[1:]
                 try:
-                    if key in ('x', 'y', 'z'):
+                    if key in ('x', 'y', 'z', 'scale'):
                         out[key] = float(vals[0])
                     elif key == 'nudge' and len(vals) >= 2:
                         out['nudge'] = [float(vals[0]), float(vals[1])]
@@ -1154,8 +1156,8 @@ class MapWorldMixin: #vers 1
                     self._set_status(f"water_offset.dat: bad value on '{line.strip()}'")
         return out
 
-    def _write_water_offsets(self, changes): #vers 1
-        """Merge changes into water_offset.dat (x/y/z offsets, nudge, fix)."""
+    def _write_water_offsets(self, changes): #vers 2
+        """Merge changes into water_offset.dat (x/y/z offsets, nudge, fix, scale)."""
         path = self._water_offset_path()
         if not path:
             return
@@ -1163,13 +1165,15 @@ class MapWorldMixin: #vers 1
         vals = {'x': float(self.map_settings.get('water2_x_offset') or 0.0),     # current values seed a new file
                 'y': float(self.map_settings.get('water2_y_offset') or 0.0),
                 'z': float(self.map_settings.get('water2_height_offset') or 0.0),
-                'nudge': list(cur.get('water_offset', [0.0, 0.0])), 'fix': cur.get('water_fix')}
+                'nudge': list(cur.get('water_offset', [0.0, 0.0])), 'fix': cur.get('water_fix'),
+                'scale': 1.0}
         vals.update(self._read_water_offsets())
         vals.update(changes)
         fix = {True: 'on', False: 'off'}.get(vals['fix'], 'auto')
         text = ("# IMG Factory - Map Workshop water offsets for this game\n"
                 f"x {vals['x']:.3f}\ny {vals['y']:.3f}\nz {vals['z']:.3f}\n"
-                f"nudge {vals['nudge'][0]:.3f} {vals['nudge'][1]:.3f}\nfix {fix}\n")
+                f"nudge {vals['nudge'][0]:.3f} {vals['nudge'][1]:.3f}\nfix {fix}\n"
+                f"scale {vals['scale']:g}\n")
         try:
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(text)
@@ -1241,6 +1245,26 @@ class MapWorldMixin: #vers 1
         dlg.show()
         dlg.raise_()
 
+    def _water_scale(self): #vers 1
+        """Water grid scale for this game (water_offset.dat 'scale', default 1)."""
+        return self._read_water_offsets().get('scale', 1.0)
+
+    def _set_water_scale(self, scale): #vers 2
+        """Save the water grid scale (1.0 = file size) and rebuild the water cells."""
+        self._write_water_offsets({'scale': float(scale)})
+        waterpro = getattr(self, '_water2_waterpro_source', None)
+        if waterpro is not None:
+            game = getattr(self, '_water2_game_source', 'vc')
+            physical = getattr(self, '_water2_showing_physical', False)
+            self._water2_cells_pending = (self._waterpro_physical_to_cells(waterpro, game) if physical
+                                          else self._waterpro_to_cells(waterpro, game))
+            self._apply_water2_preload()
+        self._set_status(f"Water scale {scale * 100:.1f} %" + ("" if self._water_offset_path()
+                                                      else " (no game data folder - not saved)"))
+        dlg = getattr(self, '_radar_align_dlg', None)
+        if dlg is not None and dlg.isVisible():
+            dlg._refresh()
+
     def _water2_offset_mode(self): #vers 1
         """Radar/water fix mode; old VC-only bool when unset."""
         mode = self.map_settings.get('water2_offset_mode')
@@ -1248,7 +1272,7 @@ class MapWorldMixin: #vers 1
             return mode
         return 'vc' if self.map_settings.get('water2_offset_vc_only') else 'all'
 
-    def _waterpro_to_cells(self, waterpro, game): #vers 5
+    def _waterpro_to_cells(self, waterpro, game): #vers 6
         """Real, confirmed grid-to-cells logic (Aug 20 2026, re-
         applied) - shared between the manual Preload path and the
         automatic world-load retool below. Skips real "dry"/cutout
@@ -1280,7 +1304,7 @@ class MapWorldMixin: #vers 1
         # derivation) - every other game's water-uses-radar's-size
         # assumption is already confirmed correct and unchanged here.
         preset = WATER_GRID_PRESETS.get(game) or RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
-        grid_size = preset['grid_size']
+        grid_size = preset['grid_size'] * self._water_scale()      # per-game scale (half / normal / twice)
         half = grid_size / 2.0
         gw = waterpro.grid_width
         cell = grid_size / gw
@@ -1298,7 +1322,7 @@ class MapWorldMixin: #vers 1
                 cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
         return cells
 
-    def _waterpro_physical_to_cells(self, waterpro, game): #vers 4
+    def _waterpro_physical_to_cells(self, waterpro, game): #vers 5
         """The other real water layer (Aug 20 2026,  "when
         you right click the water button, show the other water
         layer") - waterpro.dat's own physical_map, a real, separate
@@ -1311,7 +1335,7 @@ class MapWorldMixin: #vers 1
         (Sep 5 2026) - see WATER_GRID_PRESETS' own docstring."""
         from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS, WATER_GRID_PRESETS
         preset = WATER_GRID_PRESETS.get(game) or RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
-        grid_size = preset['grid_size']
+        grid_size = preset['grid_size'] * self._water_scale()
         half = grid_size / 2.0
         gw = waterpro.grid_width * 2
         cell = grid_size / gw

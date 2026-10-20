@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 45
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 46
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -726,8 +726,8 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 9
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 10
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -736,13 +736,9 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True
@@ -1595,6 +1591,7 @@ def open_txd_workshop(main_window, img_path=None): #vers 7
             print(f"Failed to open {App_name}: {str(e)}")
         return None
 
+# Standalone entry point
 
 
 if __name__ == "__main__":

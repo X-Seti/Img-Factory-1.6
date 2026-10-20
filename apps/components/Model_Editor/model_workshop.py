@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 220
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 221
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -481,8 +481,8 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 10
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 11
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -491,13 +491,9 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True

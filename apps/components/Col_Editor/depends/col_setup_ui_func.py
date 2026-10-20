@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 17
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 18
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -66,6 +66,7 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMainWindow, QMenu, QPushButton, QStyledItemDelegate, QTabWidget, QTableWidget, QVBoxLayout, QWidget
 from apps.components.Col_Editor.depends.col_viewport import COL3DViewport
 from apps.methods.grip_splitter import GripSplitter
+from apps.methods.dock_panels import add_outer_dock, make_outer_mw
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.img_factory_settings import get_user_config_dir
 
@@ -279,7 +280,7 @@ class COLSetupUIMixin: #vers 1
         parent_menu.addSeparator()
         parent_menu.addAction("Ribbon Manager…", self.open_ribbon_manager)
 
-    def setup_ui(self): #vers 12
+    def setup_ui(self): #vers 13
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -304,38 +305,26 @@ class COLSetupUIMixin: #vers 1
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
 
-        # Main splitter
-        self._main_splitter = GripSplitter(Qt.Orientation.Horizontal)
-
-        # Create all panels first
+        # Viewport + ribbons central; COL Files / Models as docks
         left_panel = self._create_left_panel()
         middle_panel = self._create_middle_panel()
         right_panel = self._create_right_panel()
-
-        # Add panels to splitter based on mode
+        outer_mw = make_outer_mw(right_panel)
+        self._outer_mw = outer_mw
+        self._outer_docks = []
         if left_panel is not None:  # IMG Factory mode
-            self._main_splitter.addWidget(left_panel)
-            self._main_splitter.addWidget(middle_panel)
-            self._main_splitter.addWidget(right_panel)
-            # Set proportions (2:3:5)
-            self._main_splitter.setStretchFactor(0, 2)
-            self._main_splitter.setStretchFactor(1, 3)
-            self._main_splitter.setStretchFactor(2, 5)
-        else:  # Standalone mode
-            self._main_splitter.addWidget(middle_panel)
-            self._main_splitter.addWidget(right_panel)
-            # Set proportions (1:1)
-            self._main_splitter.setStretchFactor(0, 1)
-            self._main_splitter.setStretchFactor(1, 1)
-
-        # Splitter goes straight into main_layout - no top-level tab wrapper.
-        # COL Models/Surface Data switching is now local to the middle
-        # panel only (see _wrap_middle_panel_with_surface_tab), so the left
-        # panel (file list) and right panel (ribbons + viewport) are never
-        # nested inside a QTabWidget's padded content pane.
-        main_layout.addWidget(self._main_splitter)
-        self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
-        QTimer.singleShot(0, self._restore_splitter_sizes)
+            self._outer_docks.append(add_outer_dock(self, outer_mw, "COL Files", left_panel, 150))
+        models_dock = add_outer_dock(self, outer_mw, "Models", middle_panel, 250)
+        self._outer_docks.append(models_dock)
+        if left_panel is not None:
+            outer_mw.splitDockWidget(self._outer_docks[0], models_dock, Qt.Orientation.Horizontal)
+        def _models_resized(event, _p=middle_panel):  #vers 1
+            type(_p).resizeEvent(_p, event)
+            self._on_models_resized()
+        middle_panel.resizeEvent = _models_resized
+        main_layout.addWidget(outer_mw)
+        QTimer.singleShot(400, self._restore_outer_layout)
+        self.window_closed.connect(self._save_outer_layout)
 
         # Status indicators - hidden when embedded in main window tab
         if hasattr(self, '_setup_status_indicators'):
