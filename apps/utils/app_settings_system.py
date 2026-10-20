@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/apps/utils/app_settings_system.py - version 87
+#This goes in root/apps/utils/app_settings_system.py - version 88
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3748,13 +3748,13 @@ def _is_view(w, solid=True): #vers 2
     return False
 
 
-def _titlebars(window): #vers 1
-    """Workshop title bars: frames named 'titlebar' and each workshop's top toolbar."""
-    from PyQt6.QtWidgets import QWidget, QFrame
-    bars = [f for f in window.findChildren(QFrame) if f.objectName() == 'titlebar']
+def _titlebars(window): #vers 2
+    """Title bars: widgets named 'titlebar' and each workshop's top toolbar."""
+    from PyQt6.QtWidgets import QWidget
+    bars = [f for f in window.findChildren(QWidget) if f.objectName() == 'titlebar']
     for w in [window] + window.findChildren(QWidget):
         tb = w.__dict__.get('_workshop_toolbar')
-        if isinstance(tb, QFrame) and tb not in bars:
+        if isinstance(tb, QWidget) and tb not in bars:
             bars.append(tb)
     return bars
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 116
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 117
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -47,6 +47,7 @@ except ImportError:
 
 # App utilities
 from apps.utils.app_settings_system import AppSettings, apply_theme_to_app, SettingsDialog
+from apps.methods.corner_handles import paint_corner_handles
 
 # Components
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
@@ -2223,14 +2224,15 @@ class IMGFactory(QMainWindow):
 
 
 
-    def _create_ui(self): #vers 14
+    def _create_ui(self): #vers 15
         """Create the main user interface - WITH TABS FIXED"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+        self.setContentsMargins(5, 5, 5, 5)          # COL corner strip around the window
 
         # Main layout
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(5, 0, 5, 5)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
         # IN CUSTOM UI MODE: Add toolbar FIRST (before tabs)
@@ -5364,105 +5366,18 @@ class IMGFactory(QMainWindow):
 
 
 
-    def paintEvent(self, event): #vers 4
-        """Corner handles drawn by _corner_overlay — see setup_corner_overlay"""
+    def paintEvent(self, event): #vers 5
+        """Corner handles, COL style (methods/corner_handles.py); frameless only."""
         super().paintEvent(event)
+        if self.windowFlags() & Qt.WindowType.FramelessWindowHint:
+            self.hover_corner = getattr(getattr(self, 'gui_layout', None), 'hover_corner', None)
+            paint_corner_handles(self)
 
-    def setup_corner_overlay(self): #vers 2
-        """Transparent overlay draws corner handles above all child widgets."""
-        if hasattr(self, '_corner_overlay') and self._corner_overlay:
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.raise_()
-            return
-        # Create fresh overlay
-        from PyQt6.QtWidgets import QWidget
-        from PyQt6.QtGui import QPainter, QColor, QBrush, QPainterPath
-        from PyQt6.QtCore import Qt
-
-        parent = self
-
-        class CornerOverlay(QWidget):
-            SIZE = 20
-            def __init__(self, parent):
-                super().__init__(parent)
-                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-                self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-                self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-                self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
-                self.setGeometry(0, 0, parent.width(), parent.height())
-                self._update_mask()
-
-            def _update_mask(self):
-                from PyQt6.QtGui import QRegion, QPolygon
-                from PyQt6.QtCore import QPoint
-                s = self.SIZE; w, h = self.width(), self.height()
-                region = QRegion()
-                for pts in [
-                    [QPoint(0,0),QPoint(s,0),QPoint(0,s)],
-                    [QPoint(w,0),QPoint(w-s,0),QPoint(w,s)],
-                    [QPoint(0,h),QPoint(s,h),QPoint(0,h-s)],
-                    [QPoint(w,h),QPoint(w-s,h),QPoint(w,h-s)],
-                ]:
-                    region = region.united(QRegion(QPolygon(pts)))
-                self.setMask(region)
-
-            def resizeEvent(self, ev):
-                super().resizeEvent(ev); self._update_mask()
-
-            def setGeometry(self, *args):
-                super().setGeometry(*args); self._update_mask()
-
-            def paintEvent(self, event):
-                size = self.SIZE
-                gl = getattr(parent, 'gui_layout', None)
-                if not gl: return
-                if hasattr(gl, 'app_settings') and gl.app_settings:
-                    try:
-                        colors = gl.app_settings.get_theme_colors()
-                        accent = QColor(colors.get('accent_primary', '#4682FF'))
-                    except Exception:
-                        accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70, 130, 255)
-                else:
-                    accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70, 130, 255)
-                accent.setAlpha(200)
-                hover_c = QColor(accent); hover_c.setAlpha(255)
-                w, h = self.width(), self.height()
-                hover = getattr(gl, 'hover_corner', None)
-                corners = {
-                    'top-left':     [(0,0),(size,0),(0,size)],
-                    'top-right':    [(w,0),(w-size,0),(w,size)],
-                    'bottom-left':  [(0,h),(size,h),(0,h-size)],
-                    'bottom-right': [(w,h),(w-size,h),(w,h-size)],
-                }
-                p = QPainter(self)
-                p.setRenderHint(QPainter.RenderHint.Antialiasing)
-                for name, pts in corners.items():
-                    path = QPainterPath()
-                    path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
-                    path.closeSubpath()
-                    p.setPen(Qt.PenStyle.NoPen)
-                    p.setBrush(QBrush(hover_c if hover == name else accent))
-                    p.drawPath(path)
-                p.end()
-
-        self._corner_overlay = CornerOverlay(self)
-        self._corner_overlay.raise_()
-
-    def showEvent(self, event): #vers 3
+    def showEvent(self, event): #vers 4
         super().showEvent(event)
         from PyQt6.QtCore import Qt, QTimer
-        # Corner overlay only makes sense in frameless mode
-        if self.windowFlags() & Qt.WindowType.FramelessWindowHint:
-            QTimer.singleShot(100, self.setup_corner_overlay)
         # Register [Intro] taskbar button → left panel welcome screen
         QTimer.singleShot(900, self._register_intro_tool)
-
-    def refresh_corner_overlay(self): #vers 1
-        if hasattr(self, '_corner_overlay'):
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.raise_()
-            self._corner_overlay.update()
-
 
     def _get_resize_corner(self, pos): #vers 4
         """Determine which corner is under mouse position"""
@@ -5531,7 +5446,7 @@ class IMGFactory(QMainWindow):
         super().mousePressEvent(event)
 
 
-    def mouseMoveEvent(self, event): #vers 4
+    def mouseMoveEvent(self, event): #vers 5
         """Handle mouse move for resizing and hover effects"""
         from PyQt6.QtCore import Qt
 
@@ -5551,7 +5466,7 @@ class IMGFactory(QMainWindow):
                 if hasattr(self.gui_layout, 'hover_corner'):
                     if corner != self.gui_layout.hover_corner:
                         self.gui_layout.hover_corner = corner
-                        self.refresh_corner_overlay()
+                        self.update()
                 self._update_cursor(corner)
 
         super().mouseMoveEvent(event)
@@ -5650,10 +5565,10 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
-    def resizeEvent(self, event): #vers 3
+    def resizeEvent(self, event): #vers 4
         """Handle window resize event"""
         super().resizeEvent(event)
-        self.refresh_corner_overlay()
+        self.update()
 
 
     def _toggle_maximize(self): #vers 1

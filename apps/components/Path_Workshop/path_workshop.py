@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 12
+#this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 14
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Path Workshop
 
 ##Methods list -
@@ -119,7 +119,7 @@ class PathWorkshop(RibbonMixin, PathNodesMixin, PathLogicMixin, PathUIMixin, Pat
                    DockPanelsMixin, ToolMenuMixin, QWidget): #vers 4
     _ribbon_name = "path_workshop"
     # Bump when the set of ribbons changes (5 = Group ribbon)
-    _RIBBON_LAYOUT_VERSION = 5
+    _RIBBON_LAYOUT_VERSION = 6
     _OUTER_LAYOUT_VERSION = 1      # Path Nodes / Node Properties docks
 
     """Path Workshop: GTA paths drawn over the radar map"""
@@ -127,7 +127,7 @@ class PathWorkshop(RibbonMixin, PathNodesMixin, PathLogicMixin, PathUIMixin, Pat
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
-    def __init__(self, parent=None, main_window=None): #vers 3
+    def __init__(self, parent=None, main_window=None): #vers 4
         super().__init__(parent)
 
         self.main_window        = main_window
@@ -182,7 +182,7 @@ class PathWorkshop(RibbonMixin, PathNodesMixin, PathLogicMixin, PathUIMixin, Pat
                 self.move(wx, wy)
 
         # Spacing/margins (template pattern)
-        self.contmergina=1; self.contmerginb=1; self.contmerginc=1; self.contmergind=1; self.setspacing=2
+        self.contmergina=5; self.contmerginb=5; self.contmerginc=5; self.contmergind=5; self.setspacing=2   # COL corner strip
         self.panelmergina=5; self.panelmerginb=5; self.panelmerginc=5; self.panelmergind=5; self.panelspacing=5
         self.titlebarheight=45; self.toolbarheight=50
         self.tabmerginsa=5; self.tabmerginsb=0; self.tabmerginsc=5; self.tabmerginsd=0; self.statusheight=22

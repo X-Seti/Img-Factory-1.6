@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 16
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 18
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -20,7 +20,6 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 # _create_left_panel
 # _create_middle_panel
 # _create_right_panel
-# _create_toolbar
 # _enable_name_edit
 # _filter_txd_list
 # _focus_search
@@ -51,6 +50,9 @@ TXD Workshop UI - panels, ribbons, fonts, icons, view modes, hotkeys, status.
 # _show_split_view
 # _show_txd_search
 # switch_texture_view
+# _titlebar_actions
+# _titlebar_info
+# _titlebar_title
 # _toggle_checkerboard
 # _toggle_gamepad
 # _toolbar_context_menu
@@ -64,6 +66,7 @@ from PyQt6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QAbstractItemView, QColorDialog, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMenu, QMessageBox, QPushButton, QTabWidget, QTableWidget, QToolButton, QVBoxLayout, QWidget
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.txd_dialogs import ZoomablePreview
 from apps.methods.dock_panels import add_outer_dock, make_outer_mw
 
@@ -72,7 +75,7 @@ App_build = "39"
 DEBUG_STANDALONE = False
 
 
-class TXDUIMixin: #vers 1
+class TXDUIMixin(TitlebarMixin): #vers 2
     """UI methods for TXDWorkshop."""
 
     def _get_ui_color(self, key): #vers 2
@@ -271,199 +274,42 @@ class TXDUIMixin: #vers 1
         from apps.methods.button_mode import apply_button_mode_to_button
         apply_button_mode_to_button(button, text, self.button_display_mode)
 
-    def _create_toolbar(self): #vers 17
-        """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
-
-        # Install event filter for drag detection
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
-        self.layout = QHBoxLayout(self.titlebar)
-        self.layout.setContentsMargins(5, 5, 5, 5)
-        self.layout.setSpacing(5)
-
-        # Get icon color from theme
-        icon_color = self._get_icon_color()
-
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(50)
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-
-        # Menu button (all commands), left of Settings - docked and standalone
-        self.menu_btn = QToolButton()
-        self.menu_btn.setFont(self.button_font)
-        self.menu_btn.setText("Menu")
-        self.menu_btn.setIcon(self.icon_factory.menu_m_icon(color=icon_color))
-        self.menu_btn.setIconSize(QSize(20, 20))
-        self.menu_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.menu_btn.setMenu(QMenu(self.menu_btn))
-        self.menu_btn.menu().aboutToShow.connect(
-            lambda: (self.menu_btn.menu().clear(), self._build_menus_into_qmenu(self.menu_btn.menu())))
-        self.menu_btn.setToolTip("All TXD Workshop commands")
-        layout.addWidget(self.menu_btn)
-
-        # Settings button
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon(color=self._get_icon_color()))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip("Workshop Settings")
-        layout.addWidget(self.settings_btn)
-        self._build_doc_tabs_btn(layout)          # standalone file tabs drop-down
-
-        layout.addStretch()
-
-        # App title in center
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_label)
-
-        layout.addStretch()
-        #layout.addStretch()
-
-        # Only show "Open IMG" button if NOT standalone
+    def _titlebar_actions(self, layout): #vers 1
+        """TXD titlebar: OpenIMG, Open, Save, Save As, Extract, Undo."""
         if not self.standalone_mode:
-            self.open_img_btn = QPushButton("OpenIMG")
-            self.open_img_btn.setFont(self.button_font)
-            self.open_img_btn.setIcon(self.icon_factory.folder_icon(color=self._get_icon_color()))
-            self.open_img_btn.setIconSize(QSize(20, 20))
-            self.open_img_btn.clicked.connect(self.open_img_archive)
+            self.open_img_btn = self._tb_button('folder_icon', "OpenIMG",
+                "Open an IMG archive and browse its TXD entries", self.open_img_archive)
             layout.addWidget(self.open_img_btn)
 
-        self.open_txd_btn = QPushButton("Open")
-        self.open_txd_btn.setFont(self.button_font)
-        self.open_txd_btn.setIcon(self.icon_factory.file_icon(color=self._get_icon_color()))
-        self.open_txd_btn.setIconSize(QSize(20, 20))
-        self.open_txd_btn.clicked.connect(self.open_txd_file)
+        self.open_txd_btn = self._tb_button('file_icon', "Open", "Open TXD file", self.open_txd_file)
         layout.addWidget(self.open_txd_btn)
 
-        self.save_txd_btn = QPushButton("Save")
-        self.save_txd_btn.setFont(self.button_font)
-        self.save_txd_btn.setIcon(self.icon_factory.save_icon(color=self._get_icon_color()))
-        self.save_txd_btn.setIconSize(QSize(20, 20))
-        self.save_txd_btn.clicked.connect(self._save_current)
+        self.save_txd_btn = self._tb_button('save_icon', "Save", "Save TXD file", self._save_current)
         self.save_txd_btn.setEnabled(False)
         self._save_buttons = [self.save_txd_btn]
         layout.addWidget(self.save_txd_btn)
 
-        self.save_as_txd_btn = QPushButton("Save As")
-        self.save_as_txd_btn.setFont(self.button_font)
-        self.save_as_txd_btn.setIcon(self.icon_factory.saveas_icon(color=self._get_icon_color()))
-        self.save_as_txd_btn.setIconSize(QSize(20, 20))
-        self.save_as_txd_btn.setToolTip("Save texture file as (Ctrl+Shift+S)")
-        self.save_as_txd_btn.clicked.connect(self._save_as_txd_file)
+        self.save_as_txd_btn = self._tb_button('saveas_icon', "Save As",
+            "Save texture file as (Ctrl+Shift+S)", self._save_as_txd_file)
         layout.addWidget(self.save_as_txd_btn)
 
-        self.export_all_btn = QPushButton("Extract")
-        self.export_all_btn.setFont(self.button_font)
-        self.export_all_btn.setIcon(self.icon_factory.package_icon(color=self._get_icon_color()))
-        self.export_all_btn.setIconSize(QSize(20, 20))
-        self.export_all_btn.clicked.connect(self.export_all_textures)
+        self.export_all_btn = self._tb_button('package_icon', "Extract",
+            "Extract all textures", self.export_all_textures)
         self.export_all_btn.setEnabled(False)
         layout.addWidget(self.export_all_btn)
 
-        self.undo_btn = QPushButton()
-        self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon(color=self._get_icon_color()))
-        self.undo_btn.setText("Undo")
-        self.undo_btn.setIconSize(QSize(20, 20))
-        self.undo_btn.clicked.connect(self._undo_last_action)
+        self.undo_btn = self._tb_button('undo_icon', "Undo", "Undo last change", self._undo_last_action)
         self.undo_btn.setEnabled(False)
-        self.undo_btn.setToolTip("Undo last change")
         layout.addWidget(self.undo_btn)
         self._undo_buttons = [self.undo_btn]
 
-        layout.addSpacing(10)
+    def _titlebar_info(self): #vers 1
+        """Info button: TXD file info."""
+        self._show_txd_info()
 
-        # Info button
-        self.info_btn = QPushButton("")
-        self.info_btn.setText("")  # CHANGED from "Info"
-        self.info_btn.setIcon(self.icon_factory.info_icon(color=self._get_icon_color()))
-        self.info_btn.setMinimumWidth(40)
-        self.info_btn.setMaximumWidth(40)
-        self.info_btn.setMinimumHeight(30)
-        self.info_btn.setToolTip("Information")
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_txd_info)
-        layout.addWidget(self.info_btn)
-
-        # Properties/Theme button
-        self.properties_btn = QPushButton()
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
-        self.properties_btn.setToolTip("Theme")
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
-        layout.addWidget(self.properties_btn)
-
-        # Dock button [D]
-        self.dock_btn = QPushButton("D")
-        #self.dock_btn.setFont(self.button_font)
-        self.dock_btn.setMinimumWidth(40)
-        self.dock_btn.setMaximumWidth(40)
-        self.dock_btn.setMinimumHeight(30)
-        self.dock_btn.setToolTip("Dock")
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        layout.addWidget(self.dock_btn)
-
-        # Tear-off button [T] - only in IMG Factory mode
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton("T")
-            #self.tearoff_btn.setFont(self.button_font)
-            self.tearoff_btn.setMinimumWidth(40)
-            self.tearoff_btn.setMaximumWidth(40)
-            self.tearoff_btn.setMinimumHeight(30)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("TXD Workshop - Tearoff window")
-            layout.addWidget(self.tearoff_btn)
-
-        # Window controls
-        self.minimize_btn = QPushButton()
-        self.minimize_btn.setIcon(self.icon_factory.minimize_icon(color=self._get_icon_color()))
-        self.minimize_btn.setIconSize(QSize(20, 20))
-        self.minimize_btn.setMinimumWidth(40)
-        self.minimize_btn.setMaximumWidth(40)
-        self.minimize_btn.setMinimumHeight(30)
-        self.minimize_btn.clicked.connect(self.showMinimized)
-        self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
-        layout.addWidget(self.minimize_btn)
-
-        self.maximize_btn = QPushButton()
-        self.maximize_btn.setIcon(self.icon_factory.maximize_icon(color=self._get_icon_color()))
-        self.maximize_btn.setIconSize(QSize(20, 20))
-        self.maximize_btn.setMinimumWidth(40)
-        self.maximize_btn.setMaximumWidth(40)
-        self.maximize_btn.setMinimumHeight(30)
-        self.maximize_btn.clicked.connect(self._toggle_maximize)
-        self.maximize_btn.setToolTip("Maximize/Restore Window")
-        layout.addWidget(self.maximize_btn)
-
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(self.icon_factory.close_icon(color=self._get_icon_color()))
-        self.close_btn.setIconSize(QSize(20, 20))
-        self.close_btn.setMinimumWidth(40)
-        self.close_btn.setMaximumWidth(40)
-        self.close_btn.setMinimumHeight(30)
-        self.close_btn.clicked.connect(self.close)
-        self.close_btn.setToolTip("Close Window") # closes tab
-        layout.addWidget(self.close_btn)
-
-        return self.toolbar
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
 
     def _create_left_panel(self): #vers 7
         """Create left panel - TXD file list (only in IMG Factory mode)"""
@@ -1246,7 +1092,7 @@ class TXDUIMixin: #vers 1
         except Exception as e:
             print(f"Theme application error: {e}")
 
-    def _setup_status_indicators(self): #vers 5
+    def _setup_status_indicators(self): #vers 6
         """Setup status indicators with texture info and visible resize button"""
         self.status_frame = QFrame()
         self.status_frame.setFixedHeight(24)
@@ -1275,25 +1121,6 @@ class TXDUIMixin: #vers 1
         self.format_status_label = QLabel("Format: -")
         self.status_layout.addWidget(self.format_status_label)
 
-        # Add visible resize button with icon
-        self.resize_grip_btn = QPushButton()
-        self.resize_grip_btn.setIcon(self.icon_factory._resize_icon(color=self._get_icon_color()))
-        self.resize_grip_btn.setIconSize(QSize(20, 20))
-        self.resize_grip_btn.setFixedSize(20, 20)
-        self.resize_grip_btn.setToolTip("Drag to resize window")
-        self.resize_grip_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: palette(mid);
-            }
-        """)
-        # Make it act like a resize grip
-        self.resize_grip_btn.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        self.status_layout.addWidget(self.resize_grip_btn)
 
         return self.status_frame
 

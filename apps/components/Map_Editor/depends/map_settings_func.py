@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_settings_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_settings_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop settings
 
 """
@@ -39,6 +39,7 @@ from PyQt6.QtWidgets import (
     QApplication, QColorDialog, QDoubleSpinBox, QFileDialog, QGridLayout, QHBoxLayout,
     QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QVBoxLayout)
 
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.components.Map_Editor.depends.map_widgets_func import (
     App_build, App_name, _KeyCaptureButton, _model_workshop_config_dir)
 
@@ -57,7 +58,7 @@ class MapSettingsMixin: #vers 1
                 limits[g] = (ms.get(f'tex_limit_{g}_over'), ms.get(f'tex_limit_{g}_to'))
         return limits
 
-    def _build_workshop_settings_tabs(self): #vers 10
+    def _build_workshop_settings_tabs(self): #vers 11
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -243,6 +244,7 @@ class MapSettingsMixin: #vers 1
 
         table_group.setLayout(table_layout)
         display_layout.addWidget(table_group)
+        add_statusbar_checkbox(self, display_layout)
 
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
@@ -973,7 +975,7 @@ class MapSettingsMixin: #vers 1
             if not path:
                 return
             try:
-                from apps.components.Map_Editor.depends.audioparser import extract_all_tracks
+                from apps.methods.audioparser import extract_all_tracks
             except ImportError as e:
                 self._set_status(f"Couldn't load the audio stream decoder: {e}")
                 return

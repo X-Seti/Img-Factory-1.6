@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 221
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 222
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -40,6 +40,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint
 from PyQt6.QtGui import QFont, QIcon
 
 # Shared DFFViewport — import from methods/, fallback to local methods/
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.doc_tabs import DocTabsMixin
 from apps.methods.dock_panels import DockPanelsMixin
@@ -291,7 +292,7 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 16
+    def setup_ui(self): #vers 17
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -449,11 +450,9 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         self.window_closed.connect(self._save_outer_layout)
 
         # Status indicators - hidden when embedded in main window tab
-        if hasattr(self, '_setup_status_indicators'):
-            status_frame = self._setup_status_indicators()
-            if not self.standalone_mode:
-                status_frame.setVisible(False)
-            main_layout.addWidget(status_frame)
+        status_frame = self._create_status_bar()
+        main_layout.addWidget(status_frame)
+        register_statusbar(self, status_frame, docked_hide=True)
 
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()

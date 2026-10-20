@@ -1,4 +1,4 @@
-#this belongs in apps/methods/sa_path_parser.py - Version: 2
+#this belongs in apps/methods/sa_path_parser.py - Version: 3
 # X-Seti - Aug 14 2026 - IMG Factory 1.6 - SA Path Node Parser (nodesXX.dat)
 
 """
@@ -14,9 +14,10 @@ from typing import Dict, List, Optional
 
 
 ##Methods list -
+# build_rrr #vers 1
 # find_nodes_dat_in_img #vers 1
-# load_carrec_img #vers 1
-# parse_rrr #vers 1
+# load_carrec_img #vers 2
+# parse_rrr #vers 2
 # load_all_nodes_dat_from_dir #vers 1
 # load_nodes_dat #vers 1
 # load_nodes_dat_from_img_entry #vers 1
@@ -393,7 +394,7 @@ def load_nodes_dat_from_img_entry(img, entry, area_id: int) -> Optional[SAPathFi
 
 
 @dataclass
-class CarRecFrame: #vers 1
+class CarRecFrame: #vers 2
     """One 32-byte frame of an SA car recording (.rrr in carrec.img)."""
     time_ms: int
     vel_x: float
@@ -410,9 +411,11 @@ class CarRecFrame: #vers 1
     pos_z: float
     source_file: str = ""
     frame_index: int = 0
+    source_path: str = ""          # loose .rrr path, or 'carrec.img:name.rrr'
+    raw: bytes = b""               # original 32 bytes (unused bytes kept on save)
 
 
-def parse_rrr(data: bytes, source: str = "") -> List[CarRecFrame]: #vers 1
+def parse_rrr(data: bytes, source: str = "", source_path: str = "") -> List[CarRecFrame]: #vers 2
     """Headerless run of 32-byte frames (time, velocity, axes, pedals, position)."""
     frames = []
     for i in range(len(data) // 32):
@@ -425,11 +428,26 @@ def parse_rrr(data: bytes, source: str = "") -> List[CarRecFrame]: #vers 1
         frames.append(CarRecFrame(t, vx / 16383.5, vy / 16383.5, vz / 16383.5,
                                   (rx / 127.0, ry / 127.0, rz / 127.0), (tx / 127.0, ty / 127.0, tz / 127.0),
                                   steer / 20.0, gas / 100.0, brake / 100.0, bool(hb),
-                                  px, py, pz, source, i))
+                                  px, py, pz, source, i, source_path, bytes(data[o:o + 32])))
     return frames
 
 
-def load_carrec_img(img_path: str) -> Dict[str, List[CarRecFrame]]: #vers 1
+def build_rrr(frames: List[CarRecFrame]) -> bytes: #vers 1
+    """Frames back to .rrr bytes; values rounded and clamped to their storage."""
+    def i8(v, k): return max(-128, min(127, round(v * k)))  #vers 1
+    def i16(v): return max(-32768, min(32767, round(v * 16383.5)))  #vers 1
+    out = bytearray()
+    for f in frames:
+        rec = bytearray(f.raw.ljust(32, b'\0'))
+        struct.pack_into('<ihhh', rec, 0, int(f.time_ms), i16(f.vel_x), i16(f.vel_y), i16(f.vel_z))
+        struct.pack_into('<10b', rec, 10, *(i8(v, 127) for v in f.right), *(i8(v, 127) for v in f.top),
+                         i8(f.steering, 20), i8(f.gas, 100), i8(f.brake, 100), int(bool(f.handbrake)))
+        struct.pack_into('<fff', rec, 20, f.pos_x, f.pos_y, f.pos_z)
+        out += rec
+    return bytes(out)
+
+
+def load_carrec_img(img_path: str) -> Dict[str, List[CarRecFrame]]: #vers 2
     """Every .rrr recording in an IMG (SA data/Paths/carrec.img)."""
     from apps.methods.img_core_classes import IMGFile
     arc = IMGFile(img_path)
@@ -437,5 +455,5 @@ def load_carrec_img(img_path: str) -> Dict[str, List[CarRecFrame]]: #vers 1
     out = {}
     for e in arc.entries:
         if e.name.lower().endswith('.rrr'):
-            out[e.name] = parse_rrr(arc.read_entry_data(e), e.name)
+            out[e.name] = parse_rrr(arc.read_entry_data(e), e.name, f"{img_path}:{e.name}")
     return out

@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 34
+# this belongs in apps/methods/dff_viewport.py - Version: 35
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -509,6 +509,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_fix_override = None   # per-game True/False, None = mode
         self._water2_nudge = (0.0, 0.0)
         self._radar_tex_offset = (0.0, 0.0)
+        self._radar_tex_scale = 1.0          # per-game radar layer scale
 
         # Cull zone boxes (Aug 16 2026)
         self.show_cull_boxes = False
@@ -2560,7 +2561,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             tile['tex_id'] = False
         return tile['tex_id']
 
-    def _draw_radar_tex_layer(self): #vers 3
+    def _draw_radar_tex_layer(self): #vers 4
         """V-coordinates: row 0 of the saved PNG is north (capture_
         radar_tile uses grabFramebuffer's own display-ready, already-
         correctly-oriented output), which uploads as V=0 - so V=0
@@ -2578,6 +2579,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glColor4f(1, 1, 1, 1)
         glPushMatrix()
         glTranslatef(self._radar_tex_offset[0], self._radar_tex_offset[1], 0.0)
+        glScalef(self._radar_tex_scale, self._radar_tex_scale, 1.0)
         for tile in self._radar_tex_tiles:
             tex_id = self._ensure_radar_tex_tile(tile)
             if not tex_id:
@@ -3322,6 +3324,11 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_radar_tex_offset(self, x, y): #vers 1
         """Per-game radar tile layer offset in world units."""
         self._radar_tex_offset = (float(x), float(y))
+        self.update()
+
+    def set_radar_tex_scale(self, scale): #vers 1
+        """Per-game radar tile layer scale about the world origin."""
+        self._radar_tex_scale = max(0.01, float(scale))
         self.update()
 
     def set_water2_offset_mode(self, mode): #vers 1

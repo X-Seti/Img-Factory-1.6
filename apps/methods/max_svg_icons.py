@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/depends/max_svg_icons.py - Version: 5
+#this belongs in apps/methods/max_svg_icons.py - Version: 6
 # X-Seti - June 2026 - IMG Factory 1.6 - 3ds Max-style SVG Icons for Model Workshop
 
 """
@@ -14,7 +14,7 @@ Uses the same two-tone pattern as imgfactory_svg_icons.py:
 Both are resolved by SVGIconFactory._create_icon() before rendering.
 
 Import in model_workshop.py:
-    from apps.components.Model_Editor.depends.max_svg_icons import MaxSVGIcons
+    from apps.methods.max_svg_icons import MaxSVGIcons
 """
 
 from PyQt6.QtGui import QIcon

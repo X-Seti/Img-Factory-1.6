@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 6
+#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 8
 # X-Seti - March 2026 - AI Workshop: Ollama chat interface
 # Based on COL Workshop template (col_workshop.py)
 
@@ -13,6 +13,8 @@ import os
 import json
 import requests
 import threading
+import re
+import html
 from datetime import datetime
 from pathlib import Path
 
@@ -28,17 +30,19 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from apps.methods.corner_handles import paint_corner_handles
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QListWidget, QListWidgetItem, QLabel, QPushButton, QFrame,
     QTextEdit, QLineEdit, QMessageBox, QGroupBox, QComboBox,
     QSpinBox, QTabWidget, QScrollArea, QCheckBox, QDialog,
     QFormLayout, QFontComboBox, QSlider, QDoubleSpinBox,
-    QSizePolicy, QAbstractItemView, QMenu
+    QSizePolicy, QAbstractItemView, QMenu, QFileDialog, QColorDialog
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QThread, pyqtSlot
-from PyQt6.QtGui import QFont, QIcon, QColor, QPainter, QPen, QBrush, QPainterPath, QKeySequence, QShortcut
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QThread, pyqtSlot, QTimer, QUrl
+from PyQt6.QtGui import QFont, QIcon, QColor, QPainter, QPen, QBrush, QPainterPath, QKeySequence, QShortcut, QDesktopServices, QTextCursor, QTextDocument
 from apps.methods.img_factory_settings import get_user_config_dir
+from apps.methods.titlebar_func import TitlebarMixin
 
 App_name = "AI Workshop"
 DEBUG_STANDALONE = False
@@ -157,7 +161,7 @@ def _ollama_running(base_url: str = OLLAMA_BASE_URL) -> bool:
 # Main window class
 # ---------------------------------------------------------------------------
 
-class AIWorkshop(QWidget):
+class AIWorkshop(TitlebarMixin, QWidget): #vers 2
     """AI Workshop – Ollama chat UI built from COL Workshop skeleton."""
 
     workshop_closed = pyqtSignal()
@@ -169,6 +173,7 @@ class AIWorkshop(QWidget):
 
     def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
+        from PyQt6.QtCore import QTimer
 
         self.main_window        = main_window
         self.standalone_mode    = (main_window is None)
@@ -179,6 +184,16 @@ class AIWorkshop(QWidget):
         self.current_session_index = -1
         self.worker: OllamaWorker | None = None
         self._current_response   = ""
+        self._stream_buffer = ""
+        self._stream_cursor = None  # cursor anchored in the active assistant bubble
+        self._stream_timer = QTimer(self)
+        self._stream_timer.setInterval(75)  # batch tokens to avoid a full redraw per token
+        self._stream_timer.timeout.connect(self._flush_stream_buffer)
+        self._last_assistant_response = ""
+        self.chat_user_color_key = "accent_primary"
+        self.chat_ai_color_key = "success"
+        self.download_dir = os.path.join(get_user_config_dir(), "ai_downloads")
+        os.makedirs(self.download_dir, exist_ok=True)
         self._pending_attachments: list[dict] = []  # files queued for next send
 
         # Settings
@@ -321,121 +336,35 @@ class AIWorkshop(QWidget):
 
     # --- Toolbar -----------------------------------------------------------
 
-    def _create_toolbar(self):
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(50)
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-
-        # Theme-aware icon colour
-        icon_color = self._get_icon_color()
-
-        # Settings button (standalone only — docked uses right-panel button)
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip("AI Workshop Settings")
-        self.settings_btn.setVisible(self.standalone_mode)
-        layout.addWidget(self.settings_btn)
-
-        layout.addStretch()
-
-        # AI icon + title in centre
-        title_row = QHBoxLayout()
-        title_row.setSpacing(6)
-        ai_icon_lbl = QLabel()
-        if ICONS_AVAILABLE:
-            pix = SVGIconFactory.ai_icon(20, icon_color).pixmap(20, 20)
-            ai_icon_lbl.setPixmap(pix)
-        title_row.addWidget(ai_icon_lbl)
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_row.addWidget(self.title_label)
-        layout.addLayout(title_row)
-
-        layout.addStretch()
-
-        # New session
-        self.new_session_btn = QPushButton()
-        self.new_session_btn.setFont(self.button_font)
-        self.new_session_btn.setIcon(SVGIconFactory.add_icon(20, icon_color))
-        self.new_session_btn.setText("New Session")
-        self.new_session_btn.setIconSize(QSize(20, 20))
-        self.new_session_btn.clicked.connect(self._new_session_action)
-        self.new_session_btn.setToolTip("Start a new chat session (Ctrl+N)")
+    def _titlebar_actions(self, layout): #vers 1
+        """AI titlebar: New Session, Clear."""
+        self.new_session_btn = self._tb_button('add_icon', "New Session",
+            "Start a new chat session (Ctrl+N)", self._new_session_action)
         layout.addWidget(self.new_session_btn)
-
-        # Clear chat
-        self.clear_btn = QPushButton()
-        self.clear_btn.setFont(self.button_font)
-        self.clear_btn.setIcon(SVGIconFactory.delete_icon(20, icon_color))
-        self.clear_btn.setText("Clear")
-        self.clear_btn.setIconSize(QSize(20, 20))
-        self.clear_btn.clicked.connect(self._clear_current_session)
-        self.clear_btn.setToolTip("Clear current session messages")
+        self.clear_btn = self._tb_button('delete_icon', "Clear",
+            "Clear current session messages", self._clear_current_session)
         layout.addWidget(self.clear_btn)
 
-        # Theme / Properties
-        self.properties_btn = QPushButton()
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
-        self.properties_btn.setIconSize(QSize(20, 20))
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.setToolTip("Theme Settings")
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        layout.addWidget(self.properties_btn)
+    def _titlebar_info(self): #vers 1
+        """Info button: about AI Workshop."""
+        QMessageBox.information(self, f"About {App_name}",
+            f"{App_name}\n\nOllama chat interface.\nPart of IMG Factory 1.6 - X-Seti.")
 
-        # Dock button — hidden in standalone (nothing to dock to)
-        self.dock_btn = QPushButton("D")
-        self.dock_btn.setMinimumWidth(40)
-        self.dock_btn.setMaximumWidth(40)
-        self.dock_btn.setMinimumHeight(30)
-        self.dock_btn.setToolTip("Dock into IMG Factory")
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        self.dock_btn.setVisible(not self.standalone_mode)
-        layout.addWidget(self.dock_btn)
+    def _titlebar_menu(self, menu): #vers 1
+        """Menu drop-down: session and settings actions."""
+        menu.addAction("New Session", self._new_session_action)
+        menu.addAction("Clear Session", self._clear_current_session)
+        menu.addSeparator()
+        menu.addAction("Settings...", self._show_workshop_settings)
+        menu.addAction("Theme...", self._launch_theme_settings)
 
-        # Tear-off button — only when docked
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton("T")
-            self.tearoff_btn.setMinimumWidth(40)
-            self.tearoff_btn.setMaximumWidth(40)
-            self.tearoff_btn.setMinimumHeight(30)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("Tear off to standalone window")
-            layout.addWidget(self.tearoff_btn)
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
 
-        # Window controls (standalone only)
-        if self.standalone_mode:
-            for attr, icon_method, slot, tip in [
-                ('minimize_btn', 'minimize_icon', self.showMinimized,   "Minimize"),
-                ('maximize_btn', 'maximize_icon', self._toggle_maximize, "Maximize"),
-                ('close_btn',    'close_icon',    self.close,            "Close"),
-            ]:
-                btn = QPushButton()
-                btn.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
-                btn.setIconSize(QSize(20, 20))
-                btn.setMinimumWidth(40); btn.setMaximumWidth(40); btn.setMinimumHeight(30)
-                btn.clicked.connect(slot)
-                btn.setToolTip(tip)
-                setattr(self, attr, btn)
-                layout.addWidget(btn)
-
-        return self.toolbar
+    def _titlebar_title_icon(self): #vers 1
+        """AI icon left of the title."""
+        return 'ai_icon' if ICONS_AVAILABLE else None
 
 
 
@@ -489,6 +418,12 @@ class AIWorkshop(QWidget):
         export_btn.clicked.connect(self._export_current_session)
         btn_row.addWidget(export_btn)
 
+        downloads_btn = QPushButton("Downloads")
+        downloads_btn.setFont(self.button_font)
+        downloads_btn.setToolTip("Save code or files created in assistant replies")
+        downloads_btn.clicked.connect(self._show_downloads)
+        btn_row.addWidget(downloads_btn)
+
         del_btn = QPushButton("Delete")
         del_btn.setFont(self.button_font)
         del_btn.setToolTip("Delete current session")
@@ -519,6 +454,7 @@ class AIWorkshop(QWidget):
         self.chat_display.document().setDefaultFont(self.chat_font)
         self.chat_display.setPlaceholderText("Messages will appear here…")
         self.chat_display.installEventFilter(self)
+        self.chat_display.setAcceptDrops(True)
         layout.addWidget(self.chat_display, stretch=1)
 
         # Typing indicator
@@ -547,6 +483,7 @@ class AIWorkshop(QWidget):
         self.input_box.setMaximumHeight(80)
         self.input_box.setPlaceholderText("Type your message… (Ctrl+Enter to send)")
         self.input_box.installEventFilter(self)
+        self.input_box.setAcceptDrops(True)
         input_layout.addWidget(self.input_box, stretch=1)
 
         btn_col = QVBoxLayout()
@@ -1084,6 +1021,91 @@ class AIWorkshop(QWidget):
         self.attachments_frame.setVisible(bool(self._pending_attachments))
 
     # -----------------------------------------------------------------------
+    def _handle_file_drop(self, urls):
+        """Attach dropped local files to the next message."""
+        from apps.components.Ai_Workshop.depends.file_attachments import read_local_file
+        added = 0
+        for url in urls:
+            if not url.isLocalFile():
+                continue
+            path = url.toLocalFile()
+            if not os.path.isfile(path):
+                continue
+            try:
+                self._add_attachment(read_local_file(path))
+                added += 1
+            except Exception as exc:
+                QMessageBox.warning(self, "Attachment Error", f"Could not attach {path}: {exc}")
+        if added:
+            self.input_box.setFocus()
+            self.typing_label.setText(f"{added} file(s) ready to attach")
+
+    def _show_downloads(self):
+        """List code blocks in assistant replies and let the user save them as files."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem
+        dialog = QDialog(self)
+        dialog.setWindowTitle("AI Workshop Downloads")
+        dialog.resize(720, 480)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Select a code block from an AI reply, then save it as a file."))
+        items = QListWidget()
+        layout.addWidget(items, 1)
+        extensions = {"python": "py", "py": "py", "bash": "sh", "sh": "sh", "json": "json",
+                      "javascript": "js", "js": "js", "typescript": "ts", "html": "html", "css": "css",
+                      "xml": "xml", "yaml": "yml", "yml": "yml", "toml": "toml", "sql": "sql",
+                      "markdown": "md", "md": "md", "text": "txt", "txt": "txt", "ini": "ini",
+                      "c": "c", "cpp": "cpp", "c++": "cpp", "java": "java", "rust": "rs", "go": "go"}
+        if 0 <= self.current_session_index < len(self.sessions):
+            messages = self.sessions[self.current_session_index].get("messages", [])
+            for message_index, message in enumerate(messages):
+                if message.get("role") != "assistant":
+                    continue
+                matches = re.finditer(r"```([^\n`]*)\n(.*?)```", message.get("content", ""), re.S)
+                for block_index, match in enumerate(matches, 1):
+                    language = match.group(1).strip().split()[0].lower() if match.group(1).strip() else "txt"
+                    body = match.group(2).rstrip() + "\n"
+                    filename = f"assistant_message_{message_index + 1}_block_{block_index}.{extensions.get(language, 'txt')}"
+                    item = QListWidgetItem(f"{filename} — {language} ({len(body)} characters)")
+                    item.setData(Qt.ItemDataRole.UserRole, (filename, body))
+                    items.addItem(item)
+        if items.count() == 0:
+            items.addItem("No fenced code blocks found in this session's AI replies.")
+        buttons = QHBoxLayout()
+        save_btn = QPushButton("Save Selected As…")
+        folder_btn = QPushButton("Open Downloads Folder")
+        close_btn = QPushButton("Close")
+        buttons.addWidget(save_btn)
+        buttons.addWidget(folder_btn)
+        buttons.addStretch()
+        buttons.addWidget(close_btn)
+        layout.addLayout(buttons)
+
+        def save_selected():
+            item = items.currentItem()
+            data = item.data(Qt.ItemDataRole.UserRole) if item else None
+            if not isinstance(data, tuple):
+                return
+            filename, content = data
+            os.makedirs(self.download_dir, exist_ok=True)
+            path, _ = QFileDialog.getSaveFileName(dialog, "Save AI-created file", os.path.join(self.download_dir, filename), "All Files (*)")
+            if not path:
+                return
+            try:
+                with open(path, "w", encoding="utf-8", newline="") as handle:
+                    handle.write(content)
+                QMessageBox.information(dialog, "Download Saved", f"Saved file to:\n{path}")
+            except OSError as exc:
+                QMessageBox.warning(dialog, "Save Failed", str(exc))
+
+        def open_folder():
+            os.makedirs(self.download_dir, exist_ok=True)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(self.download_dir))
+
+        save_btn.clicked.connect(save_selected)
+        folder_btn.clicked.connect(open_folder)
+        close_btn.clicked.connect(dialog.accept)
+        dialog.exec()
+
     # Backup helper
     # -----------------------------------------------------------------------
 
@@ -1201,6 +1223,7 @@ class AIWorkshop(QWidget):
         # Add placeholder to session so _append_bubble can index it
         session["messages"].append({"role": "assistant", "content": ""})
         self._append_bubble("assistant", "")
+        self._begin_incremental_stream()
 
         self.worker = OllamaWorker(model, api_messages, base_url,
                                    self.temperature, self.max_tokens)
@@ -1210,12 +1233,76 @@ class AIWorkshop(QWidget):
         self.worker.start()
 
     def _on_token(self, token: str):
+        """Buffer streamed tokens and refresh at a steady, readable cadence."""
         self._current_response += token
-        # Update the last assistant bubble in-place
-        cursor = self.chat_display.textCursor()
-        html = self.chat_display.toHtml()
-        # Simple approach: replace last placeholder with growing response
-        self._refresh_last_assistant_bubble(self._current_response)
+        self._stream_buffer += token
+        if not self._stream_timer.isActive():
+            self._stream_timer.start()
+
+    def _begin_incremental_stream(self):
+        """Anchor a QTextCursor inside the new assistant bubble's content cell.
+
+        Streaming updates can then append text without replacing the document,
+        which avoids QTextEdit's setHtml/layout/scrollbar reset cycle.
+        """
+        self._stream_cursor = None
+        if not hasattr(self, "chat_display"):
+            return
+        doc = self.chat_display.document()
+        finder = QTextCursor(doc)
+        finder.movePosition(QTextCursor.MoveOperation.End)
+        label = getattr(self, "ai_name", "AI") or "AI"
+        found = doc.find(label, finder, QTextDocument.FindFlag.FindBackward)
+        if found.isNull():
+            return
+        table = found.currentTable()
+        if table is None or table.rows() < 2 or table.columns() < 2:
+            return
+        # The message HTML uses row 1 / column 1 for the content cell.
+        self._stream_cursor = table.cellAt(1, 1).lastCursorPosition()
+
+    def _flush_stream_buffer(self):
+        """Append buffered output in place, without rebuilding the chat HTML."""
+        if not self._stream_buffer:
+            self._stream_timer.stop()
+            return
+        chunk = self._stream_buffer
+        self._stream_buffer = ""
+
+        # Keep the in-memory conversation in sync with what has streamed.
+        if 0 <= self.current_session_index < len(self.sessions):
+            messages = self.sessions[self.current_session_index].get("messages", [])
+            if messages and messages[-1].get("role") == "assistant":
+                messages[-1]["content"] = self._current_response
+
+        cursor = self._stream_cursor
+        if cursor is None or cursor.isNull():
+            # Defensive fallback if the active table/cell could not be located.
+            self._refresh_last_assistant_bubble(self._current_response)
+            self._begin_incremental_stream()
+            return
+
+        scrollbar = self.chat_display.verticalScrollBar()
+        old_value = scrollbar.value()
+        was_near_bottom = scrollbar.maximum() - old_value <= 40
+
+        # Insert explicit HTML line breaks so streamed newlines retain the same
+        # compact spacing as the original bubble's <br> rendering.
+        pieces = chunk.split("\n")
+        for index, piece in enumerate(pieces):
+            if piece:
+                cursor.insertText(piece)
+            if index < len(pieces) - 1:
+                cursor.insertHtml("<br>")
+        self._stream_cursor = cursor
+
+        # Qt updates the document layout after insertion. Scroll only when the
+        # reader was already following the newest message; otherwise preserve
+        # their reading position.
+        if was_near_bottom:
+            QTimer.singleShot(0, lambda bar=scrollbar: bar.setValue(bar.maximum()))
+        else:
+            scrollbar.setValue(min(old_value, scrollbar.maximum()))
 
     def _cleanup_worker(self):
         """Safely stop and wait for worker thread to finish."""
@@ -1230,6 +1317,11 @@ class AIWorkshop(QWidget):
             self.worker = None
 
     def _on_response_done(self, full_response: str):
+        # Flush any final buffered chunk before stopping the stream timer.
+        self._flush_stream_buffer()
+        self._stream_timer.stop()
+        self._stream_buffer = ""
+        self._stream_cursor = None
         session = self.sessions[self.current_session_index]
         # Update the placeholder message that was added when streaming started
         msgs = session.get("messages", [])
@@ -1237,7 +1329,10 @@ class AIWorkshop(QWidget):
             msgs[-1]["content"] = full_response
         else:
             session["messages"].append({"role": "assistant", "content": full_response})
-        self._refresh_last_assistant_bubble(full_response)
+        # Normally the incremental document already contains this exact response.
+        # Rebuild only if the worker's final payload differs from streamed tokens.
+        if full_response != self._current_response:
+            self._refresh_last_assistant_bubble(full_response)
         self.send_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.typing_label.setText("")
@@ -1248,6 +1343,9 @@ class AIWorkshop(QWidget):
             self.worker = None
 
     def _on_error(self, error_msg: str):
+        self._stream_timer.stop()
+        self._stream_buffer = ""
+        self._stream_cursor = None
         session = self.sessions[self.current_session_index]
         # Remove empty assistant placeholder if present
         msgs = session.get("messages", [])
@@ -1263,6 +1361,10 @@ class AIWorkshop(QWidget):
             self.worker = None
 
     def _stop_generation(self):
+        self._flush_stream_buffer()
+        self._stream_timer.stop()
+        self._stream_buffer = ""
+        self._stream_cursor = None
         if self.worker and self.worker.isRunning():
             self._cleanup_worker()
             self.typing_label.setText("Stopped.")
@@ -1274,36 +1376,35 @@ class AIWorkshop(QWidget):
     # -----------------------------------------------------------------------
 
     def _bubble_colors(self, role: str, index: int = 0) -> tuple:
-        """Return (bg, fg, label_fg, label) using theme alternating row pattern."""
+        """Return bubble colours from the active theme palette, never fixed RGB values."""
         colors = self.app_settings.get_theme_colors() if self.app_settings else {}
+        palette = QApplication.palette()
+        base = colors.get("bg_secondary") or colors.get("bg_primary") or palette.color(palette.ColorRole.Base).name()
+        text = colors.get("text_primary") or palette.color(palette.ColorRole.Text).name()
+        label_col = colors.get("text_secondary") or text
+        role_key = self.chat_user_color_key if role == "user" else self.chat_ai_color_key
+        if role == "error":
+            role_key = "error"
+        accent = colors.get(role_key) or colors.get("accent_primary") or label_col
+        row_bg = colors.get("table_row_even" if index % 2 == 0 else "table_row_odd") or base
 
-        row_even  = colors.get('table_row_even', colors.get('bg_secondary',  '#252525'))
-        row_odd   = colors.get('table_row_odd',  colors.get('alternate_row', '#2a2a2a'))
-        accent    = colors.get('accent_primary',  '#1976d2')
-        text      = colors.get('text_primary',    '#e0e0e0')
-        success   = colors.get('success',         '#4caf50')
-        error_col = colors.get('error',           '#f44336')
-        label_col = colors.get('text_secondary',  '#aaaaaa')
-
-        row_bg = row_even if index % 2 == 0 else row_odd
-
-        def _tint(hex_col: str, factor: float) -> str:
+        def tint(hex_col: str, factor: float) -> str:
             try:
-                c = QColor(hex_col)
-                b = QColor(row_bg)
-                r  = int(b.red()   * (1 - factor) + c.red()   * factor)
-                g  = int(b.green() * (1 - factor) + c.green() * factor)
-                bl = int(b.blue()  * (1 - factor) + c.blue()  * factor)
-                return QColor(r, g, bl).name()
+                source, background = QColor(hex_col), QColor(row_bg)
+                if not source.isValid() or not background.isValid():
+                    return row_bg
+                mix = lambda a, b: round(a * (1 - factor) + b * factor)
+                return QColor(mix(background.red(), source.red()),
+                              mix(background.green(), source.green()),
+                              mix(background.blue(), source.blue())).name()
             except Exception:
                 return row_bg
 
-        bubble_map = {
-            "user":      (_tint(accent,    0.15), text, accent,    getattr(self, 'user_name', 'Me')),
-            "assistant": (_tint(success,   0.12), text, success,   getattr(self, 'ai_name',   'AI')),
-            "error":     (_tint(error_col, 0.20), text, error_col, "Error"),
-        }
-        return bubble_map.get(role, (row_bg, text, label_col, role.title()))
+        label = (getattr(self, 'user_name', 'Me') if role == 'user' else
+                 getattr(self, 'ai_name', 'AI') if role == 'assistant' else
+                 'Error' if role == 'error' else role.title())
+        factor = 0.18 if role == 'user' else 0.16 if role == 'assistant' else 0.22
+        return tint(accent, factor), text, accent if role in ('user', 'assistant', 'error') else label_col, label
 
     def _make_bubble_html(self, role: str, content: str, idx: int,
                            font_size: int, font_family: str,
@@ -1312,15 +1413,11 @@ class AIWorkshop(QWidget):
         Style mirrors the QGroupBox header — label sits in the top border line.
         """
         bg, fg, label_fg, label = self._bubble_colors(role, idx)
-        border_col = colors.get("border",        "#3a3a3a")
-        bg_base    = colors.get("bg_primary",     "#1e1e1e")
-        meta_col   = colors.get("text_secondary", "#888888")
+        border_col = colors.get("border", colors.get("border_primary", colors.get("text_secondary", "currentColor")))
+        bg_base    = colors.get("bg_primary", QApplication.palette().color(QApplication.palette().ColorRole.Base).name())
+        meta_col   = colors.get("text_secondary", QApplication.palette().color(QApplication.palette().ColorRole.Text).name())
 
-        escaped = (content
-                   .replace("&", "&amp;")
-                   .replace("<", "&lt;")
-                   .replace(">", "&gt;")
-                   .replace("\n", "<br>"))
+        escaped = html.escape(content).replace("\n", "<br>")
 
         # Build header label text
         header_parts = []
@@ -1388,7 +1485,7 @@ class AIWorkshop(QWidget):
     def _build_full_html(self, messages: list) -> str:
         """Build the complete HTML document for the chat display."""
         colors    = self.app_settings.get_theme_colors() if self.app_settings else {}
-        bg_page   = colors.get("bg_primary", "#1e1e1e")
+        bg_page   = colors.get("bg_primary", QApplication.palette().color(QApplication.palette().ColorRole.Base).name())
         font_size = self.chat_font.pointSize()
         font_fam  = self.chat_font.family()
 
@@ -1446,10 +1543,22 @@ class AIWorkshop(QWidget):
 
         self.chat_display.document().setDefaultFont(self.chat_font)
         html = self._build_full_html(messages)
-        # Preserve scroll position — scroll to bottom after set
+        # Suppress intermediate paints while replacing the document. Streaming is
+        # also batched, so this happens at most once per timer interval rather
+        # than once for every Ollama token.
         sb = self.chat_display.verticalScrollBar()
-        self.chat_display.setHtml(html)
-        sb.setValue(sb.maximum())
+        was_near_bottom = sb.maximum() - sb.value() <= 40
+        old_value = sb.value()
+        self.chat_display.setUpdatesEnabled(False)
+        try:
+            self.chat_display.setHtml(html)
+        finally:
+            self.chat_display.setUpdatesEnabled(True)
+        sb = self.chat_display.verticalScrollBar()
+        target = sb.maximum() if was_near_bottom else min(old_value, sb.maximum())
+        # Defer scroll restoration until Qt has recalculated the document layout.
+        QTimer.singleShot(0, lambda bar=sb, value=target: bar.setValue(
+            bar.maximum() if was_near_bottom else min(value, bar.maximum())))
 
     def _refresh_model_list(self):
         base_url = self.url_input.text().rstrip("/") if hasattr(self, 'url_input') else OLLAMA_BASE_URL
@@ -1477,9 +1586,9 @@ class AIWorkshop(QWidget):
         base_url = self.url_input.text().rstrip("/") if hasattr(self, 'url_input') else OLLAMA_BASE_URL
         running  = _ollama_running(base_url)
         colors   = self.app_settings.get_theme_colors() if self.app_settings else {}
-        success_col = colors.get('success',        '#4caf50')
-        error_col   = colors.get('error',          '#f44336')
-        secondary   = colors.get('text_secondary', '#aaaaaa')
+        success_col = colors.get('success', colors.get('accent_primary', QApplication.palette().color(QApplication.palette().ColorRole.Highlight).name()))
+        error_col   = colors.get('error', colors.get('accent_secondary', QApplication.palette().color(QApplication.palette().ColorRole.Highlight).name()))
+        secondary   = colors.get('text_secondary', QApplication.palette().color(QApplication.palette().ColorRole.Text).name())
         if hasattr(self, 'ollama_status'):
             if running:
                 self.ollama_status.setText("● Ollama running")
@@ -1501,7 +1610,7 @@ class AIWorkshop(QWidget):
             p = self.web_config.get("port", 8080)
             display = "127.0.0.1" if h == "0.0.0.0" else h
             label.setText(f"● Running at http://{display}:{p}")
-            label.setStyleSheet(f"color: {colors.get('success', '#4caf50')};")
+            label.setStyleSheet(f"color: {colors.get('success', colors.get('accent_primary', QApplication.palette().color(QApplication.palette().ColorRole.Highlight).name()))};")
         else:
             label.setText("● Stopped")
             label.setStyleSheet(f"color: {colors.get('text_secondary', 'palette(placeholderText)')};")
@@ -1637,6 +1746,17 @@ class AIWorkshop(QWidget):
                     self._adjust_chat_size(delta)
                     return True
 
+        # Drag local files from the desktop/file manager onto either chat surface.
+        if obj in (getattr(self, 'chat_display', None), getattr(self, 'input_box', None)):
+            if event.type() == QEvent.Type.DragEnter and event.mimeData().hasUrls():
+                if any(url.isLocalFile() for url in event.mimeData().urls()):
+                    event.acceptProposedAction()
+                    return True
+            if event.type() == QEvent.Type.Drop and event.mimeData().hasUrls():
+                self._handle_file_drop(event.mimeData().urls())
+                event.acceptProposedAction()
+                return True
+
         return super().eventFilter(obj, event)
 
     # -----------------------------------------------------------------------
@@ -1723,7 +1843,7 @@ class AIWorkshop(QWidget):
             "One rule per line — appended to the system prompt as a rules list.\n"
             "Example:  - Always reply in the language the user writes in"
         )
-        rules_hint.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        rules_hint.setStyleSheet("font-size: 10px; font-style: italic;")
         rules_hint.setWordWrap(True)
         rules_vl.addWidget(rules_hint)
 
@@ -1809,7 +1929,7 @@ class AIWorkshop(QWidget):
         ssh_layout.addWidget(test_btn)
 
         paramiko_note = QLabel("Requires: pip install paramiko --break-system-packages")
-        paramiko_note.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        paramiko_note.setStyleSheet("font-size: 10px; font-style: italic;")
         ssh_layout.addWidget(paramiko_note)
         ssh_layout.addStretch()
         tabs.addTab(ssh_tab, "SSH")
@@ -1888,7 +2008,7 @@ class AIWorkshop(QWidget):
             "Requires: pip install fastapi uvicorn httpx python-multipart --break-system-packages\n"
             "Access from any browser at http://HOST:PORT"
         )
-        web_note.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        web_note.setStyleSheet("font-size: 10px; font-style: italic;")
         web_note.setWordWrap(True)
         web_layout.addWidget(web_note)
         web_layout.addStretch()
@@ -1939,7 +2059,7 @@ class AIWorkshop(QWidget):
 
         # Live preview
         preview_label = QLabel()
-        preview_label.setStyleSheet("color: #888; font-size: 11px; font-style: italic;")
+        preview_label.setStyleSheet("font-size: 11px; font-style: italic;")
 
         def _update_preview():
             from datetime import datetime
@@ -1955,6 +2075,29 @@ class AIWorkshop(QWidget):
         chat_disp_layout.addLayout(date_form)
 
         disp_layout.addWidget(chat_disp_group)
+
+        # Bubble colour roles are selected from the current IMG Factory theme palette.
+        bubble_group = QGroupBox("Theme-aware Bubble Colours")
+        bubble_form = QFormLayout(bubble_group)
+        theme_colors = self.app_settings.get_theme_colors() if self.app_settings else {}
+        palette_keys = [key for key, value in theme_colors.items()
+                        if isinstance(value, str) and QColor(value).isValid()]
+        preferred = ["accent_primary", "accent_secondary", "success", "info", "warning",
+                     "text_secondary", "bg_secondary", "bg_primary"]
+        palette_keys = list(dict.fromkeys([k for k in preferred if k in palette_keys] + palette_keys))
+        if not palette_keys:
+            palette_keys = ["accent_primary", "success", "info", "warning", "text_secondary", "bg_secondary"]
+        user_color_combo = QComboBox()
+        user_color_combo.addItems(palette_keys)
+        user_color_combo.setCurrentText(self.chat_user_color_key if self.chat_user_color_key in palette_keys else palette_keys[0])
+        user_color_combo.setToolTip("Choose a colour role from the active application theme")
+        bubble_form.addRow("User bubble accent:", user_color_combo)
+        ai_color_combo = QComboBox()
+        ai_color_combo.addItems(palette_keys)
+        ai_color_combo.setCurrentText(self.chat_ai_color_key if self.chat_ai_color_key in palette_keys else ("success" if "success" in palette_keys else palette_keys[0]))
+        ai_color_combo.setToolTip("Choose a colour role from the active application theme")
+        bubble_form.addRow("AI bubble accent:", ai_color_combo)
+        disp_layout.addWidget(bubble_group)
         disp_layout.addStretch()
         tabs.addTab(disp_tab, "Display")
 
@@ -1993,6 +2136,8 @@ class AIWorkshop(QWidget):
             self.user_name         = user_name_edit.text().strip() or "Me"
             self.ai_name           = ai_name_edit.text().strip()   or "AI"
             self.date_format       = date_fmt_edit.text().strip()  or "%H:%M:%S"
+            self.chat_user_color_key = user_color_combo.currentText()
+            self.chat_ai_color_key = ai_color_combo.currentText()
             # Update AI name in model combo label if a model is selected
             if hasattr(self, 'model_combo') and self.model_combo.currentText():
                 if not ai_name_edit.text().strip():
@@ -2022,7 +2167,7 @@ class AIWorkshop(QWidget):
                 self.setStyleSheet(app_settings.get_stylesheet())
                 # Apply theme colours to status labels
                 colors = app_settings.get_theme_colors()
-                secondary = colors.get('text_secondary', '#aaaaaa')
+                secondary = colors.get('text_secondary', QApplication.palette().color(QApplication.palette().ColorRole.Text).name())
                 if hasattr(self, 'typing_label'):
                     self.typing_label.setStyleSheet(
                         f"color: {secondary}; font-style: italic;")
@@ -2078,8 +2223,8 @@ class AIWorkshop(QWidget):
     def _get_icon_color(self):
         if self.app_settings:
             colors = self.app_settings.get_theme_colors()
-            return colors.get('text_primary', '#ffffff')
-        return '#ffffff'
+            return colors.get('text_primary', QApplication.palette().color(QApplication.palette().ColorRole.Text).name())
+        return QApplication.palette().color(QApplication.palette().ColorRole.Text).name()
 
     def toggle_dock_mode(self):
         if self.is_docked:
@@ -2242,34 +2387,10 @@ class AIWorkshop(QWidget):
             if nw >= min_w and nh >= min_h:
                 self.setGeometry(nx, ny, nw, nh)
 
-    def paintEvent(self, event): #vers 1
+    def paintEvent(self, event): #vers 2
+        """Corner handles, COL style (methods/corner_handles.py)."""
         super().paintEvent(event)
-        if not self.standalone_mode:           # docked: no corner handles
-            return
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if self.app_settings:
-            colors = self.app_settings.get_theme_colors()
-            accent = QColor(colors.get('accent_primary', '#1976d2'))
-        else:
-            accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(100, 150, 255)
-        accent.setAlpha(180)
-        hover = QColor(accent); hover.setAlpha(255)
-        w, h, size = self.width(), self.height(), self.corner_size
-        corners = {
-            'top-left':     [(0,0),(size,0),(0,size)],
-            'top-right':    [(w,0),(w-size,0),(w,size)],
-            'bottom-left':  [(0,h),(size,h),(0,h-size)],
-            'bottom-right': [(w,h),(w-size,h),(w,h-size)],
-        }
-        for name, pts in corners.items():
-            path = QPainterPath()
-            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
-            path.closeSubpath()
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(hover if self.hover_corner == name else accent))
-            painter.drawPath(path)
-        painter.end()
+        paint_corner_handles(self)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

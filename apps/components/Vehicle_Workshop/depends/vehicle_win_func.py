@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_win_func.py - Version: 3
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_win_func.py - Version: 4
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop window base
 
 """
@@ -14,15 +14,6 @@ Settings store, corner overlay and GUIWorkshop window base.
 # save
 # set
 
-##class _CornerOverlay: -
-# __init__
-# _get_ui_color
-# _update_mask
-# paintEvent
-# resizeEvent
-# setGeometry
-# update_state
-
 ##class GUIWorkshop: -
 # __init__
 # _dock_to_main
@@ -33,8 +24,6 @@ Settings store, corner overlay and GUIWorkshop window base.
 # _is_on_draggable_area
 # _load_fonts_from_settings
 # _load_game_vehicle_img
-# _refresh_corner_overlay
-# _setup_corner_overlay
 # _setup_shortcuts
 # _toggle_maximize
 # _undock_from_main
@@ -56,6 +45,7 @@ from PyQt6.QtCore import QPoint, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import (QColor, QFont, QKeySequence, QPainter, QPolygon, QShortcut)
 from PyQt6.QtWidgets import QComboBox, QPushButton, QWidget
 
+from apps.methods.corner_handles import paint_corner_handles
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.components.Vehicle_Workshop.depends.vehicle_common_func import (
     APPSETTINGS_AVAILABLE, AppSettings, SVGIconFactory, ToolMenuMixin, config_key)
@@ -133,80 +123,6 @@ class WorkshopSettings:
                 if Path(p).exists()]
 
 
-class _CornerOverlay(QWidget):
-    """Transparent overlay that draws accent-coloured resize triangles.
-    Shared by all GUIWorkshop subclasses — do not modify.
-    """
-    SIZE = 20
-
-    def __init__(self, parent): #vers 1
-        super().__init__(parent)
-        for attr in [Qt.WidgetAttribute.WA_TransparentForMouseEvents,
-                     Qt.WidgetAttribute.WA_NoSystemBackground,
-                     Qt.WidgetAttribute.WA_TranslucentBackground,
-                     Qt.WidgetAttribute.WA_AlwaysStackOnTop]:
-            self.setAttribute(attr, True)
-        self.setWindowFlags(Qt.WindowType.Widget)
-        self._hover_corner = None
-        self._app_settings = getattr(parent, "app_settings", None)
-        self.setGeometry(0, 0, parent.width(), parent.height())
-        self._update_mask()
-
-
-    def _get_ui_color(self, key): #vers 2
-        """Theme QColor via shared helper."""
-        from apps.methods.ui_color import get_ui_color
-        return get_ui_color(self, key)
-
-    def _update_mask(self): #vers 1
-        from PyQt6.QtGui import QRegion
-        s = self.SIZE; w, h = self.width(), self.height()
-        region = QRegion()
-        for pts in [
-            [QPoint(0,0),   QPoint(s,0),   QPoint(0,s)],
-            [QPoint(w,0),   QPoint(w-s,0), QPoint(w,s)],
-            [QPoint(0,h),   QPoint(s,h),   QPoint(0,h-s)],
-            [QPoint(w,h),   QPoint(w-s,h), QPoint(w,h-s)],
-        ]:
-            region = region.united(QRegion(QPolygon(pts)))
-        self.setMask(region)
-
-    def update_state(self, hover_corner, app_settings): #vers 1
-        self._hover_corner = hover_corner
-        self._app_settings = app_settings
-        self.update()
-
-    def setGeometry(self, *a): #vers 1
-        super().setGeometry(*a); self._update_mask()
-
-    def resizeEvent(self, ev): #vers 1
-        super().resizeEvent(ev); self._update_mask()
-
-    def paintEvent(self, ev): #vers 1
-        s = self.SIZE
-        try:
-            accent = QColor(
-                self._app_settings.get_theme_colors()
-                    .get("accent_primary", "#4682FF"))
-        except Exception:
-            accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70,130,255)
-        accent.setAlpha(200)
-        hc = QColor(accent); hc.setAlpha(255)
-        w, h = self.width(), self.height()
-        corners = {
-            "top-left":     [(0,0),   (s,0),   (0,s)],
-            "top-right":    [(w,0),   (w-s,0), (w,s)],
-            "bottom-left":  [(0,h),   (s,h),   (0,h-s)],
-            "bottom-right": [(w,h),   (w-s,h), (w,h-s)],
-        }
-        p = QPainter(self)
-        for name, pts in corners.items():
-            p.setBrush(hc if name == self._hover_corner else accent)
-            p.setPen(Qt.PenStyle.NoPen)
-            p.drawPolygon(QPolygon([QPoint(x, y) for x, y in pts]))
-        p.end()
-
-
 class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
                   ToolMenuMixin, QWidget):
     """Reusable workshop base.  Subclass this, override App_name/config_key
@@ -242,8 +158,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self.button_display_mode = "both"
 
         # Margins / spacing (consistent across all workshops)
-        self.contmergina = 1; self.contmerginb = 1
-        self.contmerginc = 1; self.contmergind = 1; self.setspacing = 2
+        self.contmergina = 5; self.contmerginb = 5          # COL corner strip
+        self.contmerginc = 5; self.contmergind = 5; self.setspacing = 2
         self.panelmergina = 5; self.panelmerginb = 5
         self.panelmerginc = 5; self.panelmergind = 5
         self.tabmerginsa  = 2; self.tabmerginsb  = 2
@@ -478,15 +394,13 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self.show()
         self.raise_()
 
-    def _dock_to_main(self): #vers 1
+    def _dock_to_main(self): #vers 2
         """Return a torn-off workshop to its IMG Factory tab."""
         from apps.methods.dock_panels import redock_to_tab
         self.is_docked = True
         if not redock_to_tab(self):          # tab gone: stay a window
             self.is_docked = False
             return
-        if getattr(self, '_corner_overlay', None) is not None:
-            self._corner_overlay.hide()
 
 
     def mouseReleaseEvent(self, event): #Vers 2  #vers 1
@@ -529,42 +443,14 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
                 self.setGeometry(nx, ny, nw, nh)
 
 
-    def paintEvent(self, event): #Vers 2  #vers 1
+    def paintEvent(self, event): #vers 2
+        """Corner handles, COL style (methods/corner_handles.py)."""
         super().paintEvent(event)
-        # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
+        paint_corner_handles(self)
 
-    def _setup_corner_overlay(self): #vers 5
-        """Create or refresh the corner resize overlay."""
-        if self.is_docked:
-            return
-        # Destroy stale overlay if window was resized before it was created
-        existing = getattr(self, '_corner_overlay', None)
-        if existing is not None:
-            existing.setGeometry(0, 0, self.width(), self.height())
-            existing.raise_()
-            existing.show()
-            existing.update()
-            return
-        overlay = _CornerOverlay(self)
-        self._corner_overlay = overlay
-        overlay.setGeometry(0, 0, self.width(), self.height())
-        overlay.show()
-        overlay.raise_()
-
-    def _refresh_corner_overlay(self): #vers 1
-        if hasattr(self, '_corner_overlay'):
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.update_state(
-                getattr(self, 'hover_corner', None),
-                self.app_settings)
-            self._corner_overlay.raise_()
-
-    def showEvent(self, event): #vers 4
-        """Window: corner overlay. In IMG Factory: empty list loads the game's models IMG."""
+    def showEvent(self, event): #vers 5
+        """In IMG Factory: empty list loads the game's models IMG."""
         super().showEvent(event)
-        if not self.is_docked:
-            # Small delay ensures window geometry is finalised
-            QTimer.singleShot(150, self._setup_corner_overlay)
         if not self.standalone_mode and not self._img_list.count() and getattr(self, '_current_img', None) is None:
             self._load_game_vehicle_img()
 
@@ -580,10 +466,9 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         if name:
             self.load_img(game_img(self, os.path.join(models, name)))
 
-    def resizeEvent(self, event): #vers 2
+    def resizeEvent(self, event): #vers 3
         super().resizeEvent(event)
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
-        self._refresh_corner_overlay()
 
     def closeEvent(self, event): #Vers 3  #vers 1
         # Stop any running timers before widget is destroyed

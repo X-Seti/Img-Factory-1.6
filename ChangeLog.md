@@ -1,6 +1,19 @@
 #this belongs in root /ChangeLog.md - Version: 260
 
 
+- Oct 20 2026 - Path Workshop: SA car recordings editable - frame fields, drag, delete frame, shift/rotate/re-time, save into carrec.img (entry backup) or .rrr.
+- Oct 20 2026 - Model Workshop: Settings Apply crashed (format_combo not in that dialog); export format line removed there.
+- Oct 20 2026 - Deleted unused methods/txd_platform_pc.py (duplicate of txd_reader), main and Model-Workshop.
+- Oct 20 2026 - Map model_mesh_editor.py (unused old copy of COL col_mesh_editor, bad Vector3 import) moved to _to_delete in main, Map-workshop, Model-Workshop.
+- Oct 20 2026 - New methods/statusbar_func.py: per-workshop Show status bar (Settings > Display) for COL, Model, Map, Path, Radar, Model Viewer. COL/Model status bar now built.
+- Oct 20 2026 - Model Viewer: shared titlebar (Menu, Settings, Info, Theme), Tools ribbon removed (ribbon layout v2), titlebar shown docked too.
+- Oct 20 2026 - TXD, Asset: removed status bar resize-grip icon; window corners handle resizing, status bar can be toggled later.
+- Oct 20 2026 - New methods/corner_handles.py: COL style corner handles for all workshops and IMG Factory; overlay classes removed, 5px window margin.
+- Oct 20 2026 - Path Workshop corner handles painted like COL (under content, 5px margin); _CornerOverlay removed from path_win_func.
+- Oct 20 2026 - Map Workshop: radar tile layer scale per game (Radar/Water Alignment, radar_settings.json radar_scale) for SOL. dff_viewport set_radar_tex_scale.
+- Oct 20 2026 - Map/Model depends cleanup: 81 unused copies to _to_delete/. audioparser (Map version), model_cache, max_icon_set, max_svg_icons moved to methods/. Standalones get missing methods/core files.
+- Oct 20 2026 - New methods/titlebar_func.py TitlebarMixin: one titlebar for all workshops (COL/TXD layout, hooks for extras). GUIWorkshop, COL, TXD, Model, Map, Path, Radar, Vehicle, Asset, AI, DP5 and Model Viewer converted; icons mode shows icon-only buttons.
+- Oct 20 2026 - app_settings v88: _titlebars finds QWidget titlebars (IMG Factory main), so panel image paints there; strength set by Titlebar opacity.
 - Oct 20 2026 - Panel image limited to some areas: AppPanelEffect keeps widget wrappers alive (tint attrs lost on GC). IMG Factory applies effects like Settings Apply on start and new workshop tabs.
 - Oct 20 2026: app_settings v86: panel image Titlebar option - panels and titlebar / panels only / titlebar only; workshop top bars (COL/TXD/Model/Map/GUIWorkshop) treated alike.
 
@@ -165,15 +178,14 @@
 - Viewport: already-uploaded textures skipped before reading pixels (DXT textures were CPU-decoded on every refresh; SA load slow).
 
 ## TODO (next session, from Oct 12 2026)
-- Panel image mode 5 (Across window): titlebar no longer painted, full window. Check _titlebars / tb_mode 0 path after wrapper fix.
-- SA car recordings (.rrr): edit / re-time frames in Path Workshop and save back into carrec.img (currently view only).
+- Exit crash (sip cleanup_on_exit segfault, ~1 in 6 closes) in TXD/Path standalone; PyQt6 has no sip.setdestroyonexit, needs another fix.
+- IMG Factory last: titlebar (TitlebarMixin + Tool menu, RW Ref, taskbar, AI hooks), ribbons, docked panes, status bar - same treatment as workshops.
 - LCS/VCS game.dtz: read and write back (paths first, then objects/instances/water). Path Workshop shows dtz paths view-only now.
 - Emojis in Model Workshop log/print strings (~280): Keith removing.
 - Rebuilt MDL/WDR/WFT meshes untested in game; skinned MDL rebuild (face/vertex changes on peds) to do. DFF save: SA night colours / skin rebuild.
 - Map Workshop: Bully world (.ipb placements, Bully dat). 1 of 1118 Bully NFT fails.
 - Format audit: TXD/Model/COL Workshops open every format.
 - Map Workshop: water object editing (gauge shown, editing to do). Path Workshop: draw path nodes (paint_paths needs world_to_screen).
-- methods/txd_platform_pc.py unused, duplicate of txd_reader: suggest removal.
 - Staging rule: copy files to a new outputs/cNNNNNN folder per commit (same name sends stale cache).
 - Low priority: GTA IV image formats (TODO_bugs ivCellConverter, ivXenonConverter, retrevnoCnoneXvi samples).
 - Low priority: re-sync all standalone repos (Col, DP5, Hex, Map, Model-Viewer, Model, Paths, Radar, Timecyc, Txd, Vehicle, Water, Zon) from main, ready for Windows exe builds.

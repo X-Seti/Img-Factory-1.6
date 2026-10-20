@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_setup_ui_func.py - Version: 2
+#this belongs in apps/components/Map_Editor/depends/map_setup_ui_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop UI setup
 
 """
@@ -19,7 +19,6 @@ Toolbars, ribbons, panels, docks, quad viewport, menu style, icons for ModelWork
 # _create_paint_bar
 # _create_quad_viewport
 # _create_right_panel
-# _create_toolbar
 # eventFilter
 # _get_or_create_hidden_toolbar
 # _get_tool_menu_style
@@ -28,6 +27,7 @@ Toolbars, ribbons, panels, docks, quad viewport, menu style, icons for ModelWork
 # _load_quad_layout
 # _load_viewport_light_settings
 # _make_section_collapsible
+# _menu_btn_popup
 # _move_info_ribbon
 # _open_light_setup_dialog
 # _paint_variant_shape
@@ -43,6 +43,9 @@ Toolbars, ribbons, panels, docks, quad viewport, menu style, icons for ModelWork
 # _switch_icon_set
 # _sync_quad_from_main
 # _sync_selection_to_other_viewports
+# _titlebar_actions
+# _titlebar_left_extras
+# _titlebar_title
 # _toggle_pane_maximize
 # _toggle_quad_view
 # _toggle_viewport_shading
@@ -61,88 +64,26 @@ from PyQt6.QtWidgets import (
 from apps.methods.dock_panels import DockPanelsMixin
 from apps.methods.dff_viewport import DFFViewport
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.titlebar_func import TitlebarMixin
 from apps.components.Map_Editor.depends.map_widgets_func import (
     App_name, _MapWaterDepth, _ModelListDelegate, _ViewportGauges,
     _model_workshop_config_dir)
 
 
-class MapSetupUIMixin: #vers 1
+class MapSetupUIMixin(TitlebarMixin): #vers 2
     """Toolbars, ribbons, panels, docks, quad viewport, menu style, icons."""
 
 
 # - Panel Setup
 
-    def _create_toolbar(self): #vers 15
-        """Create toolbar - Hide drag button when docked, ensure buttons visible"""
-        # Read sizes from app_settings so they match Global App System Settings
-        try:
-            from apps.utils.app_settings_system import get_titlebar_sizes as _gts
-            _as = getattr(self, 'app_settings', None) or getattr(
-                  getattr(self, 'main_window', None), 'app_settings', None)
-            _sz = _gts(_as)
-            _TB_H    = _sz['tb_height']
-            _BTN_SZ  = _sz['btn_size']
-            _ICO_SZ  = _sz['icon_size']
-            _BTN_H   = _sz['btn_height']
-        except Exception:
-            _TB_H, _BTN_SZ, _ICO_SZ, _BTN_H = 32, 32, 20, 24
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
+    def _menu_btn_popup(self): #vers 1
+        """Menu button calls _on_menu_btn_clicked."""
+        return False
 
-        # Install event filter for drag detection
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
-        self.titlebar_layout = QHBoxLayout(self.titlebar)
-        self.titlebar_layout.setContentsMargins(5, 5, 5, 5)
-        self.titlebar_layout.setSpacing(5)
-
-        # Get icon color from theme
+    def _titlebar_actions(self, layout): #vers 1
+        """Map titlebar: IMG pickers, Open, Save, Import, Export, Undo."""
         icon_color = self._get_icon_color()
-
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(_TB_H + 10)
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-
-        # Menu button
-        self.menu_btn = QPushButton("Menu")
-        self.menu_btn.setFont(self.button_font)
-        try:
-            self.menu_btn.setIcon(self.icon_factory.menu_icon(color=icon_color))
-            self.menu_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
-        except Exception: pass
-        self.menu_btn.setToolTip("Menu")
-        self.menu_btn.clicked.connect(self._on_menu_btn_clicked)
-        layout.addWidget(self.menu_btn)
-
-        # Settings button
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon(color=icon_color))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
-        self.settings_btn.clicked.connect(lambda checked=False: self._show_workshop_settings())
-        self.settings_btn.setToolTip("Workshop Settings")
-        layout.addWidget(self.settings_btn)
-
-        layout.addStretch()
-
-        # App title in center
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_label)
-
-        layout.addStretch()
-        #layout.addStretch()
-
+        _ICO_SZ = self._titlebar_icon_size()
         # Only show "Open IMG" button if NOT standalone
         if not self.standalone_mode:
             self.open_img_btn = QPushButton("OpenIMG")
@@ -303,88 +244,13 @@ class MapSetupUIMixin: #vers 1
             (self.undo_btn,       ""),
         ]
 
+    def _titlebar_left_extras(self, layout): #vers 1
+        """Map has no extras after Settings."""
+        pass
 
-
-        # Info button
-        self.info_btn = QPushButton("")
-        self.info_btn.setText("")  # CHANGED from "Info"
-        self.info_btn.setIcon(self.icon_factory.info_icon(color=icon_color))
-        self.info_btn.setMinimumWidth(40)
-        self.info_btn.setMaximumWidth(40)
-        self.info_btn.setMinimumHeight(30)
-        self.info_btn.setToolTip("Information")
-
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_about)
-        layout.addWidget(self.info_btn)
-
-        # Properties/Theme button
-        self.properties_btn = QPushButton()
-        self.properties_btn.setFont(self.button_font)
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
-        self.properties_btn.setToolTip("Theme")
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
-        layout.addWidget(self.properties_btn)
-
-        # Dock button [D]
-        self.dock_btn = QPushButton("D")
-        #self.dock_btn.setFont(self.button_font)
-        self.dock_btn.setMinimumWidth(40)
-        self.dock_btn.setMaximumWidth(40)
-        self.dock_btn.setMinimumHeight(30)
-        self.dock_btn.setToolTip("Dock")
-
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        layout.addWidget(self.dock_btn)
-
-        # Tear-off button [T] - only in IMG Factory mode
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton("T")
-            #self.tearoff_btn.setFont(self.button_font)
-            self.tearoff_btn.setMinimumWidth(40)
-            self.tearoff_btn.setMaximumWidth(40)
-            self.tearoff_btn.setMinimumHeight(30)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip(App_name + " Workshop - Tearoff window")
-
-            layout.addWidget(self.tearoff_btn)
-
-        # Window controls
-        self.minimize_btn = QPushButton()
-        self.minimize_btn.setIcon(self.icon_factory.minimize_icon(color=icon_color))
-        self.minimize_btn.setIconSize(QSize(20, 20))
-        self.minimize_btn.setMinimumWidth(40)
-        self.minimize_btn.setMaximumWidth(40)
-        self.minimize_btn.setMinimumHeight(30)
-        self.minimize_btn.clicked.connect(self.showMinimized)
-        self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
-        layout.addWidget(self.minimize_btn)
-
-        self.maximize_btn = QPushButton()
-        self.maximize_btn.setIcon(self.icon_factory.maximize_icon(color=icon_color))
-        self.maximize_btn.setIconSize(QSize(20, 20))
-        self.maximize_btn.setMinimumWidth(40)
-        self.maximize_btn.setMaximumWidth(40)
-        self.maximize_btn.setMinimumHeight(30)
-        self.maximize_btn.clicked.connect(self._toggle_maximize)
-        self.maximize_btn.setToolTip("Maximize/Restore Window")
-        layout.addWidget(self.maximize_btn)
-
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(self.icon_factory.close_icon(color=icon_color))
-        self.close_btn.setIconSize(QSize(20, 20))
-        self.close_btn.setMinimumWidth(40)
-        self.close_btn.setMaximumWidth(40)
-        self.close_btn.setMinimumHeight(30)
-        self.close_btn.clicked.connect(self.close)
-        self.close_btn.setToolTip("Close Window") # closes tab
-        layout.addWidget(self.close_btn)
-
-        return self.toolbar
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
 
     #Left side vertical panel
 
@@ -1349,7 +1215,7 @@ class MapSetupUIMixin: #vers 1
         # Resolve icon set once for all buttons
         _icon_set = self._get_icon_set()
         if _icon_set == '3dsmax':
-            from apps.components.Model_Editor.depends.max_icon_set import MaxIconSet as _IS
+            from apps.methods.max_icon_set import MaxIconSet as _IS
         else:
             _IS = None
 
@@ -1465,7 +1331,7 @@ class MapSetupUIMixin: #vers 1
 
         # - Ribbon 2: Snap Targets
 
-        from apps.components.Model_Editor.depends.max_svg_icons import MaxSVGIcons
+        from apps.methods.max_svg_icons import MaxSVGIcons
         tb_snap = _tb("Snap Targets")
 
         def _snap_act(attr, target, name, icon_fn_name, max_name=None):  #vers 1

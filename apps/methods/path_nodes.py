@@ -1,4 +1,4 @@
-#this belongs in apps/methods/path_nodes.py - Version: 3
+#this belongs in apps/methods/path_nodes.py - Version: 4
 # X-Seti - October 19 2026 - IMG Factory 1.6 - Path node writers
 
 """
@@ -11,6 +11,8 @@ Write edited path nodes back to IPL/IDE 'path' sections, SA nodesN.dat, tracks .
 # replace_text_section
 # rotate_vector_by_quaternion
 # sa_node_offset
+# write_back
+# write_rrr
 # write_sa_nodes
 # write_text_path_section
 # write_tracks_file
@@ -105,9 +107,9 @@ def _patch_sa_bytes(data, path_file, nodes): #vers 1
     return bytes(buf)
 
 
-def write_sa_nodes(path_file, nodes): #vers 1
-    """Save changed SA nodes to a loose nodesN.dat or its IMG entry."""
-    src = path_file.source_path
+def write_back(src, make_bytes): #vers 1
+    """Rewrite a loose file or an 'x.img:entry' in place (backup first).
+    make_bytes(old) -> new; an IMG entry is padded and must not grow."""
     img_path, sep, entry_name = src.rpartition(':')
     if sep and img_path.lower().endswith('.img') and os.path.isfile(img_path):
         from apps.methods.img_core_classes import IMGFile
@@ -116,18 +118,31 @@ def write_sa_nodes(path_file, nodes): #vers 1
         arc.open()
         entry = next(e for e in arc.entries if e.name.lower() == entry_name.lower())
         data = arc.read_entry_data(entry)
+        new = make_bytes(data)
+        if len(new) > len(data):
+            raise ValueError(f"{entry_name} grew ({len(new)} > {len(data)} bytes) - no room in the IMG")
         bdir = _backup_dir_for(img_path)
         os.makedirs(bdir, exist_ok=True)
         stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         with open(os.path.join(bdir, f"{entry_name}.{stamp}.bak"), 'wb') as f:
             f.write(data)                      # entry backup, not whole IMG
-        arc.write_entry_data(entry, _patch_sa_bytes(data, path_file, nodes))
+        arc.write_entry_data(entry, new.ljust(len(data), b'\0'))
         return
     from apps.methods.file_backup import safe_write_bytes
     with open(src, 'rb') as f:
         data = f.read()
-    safe_write_bytes(src, _patch_sa_bytes(data, path_file, nodes),
-                     f"Path Workshop: {os.path.basename(src)}")
+    safe_write_bytes(src, make_bytes(data), f"Path Workshop: {os.path.basename(src)}")
+
+
+def write_rrr(frames): #vers 1
+    """Save an SA car recording to its loose .rrr or carrec.img entry."""
+    from apps.methods.sa_path_parser import build_rrr
+    write_back(frames[0].source_path, lambda _old: build_rrr(frames))
+
+
+def write_sa_nodes(path_file, nodes): #vers 2
+    """Save changed SA nodes to a loose nodesN.dat or its IMG entry."""
+    write_back(path_file.source_path, lambda data: _patch_sa_bytes(data, path_file, nodes))
 
 
 def write_tracks_file(file_path, points): #vers 1

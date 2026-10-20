@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 1
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop toolbar
 
 """
@@ -9,7 +9,6 @@ Toolbar, file loading, paint, animation and overlay actions.
 # _apply_theme
 # _auto_load_shared_txds
 # _collect_needed_textures
-# _create_toolbar
 # _cycle_carcol
 # _export_dff
 # _find_game_root
@@ -19,8 +18,12 @@ Toolbar, file loading, paint, animation and overlay actions.
 # _get_ide_db
 # _launch_theme_settings
 # _load_carcols
+# load_dff
+# load_img
+# load_txd
 # _load_vehicle_meta
 # _lookup_txd_for_stem
+# _menu_btn_popup
 # _on_img_entry_dclicked
 # _on_menu_btn_clicked
 # _on_shared_txds_found
@@ -38,6 +41,7 @@ Toolbar, file loading, paint, animation and overlay actions.
 # _show_popup_menu
 # _show_workshop_settings
 # _strip_tex_suffix
+# _titlebar_actions
 # _toggle_animation
 # _toggle_assembly_mode
 # _toggle_bounds
@@ -51,12 +55,10 @@ Toolbar, file loading, paint, animation and overlay actions.
 # _toggle_suspension_vis
 # _update_paint_btns
 # _upload_txd_additive
-# load_dff
-# load_img
-# load_txd
 
 import os, re
 
+from apps.methods.titlebar_func import TitlebarMixin
 from PyQt6.QtCore import QSize, QThread, QTimer, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
@@ -71,122 +73,28 @@ from apps.components.Vehicle_Workshop.depends.vehicle_common_func import (
     APPSETTINGS_AVAILABLE, AppSettings, SVGIconFactory, SettingsDialog)
 
 
-class _ToolbarMixin:
+class _ToolbarMixin(TitlebarMixin):
     """Toolbar + Settings dialog + theme methods.
     Mixed into GUIWorkshop — not used standalone.
     """
 
     #    Toolbar creation
 
-    def _create_toolbar(self): #vers 3
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setFixedHeight(self.toolbarheight)
-        self.toolbar.setObjectName("titlebar")
-        self.toolbar.installEventFilter(self)
-        self.toolbar.setMouseTracking(True)
-        self.titlebar = self.toolbar   # alias for drag detection
+    def _menu_btn_popup(self): #vers 1
+        """Menu button calls _on_menu_btn_clicked (top bar or drop-down)."""
+        return False
 
-        toolbar = QHBoxLayout(self.toolbar)
-        toolbar.setContentsMargins(5, 4, 5, 4)
-        toolbar.setSpacing(4)
-        ic = self._get_icon_color()
-
-        # Helper: create a fixed-size icon button
-        def _ibtn(icon_fn, tip, slot):  #vers 1
-            btn = QPushButton()
-            try:
-                btn.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-                btn.setIconSize(QSize(20, 20))
-            except Exception:
-                pass
-            btn.setFixedSize(35, 35)
-            btn.setToolTip(tip)
-            btn.clicked.connect(slot)
-            return btn
-
-        #    Left: [Menu] [Settings]
-        self.menu_btn = QPushButton("Menu")
-        self.menu_btn.setFont(self.button_font)
-        self.menu_btn.setMinimumHeight(28)
-        self.menu_btn.setMaximumHeight(35)
-        self.menu_btn.setToolTip(
-            "Show menu (dropdown or top bar — set in Settings)")
-        self.menu_btn.clicked.connect(self._on_menu_btn_clicked)
-        toolbar.addWidget(self.menu_btn)
-
-        self.settings_btn = QPushButton()
-        try:
-            self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, ic))
-            self.settings_btn.setIconSize(QSize(20, 20))
-        except Exception:
-            pass
-        self.settings_btn.setText(" Settings")
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setMinimumHeight(28)
-        self.settings_btn.setMaximumHeight(35)
-        self.settings_btn.setToolTip(
-            "Workshop settings — Fonts, Display, Menu, About")
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        toolbar.addWidget(self.settings_btn)
-
-        toolbar.addSpacing(4)
-        toolbar.addStretch()
-
-        #    Centre: title
-        self.title_label = QLabel(self.App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.title_label.setObjectName("title_label")
-        toolbar.addWidget(self.title_label)
-        toolbar.addStretch()
-        toolbar.addSpacing(4)
-
-        #    Right: action buttons
-        self.open_btn = _ibtn("open_icon", "Open Ctrl+O", self._open_file) #TODO does not always work when switching tabs, should load the needed type for other tabs.
-        self.save_btn = _ibtn("save_icon", "Save Ctrl+S", self._save_file)
-        self.export_btn = _ibtn("export_icon", "Export", self._export_file)
-        self.import_btn = _ibtn("import_icon", "Import", self._import_file)
-        for btn in (self.open_btn, self.save_btn,
-                  self.export_btn, self.import_btn):
-            toolbar.addWidget(btn)
-
-        toolbar.addSpacing(6)
-
-        self.undo_btn = _ibtn("undo_icon", "Undo Ctrl+Z", self._undo)
-        toolbar.addWidget(self.undo_btn)
-        toolbar.addSpacing(4)
-
-        # [ℹ] Info — About this workshop
-        self.info_btn = _ibtn("info_icon", "About / Info", self._show_about)
-        toolbar.addWidget(self.info_btn)
-
-        # [⚙] Cog — Global AppSettings theme dialog
-        self.properties_btn = _ibtn(
-            "properties_icon",
-            "Global Theme Settings  (AppSettings)",
-            self._launch_theme_settings)
-        toolbar.addWidget(self.properties_btn)
-        toolbar.addSpacing(4)
-
-        # [_] [⬜] [✕] — Window controls (standalone only)
-        if self.standalone_mode:
-            self.minimize_btn = _ibtn("minimize_icon", "Minimise",
-                                      self.showMinimized)
-            self.maximize_btn = _ibtn("maximize_icon", "Maximise / Restore",
-                                      self._toggle_maximize)
-            self.close_btn    = _ibtn("close_icon",    "Close",
-                                      self.close)
-            for btn in (self.minimize_btn, self.maximize_btn, self.close_btn):
-                toolbar.addWidget(btn)
-        else:
-            self.dock_btn = QPushButton("D")
-            self.dock_btn.setFixedSize(35, 35)
-            self.dock_btn.setToolTip("Dock / Undock")
-            self.dock_btn.clicked.connect(self.toggle_dock_mode)
-            toolbar.addWidget(self.dock_btn)
-
-        return self.toolbar
+    def _titlebar_actions(self, layout): #vers 1
+        """Vehicle titlebar: Open, Save, Export, Import, Undo."""
+        self.open_btn = self._tb_button("open_icon", "", "Open Ctrl+O", self._open_file)  #TODO does not always work when switching tabs, should load the needed type for other tabs.
+        self.save_btn = self._tb_button("save_icon", "", "Save Ctrl+S", self._save_file)
+        self.export_btn = self._tb_button("export_icon", "", "Export", self._export_file)
+        self.import_btn = self._tb_button("import_icon", "", "Import", self._import_file)
+        for btn in (self.open_btn, self.save_btn, self.export_btn, self.import_btn):
+            layout.addWidget(btn)
+        layout.addSpacing(6)
+        self.undo_btn = self._tb_button("undo_icon", "", "Undo Ctrl+Z", self._undo)
+        layout.addWidget(self.undo_btn)
 
 
     def _toggle_assembly_mode(self, enabled: bool): #vers 2
@@ -1587,36 +1495,11 @@ class _ToolbarMixin:
             except Exception:
                 pass
 
-    def _refresh_icons(self): #vers 1
-        """Called on theme change — re-apply theme and rebuild toolbar icons."""
+    def _refresh_icons(self): #vers 3
+        """Called on theme change — re-apply theme and recolour titlebar icons."""
         self._apply_theme()
-        if hasattr(self, "_corner_overlay"):
-            self._corner_overlay.update_state(self.hover_corner, self.app_settings)
-        ic = self._get_icon_color()
-        for btn_name, icon_fn in {
-            "open_btn":       "open_icon",
-            "save_btn":       "save_icon",
-            "export_btn":     "export_icon",
-            "import_btn":     "import_icon",
-            "undo_btn":       "undo_icon",
-            "info_btn":       "info_icon",
-            "properties_btn": "properties_icon",
-            "settings_btn":   "settings_icon",
-        }.items():
-            btn = getattr(self, btn_name, None)
-            if btn:
-                try: btn.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-                except Exception: pass
-        if self.standalone_mode:
-            for btn_name, icon_fn in {
-                "minimize_btn": "minimize_icon",
-                "maximize_btn": "maximize_icon",
-                "close_btn":    "close_icon",
-            }.items():
-                btn = getattr(self, btn_name, None)
-                if btn:
-                    try: btn.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-                    except Exception: pass
+        self.update()                                   # corner handle colour
+        self._refresh_titlebar_icons()
 
 
 #

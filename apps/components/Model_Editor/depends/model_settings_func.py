@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 1
+#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Model Workshop settings
 
 """
@@ -28,6 +28,7 @@ import os
 
 from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton
 
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.components.Model_Editor.depends.model_setup_ui_func import App_name, App_build
 
@@ -35,7 +36,7 @@ from apps.components.Model_Editor.depends.model_setup_ui_func import App_name, A
 class ModelSettingsMixin: #vers 1
     """Settings, fonts, theme, hotkeys, About."""
 
-    def _show_workshop_settings(self): #vers 1
+    def _show_workshop_settings(self): #vers 3
 
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -203,6 +204,7 @@ class ModelSettingsMixin: #vers 1
 
         table_group.setLayout(table_layout)
         display_layout.addWidget(table_group)
+        add_statusbar_checkbox(self, display_layout)
 
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
@@ -382,7 +384,7 @@ class ModelSettingsMixin: #vers 1
             }
         """)
 
-        def apply_settings():  #vers 1
+        def apply_settings():  #vers 2
             # Adjusted for COL Wireframe, Mesh
             self.setFont(QFont(default_font_combo.currentFont().family(),
                             default_font_size.value()))
@@ -404,10 +406,7 @@ class ModelSettingsMixin: #vers 1
             mode_map = {0: 'both', 1: 'icons', 2: 'text'}
             self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
 
-            # EXPORT
-            self.default_export_format = self.format_combo.currentText()
-
-            # PREVIEW
+            # PREVIEW (export format is set in the full Settings dialog)
             self.zoom_level = zoom_spin.value() / 100.0
 
             bg_modes = ['solid', 'checkerboard', 'grid']

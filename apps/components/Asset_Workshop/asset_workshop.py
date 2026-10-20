@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 18
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 21
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -21,6 +21,7 @@ import io
 import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
+from apps.methods.corner_handles import paint_corner_handles
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStackedWidget
 )
@@ -28,6 +29,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 from PyQt6.QtSvg import QSvgRenderer
 
+from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.dock_panels import DockPanelsMixin, add_outer_dock, make_outer_mw
 from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow, ZoomablePreview
@@ -78,7 +80,7 @@ class _NumericSortItem(QTableWidgetItem): #vers 1
 
 
 
-class AssetWorkshop(RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): #vers 6
+class AssetWorkshop(TitlebarMixin, RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): #vers 7
     """Workshop - Main texture editing window"""
 
     workshop_closed = pyqtSignal()
@@ -2034,68 +2036,10 @@ class AssetWorkshop(RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): 
             return False
 
 
-    def paintEvent(self, event): #vers 3
-        """Paint corner resize triangles"""
+    def paintEvent(self, event): #vers 4
+        """Corner handles, COL style (methods/corner_handles.py)."""
         super().paintEvent(event)
-        if not self.standalone_mode:           # docked: no corner handles
-            return
-
-        from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Colors
-
-        normal_color = self._get_ui_color('viewport_text'); normal_color.setAlpha(150)
-        hover_color = self._get_ui_color('accent_primary'); hover_color.setAlpha(200)
-
-        w = self.width()
-        h = self.height()
-        grip_size = 8  # Make corners visible (8x8px)
-        size = self.corner_size
-
-        # Define corner triangles
-        corners = {
-            'top-left': [(0, 0), (size, 0), (0, size)],
-            'top-right': [(w, 0), (w-size, 0), (w, size)],
-            'bottom-left': [(0, h), (size, h), (0, h-size)],
-            'bottom-right': [(w, h), (w-size, h), (w, h-size)]
-        }
-        corners2 = {
-            "top-left": [(0, grip_size), (0, 0), (grip_size, 0)],
-            "top-right": [(w-grip_size, 0), (w, 0), (w, grip_size)],
-            "bottom-left": [(0, h-grip_size), (0, h), (grip_size, h)],
-            "bottom-right": [(w-grip_size, h), (w, h), (w, h-grip_size)]
-        }
-
-        # Get theme colors for corner indicators
-        if self.app_settings:
-            theme_colors = self.app_settings.get_theme_colors()
-            accent_color = QColor(theme_colors.get('accent_primary', '#1976d2'))
-            accent_color.setAlpha(180)
-        else:
-            accent_color = self._get_ui_color('accent_primary'); accent_color.setAlpha(180)
-
-        hover_color = QColor(accent_color)
-        hover_color.setAlpha(255)
-
-        # Draw all corners with hover effect
-        for corner_name, points in corners.items():
-            path = QPainterPath()
-            path.moveTo(points[0][0], points[0][1])
-            path.lineTo(points[1][0], points[1][1])
-            path.lineTo(points[2][0], points[2][1])
-            path.closeSubpath()
-
-            # Use hover color if mouse is over this corner
-            color = hover_color if self.hover_corner == corner_name else accent_color
-
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(color))
-            painter.drawPath(path)
-
-        painter.end()
+        paint_corner_handles(self)
 
 
     def _get_resize_corner(self, pos): #vers 4
@@ -2326,151 +2270,23 @@ class AssetWorkshop(RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): 
 
 # - Panel Setup
 
-    def _create_toolbar(self): #vers 12
-        """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
-
-        # Install event filter for drag detection
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
-        self.layout = QHBoxLayout(self.titlebar)
-        self.layout.setContentsMargins(5, 5, 5, 5)
-        self.layout.setSpacing(5)
-
-        # Get icon color from theme
-        icon_color = self._get_icon_color()
-
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(50)
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-
-        # Settings button
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon(color=self._get_icon_color()))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip(App_name + " Settings")
-        layout.addWidget(self.settings_btn)
-
-        layout.addStretch()
-
-        # App title in center
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_label)
-
-        layout.addStretch()
-        #layout.addStretch()
-
-        # Only show "Open IMG" button if NOT standalone
+    def _titlebar_actions(self, layout): #vers 1
+        """Asset titlebar: OpenIMG (docked), Undo."""
         if not self.standalone_mode:
-            self.open_img_btn = QPushButton("OpenIMG")
-            self.open_img_btn.setFont(self.button_font)
-            self.open_img_btn.setIcon(self.icon_factory.folder_icon(color=self._get_icon_color()))
-            self.open_img_btn.setIconSize(QSize(20, 20))
-            self.open_img_btn.clicked.connect(self.open_img_archive)
+            self.open_img_btn = self._tb_button('folder_icon', "OpenIMG", "Open an IMG archive",
+                                                self.open_img_archive)
             layout.addWidget(self.open_img_btn)
-
-        self.undo_btn = QPushButton()
-        self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon(color=self._get_icon_color()))
-        self.undo_btn.setText("Undo")
-        self.undo_btn.setIconSize(QSize(20, 20))
-        self.undo_btn.clicked.connect(self._undo_last_action)
+        self.undo_btn = self._tb_button('undo_icon', "Undo", "Undo last change", self._undo_last_action)
         self.undo_btn.setEnabled(False)
-        self.undo_btn.setToolTip("Undo last change")
         layout.addWidget(self.undo_btn)
 
-        layout.addSpacing(10)
+    def _titlebar_info(self): #vers 1
+        """Info button: asset info."""
+        self._show_txd_info()
 
-        # Info button
-        self.info_btn = QPushButton("")
-        self.info_btn.setText("")  # CHANGED from "Info"
-        self.info_btn.setIcon(self.icon_factory.info_icon(color=self._get_icon_color()))
-        self.info_btn.setMinimumWidth(40)
-        self.info_btn.setMaximumWidth(40)
-        self.info_btn.setMinimumHeight(30)
-        self.info_btn.setToolTip("Information")
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_txd_info)
-        layout.addWidget(self.info_btn)
-
-        # Properties/Theme button
-        self.properties_btn = QPushButton()
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
-        self.properties_btn.setToolTip("Theme")
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
-        layout.addWidget(self.properties_btn)
-
-        # Dock button [D]
-        self.dock_btn = QPushButton("D")
-        #self.dock_btn.setFont(self.button_font)
-        self.dock_btn.setMinimumWidth(40)
-        self.dock_btn.setMaximumWidth(40)
-        self.dock_btn.setMinimumHeight(30)
-        self.dock_btn.setToolTip("Dock")
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        layout.addWidget(self.dock_btn)
-
-        # Tear-off button [T] - only in IMG Factory mode
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton("T")
-            #self.tearoff_btn.setFont(self.button_font)
-            self.tearoff_btn.setMinimumWidth(40)
-            self.tearoff_btn.setMaximumWidth(40)
-            self.tearoff_btn.setMinimumHeight(30)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip(App_name + " - Tearoff window")
-            layout.addWidget(self.tearoff_btn)
-
-        # Window controls
-        self.minimize_btn = QPushButton()
-        self.minimize_btn.setIcon(self.icon_factory.minimize_icon(color=self._get_icon_color()))
-        self.minimize_btn.setIconSize(QSize(20, 20))
-        self.minimize_btn.setMinimumWidth(40)
-        self.minimize_btn.setMaximumWidth(40)
-        self.minimize_btn.setMinimumHeight(30)
-        self.minimize_btn.clicked.connect(self.showMinimized)
-        self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
-        layout.addWidget(self.minimize_btn)
-
-        self.maximize_btn = QPushButton()
-        self.maximize_btn.setIcon(self.icon_factory.maximize_icon(color=self._get_icon_color()))
-        self.maximize_btn.setIconSize(QSize(20, 20))
-        self.maximize_btn.setMinimumWidth(40)
-        self.maximize_btn.setMaximumWidth(40)
-        self.maximize_btn.setMinimumHeight(30)
-        self.maximize_btn.clicked.connect(self._toggle_maximize)
-        self.maximize_btn.setToolTip("Maximize/Restore Window")
-        layout.addWidget(self.maximize_btn)
-
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(self.icon_factory.close_icon(color=self._get_icon_color()))
-        self.close_btn.setIconSize(QSize(20, 20))
-        self.close_btn.setMinimumWidth(40)
-        self.close_btn.setMaximumWidth(40)
-        self.close_btn.setMinimumHeight(30)
-        self.close_btn.clicked.connect(self.close)
-        self.close_btn.setToolTip("Close Window") # closes tab
-        layout.addWidget(self.close_btn)
-
-        return self.toolbar
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
 
 
     def _create_left_panel(self): #vers 6
@@ -3974,7 +3790,7 @@ class AssetWorkshop(RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): 
 
 
     #Keep function
-    def _setup_status_indicators(self): #vers 5
+    def _setup_status_indicators(self): #vers 6
         """Setup status indicators with texture info and visible resize button"""
         self.status_frame = QFrame()
         self.status_frame.setFixedHeight(24)
@@ -4003,25 +3819,6 @@ class AssetWorkshop(RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): 
         self.format_status_label = QLabel("Format: -")
         self.status_layout.addWidget(self.format_status_label)
 
-        # Add visible resize button with icon
-        self.resize_grip_btn = QPushButton()
-        self.resize_grip_btn.setIcon(self.icon_factory._resize_icon(color=self._get_icon_color()))
-        self.resize_grip_btn.setIconSize(QSize(20, 20))
-        self.resize_grip_btn.setFixedSize(20, 20)
-        self.resize_grip_btn.setToolTip("Drag to resize window")
-        self.resize_grip_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: palette(mid);
-            }
-        """)
-        # Make it act like a resize grip
-        self.resize_grip_btn.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        self.status_layout.addWidget(self.resize_grip_btn)
 
         return self.status_frame
 

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 6
+#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 9
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Path Workshop UI
 
 """
@@ -38,36 +38,38 @@ Path Workshop UI - titlebar, ribbons, panels, settings, menus, theme, radar view
 # _build_ribbons
 # _create_right_panel
 # _create_status_bar
-# _create_toolbar
 # _dialog_dir
-# _get_tool_menu_style
-# _get_ui_color
-# _launch_theme_settings
-# _on_menu_btn_clicked
-# _refresh_icons
-# _remember_dir
-# _ribbon_config_path
-# _set_path_tool
-# _show_path_display_settings
-# _set_status
-# _setup_hotkeys
-# _show_about
-# _show_dropdown_menu
-# _show_info
-# _show_settings_dialog
-# _show_workshop_settings
-# _toggle_menubar
-# _update_dock_button_visibility
 # get_content_margins
 # get_menu_title
 # get_panel_margins
 # get_tab_margins
+# _get_tool_menu_style
+# _get_ui_color
+# _launch_theme_settings
+# _menu_btn_popup
+# _on_menu_btn_clicked
+# _refresh_icons
+# _remember_dir
+# _ribbon_config_path
 # set_menu_orientation
+# _set_path_tool
+# _set_status
+# _setup_hotkeys
 # setup_ui
+# _show_about
+# _show_dropdown_menu
+# _show_info
+# _show_path_display_settings
+# _show_settings_dialog
+# _show_workshop_settings
+# _titlebar_title
+# _toggle_menubar
+# _update_dock_button_visibility
 
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QVBoxLayout, QWidget
 from PyQt6.QtCore import Qt, QRect, QRectF, QSize, QTimer
 from PyQt6.QtGui import QBrush, QColor, QIcon, QImage, QKeySequence, QPainter, QPen, QPixmap, QShortcut
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.dock_panels import add_outer_dock, make_outer_mw
 from pathlib import Path
@@ -95,6 +97,8 @@ App_build = "Oct 2026"
 App_auth  = "X-Seti"
 Build     = "Build 2"
 
+
+from apps.methods.titlebar_func import TitlebarMixin
 
 #    Infrastructure imports
 try:
@@ -372,7 +376,7 @@ class RadarGridWidget(QWidget):
             self._workshop._end_node_drag()
 
 
-class PathUIMixin: #vers 1
+class PathUIMixin(TitlebarMixin): #vers 2
     """Titlebar, ribbons, panels, settings, menus, theme."""
 
 
@@ -420,7 +424,7 @@ class PathUIMixin: #vers 1
 
         # Corner resize overlay set up in showEvent
 
-    def setup_ui(self): #vers 2
+    def setup_ui(self): #vers 3
         """Titlebar / radar view with ribbons / node docks / status bar."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
@@ -445,129 +449,18 @@ class PathUIMixin: #vers 1
 
         self._status_bar = self._create_status_bar()
         main_layout.addWidget(self._status_bar)
+        register_statusbar(self, self._status_bar)
 
 
     # - Toolbar
 
-    def _create_toolbar(self): #vers 2
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(self.titlebarheight)
-        self.titlebar.setObjectName("titlebar")
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
+    def _menu_btn_popup(self): #vers 1
+        """Menu button calls _on_menu_btn_clicked (top bar or drop-down)."""
+        return False
 
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(self.toolbarheight)
-        self.titlebar = self.toolbar  # alias for drag detection
-
-        # - Theme-aware icon colour
-        icon_color = self._get_icon_color()
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(*self.get_panel_margins())
-        layout.setSpacing(self.panelspacing)
-
-
-        self.menu_toggle_btn = QPushButton("Menu")
-        self.menu_toggle_btn.setFont(self.button_font)
-        self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
-        self.menu_toggle_btn.setMinimumHeight(28)
-        self.menu_toggle_btn.setMaximumHeight(28)
-        self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
-        # Menu/Settings (Aug 20 2026)
-        self.menu_toggle_btn.setVisible(self.standalone_mode)
-        layout.addWidget(self.menu_toggle_btn)
-
-        # - Settings button (standalone only — docked uses right-panel button)
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip(App_name + "Workshop Settings")
-        self.settings_btn.setVisible(self.standalone_mode)
-        layout.addWidget(self.settings_btn)
-
-        layout.addSpacing(8)
-        layout.addStretch()
-
-        # - App name + version label (centre-left of toolbar)
-        self._title_lbl = QLabel(f"{App_name} - {Build}")
-        self._title_lbl.setStyleSheet("")
-        self._title_lbl.setVisible(self.standalone_mode)
-        layout.addWidget(self._title_lbl)
-
-        layout.addStretch()
-
-        # Game / W / H selector lives in the Grid ribbon (_build_ribbons)
-
-        # - Info button (before Theme)
-        self.info_radar_btn = QPushButton()
-        self.info_radar_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
-        self.info_radar_btn.setIconSize(QSize(20, 20))
-        self.info_radar_btn.setFixedSize(35, 35)
-        self.info_radar_btn.setToolTip("About Path Workshop")
-        self.info_radar_btn.clicked.connect(self._show_about)
-        layout.addWidget(self.info_radar_btn)
-        self.info_radar_btn.setVisible(self.standalone_mode)
-
-        # - Theme / Properties
-        self.properties_btn = QPushButton()
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
-        self.properties_btn.setIconSize(QSize(20, 20))
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.setToolTip("Theme Settings")
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        layout.addWidget(self.properties_btn)
-        self.properties_btn.setVisible(self.standalone_mode)
-
-        # - Dock button — hidden in standalone (nothing to dock to)
-        self.dock_btn = QPushButton()
-        try:
-            self.dock_btn.setIcon(SVGIconFactory.import_icon(20, icon_color))
-            self.dock_btn.setIconSize(QSize(20, 20))
-        except Exception:
-            self.dock_btn.setText("⊞")
-        self.dock_btn.setFixedSize(35, 35)
-        self.dock_btn.setToolTip("Dock into IMG Factory")
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        self.dock_btn.setVisible(not self.standalone_mode)
-        layout.addWidget(self.dock_btn)
-
-        # - Tear-off button — only when docked, use icon not bare "T"
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton()
-            try:
-                self.tearoff_btn.setIcon(SVGIconFactory.export_icon(20, icon_color))
-                self.tearoff_btn.setIconSize(QSize(20, 20))
-            except Exception:
-                self.tearoff_btn.setText("↗")
-            self.tearoff_btn.setFixedSize(35, 35)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("Tear off — open as standalone window")
-            layout.addWidget(self.tearoff_btn)
-
-        # - Window controls (standalone only)
-        if self.standalone_mode:
-            for attr, icon_method, slot, tip in [
-                ('minimize_btn', 'minimize_icon', self.showMinimized,    "Minimize"),
-                ('maximize_btn', 'maximize_icon', self._toggle_maximize, "Maximize"),
-                ('close_btn',    'close_icon',    self.close,            "Close"),
-            ]:
-                btn = QPushButton()
-                btn.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
-                btn.setIconSize(QSize(20, 20))
-                btn.setMinimumWidth(40); btn.setMaximumWidth(40); btn.setMinimumHeight(30)
-                btn.clicked.connect(slot)
-                btn.setToolTip(tip)
-                setattr(self, attr, btn)
-                layout.addWidget(btn)
-
-        return self.toolbar
+    def _titlebar_title(self): #vers 1
+        """Centre title with build."""
+        return f"{App_name} - {Build}"
 
     # --- Right panel: radar view
     def _ribbon_config_path(self): #vers 1
@@ -604,7 +497,7 @@ class PathUIMixin: #vers 1
 
 
     # Settings dialog
-    def _show_workshop_settings(self): #vers 4
+    def _show_workshop_settings(self): #vers 5
         """Workshop-local settings — Fonts, Display, Menu tabs."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -650,6 +543,7 @@ class PathUIMixin: #vers 1
         mode_combo.setCurrentIndex({'both':0,'icons':1,'text':2}.get(self.button_display_mode, 0))
         bl.addWidget(mode_combo)
         dl.addWidget(btn_grp)
+        add_statusbar_checkbox(self, dl)
         dl.addStretch()
         tabs.addTab(disp_tab, "Display")
 
@@ -911,7 +805,7 @@ class PathUIMixin: #vers 1
             if hasattr(self, attr):
                 getattr(self, attr).setIcon(getattr(SVGIconFactory, method)(20, color))
 
-    def _build_ribbons(self): #vers 6
+    def _build_ribbons(self): #vers 7
         """File / View / Grid / Path ribbons."""
         B = self.ribbon_button
 
@@ -962,6 +856,7 @@ class PathUIMixin: #vers 1
         B(tb, "trash_icon",        "Delete the selected node's whole group", self._delete_group)
         B(tb, "swap_arrows_icon",  "Reverse group traffic flow", self._reverse_group)
         B(tb, "rotate_cw_icon",    "Shift / rotate all tracks", self._shift_rotate_tracks)
+        B(tb, "vehicle_app_icon",  "Shift / rotate / re-time selected car recording", self._edit_recording)
         B(tb, "colour_view_icon",  "Path colours and sizes", self._show_path_display_settings)
         for text, attr in (("Cars", '_show_car'), ("Peds", '_show_ped'),
                            ("Tracks / extras", '_show_extra')):

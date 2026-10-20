@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 130
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 131
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -31,6 +31,7 @@ from PyQt6.QtGui import QColor, QFont
 # QAction location varies by PyQt6 version — try bothQStyledItemDelegate
 
 # Import project modules AFTER path setup
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 from apps.gui.tool_menu_mixin import ToolMenuMixin
@@ -310,7 +311,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # STUB: dock_btn, tearoff_btn, colour swatch buttons and _svg_to_icon()
     # created icons do not yet update on theme change. Wire to _refresh_icons.
 
-    def _show_workshop_settings(self): #vers 2
+    def _show_workshop_settings(self): #vers 3
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -477,6 +478,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
 
         table_group.setLayout(table_layout)
         display_layout.addWidget(table_group)
+        add_statusbar_checkbox(self, display_layout)
 
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")

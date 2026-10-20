@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 255
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 256
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -34,6 +34,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QByteArray, QPointF, QTi
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 
 # Shared DFFViewport — import from methods/, fallback to local methods/
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.dock_panels import DockPanelsMixin
 from apps.methods.dff_viewport import DFFViewport
@@ -384,7 +385,7 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
         QTimer.singleShot(0, self._apply_gamepad_setting)
 
 
-    def setup_ui(self): #vers 14
+    def setup_ui(self): #vers 15
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -569,6 +570,7 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
         # Status bar (Aug 1 2026)
         status_frame = self._create_status_bar()
         main_layout.addWidget(status_frame)
+        register_statusbar(self, status_frame)
 
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()

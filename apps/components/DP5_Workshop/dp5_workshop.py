@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 104
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 106
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -45,6 +45,8 @@ from PyQt6.QtGui import (
     QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
     QPainterPath, QKeySequence
 )
+from apps.methods.corner_handles import paint_corner_handles
+from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.doc_tabs import DocTabsMixin
 
@@ -354,7 +356,6 @@ from apps.methods.doc_tabs import DocTabsMixin
 # DP5Workshop._rebuild_tool_ribbons
 # DP5Workshop._redo_canvas
 # DP5Workshop._refresh_canvas_tabs_ribbon
-# DP5Workshop._refresh_corner_overlay
 # DP5Workshop._refresh_icons
 # DP5Workshop._refresh_tool_settings_ribbon
 # DP5Workshop._remember_indexed_source
@@ -390,7 +391,6 @@ from apps.methods.doc_tabs import DocTabsMixin
 # DP5Workshop._set_status
 # DP5Workshop._set_zoom
 # DP5Workshop._set_zoom_mode
-# DP5Workshop._setup_corner_overlay
 # DP5Workshop._show_active_zoom_sensitivity_menu
 # DP5Workshop._show_dropdown_menu
 # DP5Workshop._show_load_menu
@@ -525,12 +525,6 @@ from apps.methods.doc_tabs import DocTabsMixin
 # _CharGrid.paintEvent
 # _CharGrid.set_data
 # _CharGrid.set_size
-# _CornerOverlay.__init__
-# _CornerOverlay._update_mask
-# _CornerOverlay.paintEvent
-# _CornerOverlay.resizeEvent
-# _CornerOverlay.setGeometry
-# _CornerOverlay.update_state
 # _DockablePanelMixin._add_dock_button
 # _DockablePanelMixin._dmp_float
 # _DockablePanelMixin._dmp_reposition
@@ -5920,88 +5914,7 @@ class ColorPalPresetsMixin:
 
 
 
-class _CornerOverlay(QWidget):
-    """Transparent overlay that draws corner resize triangles on top of all children.
-    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
-    WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
-
-    SIZE = 20   # triangle leg size in pixels
-
-    def __init__(self, parent): #vers 3
-        super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
-        self.setWindowFlags(Qt.WindowType.Widget)
-        self._hover_corner = None
-        self._app_settings = None
-        self.setGeometry(0, 0, parent.width(), parent.height())
-        self._update_mask()
-
-    def _update_mask(self): #vers 1
-        """Create a mask covering only the four corner triangles."""
-        from PyQt6.QtGui import QRegion, QPolygon
-        from PyQt6.QtCore import QPoint
-        s = self.SIZE
-        w, h = self.width(), self.height()
-        region = QRegion()
-        for pts in [
-            [QPoint(0,0),    QPoint(s,0),    QPoint(0,s)],     # top-left
-            [QPoint(w,0),    QPoint(w-s,0),  QPoint(w,s)],     # top-right
-            [QPoint(0,h),    QPoint(s,h),    QPoint(0,h-s)],   # bottom-left
-            [QPoint(w,h),    QPoint(w-s,h),  QPoint(w,h-s)],   # bottom-right
-        ]:
-            region = region.united(QRegion(QPolygon(pts)))
-        self.setMask(region)
-
-    def update_state(self, hover_corner, app_settings): #vers 1
-        self._hover_corner = hover_corner
-        self._app_settings = app_settings
-        self.update()
-
-    def setGeometry(self, *args): #vers 1
-        super().setGeometry(*args)
-        self._update_mask()
-
-    def resizeEvent(self, event): #vers 1
-        super().resizeEvent(event)
-        self._update_mask()
-
-    def paintEvent(self, event): #vers 2
-        s = self.SIZE
-        _p = self.palette()
-        _accent_fallback = _p.color(_p.ColorRole.Highlight)
-        if self._app_settings:
-            try:
-                colors = self._app_settings.get_theme_colors()
-                accent = QColor(colors.get('accent_primary', _accent_fallback.name()))
-            except Exception:
-                accent = _accent_fallback
-        else:
-            accent = _accent_fallback
-        accent.setAlpha(200)
-        hover_c = QColor(accent); hover_c.setAlpha(255)
-        w, h = self.width(), self.height()
-        corners = {
-            'top-left':     [(0,0),  (s,0),   (0,s)],
-            'top-right':    [(w,0),  (w-s,0), (w,s)],
-            'bottom-left':  [(0,h),  (s,h),   (0,h-s)],
-            'bottom-right': [(w,h),  (w-s,h), (w,h-s)],
-        }
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        for name, pts in corners.items():
-            path = QPainterPath()
-            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
-            path.closeSubpath()
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
-            painter.drawPath(path)
-        painter.end()
-
-
-class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
+class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
     """Deluxe Paint 5 inspired bitmap editor — standalone + embeddable."""
 
     workshop_closed = pyqtSignal()
@@ -6200,9 +6113,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
 
     #    UI construction                                                        
 
-    def setup_ui(self): #vers 2
+    def setup_ui(self): #vers 3
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(1, 1, 1, 1)
+        main_layout.setContentsMargins(5, 5, 5, 5)   # COL corner strip
         main_layout.setSpacing(0)   # no gaps — each widget manages its own margin
 
         toolbar = self._create_toolbar()
@@ -6357,7 +6270,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
 
         # Corner resize overlay
         if self.standalone_mode:
-            QTimer.singleShot(0, self._setup_corner_overlay)
+            self.update()
 
     # - Toolbar (standalone titlebar)
 
@@ -6464,170 +6377,43 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
         dock.setTitleBarWidget(bar)
 
 
-    def _create_toolbar(self): #vers 2
-        # Read sizes from app_settings so they match Global App System Settings
-        try:
-            from apps.utils.app_settings_system import get_titlebar_sizes as _gts
-            _as = getattr(self, 'app_settings', None) or getattr(
-                  getattr(self, 'main_window', None), 'app_settings', None)
-            _sz = _gts(_as)
-            _TB_H    = _sz['tb_height']
-            _BTN_SZ  = _sz['btn_size']
-            _ICO_SZ  = _sz['icon_size']
-            _BTN_H   = _sz['btn_height']
-        except Exception:
-            _TB_H, _BTN_SZ, _ICO_SZ, _BTN_H = 32, 32, 20, 24
-        # titlebar and toolbar are the SAME widget — avoids a floating 45px ghost
-        # that was rendering at (0,0) and creating blank space above the canvas.
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.NoFrame)
-        self.toolbar.setMaximumHeight(_TB_H + 10)
-        self.toolbar.setObjectName("titlebar")
-        self.toolbar.installEventFilter(self)
-        self.toolbar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.toolbar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.toolbar.setMouseTracking(True)
-        self.titlebar = self.toolbar   # alias — drag detection uses self.titlebar
-        # gadgetbar_bg applied via QFrame#titlebar rule in global stylesheet
+    def _menu_btn_popup(self): #vers 1
+        """Menu button calls _on_menu_btn_clicked (top bar or drop-down)."""
+        return False
 
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(4)
-
-        icon_color = self._get_icon_color()
-
-        # -_tb helper — adds button to layout with optional SVG icon
-        def _tb(text, tip, slot, icon_fn=None):  #vers 1
-            btn = QPushButton(text)
-            btn.setFont(self.button_font)
-            btn.setToolTip(tip)
-            btn.setMinimumHeight(28)
-            btn.setMaximumHeight(28)
-            if icon_fn:
-                try:
-                    btn.setIcon(icon_fn(18, icon_color))
-                    btn.setIconSize(QSize(18, 18))
-                except Exception:
-                    pass
-            if slot: btn.clicked.connect(slot)
-            layout.addWidget(btn)
-            return btn
-
-        # - Cog / Settings (standalone only)
-        self.menu_toggle_btn = QPushButton("Menu")
-        self.menu_toggle_btn.setFont(self.button_font)
-        self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
-        self.menu_toggle_btn.setMinimumHeight(28)
-        self.menu_toggle_btn.setMaximumHeight(28)
-        self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
-        self.menu_toggle_btn.setVisible(self.standalone_mode)
-        layout.addWidget(self.menu_toggle_btn)
-
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip(App_name + " Settings")
-        self.settings_btn.setVisible(self.standalone_mode)
-        layout.addWidget(self.settings_btn)
-        self._build_doc_tabs_btn(layout)          # title bar file tabs drop-down (canvas tabs)
-
-        layout.addStretch()
-
-        # - Title with DP5 icon
-        title_row = QHBoxLayout()
-        title_row.setSpacing(6)
-        dp5_icon_lbl = QLabel()
-        try:
-            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
-            pix = get_dp5_workshop_icon(22, icon_color).pixmap(22, 22)
-            dp5_icon_lbl.setPixmap(pix)
-        except Exception:
-            if ICONS_AVAILABLE:
-                pix = SVGIconFactory.paint_icon(20, icon_color).pixmap(20, 20)
-                dp5_icon_lbl.setPixmap(pix)
-        title_row.addWidget(dp5_icon_lbl)
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_row.addWidget(self.title_label)
-        layout.addLayout(title_row)
-
-        layout.addStretch()
-
-        # - [New][Load][Save][Undo][Clear][Brushes] after title
-        self.tb_new_btn    = _tb("New",    "New canvas… (right-click to set mode)",
-                                  self._new_canvas,
-                                  SVGIconFactory.new_icon)
+    def _titlebar_actions(self, layout): #vers 1
+        """DP5 titlebar: New, Load, Save, Undo, Clear, Brushes."""
+        self.tb_new_btn = self._tb_button('new_icon', "New",
+            "New canvas… (right-click to set mode)", self._new_canvas)
         self.tb_new_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tb_new_btn.customContextMenuRequested.connect(self._new_btn_context_menu)
-        self.tb_load_btn = _tb("Load", "Click for load options",
-                                self._show_load_menu,
-                                SVGIconFactory.open_icon)
+        self.tb_load_btn = self._tb_button('open_icon', "Load", "Click for load options",
+                                           self._show_load_menu)
         self.tb_load_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tb_load_btn.customContextMenuRequested.connect(self._show_load_menu_at)
-        self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",
-                                  self._export_bitmap,
-                                  SVGIconFactory.save_icon)
-        # self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
-        #                           self._import_bitmap,
-        #                           SVGIconFactory.import_icon)
-        # self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
-        #                           self._export_bitmap,
-        #                           SVGIconFactory.export_icon)
-        self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",
-                                  self._undo_canvas,
-                                  SVGIconFactory.undo_icon)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_clear_canvas_icon
-            self.tb_clr_btn = _tb("Clear", "Clear canvas",
-                                   self._clear_canvas,
-                                   SVGIconFactory.clear_icon)
-                                   #lambda sz, col: get_clear_canvas_icon(sz, col))
-        except Exception:
-            self.tb_clr_btn = _tb("Clear", "Clear canvas", self._clear_canvas)
+        self.tb_save_btn = self._tb_button('save_icon', "Save", "Save canvas as PNG",
+                                           self._export_bitmap)
+        self.tb_undo_btn = self._tb_button('undo_icon', "Undo", "Undo last action  (Ctrl+Z)",
+                                           self._undo_canvas)
+        from apps.methods.imgfactory_svg_icons import get_brushes_icon, get_clear_canvas_icon
+        self.tb_clr_btn = self._tb_button(get_clear_canvas_icon, "Clear", "Clear canvas",
+                                          self._clear_canvas)
+        for b in (self.tb_new_btn, self.tb_load_btn, self.tb_save_btn,
+                  self.tb_undo_btn, self.tb_clr_btn):
+            layout.addWidget(b)
 
-        #    Brush Manager button                                            
-        self.brush_mgr_btn = QPushButton("Brushes")
-        self.brush_mgr_btn.setFont(self.button_font)
-        self.brush_mgr_btn.setToolTip("Open brush manager panel")
-        self.brush_mgr_btn.setMinimumHeight(28)
-        self.brush_mgr_btn.setMaximumHeight(28)
-        self.brush_mgr_btn.clicked.connect(self._toggle_brush_manager)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_brushes_icon
-            self.brush_mgr_btn.setIcon(get_brushes_icon(18, icon_color))
-            self.brush_mgr_btn.setIconSize(QSize(18, 18))
-        except Exception:
-            pass
+        self.brush_mgr_btn = self._tb_button(get_brushes_icon, "Brushes",
+            "Open brush manager panel", self._toggle_brush_manager)
         layout.addWidget(self.brush_mgr_btn)
 
-        self.properties_btn = QPushButton()
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
-        self.properties_btn.setIconSize(QSize(20, 20))
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.setToolTip("Theme Settings")
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        layout.addWidget(self.properties_btn)
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
 
-        if self.standalone_mode:
-            for attr, icon_method, slot, tip in [
-                ('minimize_btn', 'minimize_icon', self.showMinimized,    "Minimize"),
-                ('maximize_btn', 'maximize_icon', self._toggle_maximize, "Maximize"),
-                ('close_btn',    'close_icon',    self.close,            "Close"),
-            ]:
-                btn = QPushButton()
-                btn.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
-                btn.setIconSize(QSize(20, 20))
-                btn.setMinimumWidth(40); btn.setMaximumWidth(40); btn.setMinimumHeight(30)
-                btn.clicked.connect(slot)
-                btn.setToolTip(tip)
-                setattr(self, attr, btn)
-                layout.addWidget(btn)
-
-        return self.toolbar
+    def _titlebar_title_icon(self): #vers 1
+        """DP5 workshop icon left of the title."""
+        from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+        return get_dp5_workshop_icon
 
     #    Docked compact action bar                                             
 
@@ -8897,7 +8683,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
                 c.setVisible(on)
 
 
-    def _show_dropdown_menu(self): #vers 2
+    def _show_dropdown_menu(self): #vers 3
         """Pop up the canvas menus as a single QMenu dropdown — standalone safe."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
@@ -8905,7 +8691,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
             self._build_menus_into_qmenu(menu)
         except Exception as _e:
             menu.addAction(f"Menu error: {_e}").setEnabled(False)
-        btn = getattr(self, 'menu_toggle_btn', None)
+        btn = getattr(self, 'menu_btn', None)
         if btn:
             menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
         else:
@@ -11156,7 +10942,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
         super().resizeEvent(event)
         if self.dp5_settings.get('zoom_to_fit_resize'):
             self._fit_canvas_to_viewport()
-        self._refresh_corner_overlay()
+        self.update()
 
 
     def _set_zoom(self, z, anchor_widget_pos=None): #vers 2
@@ -16219,7 +16005,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
             if corner != self.hover_corner:
                 self.hover_corner = corner
                 self.update()
-            self._refresh_corner_overlay()
+            self.update()
             self._update_cursor(corner)
         super().mouseMoveEvent(event)
 
@@ -16297,54 +16083,24 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMixin, QWidget):
         self.drag_position = global_pos
 
 
-    def paintEvent(self, event): #vers 2
+    def paintEvent(self, event): #vers 3
+        """Corner handles, COL style (methods/corner_handles.py)."""
         super().paintEvent(event)
-        # Corner handles drawn by _corner_overlay overlay widget
-
-    def _setup_corner_overlay(self): #vers 3
-        """Create or re-raise the corner resize overlay.
-        Only active in standalone (frameless) mode.
-        Called from showEvent and resizeEvent with a delay so all child
-        widgets are laid out before we raise_() above them.
-        """
-        if not self.standalone_mode:
-            return
-        if not (self.windowFlags() & Qt.WindowType.FramelessWindowHint):
-            return
-        if hasattr(self, '_corner_overlay') and self._corner_overlay:
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.raise_()
-            self._corner_overlay.update_state(
-                getattr(self, 'hover_corner', None), self.app_settings)
-            return
-        overlay = _CornerOverlay(self)
-        overlay.update_state(getattr(self, 'hover_corner', None), self.app_settings)
-        self._corner_overlay = overlay
-        overlay.setGeometry(0, 0, self.width(), self.height())
-        overlay.show()
-        overlay.raise_()
+        paint_corner_handles(self)
 
     def showEvent(self, event): #vers 3
         super().showEvent(event)
         from PyQt6.QtCore import QTimer
         # Two-shot: 100ms for layout settle, 400ms to ensure all children rendered
-        QTimer.singleShot(100, self._setup_corner_overlay)
-        QTimer.singleShot(400, self._setup_corner_overlay)
+        self.update()
+        self.update()
         # Rebuild right panel so tool icons lay out correctly on first show
         QTimer.singleShot(150, self._rebuild_right_panel)
 
     def resizeEvent(self, event): #vers 1
         super().resizeEvent(event)
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(50, self._setup_corner_overlay)
-
-    def _refresh_corner_overlay(self): #vers 2
-        if hasattr(self, '_corner_overlay') and self._corner_overlay:
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.update_state(
-                getattr(self, 'hover_corner', None), self.app_settings)
-            self._corner_overlay.raise_()
-
+        self.update()
 
 #  Public factory function
 

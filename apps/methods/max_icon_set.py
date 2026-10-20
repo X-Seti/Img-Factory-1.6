@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/depends/max_icon_set.py - Version: 5
+#this belongs in apps/methods/max_icon_set.py - Version: 6
 # X-Seti - July 2026 - IMG Factory 1.6 - 3ds Max 2014 Style Icon Set
 
 """
@@ -21,7 +21,7 @@ Switching: stored in model_workshop.json 'icon_set' key.
   '3dsmax'   -> uses this module (hardcoded Max palette)
 
 Import in model_workshop.py:
-    from apps.components.Model_Editor.depends.max_icon_set import MaxIconSet
+    from apps.methods.max_icon_set import MaxIconSet
 """
 
 from PyQt6.QtGui import QIcon

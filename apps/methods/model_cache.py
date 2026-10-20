@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/model_cache.py - Version: 13
+#this belongs in apps/methods/model_cache.py - Version: 14
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG

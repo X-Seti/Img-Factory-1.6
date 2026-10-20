@@ -365,8 +365,7 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
         lay = QVBoxLayout(w)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(4)
-
-        lay.addWidget(QLabel("Objects"))
+        #lay.addWidget(QLabel())
 
         self._search_box = QLineEdit()
         self._search_box.setPlaceholderText("Search model name…")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 11
+#this belongs in apps/methods/gui_workshop.py - Version: 13
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -9,7 +9,7 @@
 # (a small subclass that sets the layout flags below or overrides methods).
 #
 # ┌┐
-# │ SECTION 1 │ GUI Core — imports, WorkshopSettings, _CornerOverlay│
+# │ SECTION 1 │ GUI Core — imports, WorkshopSettings                │
 # │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
 # │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
 # │ SECTION 4 │ Logic   — stubs to override in your subclass        │
@@ -39,10 +39,12 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.dock_panels import DockPanelsMixin, add_outer_dock, make_outer_mw
+from apps.methods.titlebar_func import TitlebarMixin
+from apps.methods.corner_handles import paint_corner_handles
 
 
 # SECTION 1 — GUI Core
-# Imports, optional deps, WorkshopSettings, _CornerOverlay
+# Imports, optional deps, WorkshopSettings
 
 APPSETTINGS_AVAILABLE = False
 try:
@@ -150,81 +152,6 @@ class WorkshopSettings:
                 if Path(p).exists()]
 
 
-# _CornerOverlay
-
-class _CornerOverlay(QWidget):
-    """Transparent overlay that draws accent-coloured resize triangles.
-    Shared by all GUIWorkshop subclasses — do not modify.
-    """
-    SIZE = 20
-
-    def __init__(self, parent):
-        super().__init__(parent)
-        for attr in [Qt.WidgetAttribute.WA_TransparentForMouseEvents,
-                     Qt.WidgetAttribute.WA_NoSystemBackground,
-                     Qt.WidgetAttribute.WA_TranslucentBackground,
-                     Qt.WidgetAttribute.WA_AlwaysStackOnTop]:
-            self.setAttribute(attr, True)
-        self.setWindowFlags(Qt.WindowType.Widget)
-        self._hover_corner = None
-        self._app_settings = getattr(parent, "app_settings", None)
-        self.setGeometry(0, 0, parent.width(), parent.height())
-        self._update_mask()
-
-
-    def _get_ui_color(self, key): #vers 2
-        """Theme QColor via shared helper."""
-        from apps.methods.ui_color import get_ui_color
-        return get_ui_color(self, key)
-
-    def _update_mask(self):
-        from PyQt6.QtGui import QRegion
-        s = self.SIZE; w, h = self.width(), self.height()
-        region = QRegion()
-        for pts in [
-            [QPoint(0,0),   QPoint(s,0),   QPoint(0,s)],
-            [QPoint(w,0),   QPoint(w-s,0), QPoint(w,s)],
-            [QPoint(0,h),   QPoint(s,h),   QPoint(0,h-s)],
-            [QPoint(w,h),   QPoint(w-s,h), QPoint(w,h-s)],
-        ]:
-            region = region.united(QRegion(QPolygon(pts)))
-        self.setMask(region)
-
-    def update_state(self, hover_corner, app_settings):
-        self._hover_corner = hover_corner
-        self._app_settings = app_settings
-        self.update()
-
-    def setGeometry(self, *a):
-        super().setGeometry(*a); self._update_mask()
-
-    def resizeEvent(self, ev):
-        super().resizeEvent(ev); self._update_mask()
-
-    def paintEvent(self, ev):
-        s = self.SIZE
-        try:
-            accent = QColor(
-                self._app_settings.get_theme_colors()
-                    .get("accent_primary", "#4682FF"))
-        except Exception:
-            accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70,130,255)
-        accent.setAlpha(200)
-        hc = QColor(accent); hc.setAlpha(255)
-        w, h = self.width(), self.height()
-        corners = {
-            "top-left":     [(0,0),   (s,0),   (0,s)],
-            "top-right":    [(w,0),   (w-s,0), (w,s)],
-            "bottom-left":  [(0,h),   (s,h),   (0,h-s)],
-            "bottom-right": [(w,h),   (w-s,h), (w,h-s)],
-        }
-        p = QPainter(self)
-        for name, pts in corners.items():
-            p.setBrush(hc if name == self._hover_corner else accent)
-            p.setPen(Qt.PenStyle.NoPen)
-            p.drawPolygon(QPolygon([QPoint(x, y) for x, y in pts]))
-        p.end()
-
 
 
 # SECTION 2 — Toolbar: Menu, Settings UI, Info [i], Cog [⚙]
@@ -240,137 +167,39 @@ class _CornerOverlay(QWidget):
 # [Settings] → _show_workshop_settings (Fonts / Display / Menu / About tabs)
 # [ℹ  Info]  → _show_about (reads App_author, App_year, App_description)
 # [⚙  Cog]  → _launch_theme_settings (global AppSettings SettingsDialog)
-# [_ ⬜ ✕]  → minimize / maximize / close  (standalone only)
+# [D] dock, [_ ⬜ ✕] minimize / maximize / close (methods/titlebar_func.py)
 
 
-class _ToolbarMixin:
-    """Toolbar + Settings dialog + theme methods.
+class _ToolbarMixin(TitlebarMixin):
+    """Titlebar hooks + Settings dialog + theme methods.
     Mixed into GUIWorkshop — not used standalone.
     """
 
-    # Toolbar creation
+    TITLEBAR_DOCKED_VISIBLE = False     # docked: IMG Factory tab bar is used
 
-    def _create_toolbar(self):
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setFixedHeight(self.toolbarheight)
-        self.toolbar.setObjectName("titlebar")
-        self.toolbar.installEventFilter(self)
-        self.toolbar.setMouseTracking(True)
-        self.titlebar = self.toolbar   # alias for drag detection
+    def _menu_btn_popup(self): #vers 1
+        """Dropdown style drops down; top bar style toggles the bar."""
+        return self.WS.get("menu_style", "dropdown") == "dropdown"
 
-        lo = QHBoxLayout(self.toolbar)
-        lo.setContentsMargins(5, 4, 5, 4)
-        lo.setSpacing(4)
-        ic = self._get_icon_color()
-
-        # Helper: create a fixed-size icon button
-        def _ibtn(icon_fn, tip, slot):
-            b = QPushButton()
-            try:
-                b.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-                b.setIconSize(QSize(20, 20))
-            except Exception:
-                pass
-            b.setFixedSize(35, 35)
-            b.setToolTip(tip)
-            b.clicked.connect(slot)
-            return b
-
-        # Left: [Menu] [Settings]
-        self.menu_btn = QPushButton("Menu")
-        self.menu_btn.setFont(self.button_font)
-        self.menu_btn.setMinimumHeight(28)
-        self.menu_btn.setMaximumHeight(35)
-        self.menu_btn.setToolTip(
-            "Show menu (dropdown or top bar — set in Settings)")
-        self.menu_btn.clicked.connect(self._on_menu_btn_clicked)
-        lo.addWidget(self.menu_btn)
-
-        self.settings_btn = QPushButton()
-        try:
-            self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, ic))
-            self.settings_btn.setIconSize(QSize(20, 20))
-        except Exception:
-            pass
-        self.settings_btn.setText(" Settings")
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setMinimumHeight(28)
-        self.settings_btn.setMaximumHeight(35)
-        self.settings_btn.setToolTip(
-            "Workshop settings — Fonts, Display, Menu, About")
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        lo.addWidget(self.settings_btn)
-
-        lo.addSpacing(4)
-        lo.addStretch()
-
-        # Centre: title
-        self.title_label = QLabel(self.App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.title_label.setObjectName("title_label")
-        lo.addWidget(self.title_label)
-
-        lo.addStretch()
-        lo.addSpacing(4)
-
-        #  Right: action buttons
-        self.open_btn   = _ibtn("open_icon",   "Open  Ctrl+O",  self._open_file)
-        self.save_btn   = _ibtn("save_icon",   "Save  Ctrl+S",  self._save_file)
+    def _titlebar_actions(self, lo): #vers 1
+        """Open / Save / Convert / Export / Import / Undo icon buttons."""
+        self.open_btn   = self._tb_button("open_icon",   "", "Open  Ctrl+O",  self._open_file)
+        self.save_btn   = self._tb_button("save_icon",   "", "Save  Ctrl+S",  self._save_file)
         self.convert_btn = None
         if self.TOOLBAR_CONVERT:
-            self.convert_btn = _ibtn("convert_icon", "Convert format",
-                                     self._convert_dialog)
+            self.convert_btn = self._tb_button("convert_icon", "", "Convert format",
+                                               self._convert_dialog)
             self.convert_btn.setEnabled(False)   # enabled after file load
-        self.export_btn = _ibtn("export_icon", "Export",        self._export_file)
-        self.import_btn = _ibtn("import_icon", "Import",        self._import_file)
+        self.export_btn = self._tb_button("export_icon", "", "Export", self._export_file)
+        self.import_btn = self._tb_button("import_icon", "", "Import", self._import_file)
         self.save_btn.setEnabled(False)
         for b in (self.open_btn, self.save_btn, self.convert_btn,
                   self.export_btn, self.import_btn):
             if b is not None:
                 lo.addWidget(b)
-
         lo.addSpacing(6)
-
-        self.undo_btn = _ibtn("undo_icon", "Undo  Ctrl+Z", self._undo)
+        self.undo_btn = self._tb_button("undo_icon", "", "Undo  Ctrl+Z", self._undo)
         lo.addWidget(self.undo_btn)
-
-        lo.addSpacing(4)
-
-        # [ℹ] Info — About this workshop
-        self.info_btn = _ibtn("info_icon", "About / Info", self._show_about)
-        lo.addWidget(self.info_btn)
-
-        # [⚙] Cog — Global AppSettings theme dialog
-        self.properties_btn = _ibtn(
-            "properties_icon",
-            "Global Theme Settings  (AppSettings)",
-            self._launch_theme_settings)
-        lo.addWidget(self.properties_btn)
-
-        lo.addSpacing(4)
-
-        # [_] [⬜] [✕] — Window controls (standalone only)
-        if self.standalone_mode:
-            self.minimize_btn = _ibtn("minimize_icon", "Minimise",
-                                      self.showMinimized)
-            self.maximize_btn = _ibtn("maximize_icon", "Maximise / Restore",
-                                      self._toggle_maximize)
-            self.close_btn    = _ibtn("close_icon",    "Close",
-                                      self.close)
-            for b in (self.minimize_btn, self.maximize_btn, self.close_btn):
-                lo.addWidget(b)
-        else:
-            self.dock_btn = QPushButton("D")
-            self.dock_btn.setFixedSize(35, 35)
-            self.dock_btn.setToolTip("Dock / Undock")
-            self.dock_btn.clicked.connect(self.toggle_dock_mode)
-            lo.addWidget(self.dock_btn)
-
-        self.toolbar.setVisible(self.standalone_mode)
-
-        return self.toolbar
 
     # Menu button handler
 
@@ -623,36 +452,11 @@ class _ToolbarMixin:
                 from apps.utils.app_settings_system import apply_panel_effects
                 apply_panel_effects(self, self.app_settings)
 
-    def _refresh_icons(self):
-        """Called on theme change — re-apply theme and rebuild toolbar icons."""
+    def _refresh_icons(self): #vers 3
+        """Called on theme change — re-apply theme and recolour titlebar icons."""
         self._apply_theme()
-        if hasattr(self, "_corner_overlay"):
-            self._corner_overlay.update_state(self.hover_corner, self.app_settings)
-        ic = self._get_icon_color()
-        for btn_name, icon_fn in {
-            "open_btn":       "open_icon",
-            "save_btn":       "save_icon",
-            "export_btn":     "export_icon",
-            "import_btn":     "import_icon",
-            "undo_btn":       "undo_icon",
-            "info_btn":       "info_icon",
-            "properties_btn": "properties_icon",
-            "settings_btn":   "settings_icon",
-        }.items():
-            btn = getattr(self, btn_name, None)
-            if btn:
-                try: btn.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-                except Exception: pass
-        if self.standalone_mode:
-            for btn_name, icon_fn in {
-                "minimize_btn": "minimize_icon",
-                "maximize_btn": "maximize_icon",
-                "close_btn":    "close_icon",
-            }.items():
-                btn = getattr(self, btn_name, None)
-                if btn:
-                    try: btn.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-                    except Exception: pass
+        self.update()                                   # corner handle colour
+        self._refresh_titlebar_icons()
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -994,8 +798,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self.button_display_mode = "both"
 
         # Margins / spacing (consistent across all workshops)
-        self.contmergina = 1; self.contmerginb = 1
-        self.contmerginc = 1; self.contmergind = 1; self.setspacing = 2
+        self.contmergina = 5; self.contmerginb = 5          # COL corner strip
+        self.contmerginc = 5; self.contmergind = 5; self.setspacing = 2
         self.panelmergina = 5; self.panelmerginb = 5
         self.panelmerginc = 5; self.panelmergind = 5
         self.toolbarheight = 50; self.statusheight = 22
@@ -1085,23 +889,13 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             lambda: self._set_active_tool("rect_fill"))
 
     #  Window chrome
-    def showEvent(self, ev): #vers 2
+    def showEvent(self, ev): #vers 3
         super().showEvent(ev)
-        if self.is_docked:                           # docked: no corner handles
-            if hasattr(self, "_corner_overlay"):
-                self._corner_overlay.hide()
-            return
-        if not hasattr(self, "_corner_overlay"):
-            self._corner_overlay = _CornerOverlay(self)
-            self._corner_overlay.update_state(None, self.app_settings)
-        self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-        self._corner_overlay.raise_()
-        self._corner_overlay.show()
 
-    def resizeEvent(self, ev):
-        super().resizeEvent(ev)
-        if hasattr(self, "_corner_overlay"):
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+    def paintEvent(self, ev): #vers 1
+        """Corner handles, COL style (methods/corner_handles.py)."""
+        super().paintEvent(ev)
+        paint_corner_handles(self)
 
     def _get_resize_corner(self, pos): #vers 2
         if self.is_docked:
@@ -1148,7 +942,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             ev.accept(); return
         super().mousePressEvent(ev)
 
-    def mouseMoveEvent(self, ev):
+    def mouseMoveEvent(self, ev): #vers 2
         if ev.buttons() == Qt.MouseButton.LeftButton:
             if self.resizing and self.resize_corner:
                 self._handle_corner_resize(ev.globalPosition().toPoint())
@@ -1157,8 +951,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             corner = self._get_resize_corner(ev.pos())
             if corner != self.hover_corner:
                 self.hover_corner = corner
-                if hasattr(self, "_corner_overlay"):
-                    self._corner_overlay.update_state(corner, self.app_settings)
+                self.update()
             self._update_cursor(corner)
         super().mouseMoveEvent(ev)
 
@@ -1230,7 +1023,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self.show()
         self.raise_()
 
-    def _dock_to_main(self): #vers 1
+    def _dock_to_main(self): #vers 2
         """Return a torn-off workshop to its IMG Factory tab."""
         from apps.methods.dock_panels import redock_to_tab
         self.is_docked = True
@@ -1238,8 +1031,6 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             self.is_docked = False
             return
         self.toolbar.setVisible(False)
-        if hasattr(self, "_corner_overlay"):
-            self._corner_overlay.hide()
 
     def closeEvent(self, ev):
         if self.standalone_mode:

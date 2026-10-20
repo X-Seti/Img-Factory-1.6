@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 37
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 40
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -19,7 +19,10 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
+from apps.methods.corner_handles import paint_corner_handles
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.titlebar_func import TitlebarMixin
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox,
     QDialog, QDoubleSpinBox, QFileDialog, QFontComboBox,
@@ -1494,85 +1497,6 @@ class _TileZoomView(QWidget):
 
 
 
-class _CornerOverlay(QWidget):
-    """Transparent overlay that draws corner resize triangles on top of all children.
-    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
-    WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
-
-    SIZE = 20   # triangle leg size in pixels
-
-    def __init__(self, parent): #vers 3
-        super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
-        self.setWindowFlags(Qt.WindowType.Widget)
-        self._hover_corner = None
-        self._app_settings = None
-        self.setGeometry(0, 0, parent.width(), parent.height())
-        self._update_mask()
-
-    def _update_mask(self): #vers 1
-        """Create a mask covering only the four corner triangles."""
-        from PyQt6.QtGui import QRegion, QPolygon
-        from PyQt6.QtCore import QPoint
-        s = self.SIZE
-        w, h = self.width(), self.height()
-        region = QRegion()
-        for pts in [
-            [QPoint(0,0),    QPoint(s,0),    QPoint(0,s)],     # top-left
-            [QPoint(w,0),    QPoint(w-s,0),  QPoint(w,s)],     # top-right
-            [QPoint(0,h),    QPoint(s,h),    QPoint(0,h-s)],   # bottom-left
-            [QPoint(w,h),    QPoint(w-s,h),  QPoint(w,h-s)],   # bottom-right
-        ]:
-            region = region.united(QRegion(QPolygon(pts)))
-        self.setMask(region)
-
-    def update_state(self, hover_corner, app_settings): #vers 1
-        self._hover_corner = hover_corner
-        self._app_settings = app_settings
-        self.update()
-
-    def setGeometry(self, *args): #vers 1
-        super().setGeometry(*args)
-        self._update_mask()
-
-    def resizeEvent(self, event): #vers 1
-        super().resizeEvent(event)
-        self._update_mask()
-
-    def paintEvent(self, event): #vers 2
-        s = self.SIZE
-        if self._app_settings:
-            try:
-                colors = self._app_settings.get_theme_colors()
-                accent = QColor(colors.get('accent_primary', '#4682FF'))
-            except Exception:
-                accent = QColor(70, 130, 255)
-        else:
-            accent = QColor(70, 130, 255)
-        accent.setAlpha(200)
-        hover_c = QColor(accent); hover_c.setAlpha(255)
-        w, h = self.width(), self.height()
-        corners = {
-            'top-left':     [(0,0),  (s,0),   (0,s)],
-            'top-right':    [(w,0),  (w-s,0), (w,s)],
-            'bottom-left':  [(0,h),  (s,h),   (0,h-s)],
-            'bottom-right': [(w,h),  (w-s,h), (w,h-s)],
-        }
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        for name, pts in corners.items():
-            path = QPainterPath()
-            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
-            path.closeSubpath()
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
-            painter.drawPath(path)
-        painter.end()
-
-
 #    World bounds per game (GTA world units covered by the full radar map)      
 # Format: (world_min_x, world_max_x, world_min_y, world_max_y)
 # Tile grid origin is top-left = (world_min_x, world_max_y) — Y flips screen↔world
@@ -1594,7 +1518,7 @@ _GAME_WORLD_BOUNDS = {
 }
 
 
-class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
+class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
     _ribbon_name = "radar_workshop"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
     _RIBBON_LAYOUT_VERSION = 4
@@ -1643,7 +1567,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         vm.addSeparator()
         vm.addAction("About Radar Workshop", self._show_about)
 
-    def __init__(self, parent=None, main_window=None): #Vers 1
+    def __init__(self, parent=None, main_window=None): #vers 2
         super().__init__(parent)
 
         self.main_window        = main_window
@@ -1697,7 +1621,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                 self.move(wx, wy)
 
         # Spacing/margins (template pattern)
-        self.contmergina=1; self.contmerginb=1; self.contmerginc=1; self.contmergind=1; self.setspacing=2
+        self.contmergina=5; self.contmerginb=5; self.contmerginc=5; self.contmergind=5; self.setspacing=2
         self.panelmergina=5; self.panelmerginb=5; self.panelmerginc=5; self.panelmergind=5; self.panelspacing=5
         self.titlebarheight=45; self.toolbarheight=50
         self.tabmerginsa=5; self.tabmerginsb=0; self.tabmerginsc=5; self.tabmerginsd=0; self.statusheight=22
@@ -1764,7 +1688,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
     #    setup_ui
 
-    def setup_ui_old(self): #vers 1
+    def setup_ui_old(self): #vers 2
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -1799,9 +1723,9 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
         self._status_bar = self._create_status_bar()
         main_layout.addWidget(self._status_bar)
-        # Corner resize overlay set up in showEvent
+        register_statusbar(self, self._status_bar)
 
-    def setup_ui(self): #vers 1
+    def setup_ui(self): #vers 2
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -1841,139 +1765,23 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
         self._status_bar = self._create_status_bar()
         main_layout.addWidget(self._status_bar)
+        register_statusbar(self, self._status_bar)
 
 
     # - Toolbar
 
-    def _create_toolbar(self): #vers 2
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(self.titlebarheight)
-        self.titlebar.setObjectName("titlebar")
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
+    def _menu_btn_popup(self): #vers 1
+        """Menu button calls _on_menu_btn_clicked (top bar or drop-down)."""
+        return False
 
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(self.toolbarheight)
-        self.titlebar = self.toolbar  # alias for drag detection
+    def _titlebar_actions(self, layout): #vers 1
+        """Radar titlebar: Undo."""
+        self.undo_btn = self._tb_button('undo_icon', "", "Undo last tile edit (Ctrl+Z)", self._undo)
+        layout.addWidget(self.undo_btn)
 
-        # - Theme-aware icon colour
-        icon_color = self._get_icon_color()
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(*self.get_panel_margins())
-        layout.setSpacing(self.panelspacing)
-
-
-        self.menu_toggle_btn = QPushButton("Menu")
-        self.menu_toggle_btn.setFont(self.button_font)
-        self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
-        self.menu_toggle_btn.setMinimumHeight(28)
-        self.menu_toggle_btn.setMaximumHeight(28)
-        self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
-        # Menu/Settings (Aug 20 2026)
-        self.menu_toggle_btn.setVisible(self.standalone_mode)
-        layout.addWidget(self.menu_toggle_btn)
-
-        # - Settings button (standalone only — docked uses right-panel button)
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip(App_name + "Workshop Settings")
-        self.settings_btn.setVisible(self.standalone_mode)
-        layout.addWidget(self.settings_btn)
-
-        layout.addSpacing(8)
-        layout.addStretch()
-
-        # - App name + version label (centre-left of toolbar)
-        self._title_lbl = QLabel(f"{App_name} - {Build}")
-        self._title_lbl.setStyleSheet("")
-        self._title_lbl.setVisible(self.standalone_mode)
-        layout.addWidget(self._title_lbl)
-
-        layout.addStretch()
-
-        # Game / W / H selector lives in the Grid ribbon (_build_ribbons)
-
-        # - Undo button (left of info button)
-        self.toolbar_undo_btn = QPushButton()
-        self.toolbar_undo_btn.setIcon(SVGIconFactory.undo_icon(20, icon_color))
-        self.toolbar_undo_btn.setIconSize(QSize(20, 20))
-        self.toolbar_undo_btn.setFixedSize(35, 35)
-        self.toolbar_undo_btn.setToolTip("Undo last tile edit (Ctrl+Z)")
-        self.toolbar_undo_btn.clicked.connect(self._undo)
-        layout.addWidget(self.toolbar_undo_btn)
-        self.toolbar_undo_btn.setVisible(self.standalone_mode)
-
-        # - Info button (before Theme)
-        self.info_radar_btn = QPushButton()
-        self.info_radar_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
-        self.info_radar_btn.setIconSize(QSize(20, 20))
-        self.info_radar_btn.setFixedSize(35, 35)
-        self.info_radar_btn.setToolTip("About Radar Workshop")
-        self.info_radar_btn.clicked.connect(self._show_about)
-        layout.addWidget(self.info_radar_btn)
-        self.info_radar_btn.setVisible(self.standalone_mode)
-
-        # - Theme / Properties
-        self.properties_btn = QPushButton()
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
-        self.properties_btn.setIconSize(QSize(20, 20))
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.setToolTip("Theme Settings")
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        layout.addWidget(self.properties_btn)
-        self.properties_btn.setVisible(self.standalone_mode)
-
-        # - Dock button — hidden in standalone (nothing to dock to)
-        self.dock_btn = QPushButton()
-        try:
-            self.dock_btn.setIcon(SVGIconFactory.import_icon(20, icon_color))
-            self.dock_btn.setIconSize(QSize(20, 20))
-        except Exception:
-            self.dock_btn.setText("⊞")
-        self.dock_btn.setFixedSize(35, 35)
-        self.dock_btn.setToolTip("Dock into IMG Factory")
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        self.dock_btn.setVisible(not self.standalone_mode)
-        layout.addWidget(self.dock_btn)
-
-        # - Tear-off button — only when docked, use icon not bare "T"
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton()
-            try:
-                self.tearoff_btn.setIcon(SVGIconFactory.export_icon(20, icon_color))
-                self.tearoff_btn.setIconSize(QSize(20, 20))
-            except Exception:
-                self.tearoff_btn.setText("↗")
-            self.tearoff_btn.setFixedSize(35, 35)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("Tear off — open as standalone window")
-            layout.addWidget(self.tearoff_btn)
-
-        # - Window controls (standalone only)
-        if self.standalone_mode:
-            for attr, icon_method, slot, tip in [
-                ('minimize_btn', 'minimize_icon', self.showMinimized,    "Minimize"),
-                ('maximize_btn', 'maximize_icon', self._toggle_maximize, "Maximize"),
-                ('close_btn',    'close_icon',    self.close,            "Close"),
-            ]:
-                btn = QPushButton()
-                btn.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
-                btn.setIconSize(QSize(20, 20))
-                btn.setMinimumWidth(40); btn.setMaximumWidth(40); btn.setMinimumHeight(30)
-                btn.clicked.connect(slot)
-                btn.setToolTip(tip)
-                setattr(self, attr, btn)
-                layout.addWidget(btn)
-
-        return self.toolbar
+    def _titlebar_title(self): #vers 1
+        """Centre title with build."""
+        return f"{App_name} - {Build}"
 
 
     # - Left panel: session list
@@ -2984,7 +2792,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
 
 
     # Settings dialog
-    def _show_workshop_settings(self): #vers 4
+    def _show_workshop_settings(self): #vers 5
         """Workshop-local settings — Fonts, Display, Menu tabs."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -3030,6 +2838,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         mode_combo.setCurrentIndex({'both':0,'icons':1,'text':2}.get(self.button_display_mode, 0))
         bl.addWidget(mode_combo)
         dl.addWidget(btn_grp)
+        add_statusbar_checkbox(self, dl)
         dl.addStretch()
         tabs.addTab(disp_tab, "Display")
 
@@ -3203,11 +3012,11 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                 c.setMaximumHeight(16777215 if on else 0)
                 c.setVisible(on)
 
-    def _show_dropdown_menu(self): #vers 2
+    def _show_dropdown_menu(self): #vers 3
         """Pop up the radar menus as a single QMenu dropdown."""
         menu = QMenu(self)
         self._build_menus_into_qmenu(menu)
-        btn = getattr(self, 'menu_toggle_btn', None)
+        btn = getattr(self, 'menu_btn', None)
         if btn:
             menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
         else:
@@ -4696,7 +4505,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         else:
             self._dock_to_main()
 
-    def _dock_to_main(self): #vers 2
+    def _dock_to_main(self): #vers 3
         """Return a torn-off workshop to its IMG Factory tab."""
         from apps.methods.dock_panels import redock_to_tab
         if not redock_to_tab(self):      # no tab to return to
@@ -4709,16 +4518,9 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             self.docked_settings_btn.setVisible(True)
         if hasattr(self, 'dock_btn'):
             self.dock_btn.setVisible(False)
-        # Hide the same window-chrome-style toolbar elements _create_
-        # toolbar itself hides at construction time when starting
-        # docked (Aug 20 2026,
-        for attr in ('menu_toggle_btn', 'settings_btn', 'toolbar_undo_btn',
-                     'info_radar_btn', 'properties_btn'):
-            if hasattr(self, attr):
-                getattr(self, attr).setVisible(False)
         self.show(); self.raise_()
 
-    def _undock_from_main(self): #vers 2
+    def _undock_from_main(self): #vers 3
         self.standalone_mode = True
         self.is_docked = False
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
@@ -4730,15 +4532,6 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             self.settings_btn.setVisible(True)
         if hasattr(self, 'dock_btn'):
             self.dock_btn.setVisible(True)      # D docks back
-        # Restore the same window-chrome-style elements _dock_to_main
-        # hides (Aug 20 2026, see that method's own comment for the
-        # fuller reasoning) - the reverse half of that same fix, so
-        # undocking after docking correctly brings these back too,
-        # not just the tool's own initial construction-time state.
-        for attr in ('menu_toggle_btn', 'toolbar_undo_btn',
-                     'info_radar_btn', 'properties_btn'):
-            if hasattr(self, attr):
-                getattr(self, attr).setVisible(True)
         self.resize(1300, 800)
         self.show(); self.raise_()
 
@@ -4933,7 +4726,7 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
             if corner != self.hover_corner:
                 self.hover_corner = corner
                 self.update()
-            self._refresh_corner_overlay()
+            self.update()
             self._update_cursor(corner)
         super().mouseMoveEvent(event)
 
@@ -4978,38 +4771,14 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
                 self.setGeometry(nx, ny, nw, nh)
 
 
-    def paintEvent(self, event): #Vers 2
+    def paintEvent(self, event): #vers 3
+        """Corner handles, COL style (methods/corner_handles.py)."""
         super().paintEvent(event)
-        # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
-
-    def _setup_corner_overlay(self): #vers 4
-        """Create or refresh the corner resize overlay."""
-        if not self.standalone_mode:
-            return
-        # Destroy stale overlay if window was resized before it was created
-        existing = getattr(self, '_corner_overlay', None)
-        if existing is not None:
-            existing.setGeometry(0, 0, self.width(), self.height())
-            existing.raise_()
-            existing.update()
-            return
-        overlay = _CornerOverlay(self)
-        self._corner_overlay = overlay
-        overlay.setGeometry(0, 0, self.width(), self.height())
-        overlay.show()
-        overlay.raise_()
-
-    def _refresh_corner_overlay(self): #vers 1
-        if hasattr(self, '_corner_overlay'):
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.update_state(
-                getattr(self, 'hover_corner', None),
-                self.app_settings)
-            self._corner_overlay.raise_()
+        paint_corner_handles(self)
 
     def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
-        self._refresh_corner_overlay()
+        self.update()
 
     def showEvent(self, event): #vers 3
         super().showEvent(event)
@@ -5017,12 +4786,12 @@ class RadarWorkshop(RibbonMixin, ToolMenuMixin, QWidget): #vers 2
         QTimer.singleShot(250, self._radar.update)
         if self.standalone_mode:
             # Small delay ensures window geometry is finalised
-            QTimer.singleShot(150, self._setup_corner_overlay)
+            self.update()
 
     def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
-        self._refresh_corner_overlay()
+        self.update()
 
     def hideEvent(self, event): #vers 1
         """Docked tabs never get closeEvent: keep ribbon positions on hide."""
