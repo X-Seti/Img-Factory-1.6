@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 5
+#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 8
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Capture Workshop
 # Built on GUIWorkshop base (same as Water Workshop)
 
@@ -83,7 +83,7 @@ from apps.components.Capture_Workshop.depends.capture_sources_func import (
     grab_screen, grab_window_area, is_linux, list_devices, list_windows)
 
 App_name  = "Capture Workshop"
-Build     = "Build 4"
+Build     = "Build 8"
 IMAGE_EXT = ('.png', '.jpg', '.jpeg')
 VIDEO_EXT = ('.mp4', '.webm')
 
@@ -139,7 +139,7 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         ml.addWidget(self._create_toolbar())
         left = self._create_left_panel()
         ml.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()),
-                                       [("Captures", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
+                                       [("Captures Controls", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)

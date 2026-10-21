@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 131
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 132
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -135,6 +135,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         # Thumbnail view axis (applied to all static thumbnails)
         self._thumb_yaw   = 0.0    # top-down (XY plane) by default
         self._thumb_pitch = 0.0
+        self._bg_color     = (25, 25, 35)  # overridden on first paint
 
         # Set default fonts
         from PyQt6.QtGui import QFont
@@ -311,7 +312,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # STUB: dock_btn, tearoff_btn, colour swatch buttons and _svg_to_icon()
     # created icons do not yet update on theme change. Wire to _refresh_icons.
 
-    def _show_workshop_settings(self): #vers 3
+    def _show_workshop_settings(self): #vers 4
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -695,11 +696,8 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
 
             # Update preview widget
             if hasattr(self, 'preview_widget'):
-                if self.background_mode == 'checkerboard':
-                    self.preview_widget.set_checkerboard_background()
-                    self.preview_widget._checkerboard_size = self._checkerboard_size
-                else:
-                    self.preview_widget.set_background_color(self.preview_widget.bg_color)
+                self.preview_widget._checkerboard_size = self._checkerboard_size
+                self.preview_widget.update()   # viewport has no bg_color attr
 
             # Apply button display mode
             if hasattr(self, '_update_all_buttons'):

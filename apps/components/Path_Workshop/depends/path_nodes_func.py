@@ -1,27 +1,31 @@
-#this belongs in apps/components/Path_Workshop/depends/path_nodes_func.py - Version: 10
+#this belongs in apps/components/Path_Workshop/depends/path_nodes_func.py - Version: 12
 # X-Seti - October 19 2026 - IMG Factory 1.6 - Path Workshop node logic
 
 """
 Path node loading, tree, properties, editing, undo and save.
 IPL (VC/SOL) and IDE (III) path groups, SA nodesN.dat, tracks.
-Chase paths (III), roadblocks and car recordings (SA), LCS/VCS game.dtz paths read only.
+Chase paths (III) and roadblocks (SA) read only; car recordings and LCS/VCS game.dtz paths editable.
 """
 
 ##Methods list -
 # _add_node_at
+# _add_recording_frame
 # _begin_node_drag
 # _build_path_records
 # _create_nodes_panel
 # _create_props_panel
-# _delete_group
 # _deferred_rebuild
+# _delete_group
 # _delete_selected_node
 # _drag_node_to
+# _dtz_nodes
 # _edit_recording
 # _end_node_drag
 # _fill_tree_item
 # _ide_set_world
 # _init_path_system
+# _join_recording
+# _layer_shown
 # _link_click
 # _load_path_file
 # _load_paths
@@ -31,10 +35,9 @@ Chase paths (III), roadblocks and car recordings (SA), LCS/VCS game.dtz paths re
 # _on_prop_edited
 # _on_tree_expanded
 # _on_tree_selected
-# _layer_shown
 # _pick_node
-# _populate_nodes_tree
 # _pn_visible
+# _populate_nodes_tree
 # _prop_widget
 # _push_undo
 # _reverse_group
@@ -46,6 +49,9 @@ Chase paths (III), roadblocks and car recordings (SA), LCS/VCS game.dtz paths re
 # _snapshot
 # _tree_item_for
 # _undo_path_edit
+
+##class DTZNode: -
+# __init__
 
 ##class PathRec: -
 # __init__
@@ -80,7 +86,8 @@ _FIELDS = {
 }
 _FIELDS['trk'] = [('x', "X", float, -9000, 9000), ('y', "Y", float, -9000, 9000),
                   ('z', "Z", float, -2000, 2000)]
-_FIELDS['dtz'] = []                     # LCS/VCS compiled paths: view only
+_FIELDS['dtz'] = [('x', "X", float, -4095, 4095), ('y', "Y", float, -4095, 4095),
+                  ('z', "Z", float, -128, 127)]      # LCS/VCS game.dtz (VCS z whole units)
 _FIELDS['rrr'] = [('time_ms', "Time ms", int, 0, 2147483647), ('pos_x', "X", float, -9000, 9000),
                   ('pos_y', "Y", float, -9000, 9000), ('pos_z', "Z", float, -2000, 2000),
                   ('gas', "Gas", float, -1.28, 1.27), ('brake', "Brake", float, -1.28, 1.27),
@@ -90,13 +97,22 @@ _GROUP_FIELDS = {
     'ide': [('group_type', "G-Type", str, 0, 0), ('model_id', "Model ID", int, 0, 999999),
             ('model_name', "Model name", str, 0, 0)],
 }
-_VIEW_ONLY = ('chase', 'rblk', 'dtz')
+_VIEW_ONLY = ('chase', 'rblk')
 LAYERS = ('car', 'ped', 'other', 'trk', 'chase', 'rblk', 'rrr')
 _LAYER = {False: 0, True: 1, None: 2, 'trk': 3, 'chase': 4, 'rblk': 5, 'rrr': 6}   # rec.ped -> layer
 PATH_STYLE_DEFAULTS = {'car': '#50b4ff', 'ped': '#5adc6e', 'other': '#ffaa28', 'trk': '#c8c8d2',
                        'chase': '#ff50dc', 'rblk': '#ff3030', 'rrr': '#ffd23c',
                        'line_w': 1.5, 'node_px': 3}
 _PRESET_FOR_GAME = {'gta3': "III PC", 'vc': "VC PC", 'sa': "SA PC", 'sol': "SOL"}
+
+
+class DTZNode: #vers 1
+    """One LCS/VCS game.dtz path node (position editable)."""
+    __slots__ = ('index', 'kind', 'x', 'y', 'z', 'links')
+
+    def __init__(self, nd): #vers 1
+        self.index, self.kind, self.links = nd['index'], nd['kind'], nd['links']
+        self.x, self.y, self.z = nd['x'], nd['y'], nd['z']
 
 
 class PathRec: #vers 1
@@ -300,7 +316,7 @@ class PathNodesMixin:
         r = QMessageBox.question(self, "Unsaved Paths", "Discard unsaved path edits?")
         return r == QMessageBox.StandardButton.Yes
 
-    def _build_path_records(self): #vers 7
+    def _build_path_records(self): #vers 8
         """Flatten all loaded path data into PathRec + edges."""
         from apps.methods.path_nodes import rotate_vector_by_quaternion
         recs, edges, keys = [], [], {}
@@ -310,20 +326,28 @@ class PathNodesMixin:
             self._pn_xy = np.zeros((0, 2)); self._pn_cls = np.zeros(0, np.int8); self._pn_edit = np.zeros(0, bool)
             self._pn_edge_arr = np.zeros((0, 2), np.int64)
             return
-        for g in ld.paths:                                   # VC / SOL IPL, LCS/VCS dtz
+        for g in ld.paths:                                   # VC / SOL IPL
+            if g.source_ipl.endswith('.dtz'):                # game.dtz: node graph below
+                continue
             idx = {}
-            dtz = g.source_ipl.endswith('.dtz')
-            kind = 'dtz' if dtz else 'ipl'
-            ped = g.header_a == (1 if dtz else 0)            # IPL 0 = ped; dtz 0 = car
+            ped = g.header_a == 0                            # IPL 0 = ped
             for i, n in enumerate(g.nodes):
                 if n.node_type == 0:
                     continue
-                k = (kind, id(g), i)
+                k = ('ipl', id(g), i)
                 idx[i] = len(recs); keys.setdefault(k, len(recs))
-                recs.append(PathRec(kind, n, g, i, n.x, n.y, n.z, ped, k))
+                recs.append(PathRec('ipl', n, g, i, n.x, n.y, n.z, ped, k))
             for i, n in enumerate(g.nodes):
                 if i in idx and n.next_id in idx:
                     edges.append((idx[i], idx[n.next_id]))
+        base = len(recs)                                     # LCS/VCS game.dtz path graph
+        for nd in self._dtz_nodes():
+            k = ('dtz', nd.index)
+            keys[k] = len(recs)
+            recs.append(PathRec('dtz', nd, getattr(ld, 'stories_dtz', None), nd.index,
+                                nd.x, nd.y, nd.z, nd.kind == 'ped', k))
+        for nd in self._dtz_nodes():
+            edges += [(base + nd.index, base + j) for j in nd.links if j > nd.index]
         by_model = {}
         for inst in ld.instances:
             by_model.setdefault(inst.model_id, []).append(inst)
@@ -401,9 +425,18 @@ class PathNodesMixin:
         if hasattr(self, '_nodes_count'):
             self._nodes_count.setText(f"{len(recs)} nodes, {len(edges)} links")
 
+    def _dtz_nodes(self): #vers 1
+        """Editable game.dtz path nodes of the loader (built once)."""
+        ld = self._loader
+        if ld is None or getattr(ld, 'stories_dtz', None) is None:
+            return []
+        if getattr(ld, 'dtz_nodes', None) is None:
+            ld.dtz_nodes = [DTZNode(nd) for nd in ld.stories_dtz.path_nodes()]
+        return ld.dtz_nodes
+
     # - Tree
 
-    def _node_label(self, kind, n, i): #vers 2
+    def _node_label(self, kind, n, i): #vers 3
         """Tree text for one node."""
         if kind == 'sa':
             return f"Node {n.node_id}", f"{n.x:.1f}, {n.y:.1f}, {n.z:.1f}"
@@ -411,9 +444,11 @@ class PathNodesMixin:
             return f"Point {i}", f"{n.x:.1f}, {n.y:.1f}, {n.z:.1f}"
         if kind == 'rrr':
             return f"Frame {i}", f"{n.time_ms / 1000:.2f}s  {n.pos_x:.1f}, {n.pos_y:.1f}"
+        if kind == 'dtz':
+            return f"Node {i}", f"{n.x:.1f}, {n.y:.1f}, {n.z:.1f}"
         return f"Node {i}", f"type {n.node_type} next {n.next_id}"
 
-    def _populate_nodes_tree(self): #vers 5
+    def _populate_nodes_tree(self): #vers 6
         """Top level: IPL files, IDE models, SA areas (nodes filled on expand)."""
         t = self._nodes_tree
         t.clear()
@@ -425,16 +460,23 @@ class PathNodesMixin:
             it.setData(0, Qt.ItemDataRole.UserRole, data)
             QTreeWidgetItem(it, [""])                       # expand marker
             return it
-        if ld.paths:
-            top = QTreeWidgetItem(t, ["IPL paths", f"{len(ld.paths)} groups"])
+        ipl_groups = [g for g in ld.paths if not g.source_ipl.endswith('.dtz')]
+        if ipl_groups:
+            top = QTreeWidgetItem(t, ["IPL paths", f"{len(ipl_groups)} groups"])
             files = {}
-            for g in ld.paths:
+            for g in ipl_groups:
                 files.setdefault(g.source_ipl, []).append(g)
             for name, groups in files.items():
                 fi = QTreeWidgetItem(top, [name, f"{len(groups)} groups"])
                 for gn, g in enumerate(groups):
                     real = sum(1 for n in g.nodes if n.node_type)
                     lazy(fi, f"Group {gn}", f"({g.header_a}, {g.header_b}) {real} nodes", ('grp', id(g)))
+        dn = self._dtz_nodes()
+        if dn:
+            top = QTreeWidgetItem(t, ["game.dtz paths", f"{len(dn)} nodes"])
+            for kind in ('car', 'ped'):
+                cnt = sum(1 for n in dn if n.kind == kind)
+                lazy(top, kind.capitalize(), f"{cnt} nodes", ('dtzlist', kind))
         if ld.ide_paths:
             top = QTreeWidgetItem(t, ["IDE paths (III)", f"{len(ld.ide_paths)} groups"])
             for g in ld.ide_paths:
@@ -462,7 +504,7 @@ class PathNodesMixin:
                 lazy(ai, "Vehicle", f"{len(pf.vehicle_nodes)} nodes", ('sa', area, False))
                 lazy(ai, "Ped", f"{len(pf.ped_nodes)} nodes", ('sa', area, True))
 
-    def _fill_tree_item(self, it): #vers 4
+    def _fill_tree_item(self, it): #vers 5
         """Replace an expand marker with node rows."""
         if it.childCount() != 1 or it.child(0).text(0):
             return
@@ -474,6 +516,12 @@ class PathNodesMixin:
                 c = QTreeWidgetItem(it, list(self._node_label('trk', p, i)))
                 c.setData(0, Qt.ItemDataRole.UserRole, ('trk', data[1], i))
             return
+        if data[0] == 'dtzlist':
+            for n in self._dtz_nodes():
+                if n.kind == data[1]:
+                    c = QTreeWidgetItem(it, list(self._node_label('dtz', n, n.index)))
+                    c.setData(0, Qt.ItemDataRole.UserRole, ('dtz', n.index))
+            return
         if data[0] == 'rrrfile':
             for i, f in enumerate(ld.car_recordings[data[1]]):
                 c = QTreeWidgetItem(it, list(self._node_label('rrr', f, i)))
@@ -481,7 +529,7 @@ class PathNodesMixin:
             return
         if data[0] == 'grp':
             g = next(g for g in list(ld.paths) + list(ld.ide_paths) if id(g) == data[1])
-            kind = ('dtz' if g.source_ipl.endswith('.dtz') else 'ipl') if g in ld.paths else 'ide'
+            kind = 'ipl' if g in ld.paths else 'ide'
             for i, n in enumerate(g.nodes):
                 c = QTreeWidgetItem(it, list(self._node_label(kind, n, i)))
                 c.setData(0, Qt.ItemDataRole.UserRole, (kind, id(g), i))
@@ -510,12 +558,13 @@ class PathNodesMixin:
         self._radar._pan_y += int(self._radar.height() / 2 - sy)
         self._radar.update()
 
-    def _tree_item_for(self, key): #vers 4
+    def _tree_item_for(self, key): #vers 5
         """Tree item of a node key, filling parents as needed."""
         t = self._nodes_tree
-        want = {'ipl': ('grp', key[1]), 'ide': ('grp', key[1]), 'dtz': ('grp', key[1]),
-                'trk': ('trkfile', key[1]), 'rrr': ('rrrfile', key[1])}.get(
-            key[0], ('sa', key[1], key[2]))
+        dtz_kind = self._dtz_nodes()[key[1]].kind if key[0] == 'dtz' else None
+        want = {'ipl': ('grp', key[1]), 'ide': ('grp', key[1]), 'dtz': ('dtzlist', dtz_kind),
+                'trk': ('trkfile', key[1]), 'rrr': ('rrrfile', key[1])}.get(key[0])
+        want = want or ('sa', key[1], key[2])
         stack = [t.topLevelItem(i) for i in range(t.topLevelItemCount())]
         while stack:
             it = stack.pop()
@@ -566,7 +615,7 @@ class PathNodesMixin:
                 self._nodes_tree.blockSignals(False)
         self._radar.update()
 
-    def _show_node_props(self): #vers 6
+    def _show_node_props(self): #vers 7
         """Rebuild the compact properties grid (3 fields per row)."""
         g = self._props_grid
         while g.count():                             # field may be emitting: defer delete
@@ -580,7 +629,7 @@ class PathNodesMixin:
         src = {'ipl': lambda: r.group.source_ipl, 'ide': lambda: r.group.source_ide,
                'sa': lambda: f"nodes{r.group.area_id}.dat", 'trk': lambda: r.group,
                'rrr': lambda: r.group,
-               'dtz': lambda: r.group.source_ipl + " (view only)"}[r.kind]()
+               'dtz': lambda: os.path.basename(r.group.path)}[r.kind]()
         self._props_title.setText(f"{src}  node {r.gi}")
         cells = []                                   # (label, widget) in reading order
         for attr, label, typ, lo, hi in _FIELDS[r.kind]:
@@ -672,8 +721,9 @@ class PathNodesMixin:
 
     # - Editing
 
-    def _snapshot(self, obj): #vers 3
+    def _snapshot(self, obj): #vers 4
         kind = ('sa' if hasattr(obj, 'flood_fill') else 'ide' if hasattr(obj, 'x_rel')
+                else 'dtz' if hasattr(obj, 'links')
                 else 'rrr' if hasattr(obj, 'time_ms') else 'trk' if hasattr(obj, 'source_file') else 'ipl')
         return (obj, {a: getattr(obj, a) for a, *_ in _FIELDS[kind]})
 
@@ -700,13 +750,15 @@ class PathNodesMixin:
         self._rebuild_keep_selection(key)
         self._set_status("Undone")
 
-    def _mark_dirty(self, r): #vers 3
+    def _mark_dirty(self, r): #vers 4
         if r.kind == 'ipl':
             self._dirty.add(('ipl', r.group.source_ipl))
         elif r.kind == 'ide':
             self._dirty.add(('ide', r.group.source_ide))
         elif r.kind in ('trk', 'rrr'):
             self._dirty.add((r.kind, r.group))
+        elif r.kind == 'dtz':
+            self._dirty.add(('dtz', os.path.basename(r.group.path)))
         else:
             self._dirty.add(('sa', r.group.area_id))
             self._sa_changed.setdefault(r.group.area_id, {})[id(r.obj)] = r.obj
@@ -749,15 +801,18 @@ class PathNodesMixin:
             self._rebuild_keep_selection(r.key)
             self._set_status(f"Moved node to {r.x:.1f}, {r.y:.1f}")
 
-    def _add_node_at(self, wx, wy): #vers 3
+    def _add_node_at(self, wx, wy): #vers 5
         """Fill a free slot of the selected group, else start a new group."""
         from apps.methods.gta_dat_parser import PathGroup, PathNode
         if not 0 <= self._selected_node < len(self._pn):
             self._set_status("Select a node first - new node joins its group")
             return
         sel = self._pn[self._selected_node]
-        if sel.kind in ('sa', 'trk', 'rrr'):
-            self._set_status("SA nodes / tracks / recordings: move and edit only (adding not supported)")
+        if sel.kind == 'rrr':
+            self._add_recording_frame(sel, wx, wy)
+            return
+        if sel.kind in ('sa', 'trk', 'dtz'):
+            self._set_status("SA / dtz nodes, tracks: move and edit only (adding not supported)")
             return
         g = sel.group
         slot = next((i for i, n in enumerate(g.nodes) if n.node_type == 0), None)
@@ -791,7 +846,7 @@ class PathNodesMixin:
         self._select_node(self._pn_key.get(key, -1))
         self._set_status(f"Added node {slot} at {wx:.1f}, {wy:.1f}")
 
-    def _link_click(self, idx): #vers 3
+    def _link_click(self, idx): #vers 4
         """Link tool: first click picks, second sets next node."""
         if idx < 0:
             return
@@ -802,7 +857,7 @@ class PathNodesMixin:
             return
         a, b = self._pn[self._link_from], self._pn[idx]
         self._link_from = -1
-        if a.kind in ('sa', 'trk', 'rrr') or b.kind in ('sa', 'trk', 'rrr'):
+        if a.kind in ('sa', 'trk', 'rrr', 'dtz') or b.kind in ('sa', 'trk', 'rrr', 'dtz'):
             self._set_status("SA / track / recording links: not editable")
         elif a.group is not b.group or a is b:
             self._set_status("Link within one group only")
@@ -814,13 +869,13 @@ class PathNodesMixin:
             self._set_status(f"Node {a.gi} -> {b.gi}")
         self._radar.update()
 
-    def _delete_selected_node(self): #vers 3
+    def _delete_selected_node(self): #vers 4
         """Null the selected node and unlink nodes pointing at it."""
         if not 0 <= self._selected_node < len(self._pn):
             return
         r = self._pn[self._selected_node]
-        if r.kind in ('sa', 'trk'):
-            self._set_status("SA nodes / tracks: delete not supported")
+        if r.kind in ('sa', 'trk', 'dtz'):
+            self._set_status("SA / dtz nodes, tracks: delete not supported")
             return
         if r.kind == 'rrr':
             frames = self._loader.car_recordings[r.group]
@@ -944,6 +999,60 @@ class PathNodesMixin:
         self._rebuild_keep_selection(key)
         self._set_status(f"Moved {len(undo)} track points")
 
+    def _add_recording_frame(self, sel, wx, wy): #vers 1
+        """Insert a copy of the selected frame after it, at the clicked point."""
+        import dataclasses
+        frames = self._loader.car_recordings[sel.group]
+        i = sel.gi
+        f = frames[i]
+        nxt = frames[i + 1].time_ms if i + 1 < len(frames) else f.time_ms + 200
+        new = dataclasses.replace(f, pos_x=wx, pos_y=wy, time_ms=(f.time_ms + nxt) // 2,
+                                  frame_index=i + 1, raw=b"")
+        frames.insert(i + 1, new)
+        self._push_undo([('group', frames, new)])
+        self._mark_dirty(sel)
+        self._populate_nodes_tree()
+        self._build_path_records()
+        self._select_node(self._pn_key.get(('rrr', sel.group, i + 1), -1))
+        self._set_status(f"{sel.group}: frame {i + 1} added at {wx:.1f}, {wy:.1f} ({len(frames)} frames)")
+
+    def _join_recording(self): #vers 1
+        """Append another car recording's frames to the selected one (re-timed)."""
+        import dataclasses
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QComboBox
+        r = self._pn[self._selected_node] if 0 <= self._selected_node < len(self._pn) else None
+        if r is None or r.kind != 'rrr':
+            self._set_status("Select a car recording frame first")
+            return
+        recs = self._loader.car_recordings
+        others = [n for n in recs if n != r.group]
+        if not others:
+            self._set_status("No other recording to join")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Join Recording - {r.group}")
+        form = QFormLayout(dlg)
+        combo = QComboBox(); combo.addItems(others)
+        gap = QDoubleSpinBox(); gap.setRange(0, 60000); gap.setDecimals(0); gap.setValue(500)
+        form.addRow("Append after the last frame", combo)
+        form.addRow("Gap (ms)", gap)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        form.addRow(bb)
+        if not dlg.exec():
+            return
+        frames, src = recs[r.group], recs[combo.currentText()]
+        t0 = frames[-1].time_ms + int(gap.value()) - src[0].time_ms
+        added = [dataclasses.replace(f, time_ms=f.time_ms + t0, frame_index=len(frames) + k,
+                                     source_file=frames[0].source_file, source_path=frames[0].source_path)
+                 for k, f in enumerate(src)]
+        frames.extend(added)
+        self._push_undo([('group', frames, f) for f in added])
+        self._mark_dirty(r)
+        self._populate_nodes_tree()
+        self._rebuild_keep_selection(r.key)
+        self._set_status(f"{r.group}: joined {combo.currentText()} ({len(added)} frames, {len(frames)} total)")
+
     def _edit_recording(self): #vers 1
         """Shift, rotate and re-time the selected car recording."""
         import math
@@ -994,8 +1103,8 @@ class PathNodesMixin:
 
     # - Save
 
-    def _save_paths(self): #vers 3
-        """Write changed IPL/IDE path sections, SA nodes, tracks files and car recordings."""
+    def _save_paths(self): #vers 4
+        """Write changed IPL/IDE path sections, SA nodes, tracks, car recordings and game.dtz paths."""
         from apps.methods.path_nodes import (ide_path_section_lines, ipl_path_section_lines,
                                              write_rrr, write_sa_nodes, write_text_path_section,
                                              write_tracks_file)
@@ -1012,6 +1121,12 @@ class PathNodesMixin:
                     continue
                 if kind == 'rrr':
                     write_rrr(ld.car_recordings[name])
+                    done.append(name)
+                    continue
+                if kind == 'dtz':
+                    for nd in self._dtz_nodes():
+                        ld.stories_dtz.set_path_node(nd.index, nd.x, nd.y, nd.z)
+                    ld.stories_dtz.save(label="Path Workshop")
                     done.append(name)
                     continue
                 path = self._file_abs.get(name.lower())

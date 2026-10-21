@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 7
+#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 8
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop file logic
 
 """
@@ -1693,7 +1693,7 @@ class ModelCoreLogicMixin: #vers 1
             QMessageBox.critical(self, "Error", f"Failed to open IMG:\n{str(e)}")
 
 
-    def load_from_img_archive(self, img_path): #vers 4
+    def load_from_img_archive(self, img_path): #vers 5
         """Load IMG archive — populates left panel with all DFF/COL/TXD entries."""
         try:
             from apps.methods.img_core_classes import IMGFile
@@ -1732,10 +1732,8 @@ class ModelCoreLogicMixin: #vers 1
                 n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
                 n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
                 n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
-                hdr = getattr(self, '_left_panel_header', None)
-                if hdr:
-                    hdr.setText(
-                        f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
+                from apps.methods.file_list_filter import refresh_type_filter
+                refresh_type_filter(self)                  # header counts + type filter
 
             n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
             n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
@@ -1783,7 +1781,7 @@ class ModelCoreLogicMixin: #vers 1
             QMessageBox.critical(self, "Error", f"Failed to analyze file:\n{str(e)}")
 
 
-    def _populate_left_panel_from_img(self, img): #vers 6
+    def _populate_left_panel_from_img(self, img): #vers 7
         """Populate the left panel list from an already-open IMGFile object.
         Also stores img as self.current_img so _extract_col_from_img can read entries."""
         lw = getattr(self, 'col_list_widget', None)
@@ -1816,10 +1814,8 @@ class ModelCoreLogicMixin: #vers 1
                 item.setForeground(QColor('#ffa726')); n_txd += 1
             lw.addItem(item)
 
-        hdr = getattr(self, '_left_panel_header', None)
-        if hdr:
-            hdr.setText(
-                f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
+        from apps.methods.file_list_filter import refresh_type_filter
+        refresh_type_filter(self)                  # header counts + type filter
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(
                 f"Model Workshop: {lw.count()} entries in left panel")
@@ -1839,7 +1835,7 @@ class ModelCoreLogicMixin: #vers 1
             out.insert(0, ci)
         return out
 
-    def _populate_left_panel_from_open_imgs(self): #vers 2
+    def _populate_left_panel_from_open_imgs(self): #vers 3
         """Files panel: every game DFF/TXD/COL when a game folder is set, else open IMG tabs."""
         mw = self.main_window
         root = getattr(mw, 'game_root', '') if mw else ''
@@ -1871,10 +1867,9 @@ class ModelCoreLogicMixin: #vers 1
                 self._entry_img[id(entry)] = img
                 counts[ext] += 1
                 lw.addItem(item)
-        hdr = getattr(self, '_left_panel_header', None)
-        if hdr:
-            hdr.setText(f"DFF ({counts['.dff']})  TXD ({counts['.txd']})  COL ({counts['.col']})"
-                        f"  - {len(imgs)} IMGs")
+        from apps.methods.file_list_filter import refresh_type_filter
+        refresh_type_filter(self)                  # header counts + type filter
+        self._left_panel_header.setText(self._left_panel_header.text() + f"  - {len(imgs)} IMGs")
 
     def _sync_open_imgs(self): #vers 1
         """Refresh the files panel when IMG tabs were opened or closed."""
@@ -1883,7 +1878,7 @@ class ModelCoreLogicMixin: #vers 1
         if tuple(id(i) for i in self._open_imgs()) != self._panel_img_ids:
             self._populate_left_panel_from_open_imgs()
 
-    def _load_game_model_list(self, root, rescan=True): #vers 1
+    def _load_game_model_list(self, root, rescan=True): #vers 2
         """List every DFF/TXD/COL in the game: loose files and IMG entries."""
         from PyQt6.QtGui import QColor
         from apps.methods.game_file_list import fill_game_list, game_list_excludes, scan_game_files
@@ -1904,9 +1899,8 @@ class ModelCoreLogicMixin: #vers 1
             counts[ext] += 1
             if not it.toolTip().endswith("(excluded)"):
                 it.setForeground(QColor(colours[ext]))
-        hdr = getattr(self, '_left_panel_header', None)
-        if hdr:
-            hdr.setText(f"DFF ({counts['.dff']})  TXD ({counts['.txd']})  COL ({counts['.col']})")
+        from apps.methods.file_list_filter import refresh_type_filter
+        refresh_type_filter(self)                  # header counts + type filter
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"Model Workshop: {shown} file(s) in {root} ({hidden} excluded)")
 

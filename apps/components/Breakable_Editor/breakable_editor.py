@@ -590,7 +590,7 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
         """Fields form central; object list and reference as docks."""
         L, R = Qt.DockWidgetArea.LeftDockWidgetArea, Qt.DockWidgetArea.RightDockWidgetArea
         return self._dock_layout(self.ribbon_wrap(self._build_centre_panel(self)), [
-            ("Objects", self._build_left_panel(self), 180, L),
+            ("Object Controls", self._build_left_panel(self), 180, L),
             ("Reference", self._build_right_panel(self), 160, R)])
 
     def _open_file(self, path=None): #vers 2

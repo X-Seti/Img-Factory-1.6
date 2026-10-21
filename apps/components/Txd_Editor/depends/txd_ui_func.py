@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 18
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 20
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -67,8 +67,9 @@ from PyQt6.QtWidgets import QAbstractItemView, QColorDialog, QComboBox, QFrame, 
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.titlebar_func import TitlebarMixin
+from apps.methods.statusbar_func import register_statusbar
 from apps.methods.txd_dialogs import ZoomablePreview
-from apps.methods.dock_panels import add_outer_dock, make_outer_mw
+from apps.methods.dock_panels import add_outer_dock, add_title_widget, make_outer_mw
 
 App_name = "Txd Workshop"
 App_build = "39"
@@ -125,7 +126,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         vm = parent_menu.addMenu("View")
         vm.addAction("TXD Info",             self._show_txd_info)
 
-    def setup_ui(self): #vers 11
+    def setup_ui(self): #vers 13
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -158,7 +159,11 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         self._outer_mw = outer_mw
         self._outer_docks = []
         if left_panel is not None:  # IMG Factory mode
-            self._outer_docks.append(add_outer_dock(self, outer_mw, "TXD Files", left_panel, 150))
+            files_dock = add_outer_dock(self, outer_mw, "TXD Files", left_panel, 150)
+            files_dock._title_label.setVisible(False)              # count label replaces it
+            add_title_widget(files_dock, self._txd_list_header, 0)
+            add_title_widget(files_dock, self.txd_search_btn)
+            self._outer_docks.append(files_dock)
         tex_dock = add_outer_dock(self, outer_mw, "Textures", middle_panel, 250)
         self._outer_docks.append(tex_dock)
         if left_panel is not None:
@@ -185,9 +190,8 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         # if the user has turned off "Show TXD Workshop status bar"
         if hasattr(self, '_setup_status_indicators'):
             status_frame = self._setup_status_indicators()
-            if not self.standalone_mode or not getattr(self, 'show_status_bar', True):
-                status_frame.setVisible(False)
             main_layout.addWidget(status_frame)
+            register_statusbar(self, status_frame, docked_hide=True)
 
     def _initialize_features(self): #vers 3
         """Initialize all features after UI setup"""
@@ -311,7 +315,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         """Centre title."""
         return App_name
 
-    def _create_left_panel(self): #vers 7
+    def _create_left_panel(self): #vers 8
         """Create left panel - TXD file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -327,20 +331,15 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        # Header row with search button
-        hdr_row = QHBoxLayout()
+        # Header label + search button: shown in the TXD Files dock title bar
         self._txd_list_header = QLabel("TXD Files")
         self._txd_list_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr_row.addWidget(self._txd_list_header)
-        hdr_row.addStretch()
         self.txd_search_btn = QPushButton()
-        self.txd_search_btn.setFixedSize(24, 24)
+        self.txd_search_btn.setFixedSize(20, 18)
         self.txd_search_btn.setIcon(SVGIconFactory.search_icon(16, self._get_icon_color()))
         self.txd_search_btn.setIconSize(QSize(16, 16))
         self.txd_search_btn.setToolTip("Search TXD or texture names")
         self.txd_search_btn.clicked.connect(self._show_txd_search)
-        hdr_row.addWidget(self.txd_search_btn)
-        layout.addLayout(hdr_row)
 
         # Search box (hidden by default)
         self.txd_search_box = QLineEdit()

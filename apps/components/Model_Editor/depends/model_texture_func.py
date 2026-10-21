@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_texture_func.py - Version: 1
+#this belongs in apps/components/Model_Editor/depends/model_texture_func.py - Version: 2
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop textures
 
 """
@@ -107,7 +107,7 @@ class ModelTextureMixin: #vers 1
 
     # - Texture management
 
-    def _create_texture_panel(self): #vers 5
+    def _create_texture_panel(self): #vers 6
         """Collapsible texture panel in middle column.
         Shows textures loaded from TXD files.
         Toggle between List view (table) and Thumbnail view (64x64 grid).
@@ -123,11 +123,8 @@ class ModelTextureMixin: #vers 1
 
         # - Header row (count + view toggle only - the dock's own title
         # bar already shows "Textures", a second label here was duplicate)
-        hdr = QHBoxLayout()
-        self._tex_count_lbl = QLabel("0 textures")
+        self._tex_count_lbl = QLabel("0 textures")       # shown in the dock title bar
         self._tex_count_lbl.setFont(self.panel_font)
-        hdr.addWidget(self._tex_count_lbl)
-        hdr.addStretch()
 
         # View toggle: list ⇔ thumbnails
         self._tex_view_mode = 'list'
@@ -137,8 +134,6 @@ class ModelTextureMixin: #vers 1
         self._tex_view_btn.setToolTip(
             "Toggle between list view and 64×64 thumbnail grid")
         self._tex_view_btn.clicked.connect(self._toggle_tex_view)
-        hdr.addWidget(self._tex_view_btn)
-        lay.addLayout(hdr)
 
         # - Button row
         btn_row = QHBoxLayout()

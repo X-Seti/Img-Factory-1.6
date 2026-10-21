@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 3
+#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop world load
 
 """
@@ -13,6 +13,7 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _apply_radar_settings
 # _apply_saved_preload_picks
 # _apply_water2_preload
+# _apply_water_levels
 # _auto_detect_timecyc_path
 # _auto_load_last_world
 # _clear_recent_dat_files
@@ -33,6 +34,8 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _load_workers
 # _model_collision
 # _on_ipl_model_row_selected
+# _on_water_quad_moved
+# _on_water_quad_selected
 # _populate_models_panel_from_ipl
 # _preload_img_archives_to_os_cache
 # _radar_align_offset
@@ -46,20 +49,30 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _rotate_and_translate_offset
 # _rotate_vector_by_quaternion
 # _save_radar_settings
+# _save_water_dat
+# _save_water_levels
 # _set_radar_align_offset
 # _set_radar_scale
 # _set_water_fix
+# _set_water_quad
 # _set_water_scale
 # _show_load_options_dialog
 # _show_preload_dialog
 # _show_radar_align_dialog
+# _show_water_levels
 # _show_world_load_summary
 # _to_gamedata_role_marker
+# _toggle_water_edit
 # _try_auto_water2_from_loader
+# _undo_water_edit
 # _water2_offset_mode
-# _water_scale
+# _water_changed
+# _water_dat_path
 # _water_fix_active
+# _water_levels_target
 # _water_offset_path
+# _water_quad_cells
+# _water_scale
 # _water_shapes_to_cells
 # _waterpro_physical_to_cells
 # _waterpro_to_cells
@@ -75,7 +88,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QVBoxLayout)
 
 from apps.components.Map_Editor.depends.map_widgets_func import (
-    _FilteredLoaderStub, _IplLoadDialog)
+    _FilteredLoaderStub, _IplLoadDialog, _WaterLevelsDialog, _WaterQuadDialog)
 
 
 class MapWorldMixin: #vers 1
@@ -278,7 +291,7 @@ class MapWorldMixin: #vers 1
         finally:
             self._applying_loaded_world = False
 
-    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 11
+    def _apply_loaded_world_impl(self, loader, game, ok, source_desc): #vers 12
         """Shared post-load handling for both _load_game_folder and
         _load_game_dat_file - status message, populating the World View
         panes/Instance List/IPL Sections panel, and the summary/error
@@ -351,6 +364,8 @@ class MapWorldMixin: #vers 1
             self._model_cache = model_cache
         model_cache.set_texture_limit(self._texture_limits(), self.map_settings.get('tex_keep_dxt'))
         model_cache.index_img_files(loader.get_img_paths())
+        model_cache.add_models(getattr(loader, 'stories_models', {}),     # LCS/VCS level sectors
+                               getattr(loader, 'stories_textures', {}))
         col_in_img = model_cache.col_entries_found_in_img
         if col_in_img:
             self._set_status(
@@ -1263,6 +1278,173 @@ class MapWorldMixin: #vers 1
         self._apply_radar_settings()
         self._set_status(f"Radar scale {scale * 100:.1f} %" + ("" if self._radar_settings_path()
                                                       else " (no game loaded - not saved)"))
+
+    def _water_dat_path(self): #vers 2
+        """water.dat the loaded world came from, or ''."""
+        ld = getattr(self, '_world_loader', None)
+        for kind, tag, path, ok in getattr(ld, 'load_log', []) if ld else []:
+            if kind == 'water' and tag == 'WATER' and ok:     # not waterpro.dat
+                return path
+        return ''
+
+    def _water_quad_cells(self): #vers 1
+        """Flat cells (x1, y1, x2, y2, z) of the edited water.dat quads."""
+        cells = []
+        for q in self._water_edit.quads:
+            xs = [c["x"] for c in q["corners"]]
+            ys = [c["y"] for c in q["corners"]]
+            zs = [c["f"][0] for c in q["corners"]]
+            cells.append((min(xs), min(ys), max(xs), max(ys), sum(zs) / len(zs)))
+        return cells
+
+    def _toggle_water_edit(self, on): #vers 2
+        """Water button right-click: select / drag / edit water.dat quads."""
+        from apps.components.Water_Editor.water_workshop import SaWaterParser
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None:
+            return
+        if not on:
+            vp.set_water_edit_mode(False)
+            dlg = getattr(self, '_water_quad_dlg', None)
+            if dlg is not None:
+                dlg.hide()
+            self._set_status("Water editing off")
+            return
+        path = self._water_dat_path()
+        if not path:
+            btn = self._show_water_chk                 # drop the button's edit state
+            btn._editing = False
+            btn._apply_style()
+            if getattr(getattr(self, '_world_loader', None), 'waterpro', None) is not None:
+                self._show_water_levels()              # VC / LCS / VCS: level heights
+            else:
+                self._set_status("No water.dat or waterpro water in the loaded world")
+            return
+        if getattr(self, '_water_edit', None) is None or self._water_edit.path != path:
+            self._water_edit = SaWaterParser()
+            self._water_edit.load(path)
+            self._water_undo = []
+        self._water2_cells_pending = self._water_quad_cells()
+        self._apply_water2_preload()
+        vp.show_water = True
+        vp.set_water_edit_mode(True, self._on_water_quad_selected, self._on_water_quad_moved)
+        if getattr(self, '_water_quad_dlg', None) is None:
+            self._water_quad_dlg = _WaterQuadDialog(self, self)
+        self._water_quad_dlg.show()
+        self._set_status(f"Water editing: {len(self._water_edit.quads)} quads - click to select, drag to move")
+
+    def _on_water_quad_selected(self, index): #vers 1
+        """Viewport picked a quad: show it in the editor."""
+        self._water_quad_dlg.show_quad(index, self._water_edit.quads[index])
+        self._water_quad_dlg.show()
+
+    def _water_changed(self, index): #vers 1
+        """Push edited quads to the view and the editor."""
+        self._water2_cells_pending = self._water_quad_cells()
+        self._apply_water2_preload()
+        self.preview_widget.set_water_selection(index)
+        if index >= 0:
+            self._water_quad_dlg.show_quad(index, self._water_edit.quads[index])
+
+    def _on_water_quad_moved(self, index, dx, dy): #vers 1
+        """Drag dropped: move every corner of the quad."""
+        import copy
+        q = self._water_edit.quads[index]
+        self._water_undo.append((index, copy.deepcopy(q["corners"])))
+        for c in q["corners"]:
+            c["x"] += dx
+            c["y"] += dy
+        self._water_changed(index)
+        self._set_status(f"Water quad {index} moved {dx:+.1f}, {dy:+.1f} (not saved)")
+
+    def _set_water_quad(self, index, vals): #vers 1
+        """Editor Apply: corner (x, y, z) values."""
+        import copy
+        q = self._water_edit.quads[index]
+        self._water_undo.append((index, copy.deepcopy(q["corners"])))
+        for c, (x, y, z) in zip(q["corners"], vals):
+            c["x"], c["y"], c["f"][0] = x, y, z
+        self._water_changed(index)
+        self._set_status(f"Water quad {index} updated (not saved)")
+
+    def _undo_water_edit(self): #vers 1
+        """Undo the last water quad edit."""
+        if not getattr(self, '_water_undo', None):
+            self._set_status("Nothing to undo")
+            return
+        index, corners = self._water_undo.pop()
+        self._water_edit.quads[index]["corners"] = corners
+        self._water_changed(index)
+        self._set_status(f"Water quad {index} restored")
+
+    def _water_levels_target(self): #vers 1
+        """('dtz', StoriesDTZ) or ('file', waterpro.dat path) for the loaded waterpro."""
+        ld = getattr(self, '_world_loader', None)
+        if getattr(ld, 'stories_dtz', None) is not None:
+            return 'dtz', ld.stories_dtz
+        for kind, tag, path, ok in getattr(ld, 'load_log', []) if ld else []:
+            if kind == 'water' and tag == 'WATERPRO' and ok:
+                return 'file', path
+        return None, None
+
+    def _show_water_levels(self): #vers 1
+        """Open the water level heights editor."""
+        wp = self._world_loader.waterpro
+        kind, target = self._water_levels_target()
+        if kind is None:
+            self._set_status("Waterpro source file not found")
+            return
+        n = max(1, min(48, wp.level_count))
+        src = os.path.basename(target.path if kind == 'dtz' else target)
+        self._water_levels_dlg = _WaterLevelsDialog(self, [l.height for l in wp.levels[:n]], src, self)
+        self._water_levels_dlg.show()
+
+    def _apply_water_levels(self, heights): #vers 1
+        """Set waterpro level heights in memory and redraw the water."""
+        wp = self._world_loader.waterpro
+        for lvl, h in zip(wp.levels, heights):
+            lvl.height = h
+        self._water_levels_dirty = True
+        self._refresh_water_visualization()
+        if getattr(self, '_water2_waterpro_source', None) is not None:
+            game = getattr(self, '_water2_game_source', 'vc')
+            self._water2_cells_pending = (self._waterpro_physical_to_cells(wp, game)
+                                          if getattr(self, '_water2_showing_physical', False)
+                                          else self._waterpro_to_cells(wp, game))
+            self._apply_water2_preload()
+        self._set_status(f"Water levels applied ({len(heights)}) - Save to write them")
+
+    def _save_water_levels(self): #vers 1
+        """Write waterpro level heights to GAME.DTZ or waterpro.dat (backup first)."""
+        import struct
+        from apps.methods.file_backup import safe_write_bytes
+        wp = self._world_loader.waterpro
+        n = max(1, min(48, wp.level_count))
+        heights = [l.height for l in wp.levels[:n]]
+        kind, target = self._water_levels_target()
+        if kind == 'dtz':
+            target.set_water_levels(heights)
+            target.save(label="Map Workshop")
+            name = os.path.basename(target.path)
+        else:
+            with open(target, 'rb') as f:
+                data = bytearray(f.read())
+            struct.pack_into(f'<{n}f', data, 4, *heights)
+            safe_write_bytes(target, bytes(data), f"Map Workshop: {os.path.basename(target)}")
+            name = os.path.basename(target)
+        self._water_levels_dirty = False
+        self._set_status(f"Saved {n} water level(s) to {name}")
+
+    def _save_water_dat(self): #vers 1
+        """Write edited quads back to water.dat (backup first, untouched lines kept)."""
+        from apps.methods.file_backup import safe_write_bytes
+        wp = getattr(self, '_water_edit', None)
+        if wp is None:
+            return
+        safe_write_bytes(wp.path, wp.to_text().encode("latin1", errors="replace"),
+                         f"Map Workshop: {os.path.basename(wp.path)}")
+        self._water_undo = []
+        self._set_status(f"Saved {os.path.basename(wp.path)}")
 
     def _water_scale(self): #vers 1
         """Water grid scale for this game (water_offset.dat 'scale', default 1)."""

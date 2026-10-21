@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 4
+#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 5
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop model list
 
 """
@@ -664,16 +664,10 @@ class ModelListMixin: #vers 1
         else:
             box.clear()
 
-    def _filter_model_list(self, text: str): #vers 1
+    def _filter_model_list(self, text: str): #vers 2
         """Filter left panel list by search text."""
-        lw = getattr(self, 'col_list_widget', None)
-        if not lw:
-            return
-        text = text.lower()
-        for i in range(lw.count()):
-            item = lw.item(i)
-            if item:
-                item.setHidden(bool(text) and text not in item.text().lower())
+        from apps.methods.file_list_filter import apply_file_filter
+        apply_file_filter(self)                        # search text + type filter together
 
     def _on_col_selected(self, item): #vers 6
         """Handle entry selection from left panel — routes by extension."""

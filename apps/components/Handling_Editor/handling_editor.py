@@ -187,9 +187,9 @@ class HandlingEditor(RibbonMixin, GUIWorkshop): #vers 2
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(4)
 
-        lbl = QLabel("Vehicles")
+        lbl = QLabel("Handlings Controls")
         lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        lay.addWidget(lbl)
+        #lay.addWidget(lbl)
 
         self._search_box = QLineEdit()
         self._search_box.setPlaceholderText("Search…")
@@ -430,7 +430,7 @@ class HandlingEditor(RibbonMixin, GUIWorkshop): #vers 2
     def _create_centre_panel(self): #vers 2
         """Fields central; vehicle list and stats as docks."""
         return self._dock_layout(self.ribbon_wrap(self._build_centre_panel(self)), [
-            ("Vehicles", self._build_left_panel(self), 180, Qt.DockWidgetArea.LeftDockWidgetArea),
+            ("Vehicles.ide", self._build_left_panel(self), 180, Qt.DockWidgetArea.LeftDockWidgetArea),
             ("Stats", self._build_right_panel(self), 180, Qt.DockWidgetArea.RightDockWidgetArea)])
 
     def _open_file(self, path=None): #vers 2

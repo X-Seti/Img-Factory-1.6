@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 6
+#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 7
 # X-Seti - Aug 2026 - IMG Factory 1.6 - Detailed colour SVG icons for Map Workshop's IPL Controls overlay buttons
 
 """
@@ -55,6 +55,14 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 # OverlayIcons.apply_texture_icon
 # OverlayIcons.save_texture_icon
 # OverlayIcons.search_model_icon
+# OverlayIcons.terrain_icon
+# OverlayIcons.terrain_flatten_icon
+# OverlayIcons.terrain_level_icon
+# OverlayIcons.terrain_lower_icon
+# OverlayIcons.terrain_raise_icon
+# OverlayIcons.terrain_ramp_icon
+# OverlayIcons.terrain_roughen_icon
+# OverlayIcons.terrain_smooth_icon
 
 
 class OverlayIcons:
@@ -490,4 +498,77 @@ class OverlayIcons:
         return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <circle cx="10" cy="10" r="6.5" fill="none" stroke="#90caf9" stroke-width="2.2"/>
   <line x1="14.8" y1="14.8" x2="21" y2="21" stroke="#90caf9" stroke-width="2.4" stroke-linecap="round"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def terrain_icon(size: int = 24) -> QIcon: #vers 1
+        """Terrain tools toggle - green hills over brown ground."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M2 20 L8 10 L12 15 L16 7 L22 20 Z" fill="#7cb342" stroke="#33691e" stroke-width="0.8"/>
+  <path d="M16 7 L18 11 L14.5 10 Z" fill="#f1f8e9"/>
+  <rect x="2" y="19" width="20" height="2.5" fill="#8d6e63"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def terrain_raise_icon(size: int = 24) -> QIcon: #vers 1
+        """Raise brush - hill with an up arrow."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M3 19 Q12 4 21 19" stroke="#9ccc65" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 15 L12 6 M9 9 L12 6 L15 9" stroke="#ffca28" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M2 19 L22 19" stroke="#8d6e63" stroke-width="1.6"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def terrain_lower_icon(size: int = 24) -> QIcon: #vers 1
+        """Lower brush - valley with a down arrow."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M3 8 Q12 22 21 8" stroke="#9ccc65" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 4 L12 13 M9 10 L12 13 L15 10" stroke="#ffca28" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M2 19 L22 19" stroke="#8d6e63" stroke-width="1.6"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def terrain_flatten_icon(size: int = 24) -> QIcon: #vers 1
+        """Flatten brush - bumps pressed to a line."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M3 15 Q6 9 9 15 T15 15 T21 15" stroke="#9ccc65" stroke-width="1.4" fill="none" stroke-dasharray="2,1.5"/>
+  <path d="M3 13 L21 13" stroke="#ffca28" stroke-width="2" stroke-linecap="round"/>
+  <path d="M2 19 L22 19" stroke="#8d6e63" stroke-width="1.6"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def terrain_level_icon(size: int = 24) -> QIcon: #vers 1
+        """Level brush - ground set to a marked height."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M3 12 L21 12" stroke="#9ccc65" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M5 5 L19 5" stroke="#4fc3f7" stroke-width="1.4" stroke-dasharray="2,1.5"/>
+  <path d="M12 6 L12 11 M10 9 L12 11 L14 9" stroke="#ffca28" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="M2 19 L22 19" stroke="#8d6e63" stroke-width="1.6"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def terrain_smooth_icon(size: int = 24) -> QIcon: #vers 1
+        """Smooth brush - jagged line turned into a soft wave."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M3 10 L6 6 L8 11 L11 5 L13 10" stroke="#9ccc65" stroke-width="1.2" fill="none" stroke-dasharray="2,1"/>
+  <path d="M3 15 Q8 11 12 15 T21 15" stroke="#9ccc65" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M2 19 L22 19" stroke="#8d6e63" stroke-width="1.6"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def terrain_roughen_icon(size: int = 24) -> QIcon: #vers 1
+        """Roughen brush - noisy jagged ground."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M3 15 L5 11 L7 14 L9 8 L11 13 L13 9 L15 14 L17 10 L19 13 L21 11" stroke="#9ccc65" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="7" cy="6" r="1" fill="#ffca28"/><circle cx="15" cy="5" r="1" fill="#ffca28"/>
+  <path d="M2 19 L22 19" stroke="#8d6e63" stroke-width="1.6"/>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def terrain_ramp_icon(size: int = 24) -> QIcon: #vers 1
+        """Ramp brush - straight slope between two points."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M3 17 L21 7" stroke="#9ccc65" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="3.5" cy="17" r="1.8" fill="#ffca28"/><circle cx="20.5" cy="7.3" r="1.8" fill="#ffca28"/>
+  <path d="M2 19 L22 19" stroke="#8d6e63" stroke-width="1.6"/>
 </svg>''', size, color="#000000")

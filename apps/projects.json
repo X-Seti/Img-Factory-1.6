@@ -29,7 +29,7 @@
     "game_root": "/home/x2/Desktop/gta_resouce/PC/GTASA-PC/",
     "assists_path": "/home/x2/Desktop/gta_resouce",
     "created_date": "2026-05-10T16:39:18.222221",
-    "last_used": "2026-09-04T23:11:34.011392"
+    "last_used": "2026-10-21T20:09:12.997048"
   },
   "GTASOL 76.5": {
     "name": "GTASOL 76.5",
@@ -37,7 +37,7 @@
     "game_root": "/home/x2/Desktop/gta_resouce/GTASOL76.0/",
     "assists_path": "/home/x2/Desktop/depends",
     "created_date": "2026-01-20T02:11:04.637163",
-    "last_used": "2026-10-20T17:32:22.685756"
+    "last_used": "2026-10-20T22:34:06.575322"
   },
   "GTASOL test": {
     "name": "GTASOL test",
@@ -126,5 +126,29 @@
     "assists_path": "",
     "created_date": "2026-10-08T15:50:56.462320",
     "last_used": "2026-10-08T15:51:06.698339"
+  },
+  "PS2 VCS": {
+    "name": "PS2 VCS",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PS2/VCS_PS2/VCS/",
+    "assists_path": "",
+    "created_date": "2026-10-20T22:36:28.958219",
+    "last_used": "2026-10-20T22:36:36.255382"
+  },
+  "PS2 LCS": {
+    "name": "PS2 LCS",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PS2/LCS_PS2/LCS/",
+    "assists_path": "",
+    "created_date": "2026-10-20T22:37:32.024653",
+    "last_used": "2026-10-21T00:22:13.804490"
+  },
+  "BULLY": {
+    "name": "BULLY",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/Bully Scholarship Edition/",
+    "assists_path": "",
+    "created_date": "2026-10-21T00:25:41.210842",
+    "last_used": "2026-10-21T19:41:58.403435"
   }
 }

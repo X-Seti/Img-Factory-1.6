@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 13
+#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 15
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop UI setup
 
 """
@@ -522,7 +522,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
                 b.clicked.connect(fn)
 
 
-    def _create_left_panel(self): #vers 7
+    def _create_left_panel(self): #vers 8
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -542,15 +542,12 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        # Header row with search button
-        hdr_row = QHBoxLayout()
+        # Header label + search button: shown in the Files dock title bar
         self._left_panel_header = QLabel("No files loaded")
         self._left_panel_header.setFont(self.panel_font)
-        hdr_row.addWidget(self._left_panel_header)
-        hdr_row.addStretch()
 
         self._model_search_btn = QPushButton()
-        self._model_search_btn.setFixedSize(24, 24)
+        self._model_search_btn.setFixedSize(20, 18)
         self._model_search_btn.setToolTip("Search model files")
         try:
             from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
@@ -559,8 +556,6 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         except Exception:
             self._model_search_btn.setText("?")
         self._model_search_btn.clicked.connect(self._show_model_search)
-        hdr_row.addWidget(self._model_search_btn)
-        layout.addLayout(hdr_row)
 
         # Search box (hidden by default)
         self._model_search_box = QLineEdit()
@@ -1022,7 +1017,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 16
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 17
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -1129,7 +1124,10 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         self._sel_count_label.setToolTip("Selection count")
         self._sel_count_label.setStyleSheet(
             "color: palette(mid); font-size: 11px; padding: 0 4px;")
-        tb_sel.addWidget(self._sel_count_label)
+        _cnt_act = tb_sel.addWidget(self._sel_count_label)
+        from apps.methods.imgfactory_svg_icons import get_select_all_icon
+        _cnt_act.setIcon(get_select_all_icon(20, icon_color))   # Ribbon Manager row icon
+        _cnt_act.setText("Selection count")
 
         tb_sel.addSeparator()
 
@@ -1485,7 +1483,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         """Ribbon layout, presets and custom icons file."""
         return get_user_config_dir() / 'model_workshop.json'
 
-    def _save_toolbar_state(self): #vers 3
+    def _save_toolbar_state(self): #vers 4
         """Save QMainWindow toolbar state to model_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
@@ -1493,7 +1491,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         try:
             import json
             from pathlib import Path
-            path = get_user_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1508,7 +1506,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         except Exception as _e:
             print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 6
+    def _restore_toolbar_state(self): #vers 7
         """Restore QMainWindow toolbar state from model_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -1522,7 +1520,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = get_user_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             if not path.exists():
                 return
             data = json.loads(path.read_text())

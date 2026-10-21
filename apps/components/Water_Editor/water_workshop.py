@@ -1424,7 +1424,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         centre_panel = self._create_centre_panel()
         self._draw_btns = {}
         ml.addWidget(self._dock_layout(self.ribbon_wrap(centre_panel),
-                                       [("Water", left_panel, 200, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
+                                       [("Water Levels / Rects", left_panel, 200, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
         self._build_ribbons()
 
         self._status_widget = self._create_status_bar()
@@ -1568,7 +1568,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hdr.setFont(self.panel_font)
         hdr.setStyleSheet("font-weight:bold; padding:2px;")
-        ll.addWidget(hdr)
+        #ll.addWidget(hdr)
         self._levels_list = QListWidget()
         self._levels_list.setAlternatingRowColors(True)
         self._levels_list.itemDoubleClicked.connect(self._edit_level)

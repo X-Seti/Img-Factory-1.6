@@ -1,4 +1,4 @@
-#this belongs in apps/methods/titlebar_func.py - Version: 6
+#this belongs in apps/methods/titlebar_func.py - Version: 7
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Workshop Titlebar
 
 """
@@ -35,7 +35,7 @@ class TitlebarMixin: #vers 1
 
     TITLEBAR_DOCKED_VISIBLE = True                    # False: hidden when docked
 
-    def _create_toolbar(self): #vers 4
+    def _create_toolbar(self): #vers 5
         """Build the titlebar frame; returns it (also self.titlebar)."""
         ic = self._get_icon_color()
         isz = self._titlebar_icon_size()
@@ -75,7 +75,7 @@ class TitlebarMixin: #vers 1
         lo.addWidget(self.menu_btn)
 
         self.settings_btn = self._tb_button('settings_icon', "Settings", "Workshop Settings",
-                                            self._show_workshop_settings)
+                                            self._show_workshop_settings, keep_text=True)
         lo.addWidget(self.settings_btn)
         self._titlebar_left_extras(lo)
 
@@ -143,7 +143,7 @@ class TitlebarMixin: #vers 1
             except RuntimeError:                           # button deleted
                 pass
 
-    def _tb_button(self, icon_fn, text, tip, slot): #vers 4
+    def _tb_button(self, icon_fn, text, tip, slot, keep_text=False): #vers 5
         """Action button: icon (name or function) plus text; icon only when text empty or icons mode."""
         isz = self._titlebar_icon_size()
         b = QPushButton(text)
@@ -154,7 +154,7 @@ class TitlebarMixin: #vers 1
         b.clicked.connect(lambda _c=False, f=slot: f())   # no checked arg
         if not text:
             b.setFixedSize(35, 35)
-        elif getattr(self, 'button_display_mode', 'both') == 'icons':
+        elif not keep_text and getattr(self, 'button_display_mode', 'both') == 'icons':
             b.setText("")
             b.setFixedSize(40, 40)
         self._tb_icon_btns.append((b, icon_fn, isz))

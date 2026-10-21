@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 3
+#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 4
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Model Workshop settings
 
 """
@@ -36,7 +36,7 @@ from apps.components.Model_Editor.depends.model_setup_ui_func import App_name, A
 class ModelSettingsMixin: #vers 1
     """Settings, fonts, theme, hotkeys, About."""
 
-    def _show_workshop_settings(self): #vers 3
+    def _show_workshop_settings(self): #vers 4
 
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -421,7 +421,7 @@ class ModelSettingsMixin: #vers 1
                     self.preview_widget.set_checkerboard_background()
                     self.preview_widget._checkerboard_size = self._checkerboard_size
                 else:
-                    self.preview_widget.set_background_color(self.preview_widget.bg_color)
+                    self.preview_widget.update()   # DFFViewport has no bg_color
 
             # Apply button display mode
             if hasattr(self, '_update_all_buttons'):

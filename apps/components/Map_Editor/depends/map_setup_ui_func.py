@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_setup_ui_func.py - Version: 3
+#this belongs in apps/components/Map_Editor/depends/map_setup_ui_func.py - Version: 9
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop UI setup
 
 """
@@ -57,7 +57,7 @@ import math
 from PyQt6.QtCore import QPoint, QPointF, QSize, Qt
 from PyQt6.QtGui import QBrush, QColor, QFont, QIcon, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget,
+    QAbstractItemView, QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget,
     QMenu, QPushButton, QSplitter, QStatusBar, QTableWidget, QToolButton, QVBoxLayout,
     QWidget)
 
@@ -553,7 +553,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
 
 
 
-    def _create_left_panel(self): #vers 7
+    def _create_left_panel(self): #vers 8
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -573,15 +573,12 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        # Header row with search button
-        hdr_row = QHBoxLayout()
+        # Header label + search button: shown in the Files dock title bar
         self._left_panel_header = QLabel("No files loaded")
         self._left_panel_header.setFont(self.panel_font)
-        hdr_row.addWidget(self._left_panel_header)
-        hdr_row.addStretch()
 
         self._model_search_btn = QPushButton()
-        self._model_search_btn.setFixedSize(24, 24)
+        self._model_search_btn.setFixedSize(20, 18)
         self._model_search_btn.setToolTip("Search model files")
         try:
             from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
@@ -590,8 +587,6 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         except Exception:
             self._model_search_btn.setText("?")
         self._model_search_btn.clicked.connect(self._show_model_search)
-        hdr_row.addWidget(self._model_search_btn)
-        layout.addLayout(hdr_row)
 
         # Search box (hidden by default)
         self._model_search_box = QLineEdit()
@@ -607,7 +602,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         return panel
 
 
-    def _create_models_table_panel(self): #vers 2
+    def _create_models_table_panel(self): #vers 3
         """Create the Models table panel - mini toolbar + view toggle +
         model table only. Frame Hierarchy and Textures are now separate
         top-level dock widgets (see _create_frame_hierarchy_panel,
@@ -637,8 +632,9 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         # Collapse/expand toggle - hides the action icons below to reclaim
         # space, independent of the icon-only/icon+text compacting.
         self._mid_btn_row_collapsed = False
-        self.mid_btn_collapse_btn = QPushButton("−")
-        self.mid_btn_collapse_btn.setFixedSize(18, 28)
+        self.mid_btn_collapse_btn = QPushButton()
+        self.mid_btn_collapse_btn.setIcon(SVGIconFactory.arrow_up_icon(16, icon_color))
+        self.mid_btn_collapse_btn.setFixedSize(26, 28)
         self.mid_btn_collapse_btn.setToolTip("Collapse/expand this toolbar")
         self.mid_btn_collapse_btn.clicked.connect(self._toggle_mid_btn_row_collapsed)
         btn_layout.addWidget(self.mid_btn_collapse_btn)
@@ -706,7 +702,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self.col_view_toggle_btn = QPushButton("[=]")
         self.col_view_toggle_btn.setFont(self.button_font)
         self.col_view_toggle_btn.setFixedWidth(32)
-        self.col_view_toggle_btn.setFixedHeight(22)
+        self.col_view_toggle_btn.setFixedHeight(20)            # sits in the Models title bar
         self.col_view_toggle_btn.setToolTip(
             "Toggle view: compact list ↔ full details table")
         self.col_view_toggle_btn.clicked.connect(self._toggle_col_view)
@@ -764,6 +760,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self.collision_list.setAlternatingRowColors(True)
         self.collision_list.itemSelectionChanged.connect(self._on_collision_selected)
         self.collision_list.horizontalHeader().setStretchLastSection(True)
+        self.collision_list.horizontalHeader().setFixedHeight(26)
         self.collision_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
         self.collision_list.customContextMenuRequested.connect(
@@ -776,6 +773,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self.mod_compact_list.setColumnCount(2)
         self.mod_compact_list.setHorizontalHeaderLabels(["Preview", "Details"])
         self.mod_compact_list.horizontalHeader().setStretchLastSection(True)
+        self.mod_compact_list.horizontalHeader().setFixedHeight(26)
         self.mod_compact_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.mod_compact_list.setSelectionMode(
@@ -1001,7 +999,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
             pass
         self._set_status(f"Model Info ribbon moved to {location} panel")
 
-    def _create_right_panel(self): #vers 16
+    def _create_right_panel(self): #vers 17
         """Right panel using QMainWindow + QToolBar for native docking.
         QMainWindow handles toolbar placement, row stacking, floating, and
         save/restore natively — same system Gwenview/KDE apps use."""
@@ -1197,13 +1195,14 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         from PyQt6.QtCore import QTimer as _QT
         _QT.singleShot(400, self._restore_toolbar_state)
 
-        # Save on close
+        # Save on close, on hide (tab switch / docked close) and on app quit
         self.window_closed.connect(self._save_toolbar_state)
         self.window_closed.connect(self._save_quad_layout)
+        QApplication.instance().aboutToQuit.connect(self._save_toolbar_state)
 
         return panel
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 15
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 18
         """Build all QToolBar instances using QAction.
         Icon set resolved once — 'default' uses SVGIconFactory with currentColor,
         '3dsmax' uses MaxIconSet with hardcoded Max palette."""
@@ -1313,7 +1312,10 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self._sel_count_label.setToolTip("Selection count")
         self._sel_count_label.setStyleSheet(
             "color: palette(mid); font-size: 11px; padding: 0 4px;")
-        tb_sel.addWidget(self._sel_count_label)
+        _cnt_act = tb_sel.addWidget(self._sel_count_label)
+        from apps.methods.imgfactory_svg_icons import get_select_all_icon
+        _cnt_act.setIcon(get_select_all_icon(20, icon_color))   # Ribbon Manager row icon
+        _cnt_act.setText("Selection count")
 
         tb_sel.addSeparator()
 
@@ -1463,10 +1465,13 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         tb_overlays = _tb("Overlays", Qt.ToolBarArea.RightToolBarArea)
         # Water depth gang (26px): same blue scale as the water cells
         from apps.components.Water_Editor.water_workshop import WaterZGauge
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons as _OverlayIconsForDepth
         tb_depth = _tb("Water Depth", Qt.ToolBarArea.RightToolBarArea)
         tb_depth.setStyleSheet("QToolBar { padding: 0px; spacing: 0px; }")
         self._water_gauge = WaterZGauge(_MapWaterDepth(self))
-        tb_depth.addWidget(self._water_gauge)
+        _depth_act = tb_depth.addWidget(self._water_gauge)
+        _depth_act.setIcon(_OverlayIconsForDepth.water_icon(20))   # Ribbon Manager row icon
+        _depth_act.setText("Water depth")
         from apps.methods.ribbon_system import RibbonMixin as _RM
         tb_depth._side = (self._water_gauge, 26, 0)       # turns with the ribbon
         tb_depth.orientationChanged.connect(lambda _o, t=tb_depth: _RM.ribbon_fit_side(t))
@@ -1642,6 +1647,10 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
             lambda _p, b=prelight_btn: self._prelight_menu(b.mapToGlobal(_p)))
         prelight_btn.setToolTip(prelight_btn.toolTip() + "\nRight-click: generate world prelighting with shadows.")
         tb_overlays.addWidget(prelight_btn)
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons as _OverlayIconsTerrain
+        _act(tb_overlays, "Terrain tools", lambda color=None: _OverlayIconsTerrain.terrain_icon(20),
+             self._toggle_terrain,
+             checkable=True, attr='_terrain_act')
 
         _act(tb_rend, "Render Settings",
              _icon(self.icon_factory.render_settings_icon, 'render_settings_icon'),
@@ -1690,6 +1699,15 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self._tb_nav       = tb_nav
         self._tb_render    = tb_rend
         self._tb_overlays  = tb_overlays
+        _names = {cycle_zones_btn: "Cycle boxes", undo_ribbon_btn: "Undo / Redo",
+                  repair_scale_btn: "Repair scale", convert_btn: "Convert IPL",
+                  optimize_btn: "Optimize DAT", search_btn: "Search instances",
+                  prelight_btn: "Prelight"}
+        for _a in tb_overlays.actions():                     # Ribbon Manager rows: icon + name
+            _wd = tb_overlays.widgetForAction(_a)
+            if _wd in _names:
+                _a.setIcon(_wd.icon())
+                _a.setText(_names[_wd])
 
         # DFF-only actions — disabled until a model is loaded
         self._dff_only_actions = [
@@ -1858,11 +1876,11 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self._hidden_toolbar = tb
         return tb
 
-    def _save_toolbar_state(self): #vers 2
-        """Save QMainWindow toolbar state to model_workshop.json."""
+    def _save_toolbar_state(self): #vers 3
+        """Save QMainWindow toolbar state to model_workshop.json (after restore only)."""
         mw = getattr(self, '_inner_mw', None)
-        if mw is None:
-            return
+        if mw is None or not getattr(self, '_toolbar_restored', False):
+            return                                  # never overwrite before the saved layout loads
         try:
             import json
             path = _model_workshop_config_dir() / 'model_workshop.json'
@@ -1880,7 +1898,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         except Exception as _e:
             print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 6
+    def _restore_toolbar_state(self): #vers 7
         """Restore QMainWindow toolbar state from model_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -1948,6 +1966,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
                 if tb is not None:
                     tb.setVisible(True)
                     tb.toggleViewAction().setChecked(True)
+            self._toolbar_restored = True           # saves allowed from now on
 
     def _restore_outer_layout(self): #vers 2
         """Shared dock layout restore, then Model Name / IDE-TXD ribbon locations."""

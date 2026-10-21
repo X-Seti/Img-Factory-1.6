@@ -1,6 +1,44 @@
-#this belongs in root /ChangeLog.md - Version: 260
+#this belongs in root /ChangeLog.md - Version: 293
 
 
+- Oct 21 2026 - Ped Workshop Bones pane: Rot / Pos / key row on one centre line, key count inline (frames in tooltip), no gap under the controls.
+- Oct 21 2026 - dock_panels v7: panel [x] buttons work on every dock (Models, Frame Hierarchy, Textures were locked). Ped Workshop: IFP name and filter moved into the Animation title.
+- Oct 21 2026 - Intro: Ped Workshop section (functions) and a stop-motion ped animation workflow.
+- Oct 21 2026 - Ped Workshop: Animation title holds IFP list + load / save / new; IFP name (anims) beside filter; Bones is its own dock with view toggles in its title.
+- Oct 21 2026 - New save_all_icon (disk with ALL). Ped Workshop title: Save (peds IDE) and Save all side by side.
+- Oct 21 2026 - Ped Workshop: Peds title bar holds folder name, folder / open / save all, filter and save IDE; rows 24 px, table rows 22 px; Animation fits narrow docks.
+- Oct 21 2026 - dock_panels v6: every collapsible panel header fixed at 26 px; title-bar buttons 22 px.
+- Oct 21 2026 - Ped Workshop: bone rotate rings in viewport (X/Y/Z), onion skin ghosts, Animation pane scrolls so Peds keeps its height, folder name fix. dff_viewport v41.
+- Oct 21 2026 - Ped Workshop: Peds pane taller than Animation, Frame Hierarchy synced with bones, key marks on time slider, Key all bones, copy / paste pose.
+- Oct 21 2026 - Ped Workshop: one custom title bar, compact icon docks, Open menu (recent folders) / Save all, unsaved-change prompts. IMG Factory Peds + Ipf Edit buttons open it. Docked workshop see-through bleed fixed.
+- Oct 21 2026 - ped_workshop.py v2: runs directly (sys.path, xcb). New standalone repo folder Ped-Workshop; Model-Workshop given missing titlebar_func.py.
+- Oct 21 2026 - Ped Workshop: welcome card + ped icon, file router (ped, pedgrp, pedstats, clothes, animgrp, shopping, popcycle, peds.ide, ped.ifp), Decision files, SA anim.img IFPs, GTA IV peds data.
+- Oct 21 2026 - New Ped Workshop (Model Workshop base): peds IDE / pedgrp / ped.dat editing, IFP play + stop-motion keys, stick-man bones (III/VC/SA). New ifp_format, dff_skin, ped_files.
+- Oct 21 2026 - Map Workshop Terrain tools: brush dock (Raise, Lower, Flatten, Level, Smooth, Roughen, Ramp), live DFF + COL edits, undo, save into IMG. New map_terrain_func.py, methods/terrain_brush.py.
+- Oct 21 2026 - imgfactory_svg_icons v76: duplicate get_water_workshop_icon - mono anchor version renamed get_water_anchor_icon (icons differ).
+- Oct 21 2026 - Map Workshop Ribbon Manager: Overlays tool buttons and Water depth gauge now show icon and name.
+- Oct 21 2026 - Files panes: TXD Files and Model Textures / Files counts moved into dock titles; new methods/file_list_filter.py type filter (Map / Model). Ribbon Manager: Selection count icon.
+- Oct 21 2026 - Map Workshop: LCS / VCS PS2 world drawn - level sectors (.LVZ + .IMG, VCS area resources) decoded to textured building pieces (read only). New methods/stories_world.py. Bully world renders.
+- Oct 21 2026 - Map Workshop Files pane: status and search moved into the title bar; opening docked lists the open IMG tab models (Models / TXD / COL counts).
+- Oct 21 2026 - 3D viewport (dff_viewport v38): alpha forced to 1 after drawing, so see-through windows no longer show the desktop through the map / models.
+- Oct 21 2026 - See-through windows: docked workshops with a 3D view (Map, Model) stay solid; GL views in a translucent window left ghosts of other tabs and the desktop.
+- Oct 21 2026 - Map Workshop: ribbon layout saved on hide/quit too (was close only). Models [=] and Textures count/Thumbnails in dock title bars, 26px table headers, arrow icons for toolbar collapse.
+- Oct 21 2026 - Map Workshop: Bully SE world loads from game root - objects from Objects/ide.img (.idb) + text IDEs, 8757 placements from World.img (.ipb inst/spec), NIF/NFT models. Read only.
+- Oct 21 2026 - game.dtz write in Map Workshop: instances (move/rotate/model/area), objs/tobj IDE edits, water level heights (VC waterpro.dat too). Dir tree: game.dtz opens Map / Path Workshop.
+- Oct 21 2026 - Path Workshop car recordings: Add tool inserts a frame, Join appends another .rrr (re-timed); carrec.img entries that grow are rewritten via IMG rebuild.
+- Oct 21 2026 - App_Settings_System v92: utils extras moved to utils/depends; duplicate IconProvider removed (depends copy used); left panes scroll so they re-dock. Old files in _to_delete.
+- Oct 20 2026 - DP5: Settings > Gadgets tool buttons no longer clipped - icon with full label underneath. Fixed DP5 bug entries removed.
+- Oct 20 2026 - Docks: double-click a floating pane title to dock it back (dock_panels v4, all workshops). App_Settings_System standalone runs xcb so drag re-dock works.
+- Oct 20 2026 - App_Settings_System v90: runs as script again (adds project root to sys.path).
+- Oct 20 2026 - App_Settings_System: removed _create_buttons_tab v1, _preview_gadget_styles, _on_color_changed; Colors tab Refresh button; contrast helpers in methods/ui_color.py.
+- Oct 20 2026 - App_Settings_System v89: split SettingsDialog into utils/depends appsys_logic/ui/win mixins; dead/duplicate code removed; shared corner handles; Colors/Gadgets panes dockable; shared TitlebarMixin titlebar.
+- Oct 20 2026 - Model: Settings Apply crashes fixed (DFFViewport bg_color; missing _apply_button_mode_to_button). Synced Model-Workshop.
+- Oct 20 2026 - TXD: Show status bar in workshop Settings (shared statusbar_func, both dialogs). Titlebar Settings button keeps text in icons mode.
+- Oct 20 2026 - DP5: Plugins menu + plugins/ folder - Colour Mask (tint greyscale), Split RGB/CMYK/YPbPr to tabs, Combine RGB tabs. COL settings Apply crash (bg_color) fixed.
+- Oct 20 2026 - Format audit: TXD/COL/Model open all samples (PC, PS2, PSP, Android, iOS, Bully, mobile DB, LCS/VCS PS2+PSP game.dtz). Fixed LOD-only DFF (air_vlo) showing nothing.
+- Oct 20 2026 - DAT Browser: LCS/VCS roots load from game.dtz when no .dat ('Cannot find DAT file' fixed).
+- Oct 20 2026 - Map Workshop: water.dat quads editable - Water right-click, click select, drag move, corner X/Y/Z dialog, undo, save (untouched lines kept). VC waterpro grid not editable.
+- Oct 20 2026 - Path Workshop: LCS/VCS game.dtz path nodes editable (move, X/Y/Z) and saved back; no-op save byte identical (zlib 9). stories_dtz v2.
 - Oct 20 2026 - Path Workshop: SA car recordings editable - frame fields, drag, delete frame, shift/rotate/re-time, save into carrec.img (entry backup) or .rrr.
 - Oct 20 2026 - Model Workshop: Settings Apply crashed (format_combo not in that dialog); export format line removed there.
 - Oct 20 2026 - Deleted unused methods/txd_platform_pc.py (duplicate of txd_reader), main and Model-Workshop.
@@ -180,12 +218,11 @@
 ## TODO (next session, from Oct 12 2026)
 - Exit crash (sip cleanup_on_exit segfault, ~1 in 6 closes) in TXD/Path standalone; PyQt6 has no sip.setdestroyonexit, needs another fix.
 - IMG Factory last: titlebar (TitlebarMixin + Tool menu, RW Ref, taskbar, AI hooks), ribbons, docked panes, status bar - same treatment as workshops.
-- LCS/VCS game.dtz: read and write back (paths first, then objects/instances/water). Path Workshop shows dtz paths view-only now.
+- LCS/VCS game.dtz write: objects, instances, water still to do (paths done).
 - Emojis in Model Workshop log/print strings (~280): Keith removing.
 - Rebuilt MDL/WDR/WFT meshes untested in game; skinned MDL rebuild (face/vertex changes on peds) to do. DFF save: SA night colours / skin rebuild.
 - Map Workshop: Bully world (.ipb placements, Bully dat). 1 of 1118 Bully NFT fails.
-- Format audit: TXD/Model/COL Workshops open every format.
-- Map Workshop: water object editing (gauge shown, editing to do). Path Workshop: draw path nodes (paint_paths needs world_to_screen).
+- TXD open: 'Alpha Channel Error' pops per texture when alpha is all 255 (common, not corrupt) - make it a log line?
 - Staging rule: copy files to a new outputs/cNNNNNN folder per commit (same name sends stale cache).
 - Low priority: GTA IV image formats (TODO_bugs ivCellConverter, ivXenonConverter, retrevnoCnoneXvi samples).
 - Low priority: re-sync all standalone repos (Col, DP5, Hex, Map, Model-Viewer, Model, Paths, Radar, Timecyc, Txd, Vehicle, Water, Zon) from main, ready for Windows exe builds.

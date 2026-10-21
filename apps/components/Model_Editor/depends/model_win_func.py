@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_win_func.py - Version: 6
+#this belongs in apps/components/Model_Editor/depends/model_win_func.py - Version: 7
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop window frame
 
 """
@@ -6,6 +6,7 @@ Window frame, dragging, corner resize, status bar, window events.
 """
 
 ##class ModelWindowMixin: -
+# _apply_button_mode_to_button
 # _apply_window_flags
 # _create_status_bar
 # dragEnterEvent
@@ -326,6 +327,12 @@ class ModelWindowMixin: #vers 1
                 button = getattr(self, btn_name)
                 self._apply_button_mode_to_button(button, btn_text)
         self._update_dock_button_visibility()
+
+
+    def _apply_button_mode_to_button(self, button, text): #vers 1
+        """Apply display mode via shared helper."""
+        from apps.methods.button_mode import apply_button_mode_to_button
+        apply_button_mode_to_button(button, text, self.button_display_mode)
 
     def paintEvent(self, event): #vers 4
         """Corner handles, COL style (methods/corner_handles.py)."""

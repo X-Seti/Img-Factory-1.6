@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 42
+#this belongs in apps/gui/gui_layout.py - Version: 43
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -395,7 +395,7 @@ class IMGFactoryGUILayout:
         self.method_mappings = self._create_method_mappings()
 
 
-    def _create_method_mappings(self): #vers 6
+    def _create_method_mappings(self): #vers 7
         """Create centralized method mappings for all buttons"""
         method_mappings = {
             # Nav Operations - Keep hidden unless custom theme requires these 3 buttons.
@@ -462,7 +462,7 @@ class IMGFactoryGUILayout:
             'edit_col_file': lambda: edit_col_file(self.main_window),
             'edit_txd_file': lambda: edit_txd_file(self.main_window),
             'edit_dff_file': lambda: edit_dff_file(self.main_window),
-            'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
+            'edit_ipf_file': lambda: getattr(self.main_window, 'open_ped_workshop_docked', lambda: None)(),   # IFP: Ped Workshop
             'edit_ide_file': lambda: getattr(self.main_window, 'open_ide_editor_docked', lambda: getattr(self.main_window, 'open_ide_editor', lambda: None)())(),
             'edit_ipl_file': lambda: self._open_ipl_workshop(),
             'edit_handling': lambda: getattr(self.main_window, 'open_handling_editor', lambda: None)(),
@@ -473,7 +473,7 @@ class IMGFactoryGUILayout:
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
             'edit_vehi_file': lambda: self._open_vehicle_workshop(),
-            'edit_peds_file': lambda: self._log_missing_method('edit_peds_file'),
+            'edit_peds_file': lambda: getattr(self.main_window, 'open_ped_workshop_docked', lambda: None)(),
             'edit_radar_map': lambda: getattr(self.main_window, 'open_radar_map', lambda: None)(),
             'open_dp5_workshop_docked': lambda: getattr(self.main_window, 'open_dp5_workshop_docked', lambda: None)(),
             'edit_paths_map': lambda: getattr(self.main_window, 'open_paths_map', lambda: None)(),

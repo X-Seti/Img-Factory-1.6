@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dock_panels.py - Version: 3
+#this belongs in apps/methods/dock_panels.py - Version: 7
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Workshop dock panels
 
 """
@@ -9,6 +9,7 @@ _ribbon_config_path and section_title_font.
 
 ##Methods list -
 # add_outer_dock
+# add_title_widget
 # make_outer_mw
 # redock_to_tab
 
@@ -52,6 +53,18 @@ def add_outer_dock(owner, mw, title, widget, min_width, area=Qt.DockWidgetArea.L
     return dock
 
 
+def add_title_widget(dock, widget, index=None): #vers 2
+    """Put a widget into a collapsible dock's title bar (default: before close)."""
+    from PyQt6.QtCore import QSize
+    if isinstance(widget, QToolButton):          # keep the 26 px header
+        widget.setFixedSize(22, 22)
+        widget.setIconSize(QSize(16, 16))
+    else:
+        widget.setMaximumHeight(22)
+    lay = dock.titleBarWidget().layout()
+    lay.insertWidget(lay.count() - 1 if index is None else index, widget)
+
+
 def redock_to_tab(ws): #vers 1
     """Put a torn-off workshop back in its IMG Factory tab."""
     tabs = getattr(getattr(ws, 'main_window', None), 'main_tab_widget', None)
@@ -70,12 +83,13 @@ def redock_to_tab(ws): #vers 1
 class DockPanelsMixin: #vers 1
     """Collapsible dock titles and saved outer dock layout."""
 
-    def _make_dock_collapsible(self, dock, title): #vers 6
-        """Title bar: double-click collapses content; close button."""
+    def _make_dock_collapsible(self, dock, title): #vers 9
+        """Title bar: double-click collapses, or re-docks when floating; close."""
         #TODO missing splitter between middle panel and right panel, or right panel, and newly placed "middle panel", that was moved to the right of the right panel.
         #X gadgets do not work, and right click menu recovery bar needs work.
         #I have disabled the float/dock function as this is meant to effect it's own bar open/collapse, not the surrounding bars that get collapsed.
         bar = QWidget()
+        bar.setFixedHeight(26)                  # same header height on every panel
         lay = QHBoxLayout(bar)
         lay.setContentsMargins(6, 2, 2, 2)
         lay.setSpacing(2)
@@ -90,9 +104,13 @@ class DockPanelsMixin: #vers 1
         close_btn.setFixedSize(20, 20)
         close_btn.setAutoRaise(True)
         close_btn.clicked.connect(dock.close)
+        dock.setFeatures(dock.features() | QDockWidget.DockWidgetFeature.DockWidgetClosable)   # [x] works
         lay.addWidget(close_btn)
 
-        def _dbl_click(event, d=dock): #vers 1
+        def _dbl_click(event, d=dock): #vers 2
+            if d.isFloating():                  # floating: dock back
+                d.setFloating(False)
+                return
             content = d.widget()
             if content:
                 content.setVisible(not content.isVisible())

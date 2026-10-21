@@ -1,4 +1,4 @@
-#this belongs in apps/methods/path_nodes.py - Version: 4
+#this belongs in apps/methods/path_nodes.py - Version: 5
 # X-Seti - October 19 2026 - IMG Factory 1.6 - Path node writers
 
 """
@@ -107,9 +107,9 @@ def _patch_sa_bytes(data, path_file, nodes): #vers 1
     return bytes(buf)
 
 
-def write_back(src, make_bytes): #vers 1
+def write_back(src, make_bytes): #vers 2
     """Rewrite a loose file or an 'x.img:entry' in place (backup first).
-    make_bytes(old) -> new; an IMG entry is padded and must not grow."""
+    make_bytes(old) -> new; an IMG entry is padded in place, or rewritten when it grows."""
     img_path, sep, entry_name = src.rpartition(':')
     if sep and img_path.lower().endswith('.img') and os.path.isfile(img_path):
         from apps.methods.img_core_classes import IMGFile
@@ -119,14 +119,15 @@ def write_back(src, make_bytes): #vers 1
         entry = next(e for e in arc.entries if e.name.lower() == entry_name.lower())
         data = arc.read_entry_data(entry)
         new = make_bytes(data)
-        if len(new) > len(data):
-            raise ValueError(f"{entry_name} grew ({len(new)} > {len(data)} bytes) - no room in the IMG")
         bdir = _backup_dir_for(img_path)
         os.makedirs(bdir, exist_ok=True)
         stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         with open(os.path.join(bdir, f"{entry_name}.{stamp}.bak"), 'wb') as f:
             f.write(data)                      # entry backup, not whole IMG
-        arc.write_entry_data(entry, new.ljust(len(data), b'\0'))
+        if len(new) <= len(data):
+            arc.write_entry_data(entry, new.ljust(len(data), b'\0'))
+        elif not arc.add_entry(entry.name, new):          # grew: IMG rewrites the entry
+            raise ValueError(f"{entry_name}: {getattr(arc, 'last_error', '') or 'IMG refused the larger entry'}")
         return
     from apps.methods.file_backup import safe_write_bytes
     with open(src, 'rb') as f:

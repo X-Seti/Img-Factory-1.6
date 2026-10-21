@@ -1,4 +1,4 @@
-#this belongs in apps/methods/xtx_reader.py - Version: 4
+#this belongs in apps/methods/xtx_reader.py - Version: 5
 # X-Seti - October05 2026 - IMG Factory 1.6 - Stories XTX Texture Reader Writer
 
 """
@@ -31,6 +31,7 @@ from apps.methods.txd_platform_psp import (
 # _ps2_swizzled
 # _raster_layout
 # _raster_try
+# decode_raster
 # is_xtx
 # parse_stories_textures
 # parse_xtx
@@ -63,8 +64,9 @@ def _raster_layout(data: bytes, r: int, relocs: set, data_end: int) -> Dict: #ve
     return lay
 
 
-def _raster_try(data: bytes, r: int, kind: str, data_end: int) -> Optional[Dict]: #vers 2
-    """Raster layout for one platform guess; None if fields inconsistent."""
+def _raster_try(data: bytes, r: int, kind: str, data_end: int, strict: bool = True) -> Optional[Dict]: #vers 3
+    """Raster layout for one platform guess; None if fields inconsistent.
+    strict=False: VCS level rasters keep junk in the first word."""
     if kind == 'PSP':
         _u, ptr, stride, lw, lh, fl = struct.unpack_from('<IIHBBI', data, r)
         depth, mips = fl & 0xFF, (fl >> 8) & 0xF
@@ -74,7 +76,7 @@ def _raster_try(data: bytes, r: int, kind: str, data_end: int) -> Optional[Dict]
         rows, swz, ps2 = (h + 7) & ~7, True, False
     else:
         if kind == 'PS2_VCS':
-            if struct.unpack_from('<I', data, r)[0] != 0:
+            if strict and struct.unpack_from('<I', data, r)[0] != 0:
                 return None
             ptr, fl = struct.unpack_from('<II', data, r + 8)
         else:
@@ -120,13 +122,30 @@ def _ps2_swizzled(lay: Dict) -> bool: #vers 1
     return lay['platform'] == 'PS2' and bool((lay['flags'] >> 24) & 1)
 
 
+def decode_raster(data: bytes, lay: Dict): #vers 1
+    """(rgba, indices, palette) of one Stories raster layout from _raster_try."""
+    w, h, depth = lay['width'], lay['height'], lay['depth']
+    raw = np.frombuffer(data, np.uint8, lay['pix_size'], lay['pix_off'])
+    if lay['swizzled']:
+        raw = ge_unswizzle(raw, lay['stride'], lay['rows'])
+    else:
+        raw = raw.reshape(lay['rows'], lay['stride'])
+    idx = unpack_indices(raw[:h, :w * depth // 8], depth)
+    swz = _ps2_swizzle_map(w, h) if _ps2_swizzled(lay) else None
+    if swz is not None:
+        idx = idx[swz]
+    pal = decode_palette(data[lay['pal_off']:lay['pal_off'] + lay['pal_size']],
+                         lay['ps2_alpha'], lay['csm1'])
+    return decode_indexed(idx, pal), idx, pal
+
+
 def is_xtx(path: str) -> bool: #vers 2
     """True if file starts with the Stories 'xet' ident."""
     with open(path, 'rb') as f:
         return f.read(4) == XTX_MAGIC
 
 
-def parse_stories_textures(data: bytes) -> List[Dict]: #vers 3
+def parse_stories_textures(data: bytes) -> List[Dict]: #vers 4
     """Decode every texture in a Stories xet texture list."""
     if len(data) < 0x30 or data[:4] != XTX_MAGIC:
         raise ValueError("Not a Stories texture file ('xet' ident missing)")
@@ -147,19 +166,8 @@ def parse_stories_textures(data: bytes) -> List[Dict]: #vers 3
         name = data[t + 16:t + 48].split(b'\x00')[0].decode('latin-1')
         mask = data[t + 48:t + 80].split(b'\x00')[0].decode('latin-1')
         lay = _raster_layout(data, r, relocs, data_end)
-        w, h, depth = lay['width'], lay['height'], lay['depth']
-        raw = np.frombuffer(data, np.uint8, lay['pix_size'], lay['pix_off'])
-        if lay['swizzled']:
-            raw = ge_unswizzle(raw, lay['stride'], lay['rows'])
-        else:
-            raw = raw.reshape(lay['rows'], lay['stride'])
-        idx = unpack_indices(raw[:h, :w * depth // 8], depth)
-        swz = _ps2_swizzle_map(w, h) if _ps2_swizzled(lay) else None
-        if swz is not None:
-            idx = idx[swz]
-        pal = decode_palette(data[lay['pal_off']:lay['pal_off'] + lay['pal_size']],
-                             lay['ps2_alpha'], lay['csm1'])
-        rgba = decode_indexed(idx, pal)
+        depth = lay['depth']
+        rgba, idx, pal = decode_raster(data, lay)
         lay.update({'name': name, 'alpha_name': mask, 'texture_offset': t,
                     'format': 'PAL8' if depth == 8 else 'PAL4',
                     'has_alpha': bool((pal[np.unique(idx), 3] < 255).any()),

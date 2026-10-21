@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 106
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 108
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -194,9 +194,11 @@ from apps.methods.doc_tabs import DocTabsMixin
 # DP5Workshop._build_canvas_menus
 # DP5Workshop._build_load_menu
 # DP5Workshop._build_menus_into_qmenu
+# DP5Workshop._build_plugins_menu
 # DP5Workshop._build_ribbons_from_assignment
 # DP5Workshop._build_tool_ribbon
 # DP5Workshop._canvas_to_256colour_indexed
+# DP5Workshop._canvas_to_new_tab
 # DP5Workshop._capture_canvas_tab_state
 # DP5Workshop._center_view_on
 # DP5Workshop._clear_brush
@@ -1523,7 +1525,7 @@ class DP5Settings:
 class DP5SettingsDialog(QDialog):
     """Settings dialog for DP5 Workshop — does NOT touch global AppSettings."""
 
-    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 4
+    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 5
         super().__init__(parent)
         self.s = dp5_settings
         self._workshop = parent   # DP5Workshop instance - gives access to _WIDGET_REGISTRY
@@ -1779,7 +1781,9 @@ class DP5SettingsDialog(QDialog):
         gl.addWidget(QLabel("Click to toggle tool visibility (highlighted = visible):"))
         hidden = self.s.get('hidden_tools') or []
         icon_sz = self.s.get('tool_icon_size')
-        btn_sz  = max(26, icon_sz + 2)  # min 26px so labels stay readable
+        btn_w   = max(64, icon_sz + 8)  # room for icon and label
+        btn_h   = icon_sz + 26           # label under icon
+        from PyQt6.QtWidgets import QToolButton
         self._gadget_chks = {}
         TOOL_LABELS = [
             ('pencil','Pencil'), ('eraser','Eraser'), ('fill','Fill'),
@@ -1796,10 +1800,11 @@ class DP5SettingsDialog(QDialog):
         grid_l.setContentsMargins(0, 0, 0, 0)
         cols = 4
         for idx, (tool_id, label) in enumerate(TOOL_LABELS):
-            btn = QPushButton()
+            btn = QToolButton()
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
             btn.setCheckable(True)
             btn.setChecked(tool_id not in hidden)
-            btn.setFixedSize(btn_sz, btn_sz + 14)
+            btn.setFixedSize(btn_w, btn_h)
             btn.setToolTip(label)
             # Use parent workshop's icon colour if available
             _ws  = parent if hasattr(parent, '_get_icon_color') else None
@@ -1811,18 +1816,17 @@ class DP5SettingsDialog(QDialog):
             ico = _load_tool_icon(tool_id, icon_sz, tile_bg=_tbg, icon_col=_col)
             btn.setIcon(ico)
             btn.setIconSize(QSize(icon_sz, icon_sz))
-            lbl_short = label[:6]
-            btn.setText(lbl_short)
+            btn.setText(label)
             # Theme-aware stylesheet — no hardcoded colours
             acc = '#4a8a4a'
             if _ws and _ws.app_settings:
                 _tc2 = _ws.app_settings.get_theme_colors() or {}
                 acc  = _tc2.get('accent_primary', acc)
             btn.setStyleSheet(
-                f"QPushButton {{ font-size: 8px; color: palette(mid); "
+                f"QToolButton {{ font-size: 9px; color: palette(text); "
                 f"background: palette(base); border: 1px solid palette(mid); "
                 f"padding-top: 2px; }} "
-                f"QPushButton:checked {{ background: {acc}; "
+                f"QToolButton:checked {{ background: {acc}; "
                 f"border: 1px solid palette(highlight); }}"
             )
             btn.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
@@ -6585,7 +6589,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
         return panel
 
-    def _build_canvas_menus(self, mb): #vers 3
+    def _build_canvas_menus(self, mb): #vers 4
         """Populate a QMenuBar (topbar) or QMenu (docked/dropdown) with all DP5 menus.
         Both share the same addMenu()/addAction() API so one method serves all cases."""
         # File
@@ -6959,6 +6963,34 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         ])
         plm.addSeparator()
         plm.addAction("Enforce colour constraints (toggle)", self._toggle_colour_constraints)
+        self._build_plugins_menu(mb)
+
+    def _build_plugins_menu(self, mb): #vers 1
+        """Add Plugins menu from DP5_Workshop/plugins modules."""
+        from apps.components.DP5_Workshop.plugins import list_plugins
+        pm = mb.addMenu("Plugins")
+        for name, actions in list_plugins():
+            sub = pm.addMenu(name)
+            for label, fn in actions:
+                if label is None:
+                    sub.addSeparator()
+                    continue
+                sub.addAction(label, lambda _c=False, f=fn: f(self))
+
+    def _canvas_to_new_tab(self, rgba, w, h, label=None): #vers 1
+        """Open rgba as a new canvas tab, keeping current tab."""
+        c = self.dp5_canvas
+        if not c:
+            return
+        self._save_current_canvas_tab()
+        self._canvas_width, self._canvas_height = w, h
+        c.tex_w, c.tex_h = w, h
+        c.rgba = bytearray(rgba)
+        c._sel_active = False
+        c._selection_rect = None
+        c.update()
+        self._add_canvas_tab(label)
+        self._fit_canvas_to_viewport()
 
     #    Right panel: gadget bar + palettes                                     
 

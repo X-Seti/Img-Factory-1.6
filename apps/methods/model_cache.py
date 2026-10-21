@@ -1,4 +1,4 @@
-#this belongs in apps/methods/model_cache.py - Version: 14
+#this belongs in apps/methods/model_cache.py - Version: 16
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG
@@ -15,6 +15,7 @@ retried on every subsequent instance that references it.
 
 ##Methods list -
 # __init__
+# add_models
 # _index_wbd
 # _index_wdd
 # _is_wdd
@@ -32,6 +33,8 @@ retried on every subsequent instance that references it.
 # _store_parsed
 # _tag
 # clear_indexes
+# collision_source
+# geometry_source
 # get_collision
 # get_dimensions
 # get_geometry
@@ -229,7 +232,9 @@ def _parse_txd_job(blobs: List[bytes], limit=None, keep_dxt=False) -> Optional[D
 class ModelCache:
     """See module docstring."""
 
-    def __init__(self): #vers 5
+    def __init__(self): #vers 6
+        self._virtual_models = set()             # names registered by add_models
+        self._virtual_textures = {}              # txd sets registered by add_models
         # lowercase entry name (no extension) -> [(img_path, IMGEntry), ...]
         # A list, not a single tuple (Aug 1 2026) - if the same name is
         # indexed more than once (e.g. my real game folder has
@@ -414,13 +419,14 @@ class ModelCache:
         except Exception as e:
             self.index_errors.append(f"{img_path}/{entry.name}: {e}")
 
-    def set_texture_limit(self, limits: Dict[str, Tuple[int, int]], keep_dxt: bool = False) -> None: #vers 3
+    def set_texture_limit(self, limits: Dict[str, Tuple[int, int]], keep_dxt: bool = False) -> None: #vers 4
         """Per-format limits {group: (over, down_to)} and DXT keep; change drops cache."""
         limits = {g: (int(a), int(b)) for g, (a, b) in (limits or {}).items()}
         if limits != self.texture_limit or bool(keep_dxt) != self.keep_dxt:
             self.texture_limit = limits
             self.keep_dxt = bool(keep_dxt)
             self._texture_cache.clear()
+            self._texture_cache.update(self._virtual_textures)   # prebuilt sets stay
 
     def _apply_limit(self, textures): #vers 2
         """Per-format texture limit applied to a {name: texture} dict (in place)."""
@@ -520,7 +526,7 @@ class ModelCache:
             except Exception as e:
                 self.index_errors.append(f"{col_path}: {e}")
 
-    def clear_indexes(self): #vers 5
+    def clear_indexes(self): #vers 6
         """Drop all indexes and cached geometry/textures/collision -
         call before re-indexing for a newly loaded world, so stale
         entries from a previous world can't leak through."""
@@ -534,6 +540,8 @@ class ModelCache:
         self._col_index.clear()
         self._geometry_cache.clear()
         self._texture_cache.clear()
+        self._virtual_models.clear()
+        self._virtual_textures.clear()
         self._dimensions_cache.clear()
         self._collision_cache.clear()
         self._opened_img_files.clear()
@@ -812,14 +820,51 @@ class ModelCache:
             self._opened_img_files[img_path] = img
         return img.read_entry_data(entry)
 
-    def is_dff_indexed(self, model_name: str) -> bool: #vers 2
+    def add_models(self, models, textures) -> None: #vers 1
+        """Register prebuilt models and texture sets (LCS/VCS level sectors)."""
+        for name, model in models.items():
+            self._geometry_cache[name.lower()] = model
+            self._virtual_models.add(name.lower())
+        for txd, texs in textures.items():
+            self._virtual_textures[txd.lower()] = {k.lower(): v for k, v in texs.items()}
+        self._texture_cache.update(self._virtual_textures)
+
+    def geometry_source(self, model_name: str) -> Optional[str]: #vers 1
+        """'x.img:name.dff' the cached model was read from; None for virtual / IV."""
+        key = model_name.lower()
+        model = self._geometry_cache.get(key)
+        raw = getattr(model, 'raw', None)
+        if model is None or key in self._virtual_models or not raw:
+            return None
+        for img_path, entry in self._model_entries(key):
+            if entry.name.lower().endswith('.dff') and self._read_entry(img_path, entry) == raw:
+                return f"{img_path}:{entry.name}"
+        return None
+
+    def collision_source(self, model_name: str): #vers 1
+        """(COLFile, 'x.img:entry' or .col path) holding the cached COL model, or None."""
+        key = model_name.lower()
+        model = self._collision_cache.get(key)
+        if model is None:
+            return None
+        for img_path, entry in self._col_img_index.get(key, []):
+            col_file = self._col_container_cache.get((img_path, id(entry)))
+            if col_file is not None and any(m is model for m in col_file.models):
+                return col_file, f"{img_path}:{entry.name}"
+        for col_path, col_file in self._opened_col_files.items():
+            if any(m is model for m in col_file.models):
+                return col_file, col_path
+        return None
+
+    def is_dff_indexed(self, model_name: str) -> bool: #vers 3
         """True if model_name's .dff was found in one of the indexed
         IMG archives at all - distinguishes "genuinely missing from
         the archive" from "present but failed to parse" (get_geometry
         returning None covers both cases; this is for callers that
         need to tell them apart, e.g. my requested "road43.dff
         missing from img file" reporting)."""
-        return bool(self._model_entries(model_name.lower()))
+        key = model_name.lower()
+        return key in self._virtual_models or bool(self._model_entries(key))
 
     def get_raw_txd(self, txd_name: str) -> Optional[bytes]:
         """Return the original, unmodified .txd container bytes for

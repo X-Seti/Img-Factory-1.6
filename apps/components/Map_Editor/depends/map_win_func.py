@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_win_func.py - Version: 3
+#this belongs in apps/components/Map_Editor/depends/map_win_func.py - Version: 4
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop window frame
 
 """
@@ -270,7 +270,7 @@ class MapWindowMixin: #vers 1
         self._sync_middle_btn_row_visibility()
         self._apply_custom_icons()
 
-    def _sync_middle_btn_row_visibility(self): #vers 2
+    def _sync_middle_btn_row_visibility(self): #vers 3
         """Show/hide the mini toolbar's action icons (Open/Save/Import/
         Export/Undo/3D View) based on dock state AND collapse state - the
         row itself and its view-toggle/collapse buttons always stay
@@ -285,12 +285,15 @@ class MapWindowMixin: #vers 1
             b = getattr(self, attr, None)
             if b:
                 b.setVisible(show)
+        if hasattr(self, 'mid_btn_collapse_btn'):           # nothing to collapse when not docked
+            self.mid_btn_collapse_btn.setVisible(docked_only)
 
-    def _toggle_mid_btn_row_collapsed(self): #vers 1
+    def _toggle_mid_btn_row_collapsed(self): #vers 2
         """Collapse/expand the mini toolbar's action icons via the -/+
         button, independent of the icon-only/icon+text adaptive display."""
         self._mid_btn_row_collapsed = not getattr(self, '_mid_btn_row_collapsed', False)
-        self.mid_btn_collapse_btn.setText("+" if self._mid_btn_row_collapsed else "−")
+        icon = SVGIconFactory.arrow_down_icon if self._mid_btn_row_collapsed else SVGIconFactory.arrow_up_icon
+        self.mid_btn_collapse_btn.setIcon(icon(16, self._get_icon_color()))
         self._sync_middle_btn_row_visibility()
 
     def _on_menu_btn_clicked(self): #vers 1
@@ -740,6 +743,11 @@ class MapWindowMixin: #vers 1
         if not getattr(self, '_toolbar_layout_loaded', False):
             self._toolbar_layout_loaded = True
 
+    def hideEvent(self, event): #vers 1
+        """Save ribbon placement when hidden (tab switch, docked close, quit)."""
+        super().hideEvent(event)
+        self._save_toolbar_state()
+
     def resizeEvent(self, event): #vers 6
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
         super().resizeEvent(event)
@@ -783,12 +791,13 @@ class MapWindowMixin: #vers 1
         except Exception:
             pass
 
-    def _toggle_tex_btn_row_collapsed(self): #vers 1
+    def _toggle_tex_btn_row_collapsed(self): #vers 2
         """Collapse/expand the texture panel's Load/Texlist/WShop/Save
         buttons via the -/+ button, independent of the icon-only/icon+text
         adaptive display."""
         self._tex_btn_row_collapsed = not getattr(self, '_tex_btn_row_collapsed', False)
-        self.tex_btn_collapse_btn.setText("+" if self._tex_btn_row_collapsed else "−")
+        icon = SVGIconFactory.arrow_down_icon if self._tex_btn_row_collapsed else SVGIconFactory.arrow_up_icon
+        self.tex_btn_collapse_btn.setIcon(icon(16, self._get_icon_color()))
         show = not self._tex_btn_row_collapsed
         for attr, _label, _icon in getattr(self, '_tex_btns_meta', []):
             b = getattr(self, attr, None)

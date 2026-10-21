@@ -319,7 +319,7 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
         self._outer_docks = []
         if left_panel is not None:  # IMG Factory mode
             self._outer_docks.append(add_outer_dock(self, outer_mw, "COL Files", left_panel, 150))
-        models_dock = add_outer_dock(self, outer_mw, "Models", middle_panel, 250)
+        models_dock = add_outer_dock(self, outer_mw, "Col Controls", middle_panel, 250)
         self._outer_docks.append(models_dock)
         if left_panel is not None:
             outer_mw.splitDockWidget(self._outer_docks[0], models_dock, Qt.Orientation.Horizontal)

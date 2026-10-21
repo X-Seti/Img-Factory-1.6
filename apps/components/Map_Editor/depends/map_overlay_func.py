@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 2
+#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop overlays
 
 """
@@ -694,7 +694,7 @@ class MapOverlayMixin: #vers 1
             QMessageBox.information(self, "Bake Prelight", msg + "\n\n" + "\n".join(notes[:30]))
         self._set_status(msg)
 
-    def _create_ipl_controls_dock(self): #vers 11
+    def _create_ipl_controls_dock(self): #vers 12
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons
@@ -1146,7 +1146,7 @@ class MapOverlayMixin: #vers 1
         # Show Water (Aug 20 2026)
         show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True, icon=OverlayIcons.water_icon(24))
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
-        show_water_btn.edit_toggled.connect(lambda _on: self._show_radar_align_dialog())
+        show_water_btn.edit_toggled.connect(self._toggle_water_edit)   # quad editing
         # Middle-click switches water layers (Sep 5 2026, .per:
         # "the right click toggle between vis_water and phy_water
         # needs to be moved to the middle button so it doesnt clash
@@ -1160,7 +1160,7 @@ class MapOverlayMixin: #vers 1
             "Left-click: show/hide Water.\n"
             "Middle-click: switch between visible_map and\n"
             "physical_map layers (waterpro.dat only).\n"
-            "Right-click: radar/water alignment.")
+            "Right-click: edit water quads (water.dat).")
         show_water_btn.middle_clicked.connect(
             lambda: self._on_water_layer_toggled(
                 not getattr(self, '_water2_showing_physical', False)))

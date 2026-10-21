@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 16
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 17
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -1733,7 +1733,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
             self._status_lbl.setText("Game not auto-detected — select manually.")
         self._load_btn.setEnabled(True)
 
-    def _start_load(self): #vers 6
+    def _start_load(self): #vers 7
         game_idx = self._game_combo.currentIndex()
         game_root = self._path_edit.text().strip()
         if not game_root:
@@ -1753,8 +1753,9 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                 "Select the correct game from the dropdown.")
             return
 
-        dat_path = find_dat_file(game_root, game)
-        if not dat_path:
+        from apps.methods.stories_dtz import dtz_paths
+        dat_path = find_dat_file(game_root, game) or (dtz_paths(game_root) or (None,) * 3)[2]
+        if not dat_path:                                 # LCS/VCS: game.dtz instead of a .dat
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "DAT not found",
                 f"Cannot find DAT file for {game} under {game_root}")

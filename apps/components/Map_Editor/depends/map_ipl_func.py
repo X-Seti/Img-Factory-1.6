@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_ipl_func.py - Version: 2
+#this belongs in apps/components/Map_Editor/depends/map_ipl_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop IPL files
 
 """
@@ -17,7 +17,6 @@ IPL/IDE/DAT/IMG tabs, IPL save, convert, shift/rotate, savepoints for ModelWorks
 # _binary_stream_source
 # _build_ipl_text_lines
 # _check_ide_raw
-# confirm_close
 # _confirm_discard_ipls
 # _create_dat_tab
 # _create_img_tab
@@ -36,6 +35,7 @@ IPL/IDE/DAT/IMG tabs, IPL save, convert, shift/rotate, savepoints for ModelWorks
 # _insert_stream_into_display_order
 # _inst_changed
 # _ipl_section_has_data
+# _is_stories_obj
 # _load_binary_ipl_stream
 # _load_selected_ipl_sections
 # _map_export_menu
@@ -96,6 +96,7 @@ IPL/IDE/DAT/IMG tabs, IPL save, convert, shift/rotate, savepoints for ModelWorks
 # _show_map_checks
 # _show_map_diff
 # _show_script_placements
+# _stories_ide_line
 # _style_ipl_name_item
 # _toggle_ipl_section
 # _unload_all_ipl_sections
@@ -104,6 +105,8 @@ IPL/IDE/DAT/IMG tabs, IPL save, convert, shift/rotate, savepoints for ModelWorks
 # _write_ipl_as_game
 # _write_ipl_error_log
 # _write_ipl_in_place
+# _write_stories_instances
+# confirm_close
 
 import math
 import os
@@ -2009,11 +2012,13 @@ class MapIplMixin: #vers 1
         self._push_map_undo(lambda: _set(old), lambda: _set(values),
                             f"Edit {inst.model_name} IPL line")
 
-    def _ide_raw_line(self, obj): #vers 1
+    def _ide_raw_line(self, obj): #vers 2
         """Current IDE line text for obj: pending edit, else the file line; None if not found."""
         pend = self._ide_pending.get(obj.model_id)
         if pend is not None:
             return pend[2]
+        if self._is_stories_obj(obj):
+            return self._stories_ide_line(obj)
         p = self._ide_abs_path(obj)
         if p is None:
             return None
@@ -2028,13 +2033,15 @@ class MapIplMixin: #vers 1
         body = text.split('#')[0].strip()
         return parser._parse_line(obj.section, body, obj.source_ide, obj.line_no) if body else None
 
-    def _check_ide_raw(self, obj, text): #vers 1
+    def _check_ide_raw(self, obj, text): #vers 2
         """Error text if the edited line doesn't parse or changes the model ID, else ''."""
         new = self._parse_ide_raw(obj, text)
         if new is None:
             return f"doesn't parse as a '{obj.section}' line"
         if new.model_id != obj.model_id:
             return "the model ID can't be changed here"
+        if self._is_stories_obj(obj) and new.model_name.lower() != obj.model_name.lower():
+            return "GAME.DTZ model names are hashes - the name can't be changed"
         return ''
 
     def _apply_ide_raw(self, obj, text): #vers 1
@@ -2060,8 +2067,10 @@ class MapIplMixin: #vers 1
         self._push_map_undo(lambda: _set(old_fields, old_pend),
                             lambda: _set(new_fields, (obj, path, text)), f"Edit IDE {obj.model_name}")
 
-    def _ide_abs_path(self, obj): #vers 1
+    def _ide_abs_path(self, obj): #vers 2
         """Full path of an IDE object's source file (matched by name and line ID)."""
+        if self._is_stories_obj(obj):
+            return obj.source_ide                       # GAME.DTZ model info
         loader = getattr(self, '_world_loader', None)
         cands = [p for _ph, et, p, ok in getattr(loader, 'load_log', []) or []
                  if et == "IDE" and ok and os.path.basename(p) == obj.source_ide]
@@ -2076,16 +2085,72 @@ class MapIplMixin: #vers 1
                 continue
         return None
 
-    def _save_pending_ide(self, entries): #vers 3
+    def _write_stories_instances(self, loader, ipl_name, matching, confirm): #vers 1
+        """Write moved/rotated LCS/VCS pool entities back into GAME.DTZ."""
+        dtz, offs = loader.stories_dtz, loader.stories_offsets
+        base = sum(1 for k, v in getattr(self, '_inst_baseline_src', {}).items() if v == ipl_name)
+        lines = [i.line_no for i in matching]
+        if len(set(lines)) != len(lines) or any(not 0 <= n < len(offs) for n in lines) \
+                or (base and len(matching) != base):
+            QMessageBox.warning(self, "Save IPL",
+                f"{ipl_name}: GAME.DTZ pools are fixed - instances can be moved, rotated "
+                f"or re-modelled, not added or deleted. Not saved.")
+            return False
+        if confirm and QMessageBox.question(self, "Save IPL",
+                f"Write {len(matching)} {ipl_name[:-4]} entities into "
+                f"{os.path.basename(dtz.path)}?\n(A backup is made first.)") != QMessageBox.StandardButton.Yes:
+            return False
+        try:
+            for i in matching:
+                dtz.set_instance(offs[i.line_no], i.model_id, (i.pos_x, i.pos_y, i.pos_z),
+                                 (i.rot_x, i.rot_y, i.rot_z, i.rot_w), i.interior)
+            dtz.save(label="Map Workshop")
+        except Exception as e:
+            QMessageBox.warning(self, "Save IPL", f"Failed to save {os.path.basename(dtz.path)}: {e}")
+            return False
+        self._set_status(f"Saved {len(matching)} {ipl_name[:-4]} into {os.path.basename(dtz.path)}")
+        return True
+
+    def _stories_ide_line(self, obj): #vers 1
+        """IDE-style line for an LCS/VCS GAME.DTZ object, or None if not editable."""
+        if obj.section not in ('objs', 'tobj'):
+            return None
+        ex = obj.extra
+        n = ex.get('mesh_count', 1)
+        dists = [ex.get(k, ex.get('draw_dist', 0.0)) for k in ('draw_dist', 'draw_dist2', 'draw_dist3')][:n]
+        parts = [str(obj.model_id), obj.model_name, obj.txd_name, str(n)] + \
+                [f"{d:g}" for d in dists] + [str(ex.get('flags', 0))]
+        if obj.section == 'tobj':
+            parts += [str(ex.get('time_on', 0)), str(ex.get('time_off', 24))]
+        return ', '.join(parts)
+
+    def _is_stories_obj(self, obj): #vers 1
+        """True when obj came from the loaded LCS/VCS GAME.DTZ."""
+        dtz = getattr(getattr(self, '_world_loader', None), 'stories_dtz', None)
+        return dtz is not None and obj.source_ide == dtz.path
+
+    def _save_pending_ide(self, entries): #vers 4
         """Write pending (obj, path, raw line) IDE edits; True if all written."""
         from apps.components.Map_Editor.depends.map_changes import write_ide_raw_lines
         by_file, missing = {}, []
+        dtz = getattr(getattr(self, '_world_loader', None), 'stories_dtz', None)
+        dtz_rows = [(o, r) for o, p, r in entries if dtz is not None and p == dtz.path]
+        entries = [e for e in entries if not (dtz is not None and e[1] == dtz.path)]
         for obj, path, raw in entries:
             if path is None:
                 missing.append(f"{obj.model_name} ({obj.source_ide})")
             else:
                 by_file.setdefault(path, []).append((obj.line_no, obj.model_id, raw))
         errors = []
+        if dtz_rows:
+            try:
+                for obj, _raw in dtz_rows:
+                    dtz.set_object(obj.model_id, obj.extra, obj.txd_name)
+                dtz.save(label="Map Workshop")
+                for obj, _raw in dtz_rows:
+                    self._ide_pending.pop(obj.model_id, None)
+            except Exception as e:
+                errors.append(f"{os.path.basename(dtz.path)}: {e}")
         for p, rows in by_file.items():
             try:
                 write_ide_raw_lines(p, rows)
@@ -2360,7 +2425,7 @@ class MapIplMixin: #vers 1
             self._mark_ipl_saved(ipl_name)
         return ok
 
-    def _write_ipl_in_place(self, ipl_name, confirm): #vers 1
+    def _write_ipl_in_place(self, ipl_name, confirm): #vers 3
         """Worker for _save_ipl_in_place; False on refusal, cancel or error."""
         import struct as _struct
         from apps.methods.gta_dat_parser import write_binary_ipl_inst_only, detect_ipl_format
@@ -2369,6 +2434,15 @@ class MapIplMixin: #vers 1
             return False
         title = "Save IPL"
         matching = [i for i in (getattr(self, '_all_instances', None) or []) if i.source_ipl == ipl_name]
+
+        if ipl_name.startswith('sectors_'):                        # LCS/VCS level sectors (.LVZ/.IMG)
+            QMessageBox.information(self, title, f"{ipl_name}: level sector pieces are read only.")
+            return False
+        if getattr(loader, 'stories_dtz', None) is not None:     # LCS/VCS: pools in GAME.DTZ
+            return self._write_stories_instances(loader, ipl_name, matching, confirm)
+        if getattr(loader, 'bully', False):                       # Bully .ipb inside World.img
+            QMessageBox.information(self, title, f"{ipl_name}: saving Bully .ipb placements is not supported yet.")
+            return False
 
         # binary stream inside an IMG archive (SA)
         src = self._binary_stream_source(ipl_name)

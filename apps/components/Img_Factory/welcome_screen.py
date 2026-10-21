@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 25
+# apps/components/Img_Factory/welcome_screen.py — Version 27
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -174,6 +174,7 @@ class WelcomeScreen(QWidget):
     open_handling_editor   = pyqtSignal()
     open_breakable_editor  = pyqtSignal()
     open_vehicle_workshop  = pyqtSignal()
+    open_ped_workshop      = pyqtSignal()
     open_scm_workshop      = pyqtSignal()
     open_hex_workshop      = pyqtSignal()
     open_asset_checker     = pyqtSignal()
@@ -459,6 +460,10 @@ class WelcomeScreen(QWidget):
              "Preview vehicle DFFs with steering, wheels and door animation. "
              "VC/SA dummy detection, frame hierarchy tree.",
              self.open_vehicle_workshop),
+            (_SVG.ped_app_icon(36), "Ped Workshop",
+             "Peds list and ped data files for III, VC and SA. IFP animation "
+             "playback, stick-man bones and stop-motion keyframes.",
+             self.open_ped_workshop),
             (_SVG.asset_app_icon(36), "Asset Checker",
              "Cross-reference model names across an IMG archive, a COL file "
              "and an IDE file sharing the same base name.",
@@ -523,7 +528,7 @@ class WelcomeScreen(QWidget):
         scroll.setWidget(w)
         return scroll
 
-    def _build_functions_tab(self): #vers 2
+    def _build_functions_tab(self): #vers 3
         from PyQt6.QtCore import Qt as _Qt
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -639,11 +644,30 @@ class WelcomeScreen(QWidget):
              "Setup ambient + sun direction for vertex colour baking.  STUB — next release."),
         ]))
 
+        #  Ped Workshop
+        lay.addWidget(self._section("Ped Workshop"))
+        lay.addWidget(self._doc_table([
+            ("Game folder",        "Folder or Open button in the Peds title",
+             "Loads the peds list, ped data files and ped.ifp for III, VC, SA (IV: data only)."),
+            ("Peds list",          "Peds tab - click a row",
+             "Shows the ped DFF + TXD from models/gta3.img. Cells are editable."),
+            ("Data files",         "Data files tab",
+             "ped.dat, pedgrp, pedstats, animgrp, clothes, shopping, popcycle, Decision."),
+            ("Play an anim",       "Animation pane - pick an anim, Play",
+             "IFP list in the title (ped.ifp, SA anim.img). Loop, in place, speed."),
+            ("Pose a bone",        "Bones pane or click a joint",
+             "Drag a joint or a rotate ring, or type Rot / Pos. Onion skin shows nearby frames."),
+            ("Stop motion",        "Set key / Key all bones",
+             "Key the pose, step on by N frames, pose again. Copy / paste whole poses."),
+            ("Save",               "Save / Save all (disk with ALL)",
+             "Save writes the peds IDE; Save all also writes the data file and IFP (backups)."),
+        ]))
+
         lay.addStretch()
         scroll.setWidget(w)
         return scroll
 
-    def _build_workflows_tab(self): #vers 2
+    def _build_workflows_tab(self): #vers 3
         from PyQt6.QtCore import Qt as _Qt
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -678,6 +702,11 @@ class WelcomeScreen(QWidget):
              "2. Open Material Editor (checkerboard button).\n"
              "3. In the Use TXD field, type the new TXD name and click Apply.\n"
              "4. The viewport immediately reloads textures from the new TXD."),
+            ("Make a ped animation (stop motion)",
+             "1. Open Ped Workshop, click the folder icon and pick the game folder.\n"
+             "2. Click a ped, then pick an anim (or + for a copy under a new name).\n"
+             "3. Click a joint, drag its rings to pose it, then Set key or Key all bones.\n"
+             "4. Step on a few frames, pose again, then Save all to write the IFP."),
             ("Batch extract all textures from an IMG",
              "1. Open the IMG, Ctrl+A to select all.\n"
              "2. Filter by extension .txd if needed.\n"

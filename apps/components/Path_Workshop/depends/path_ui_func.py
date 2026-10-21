@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 9
+#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 10
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Path Workshop UI
 
 """
@@ -857,6 +857,7 @@ class PathUIMixin(TitlebarMixin): #vers 2
         B(tb, "swap_arrows_icon",  "Reverse group traffic flow", self._reverse_group)
         B(tb, "rotate_cw_icon",    "Shift / rotate all tracks", self._shift_rotate_tracks)
         B(tb, "vehicle_app_icon",  "Shift / rotate / re-time selected car recording", self._edit_recording)
+        B(tb, "get_merge_icon",    "Join another car recording onto the selected one", self._join_recording)
         B(tb, "colour_view_icon",  "Path colours and sizes", self._show_path_display_settings)
         for text, attr in (("Cars", '_show_car'), ("Peds", '_show_ped'),
                            ("Tracks / extras", '_show_extra')):
