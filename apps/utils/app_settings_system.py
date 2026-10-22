@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/utils/app_settings_system.py - Version: 94
+#this belongs in apps/utils/app_settings_system.py - Version: 95
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -1771,7 +1771,7 @@ def store_panel_image(path, folder): #vers 1
 
 
 class AppSettings:
-    def __init__(self, settings_file="appfactory.settings.json"): #vers 5
+    def __init__(self, settings_file="appfactory.settings.json"): #vers 6
         """Initialize application settings with Windows compatibility"""
         current_file_dir = Path(__file__).parent
 
@@ -1934,7 +1934,7 @@ class AppSettings:
         self.weapons_folder = self.current_settings.get('weapons_folder', self.default_settings['weapons_folder'])
 
 
-    def _generate_stylesheet(self, colors): #vers 3
+    def _generate_stylesheet(self, colors): #vers 4
         """Generate stylesheet from colors dict - shared by both classes.
         Colour transparency (current_settings color_alpha) becomes rgba()."""
         if not colors:
@@ -2487,6 +2487,8 @@ class AppSettings:
         }}
         """
 
+        from apps.methods.ui_sizes import size_stylesheet
+        stylesheet += size_stylesheet()                 # App Settings > Sizes
         return stylesheet
 
 
@@ -2679,6 +2681,8 @@ class AppSettings:
 
         self.themes = self._load_all_themes()
         self.current_settings = self.load_settings()
+        from apps.methods.ui_sizes import set_overrides
+        set_overrides(self.current_settings.get('ui_sizes', {}))   # global height rules
 
 
     def _get_builtin_themes(self): #vers 2

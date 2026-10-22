@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 3
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 4
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop toolbar
 
 """
@@ -1279,7 +1279,7 @@ class _ToolbarMixin(TitlebarMixin):
 
     #    [Settings] — Workshop-local settings dialog
 
-    def _show_workshop_settings(self): #vers 1
+    def _show_workshop_settings(self): #vers 2
         """[Settings] button — workshop-local settings.
         Tabs: Fonts / Display / Menu / About
         Reads/writes WorkshopSettings (per-app JSON).
@@ -1394,6 +1394,8 @@ class _ToolbarMixin(TitlebarMixin):
             f"<p style='color:#888;'>Not affiliated with Rockstar Games "
             f"or Take-Two Interactive.</p>")
         al.addWidget(atx)
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         tabs.addTab(at, "About")
 
         #    Tab: Vehicle (game path, viewport settings)

@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 27
+# apps/components/Img_Factory/welcome_screen.py — Version 28
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -175,6 +175,7 @@ class WelcomeScreen(QWidget):
     open_breakable_editor  = pyqtSignal()
     open_vehicle_workshop  = pyqtSignal()
     open_ped_workshop      = pyqtSignal()
+    open_terrain_workshop  = pyqtSignal()
     open_scm_workshop      = pyqtSignal()
     open_hex_workshop      = pyqtSignal()
     open_asset_checker     = pyqtSignal()
@@ -384,7 +385,7 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 9
+    def _build_quickstart_tab(self): #vers 10
         from PyQt6.QtCore import Qt as _Qt
         # Scroll area — vertical scrollbar always visible (ready for future cards)
         scroll = QScrollArea()
@@ -464,6 +465,10 @@ class WelcomeScreen(QWidget):
              "Peds list and ped data files for III, VC and SA. IFP animation "
              "playback, stick-man bones and stop-motion keyframes.",
              self.open_ped_workshop),
+            (_SVG.terrain_app_icon(36), "Terrain Workshop",
+             "Create ground, sculpt hills, paint grass, sand, rock and roads "
+             "with UV tiling. Exports DFF / COL / TXD / IDE / IPL.",
+             self.open_terrain_workshop),
             (_SVG.asset_app_icon(36), "Asset Checker",
              "Cross-reference model names across an IMG archive, a COL file "
              "and an IDE file sharing the same base name.",
@@ -528,7 +533,7 @@ class WelcomeScreen(QWidget):
         scroll.setWidget(w)
         return scroll
 
-    def _build_functions_tab(self): #vers 3
+    def _build_functions_tab(self): #vers 4
         from PyQt6.QtCore import Qt as _Qt
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -663,11 +668,26 @@ class WelcomeScreen(QWidget):
              "Save writes the peds IDE; Save all also writes the data file and IFP (backups)."),
         ]))
 
+        #  Terrain Workshop
+        lay.addWidget(self._section("Terrain Workshop"))
+        lay.addWidget(self._doc_table([
+            ("New terrain",        "Terrain pane - Create new terrain",
+             "Width, depth, cell size, tile size and world origin."),
+            ("Sculpt",             "Brush pane - raise, lower, flatten, level, smooth, roughen, ramp",
+             "Click-drag on the ground. Radius, intensity, falloff, slope."),
+            ("Paint",              "Materials pane - pick a material, paint brush",
+             "Grass, sand, rock, road, path... UV size sets texture repeat in metres."),
+            ("Textures",           "Materials title - folder / open",
+             "Own PNG or a game TXD texture; generated colour by default."),
+            ("Export",             "Export tab",
+             "Tiles as DFF + COL, one TXD, IDE + IPL for III, VC or SA; optional IMG add."),
+        ]))
+
         lay.addStretch()
         scroll.setWidget(w)
         return scroll
 
-    def _build_workflows_tab(self): #vers 3
+    def _build_workflows_tab(self): #vers 4
         from PyQt6.QtCore import Qt as _Qt
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -707,6 +727,11 @@ class WelcomeScreen(QWidget):
              "2. Click a ped, then pick an anim (or + for a copy under a new name).\n"
              "3. Click a joint, drag its rings to pose it, then Set key or Key all bones.\n"
              "4. Step on a few frames, pose again, then Save all to write the IFP."),
+            ("Make new ground (Terrain Workshop)",
+             "1. Open Terrain Workshop, set the size, click Create new terrain.\n"
+             "2. Raise / smooth hills with the Brush pane.\n"
+             "3. Pick Grass, Sand, Road... and paint; set UV size per material.\n"
+             "4. Export tab: pick the game and folder, then Export."),
             ("Batch extract all textures from an IMG",
              "1. Open the IMG, Ctrl+A to select all.\n"
              "2. Filter by extension .txd if needed.\n"

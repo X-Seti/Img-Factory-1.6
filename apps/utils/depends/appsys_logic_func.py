@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_logic_func.py - Version: 3
+#this belongs in apps/utils/depends/appsys_logic_func.py - Version: 6
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog Logic
 
 """
@@ -39,6 +39,7 @@ Mixin for SettingsDialog in apps/utils/app_settings_system.py.
 # _on_global_bri_changed
 # _on_global_hue_changed
 # _on_global_sat_changed
+# _on_size_changed
 # _on_theme_changed
 # _on_theme_color_changed
 # _pick_button_color
@@ -940,6 +941,19 @@ class AppsysLogicMixin: #vers 1
         except Exception as e:
             QMessageBox.warning(self, "Preview Error", f"Could not preview fonts:\n{e}")
 
+
+    def _on_size_changed(self, key, value): #vers 2
+        """Store a size rule and preview it in this dialog."""
+        from apps.methods.ui_sizes import DEFAULTS, refresh_all, set_overrides
+        sizes = dict(self.app_settings.current_settings.get('ui_sizes', {}))
+        if value == DEFAULTS[key]:
+            sizes.pop(key, None)
+        else:
+            sizes[key] = value
+        self.app_settings.current_settings['ui_sizes'] = sizes
+        set_overrides(sizes)
+        self.setStyleSheet(self.app_settings.get_stylesheet())
+        refresh_all()                                   # open workshops follow live
 
     def _reset_all_fonts(self): #vers 1
         """Reset all fonts to their default values"""

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 10
+#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 11
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Path Workshop UI
 
 """
@@ -497,7 +497,7 @@ class PathUIMixin(TitlebarMixin): #vers 2
 
 
     # Settings dialog
-    def _show_workshop_settings(self): #vers 5
+    def _show_workshop_settings(self): #vers 6
         """Workshop-local settings — Fonts, Display, Menu tabs."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -568,6 +568,8 @@ class PathUIMixin(TitlebarMixin): #vers 2
         ml.addStretch()
         tabs.addTab(menu_tab, "Menu")
 
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         #    Buttons                                                            

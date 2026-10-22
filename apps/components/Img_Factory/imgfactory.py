@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 118
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 119
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -4721,6 +4721,11 @@ class IMGFactory(QMainWindow):
         """Open Ped Workshop in a tab; game root from file or last loaded game."""
         from apps.components.Ped_Workshop.ped_workshop import open_ped_workshop
         return open_ped_workshop(self, game_root or getattr(self, 'game_root', '') or '', file_path)
+
+    def open_terrain_workshop_docked(self): #vers 1
+        """Open Terrain Workshop in a tab."""
+        from apps.components.Terrain_Workshop.terrain_workshop import open_terrain_workshop
+        return open_terrain_workshop(self)
 
     def open_scm_workshop_docked(self, file_path=None): #vers 1
         """Open SCM Workshop docked in a tab."""

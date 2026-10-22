@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 40
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 41
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -2792,7 +2792,7 @@ class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
 
 
     # Settings dialog
-    def _show_workshop_settings(self): #vers 5
+    def _show_workshop_settings(self): #vers 6
         """Workshop-local settings — Fonts, Display, Menu tabs."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -2863,6 +2863,8 @@ class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
         ml.addStretch()
         tabs.addTab(menu_tab, "Menu")
 
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         #    Buttons                                                            

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 15
+#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 18
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop UI setup
 
 """
@@ -133,16 +133,16 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         self._sync_middle_btn_row_visibility()
         self._apply_custom_icons()
 
-    def _sync_middle_btn_row_visibility(self): #vers 2
+    def _sync_middle_btn_row_visibility(self): #vers 3
         """Show/hide the mini toolbar's action icons (Open/Save/Import/
-        Export/Undo/3D View) based on dock state AND collapse state - the
-        row itself and its view-toggle/collapse buttons always stay
-        visible regardless."""
+        Export/Undo/3D View) based on dock state AND collapse state; the
+        row is hidden when standalone ([=] sits in the Models title)."""
         if not hasattr(self, '_middle_btn_row'):
             return
         docked_only = self.is_docked and not self.standalone_mode
         collapsed = getattr(self, '_mid_btn_row_collapsed', False)
         show = docked_only and not collapsed
+        self._middle_btn_row.setVisible(docked_only)        # standalone: no empty row
         for attr in ('open_col_btn', 'save_col_btn', 'import_btn',
                      'export_col_btn', 'undo_col_btn', '_mini_3d_btn'):
             b = getattr(self, attr, None)
@@ -912,7 +912,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
                             lambda: self._move_info_ribbon(key, 'middle'))
         menu.exec(tb.mapToGlobal(pos))
 
-    def _move_info_ribbon(self, key: str, location: str): #vers 2
+    def _move_info_ribbon(self, key: str, location: str): #vers 3
         """Reparent one of the Name/IDE-TXD toolbars (identified by key,
         'name' or 'ide') between the middle panel's own nested QMainWindow
         and the right panel's QMainWindow - dockable/floatable in both
@@ -942,7 +942,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         try:
             import json
             from pathlib import Path
-            path = get_user_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1381,7 +1381,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         self._sel_face_btn   = None
         self._sel_poly_btn   = None
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 3
+    def _toolbar_context_menu(self, toolbar, pos): #vers 4
         """Right-click context menu on any toolbar."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
@@ -1405,7 +1405,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         try:
             import json
             from pathlib import Path
-            data = json.loads((get_user_config_dir()/'model_workshop.json').read_text())
+            data = json.loads((self._ribbon_config_path()).read_text())
             slider.setValue(data.get('icon_scale', 20))
         except Exception:
             slider.setValue(20)
@@ -1426,12 +1426,12 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
                      for tb in self._inner_mw.findChildren(_QTB)])
         menu.exec(toolbar.mapToGlobal(pos))
 
-    def _switch_icon_set(self, key: str): #vers 2
+    def _switch_icon_set(self, key: str): #vers 3
         """Save icon set choice and rebuild toolbars to apply it."""
         try:
             import json
             from pathlib import Path
-            path = get_user_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1458,7 +1458,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         self._apply_custom_icons()
         self._set_status(f"Icon set applied")
 
-    def _apply_icon_scale(self, px: int): #vers 2
+    def _apply_icon_scale(self, px: int): #vers 3
         """Apply icon size to all toolbars live and persist it."""
         mw = getattr(self, '_inner_mw', None)
         if mw:
@@ -1469,7 +1469,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         try:
             import json
             from pathlib import Path
-            path = get_user_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1506,7 +1506,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         except Exception as _e:
             print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 7
+    def _restore_toolbar_state(self): #vers 8
         """Restore QMainWindow toolbar state from model_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -1524,6 +1524,11 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
             if not path.exists():
                 return
             data = json.loads(path.read_text())
+            if 'icon_scale' in data:                      # saved ribbon icon size
+                from PyQt6.QtCore import QSize
+                from PyQt6.QtWidgets import QToolBar
+                for tb in mw.findChildren(QToolBar):
+                    tb.setIconSize(QSize(data['icon_scale'], data['icon_scale']))
             state_hex = data.get('toolbar_state')
             saved_version = data.get('toolbar_state_version')
             if state_hex and saved_version == self._RIBBON_LAYOUT_VERSION:

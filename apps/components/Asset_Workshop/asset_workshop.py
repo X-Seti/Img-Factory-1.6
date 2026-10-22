@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 21
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 22
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -1316,7 +1316,7 @@ class AssetWorkshop(TitlebarMixin, RibbonIconsMixin, DockPanelsMixin, ToolMenuMi
 
 # - Settings Reusable
 
-    def _show_workshop_settings(self): #vers 6
+    def _show_workshop_settings(self): #vers 7
         """Show workshop settings dialog - Fonts/Display/Preview only,
         Export and Performance tabs removed (values were never read
         anywhere, and Texture List Display referenced a table that
@@ -1600,6 +1600,8 @@ class AssetWorkshop(TitlebarMixin, RibbonIconsMixin, DockPanelsMixin, ToolMenuMi
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -2743,7 +2745,7 @@ class AssetWorkshop(TitlebarMixin, RibbonIconsMixin, DockPanelsMixin, ToolMenuMi
 
 
 
-    def _show_settings_dialog(self): #vers 6
+    def _show_settings_dialog(self): #vers 7
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -3215,6 +3217,8 @@ class AssetWorkshop(TitlebarMixin, RibbonIconsMixin, DockPanelsMixin, ToolMenuMi
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # Dialog buttons

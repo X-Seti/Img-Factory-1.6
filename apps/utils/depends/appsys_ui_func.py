@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 3
+#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 5
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog UI
 
 """
@@ -17,6 +17,7 @@ Mixin for SettingsDialog in apps/utils/app_settings_system.py.
 # _create_font_control_group
 # _create_fonts_tab
 # _create_gadgets_tab
+# _create_sizes_tab
 # _create_interface_tab
 # _create_localisation_tab
 # _create_panels_tab
@@ -50,7 +51,7 @@ from PyQt6.QtWidgets import (
 class AppsysUIMixin: #vers 1
     """Settings dialog tab and widget builders."""
 
-    def _create_ui(self): #vers 9
+    def _create_ui(self): #vers 10
         """Create the settings dialog UI — restructured tabs"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)   # corner handles show, COL style
@@ -95,6 +96,9 @@ class AppsysUIMixin: #vers 1
 
         self.fonts_tab = self._create_fonts_tab()
         self.tabs.addTab(self.fonts_tab, "Fonts")
+
+        self.sizes_tab = self._create_sizes_tab()
+        self.tabs.addTab(self.sizes_tab, "Sizes")
 
         self.buttons_tab = self._create_buttons_tab_v2()
         self.tabs.addTab(self.buttons_tab, "Buttons")
@@ -1944,6 +1948,14 @@ Ready for operations..."""
         layout.addLayout(actions_layout)
 
         return tab
+
+
+    def _create_sizes_tab(self): #vers 2
+        """Global height rules (heightrules.md) - shared Sizes panel."""
+        from apps.methods.ui_sizes import sizes_panel
+        panel = sizes_panel(self.app_settings.current_settings.get('ui_sizes', {}), self._on_size_changed)
+        self.size_controls = panel.spins
+        return panel
 
 
     def _create_font_control_group(self, font_id, title, description,

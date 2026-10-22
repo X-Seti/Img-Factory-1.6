@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 108
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 109
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -1525,7 +1525,7 @@ class DP5Settings:
 class DP5SettingsDialog(QDialog):
     """Settings dialog for DP5 Workshop — does NOT touch global AppSettings."""
 
-    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 5
+    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 6
         super().__init__(parent)
         self.s = dp5_settings
         self._workshop = parent   # DP5Workshop instance - gives access to _WIDGET_REGISTRY
@@ -1866,6 +1866,8 @@ class DP5SettingsDialog(QDialog):
         tabs.addTab(menu_tab, "Menu")
 
         tabs.addTab(gadgets_tab, "Gadgets")
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(parent, tabs)
 
         root.addWidget(tabs)
 

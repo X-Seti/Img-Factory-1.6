@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 81
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 84
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -84,6 +84,7 @@ from PyQt6.QtCore import Qt
 # generate_alpha_icon
 # generate_mipmaps_icon
 # globe_icon
+# guide_layer_icon
 # handling_app_icon
 # hex_app_icon
 # hide_faces_icon
@@ -122,6 +123,7 @@ from PyQt6.QtCore import Qt
 # pause_icon
 # ped_app_icon
 # onion_skin_icon
+# ped_view_icon
 # play_icon
 # prim_select_icon
 # properties_icon
@@ -159,6 +161,8 @@ from PyQt6.QtCore import Qt
 # swap_arrows_icon
 # swatch_icon
 # switch_view_icon
+# terrain_app_icon
+# terrain_image_icon
 # texture_export_icon
 # texture_import_icon
 # texture_properties_icon
@@ -439,6 +443,18 @@ class SVGIconFactory: #vers 8
                 <g opacity="0.35"><circle cx="19" cy="5" r="1.6"/><path d="M19 7v6M19 13l-2 6M19 13l2 6"/></g>
                 <circle cx="12" cy="4.5" r="2"/><path d="M12 7v7M9 10h6M12 14l-3 6M12 14l3 6"/>
             </g>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def ped_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Ped view - figure inside a turning arrow (front / right / back / left)"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                <circle cx="12" cy="6.5" r="1.8"/><path d="M12 8.5v5M9.5 10.5h5M12 13.5l-2 4M12 13.5l2 4"/>
+                <path d="M3.5 12a8.5 8.5 0 0 0 15 5.5"/><path d="M20.5 12a8.5 8.5 0 0 0-15-5.5"/>
+            </g>
+            <path d="M19.5 14.5l-1 3.6-3.5-1z M4.5 9.5l1-3.6 3.5 1z" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -3699,6 +3715,48 @@ class SVGIconFactory: #vers 8
             </g>
             <text x="32" y="58" font-size="13" fill="#ffffff" text-anchor="middle"
                 font-weight="bold" font-family="Arial, sans-serif">PED</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def terrain_image_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Terrain from image / radar - picture over a ground grid"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="13" height="10" rx="1" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <path d="M4.5 11.5 L8 7.5 L10.5 10 L12.5 8 L15 11.5" stroke="currentColor" stroke-width="1.4" fill="none"/>
+            <circle cx="12.5" cy="5.8" r="1.1" fill="currentColor"/>
+            <path d="M3 20 L8 15.5 L21 15.5 L16 20 Z" stroke="currentColor" stroke-width="1.4" fill="currentColor" fill-opacity="0.2"/>
+            <path d="M11.5 15.5 L7.5 20 M16 15.5 L12 20" stroke="currentColor" stroke-width="1"/>
+            <path d="M18 6 L21 9 L18 12" stroke="currentColor" stroke-width="1.6" fill="none"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def guide_layer_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Show / hide the guide picture layer - eye over a sheet"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 17 L9 13 L21 13 L15 17 Z" stroke="currentColor" stroke-width="1.4" fill="currentColor" fill-opacity="0.25"/>
+            <path d="M3 21 L9 17 L21 17 L15 21 Z" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.6"/>
+            <path d="M4 7 Q12 0 20 7 Q12 14 4 7 Z" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <circle cx="12" cy="7" r="2.3" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def terrain_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Terrain Workshop application icon - hills, road and grid"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="terrappG" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3a6a2a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#1e3a16;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#terrappG)"/>
+            <path d="M4 40 L18 20 L28 32 L40 14 L60 40 Z" fill="#8a7a5a" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M4 40 L60 40 L60 46 L4 46 Z" fill="#5aa040"/>
+            <path d="M22 46 L30 40 L36 40 L32 46 Z" fill="#505050"/>
+            <path d="M28 44 L31 41" stroke="#ffd84a" stroke-width="1.2"/>
+            <path d="M40 14 L46 22 L34 22 Z" fill="#e8e0d0"/>
+            <text x="32" y="58" font-size="12" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">TERR</text>
         </svg>''', size, color)
 
     @staticmethod

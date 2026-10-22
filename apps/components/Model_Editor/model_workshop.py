@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 223
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 224
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -292,7 +292,7 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 18
+    def setup_ui(self): #vers 19
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -440,9 +440,10 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
                 self._make_dock_collapsible(_dock, _title)
         from apps.methods.dock_panels import add_title_widget
         from apps.methods.file_list_filter import make_type_filter
-        for _b in (self._tex_view_btn,):                                      # fit the slim title bar
+        for _b in (self.col_view_toggle_btn, self._tex_view_btn):             # fit the slim title bar
             _b.setFixedHeight(18)
             _b.setStyleSheet("padding: 0px 4px;")
+        add_title_widget(self._middle_dock, self.col_view_toggle_btn)         # [=] next to [x]
         self._texture_dock._title_label.setVisible(False)                     # count replaces "Textures"
         add_title_widget(self._texture_dock, self._tex_count_lbl, 0)
         add_title_widget(self._texture_dock, self._tex_view_btn)

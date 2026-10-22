@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 47
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 48
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -231,7 +231,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
 
 # - Settings Reusable
 
-    def _show_workshop_settings(self): #vers 6
+    def _show_workshop_settings(self): #vers 7
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -613,6 +613,8 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -852,7 +854,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
             QMessageBox.warning(self, "Theme Error", f"Could not load theme system:\n{e}")
 
 
-    def _show_settings_dialog(self): #vers 7
+    def _show_settings_dialog(self): #vers 8
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -1324,6 +1326,8 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # Dialog buttons

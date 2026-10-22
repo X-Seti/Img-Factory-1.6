@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 8
+#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 9
 # X-Seti - March 2026 - AI Workshop: Ollama chat interface
 # Based on COL Workshop template (col_workshop.py)
 
@@ -1763,7 +1763,7 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
     # Settings dialog
     # -----------------------------------------------------------------------
 
-    def _show_workshop_settings(self):
+    def _show_workshop_settings(self): #vers 1
         from PyQt6.QtWidgets import QFileDialog as QFD
         dialog = QDialog(self)
         dialog.setWindowTitle(App_name + " Settings")
@@ -2101,6 +2101,8 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
         disp_layout.addStretch()
         tabs.addTab(disp_tab, "Display")
 
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)  # ← was missing, caused settings to show only Apply/Close
 
         # Buttons

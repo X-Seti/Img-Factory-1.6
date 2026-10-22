@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dock_panels.py - Version: 7
+#this belongs in apps/methods/dock_panels.py - Version: 8
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Workshop dock panels
 
 """
@@ -10,9 +10,13 @@ _ribbon_config_path and section_title_font.
 ##Methods list -
 # add_outer_dock
 # add_title_widget
+# icon_only_tabs
 # make_outer_mw
 # redock_to_tab
 
+##class _TabTipFilter: -
+# eventFilter
+#
 ##class DockPanelsMixin: -
 # _make_dock_collapsible
 # _restore_outer_layout
@@ -20,9 +24,9 @@ _ribbon_config_path and section_title_font.
 
 import json
 
-from PyQt6.QtCore import QByteArray, Qt
+from PyQt6.QtCore import QByteArray, QEvent, QObject, Qt
 from PyQt6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QMainWindow,
-                             QToolButton, QWidget)
+                             QTabBar, QToolButton, QToolTip, QWidget)
 
 
 def make_outer_mw(central): #vers 1
@@ -53,16 +57,55 @@ def add_outer_dock(owner, mw, title, widget, min_width, area=Qt.DockWidgetArea.L
     return dock
 
 
-def add_title_widget(dock, widget, index=None): #vers 2
+def add_title_widget(dock, widget, index=None): #vers 4
     """Put a widget into a collapsible dock's title bar (default: before close)."""
-    from PyQt6.QtCore import QSize
-    if isinstance(widget, QToolButton):          # keep the 26 px header
-        widget.setFixedSize(22, 22)
-        widget.setIconSize(QSize(16, 16))
+    from apps.methods.ui_sizes import icon_size, size
+    b = size('title_button', dock)
+    if isinstance(widget, QToolButton):          # fits the dock title bar
+        widget.setFixedSize(b, b)
+        widget.setIconSize(icon_size('title_icon', dock))
     else:
-        widget.setMaximumHeight(22)
+        widget.setMaximumHeight(b)
     lay = dock.titleBarWidget().layout()
     lay.insertWidget(lay.count() - 1 if index is None else index, widget)
+
+
+class _TabTipFilter(QObject): #vers 1
+    """Tooltips for icon-only dock tabs; hooks new tab bars."""
+
+    def eventFilter(self, obj, event): #vers 1
+        if event.type() == QEvent.Type.ChildAdded and isinstance(event.child(), QTabBar):
+            event.child().installEventFilter(self)
+        elif event.type() == QEvent.Type.ToolTip and isinstance(obj, QTabBar):
+            from PyQt6 import sip
+            i = obj.tabAt(event.pos())
+            for d in self.parent().findChildren(QDockWidget):
+                if i >= 0 and obj.tabData(i) == sip.unwrapinstance(d) and getattr(d, '_tab_tip', ''):
+                    QToolTip.showText(event.globalPos(), d._tab_tip, obj)
+                    return True
+        return False
+
+
+def icon_only_tabs(mw, docks_icons): #vers 1
+    """Tabbed docks show only an icon; title becomes the tooltip."""
+    for dock, icon in docks_icons:
+        title = getattr(dock, '_title_label', None)
+        dock._tab_tip = title.text() if title else dock.windowTitle()
+        dock.setWindowIcon(icon)
+        dock.setWindowTitle('')
+        dock.toggleViewAction().setText(dock._tab_tip)       # View menu keeps the name
+    if getattr(mw, '_tab_tip_filter', None) is None:
+        mw._tab_tip_filter = _TabTipFilter(mw)
+        mw.installEventFilter(mw._tab_tip_filter)
+        for bar in mw.findChildren(QTabBar):
+            bar.installEventFilter(mw._tab_tip_filter)
+    from PyQt6 import sip
+    ptrs = {sip.unwrapinstance(d): d for d, _i in docks_icons}
+    for bar in mw.findChildren(QTabBar):                    # tabs made before the icon was set
+        for i in range(bar.count()):
+            d = ptrs.get(bar.tabData(i))
+            if d is not None:
+                bar.setTabIcon(i, d.windowIcon())
 
 
 def redock_to_tab(ws): #vers 1
@@ -83,13 +126,14 @@ def redock_to_tab(ws): #vers 1
 class DockPanelsMixin: #vers 1
     """Collapsible dock titles and saved outer dock layout."""
 
-    def _make_dock_collapsible(self, dock, title): #vers 9
+    def _make_dock_collapsible(self, dock, title): #vers 11
         """Title bar: double-click collapses, or re-docks when floating; close."""
         #TODO missing splitter between middle panel and right panel, or right panel, and newly placed "middle panel", that was moved to the right of the right panel.
         #X gadgets do not work, and right click menu recovery bar needs work.
         #I have disabled the float/dock function as this is meant to effect it's own bar open/collapse, not the surrounding bars that get collapsed.
+        from apps.methods.ui_sizes import size
         bar = QWidget()
-        bar.setFixedHeight(26)                  # same header height on every panel
+        bar.setFixedHeight(size('dock_title', self))  # same header height on every panel
         lay = QHBoxLayout(bar)
         lay.setContentsMargins(6, 2, 2, 2)
         lay.setSpacing(2)
@@ -101,7 +145,7 @@ class DockPanelsMixin: #vers 1
         close_btn = QToolButton()
         close_btn.setText("×")
         close_btn.setToolTip("Close (use the View menu or another dock's right-click menu to bring it back)")
-        close_btn.setFixedSize(20, 20)
+        close_btn.setFixedSize(size('title_button', self), size('title_button', self))
         close_btn.setAutoRaise(True)
         close_btn.clicked.connect(dock.close)
         dock.setFeatures(dock.features() | QDockWidget.DockWidgetFeature.DockWidgetClosable)   # [x] works

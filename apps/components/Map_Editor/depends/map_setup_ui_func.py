@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_setup_ui_func.py - Version: 9
+#this belongs in apps/components/Map_Editor/depends/map_setup_ui_func.py - Version: 11
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop UI setup
 
 """
@@ -957,7 +957,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
                             lambda: self._move_info_ribbon(key, 'middle'))
         menu.exec(tb.mapToGlobal(pos))
 
-    def _move_info_ribbon(self, key: str, location: str): #vers 1
+    def _move_info_ribbon(self, key: str, location: str): #vers 2
         """Reparent one of the Name/IDE-TXD toolbars (identified by key,
         'name' or 'ide') between the middle panel's own nested QMainWindow
         and the right panel's QMainWindow - dockable/floatable in both
@@ -986,7 +986,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self._info_ribbon_location[key] = location
         try:
             import json
-            path = _model_workshop_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1725,7 +1725,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self._sel_face_btn   = None
         self._sel_poly_btn   = None
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 2
+    def _toolbar_context_menu(self, toolbar, pos): #vers 3
         """Right-click context menu on any toolbar."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
@@ -1748,7 +1748,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         slider.setSingleStep(2)
         try:
             import json
-            data = json.loads((_model_workshop_config_dir() / 'model_workshop.json').read_text())
+            data = json.loads((self._ribbon_config_path()).read_text())
             slider.setValue(data.get('icon_scale', 20))
         except Exception:
             slider.setValue(20)
@@ -1783,11 +1783,11 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
                      for tb in self._inner_mw.findChildren(_QTB)])
         menu.exec(toolbar.mapToGlobal(pos))
 
-    def _switch_icon_set(self, key: str): #vers 1
+    def _switch_icon_set(self, key: str): #vers 2
         """Save icon set choice and rebuild toolbars to apply it."""
         try:
             import json
-            path = _model_workshop_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1831,7 +1831,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self._apply_ipl_controls_display_style()
         self._set_status(f"Icon set applied")
 
-    def _apply_icon_scale(self, px: int): #vers 1
+    def _apply_icon_scale(self, px: int): #vers 2
         """Apply icon size to all toolbars live and persist it."""
         mw = getattr(self, '_inner_mw', None)
         if mw:
@@ -1841,7 +1841,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
                 tb.setIconSize(QSize(px, px))
         try:
             import json
-            path = _model_workshop_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1876,14 +1876,14 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         self._hidden_toolbar = tb
         return tb
 
-    def _save_toolbar_state(self): #vers 3
+    def _save_toolbar_state(self): #vers 4
         """Save QMainWindow toolbar state to model_workshop.json (after restore only)."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None or not getattr(self, '_toolbar_restored', False):
             return                                  # never overwrite before the saved layout loads
         try:
             import json
-            path = _model_workshop_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -1898,7 +1898,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         except Exception as _e:
             print(f"[ModelWorkshop] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 7
+    def _restore_toolbar_state(self): #vers 9
         """Restore QMainWindow toolbar state from model_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -1928,10 +1928,15 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         try:
             import json
             from PyQt6.QtCore import QByteArray
-            path = _model_workshop_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             if not path.exists():
                 return
             data = json.loads(path.read_text())
+            if 'icon_scale' in data:                      # saved ribbon icon size
+                from PyQt6.QtCore import QSize
+                from PyQt6.QtWidgets import QToolBar
+                for tb in mw.findChildren(QToolBar):
+                    tb.setIconSize(QSize(data['icon_scale'], data['icon_scale']))
             state_hex = data.get('toolbar_state')
             saved_version = data.get('toolbar_state_version')
             if state_hex and saved_version == self._RIBBON_LAYOUT_VERSION:
@@ -1968,7 +1973,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
                     tb.toggleViewAction().setChecked(True)
             self._toolbar_restored = True           # saves allowed from now on
 
-    def _restore_outer_layout(self): #vers 2
+    def _restore_outer_layout(self): #vers 3
         """Shared dock layout restore, then Model Name / IDE-TXD ribbon locations."""
         DockPanelsMixin._restore_outer_layout(self)
 
@@ -1978,7 +1983,7 @@ class MapSetupUIMixin(TitlebarMixin): #vers 2
         # _inner_mw.
         try:
             import json
-            path = _model_workshop_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             if path.exists():
                 data = json.loads(path.read_text())
                 saved_locations = data.get('info_ribbon_locations', {})

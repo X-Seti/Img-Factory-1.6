@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ped_Workshop/ped_workshop.py - Version: 11
+#this belongs in apps/components/Ped_Workshop/ped_workshop.py - Version: 12
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop
 
 """
@@ -12,6 +12,7 @@ stop-motion keyframe editing) for GTA III, VC and SA.
 # open_ped_workshop
 #
 ##class PedWorkshop: -
+# _cycle_ped_view
 # _default_ped_docks
 # _load_ped_prefs
 # _ped_dirty_items
@@ -64,6 +65,19 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
         h = max(400, self._outer_mw.height())
         self._outer_mw.resizeDocks(list(docks), [int(h * 0.42), int(h * 0.3), int(h * 0.28)],
                                    Qt.Orientation.Vertical)
+
+    _PED_VIEWS = (("Front", 180), ("Right", 270), ("Back", 0), ("Left", 90))   # (name, yaw)
+
+    def _cycle_ped_view(self): #vers 1
+        """Ped view button: Front, Right, Back, Left in turn (level camera)."""
+        self._ped_view = (getattr(self, '_ped_view', -1) + 1) % len(self._PED_VIEWS)
+        name, yaw = self._PED_VIEWS[self._ped_view]
+        vp = self.preview_widget
+        vp._yaw, vp._pitch = yaw, 90
+        vp.update()
+        nxt = self._PED_VIEWS[(self._ped_view + 1) % len(self._PED_VIEWS)][0]
+        self._ped_view_act.setToolTip(f"Ped view: {name} (click for {nxt})")
+        self._set_status(f"View: {name}")
 
     def _titlebar_title(self): #vers 1
         return App_name
@@ -143,7 +157,7 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
                 self._ped_save_all()
         super().closeEvent(event)
 
-    def setup_ui(self): #vers 10
+    def setup_ui(self): #vers 11
         """Model Workshop layout, then Peds, Animation and Bones docks on the right."""
         super().setup_ui()
         mw = self._outer_mw
@@ -202,6 +216,15 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
         for w in self._rot_spins + self._pos_spins:            # pose fields shrink with the dock
             w.setMinimumWidth(44)
             w.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        nav = self._inner_mw.findChild(QToolBar, "Navigation")
+        self._ped_view_act = QAction(SVGIconFactory.ped_view_icon(20, self._get_icon_color()), "Ped view", self)
+        self._ped_view_act.setToolTip("Ped view: Front, Right, Back, Left in turn")
+        self._ped_view_act.triggered.connect(self._cycle_ped_view)
+        if nav is not None:
+            nav.addAction(self._ped_view_act)
         self.setWindowTitle(App_name)
 
 

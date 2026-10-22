@@ -1,6 +1,18 @@
-#this belongs in root /ChangeLog.md - Version: 293
+#this belongs in root /ChangeLog.md - Version: 305
 
 
+- Oct 22 2026 - Terrain Workshop: new terrain from image or game radar (flat, guide layer, colours pre-paint materials). Guide toggle. Radar speed still to check.
+- Oct 22 2026 - Model / Ped Workshop: [=] view toggle moved into the Models title next to [x]; empty button row hidden when standalone.
+- Oct 22 2026 - Ped / Terrain ribbons save to their own config (icon set, icon scale, toolbar state, info ribbons, dock layout). Saved icon scale restored on open. Col/Txd standalones synced.
+- Oct 22 2026 - Sizes tab in every workshop settings (own sizes override global, ui_sizes.json). Size rules applied on workshop show and live from App Settings. Terrain docks scroll.
+- Oct 22 2026 - Per-workshop sizes: shared Sizes panel (ui_sizes v3), workshop Settings > Sizes with "Use own sizes (override global)", saved in its config. Map/Terrain first.
+- Oct 22 2026 - Terrain Workshop: material tile grid, compact centred rows, icon-only dock tabs (tooltips). dock_panels uses ui_sizes; icon_only_tabs added. Synced standalones.
+- Oct 22 2026 - App Settings: new Sizes tab (heightrules.md values, live preview, reset). methods/ui_sizes.py feeds global input, tab, header, status bar heights.
+- Oct 22 2026 - Added heightrules.md: one set of UI heights for all workshops and IMG Factory.
+- Oct 22 2026 - Terrain Workshop on the Intro screen (card, functions, workflow), docked opener, terrain_app_icon. Standalone Terrain-Workshop folder created.
+- Oct 22 2026 - New Terrain Workshop: create grid, sculpt, paint materials with UV tiling, export DFF/COL/TXD/IDE/IPL (III/VC/SA), optional IMG add.
+- Oct 22 2026 - TXD Workshop: no Alpha Channel Error popups while loading. Opaque / greyscale alpha is info only; real mismatches go to an Alpha report (strip ticked).
+- Oct 22 2026 - Ped Workshop: Ped view button on the Navigation ribbon cycles Front / Right / Back / Left. New ped_view_icon.
 - Oct 21 2026 - Ped Workshop Bones pane: Rot / Pos / key row on one centre line, key count inline (frames in tooltip), no gap under the controls.
 - Oct 21 2026 - dock_panels v7: panel [x] buttons work on every dock (Models, Frame Hierarchy, Textures were locked). Ped Workshop: IFP name and filter moved into the Animation title.
 - Oct 21 2026 - Intro: Ped Workshop section (functions) and a stop-motion ped animation workflow.

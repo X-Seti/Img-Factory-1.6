@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 8
+#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 9
 # X-Seti - May10 2026 - IMG Factory 1.6 - DFF Model Viewer
 """
 DFF Model Viewer - OpenGL hardware 3D viewer for GTA RenderWare DFF files.
@@ -617,7 +617,7 @@ class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
 
 
     # - settings dialog
-    def _show_workshop_settings(self): #vers 2
+    def _show_workshop_settings(self): #vers 3
         dlg = QDialog(self); dlg.setWindowTitle("Model Viewer Settings"); dlg.resize(400,300)
         lay = QVBoxLayout(dlg)
         tabs = QTabWidget(); lay.addWidget(tabs, 1)
@@ -632,6 +632,8 @@ class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
         # About tab
         about = QWidget(); al = QVBoxLayout(about)
         al.addWidget(QLabel(f"{App_name}\n{Build}\n{App_build}"))
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         tabs.addTab(about, "About")
 
         btn_row = QHBoxLayout()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 13
+#this belongs in apps/methods/gui_workshop.py - Version: 14
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -261,7 +261,7 @@ class _ToolbarMixin(TitlebarMixin):
 
     #  [Settings] — Workshop-local settings dialog
 
-    def _show_workshop_settings(self):
+    def _show_workshop_settings(self): #vers 1
         """[Settings] button — workshop-local settings.
         Tabs: Fonts / Display / Menu / About
         Reads/writes WorkshopSettings (per-app JSON).
@@ -379,6 +379,8 @@ class _ToolbarMixin(TitlebarMixin):
         tabs.addTab(at, "About")
 
         #  Dialog buttons
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         lo.addWidget(tabs)
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |

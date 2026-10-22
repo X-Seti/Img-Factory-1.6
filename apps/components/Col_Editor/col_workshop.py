@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 132
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 133
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -312,7 +312,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # STUB: dock_btn, tearoff_btn, colour swatch buttons and _svg_to_icon()
     # created icons do not yet update on theme change. Wire to _refresh_icons.
 
-    def _show_workshop_settings(self): #vers 4
+    def _show_workshop_settings(self): #vers 5
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -636,6 +636,8 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -952,7 +954,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
             QMessageBox.warning(self, "Theme Error", f"Could not load theme system:\n{e}")
 
 
-    def _show_settings_dialog(self): #vers 6
+    def _show_settings_dialog(self): #vers 7
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -1360,6 +1362,8 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # Dialog buttons

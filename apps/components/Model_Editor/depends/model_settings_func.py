@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 4
+#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 6
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Model Workshop settings
 
 """
@@ -36,7 +36,7 @@ from apps.components.Model_Editor.depends.model_setup_ui_func import App_name, A
 class ModelSettingsMixin: #vers 1
     """Settings, fonts, theme, hotkeys, About."""
 
-    def _show_workshop_settings(self): #vers 4
+    def _show_workshop_settings(self): #vers 5
 
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -361,6 +361,8 @@ class ModelSettingsMixin: #vers 1
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -522,7 +524,7 @@ class ModelSettingsMixin: #vers 1
 
 
 
-    def _show_settings_dialog(self): #vers 5
+    def _show_settings_dialog(self): #vers 6
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -965,6 +967,8 @@ class ModelSettingsMixin: #vers 1
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # Dialog buttons
@@ -1140,13 +1144,13 @@ class ModelSettingsMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _get_icon_set(self) -> str: #vers 2
+    def _get_icon_set(self) -> str: #vers 3
         """Return active icon set: 'default' or '3dsmax'.
         Read from model_workshop.json 'icon_set' key."""
         try:
             import json
             from pathlib import Path
-            path = get_user_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             if path.exists():
                 return json.loads(path.read_text()).get('icon_set', 'default')
         except Exception:
