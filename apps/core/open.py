@@ -1,4 +1,4 @@
-#this belongs in core/ open.py - Version: 11
+#this belongs in core/ open.py - Version: 12
 # X-Seti - November10 2025 - IMG Factory 1.5 - Open Functions with Tab System
 
 """
@@ -18,13 +18,13 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 # _load_txd_file
 # open_file_dialog
 
-def open_file_dialog(main_window): #vers 16
+def open_file_dialog(main_window): #vers 17
     """Unified file dialog for IMG, COL, TXD, CST, 3DS, HXD, MXD, AGR files"""
     file_paths, _ = QFileDialog.getOpenFileNames(
         main_window,
         "Open Archive",
         "",
-        "All Supported (*.img *.col *.txd *.wtd *.nft *.xtx *.chk *.cst *.3ds *.hxd *.mxd *.agr *.lvz);;IMG Archives (*.img);;COL Archives (*.col);;Textures (*.txd *.wtd *.nft *.xtx *.chk);;CST Files (*.cst);;3DS Models (*.3ds);;Bully Anim (*.hxd *.mxd *.agr);;LVZ Archives (*.lvz);;All Files (*)"
+        "All Supported (*.img *.col *.txd *.wtd *.nft *.xtx *.chk *.cst *.3ds *.hxd *.mxd *.agr *.lvz *.iso *.bin);;IMG Archives (*.img);;Disc Images (*.img *.bin *.iso);;COL Archives (*.col);;Textures (*.txd *.wtd *.nft *.xtx *.chk);;CST Files (*.cst);;3DS Models (*.3ds);;Bully Anim (*.hxd *.mxd *.agr);;LVZ Archives (*.lvz);;All Files (*)"
     )
 
     if file_paths:
@@ -39,6 +39,8 @@ def open_file_dialog(main_window): #vers 16
                 _load_cst_file(main_window, file_path)
             elif file_ext == '.3ds':
                 _load_3ds_file(main_window, file_path)
+            elif file_ext in ('.iso', '.bin') and hasattr(main_window, 'open_disc_workshop_docked'):
+                main_window.open_disc_workshop_docked(file_path)
             else:                                   # IMG, hxd/mxd/agr, lvz
                 img_paths.append(file_path)
         if len(img_paths) > 1 and hasattr(main_window, 'load_img_files_batch'):

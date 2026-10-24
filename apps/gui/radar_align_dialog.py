@@ -1,4 +1,4 @@
-#this belongs in apps/gui/radar_align_dialog.py - Version: 4
+#this belongs in apps/gui/radar_align_dialog.py - Version: 5
 # X-Seti - October 08 2026 - IMG Factory 1.6 - Radar/water alignment window
 
 """
@@ -11,6 +11,7 @@ Nudge radar and water layers per game; values saved by the owner.
 # _nudge
 # _refresh
 # _reset
+# _rotation_row
 # _scale_row
 # _step
 
@@ -24,7 +25,7 @@ class RadarAlignDialog(QDialog):
 
     STEPS = (1, 10, 50, 100)
 
-    def __init__(self, owner, parent=None): #vers 4
+    def __init__(self, owner, parent=None): #vers 5
         super().__init__(parent)
         self._owner = owner
         self.setWindowTitle("Radar / Water Alignment")
@@ -55,6 +56,7 @@ class RadarAlignDialog(QDialog):
         self._radar_scale_spin = self._scale_row(lay, "Radar scale:",
             "Radar tile layer size (100 % = game preset, SOL needs its own). "
             "Arrows / wheel: 0.5 % steps. Saved per game.", self._owner._set_radar_scale)
+        self._radar_rot_spin = self._rotation_row(lay)
         close = QPushButton("Close")
         close.clicked.connect(self.close)
         lay.addWidget(close)
@@ -77,6 +79,33 @@ class RadarAlignDialog(QDialog):
             b = QPushButton(label)
             b.clicked.connect(lambda _c=False, v=val: spin.setValue(v))
             row.addWidget(b)
+        row.addStretch()
+        lay.addLayout(row)
+        return spin
+
+    def _rotation_row(self, lay): #vers 1
+        """Radar rotation in degrees with -15 / -1 / +1 / +15 / 0 buttons."""
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Radar rotate:"))
+        spin = QDoubleSpinBox()
+        spin.setRange(-180.0, 180.0)
+        spin.setDecimals(1)
+        spin.setSingleStep(0.5)
+        spin.setSuffix(" deg")
+        spin.setWrapping(True)
+        spin.setKeyboardTracking(False)
+        spin.setToolTip("Radar tile layer rotation about the map centre. Saved per game.")
+        spin.valueChanged.connect(self._owner._set_radar_rotation)
+        row.addWidget(spin)
+        for label, d in (("-15", -15.0), ("-1", -1.0), ("+1", 1.0), ("+15", 15.0)):
+            b = QPushButton(label)
+            b.setAutoRepeat(True)
+            b.clicked.connect(lambda _c=False, v=d: spin.setValue(spin.value() + v))
+            row.addWidget(b)
+        zero = QPushButton("0")
+        zero.setToolTip("No rotation")
+        zero.clicked.connect(lambda: spin.setValue(0.0))
+        row.addWidget(zero)
         row.addStretch()
         lay.addLayout(row)
         return spin
@@ -115,7 +144,7 @@ class RadarAlignDialog(QDialog):
         self._owner._set_radar_align_offset(layer, 0.0, 0.0)
         self._refresh()
 
-    def _refresh(self): #vers 4
+    def _refresh(self): #vers 5
         """Labels, fix checkbox, water and radar scale from the owner's saved values."""
         path = self._owner._radar_settings_path()
         self._root_lbl.setText(f"Saved to: {path}" if path else "Load a game first - nothing to save to.")
@@ -131,3 +160,6 @@ class RadarAlignDialog(QDialog):
         self._radar_scale_spin.blockSignals(True)
         self._radar_scale_spin.setValue(self._owner._radar_scale() * 100.0)
         self._radar_scale_spin.blockSignals(False)
+        self._radar_rot_spin.blockSignals(True)
+        self._radar_rot_spin.setValue(self._owner._radar_rotation())
+        self._radar_rot_spin.blockSignals(False)

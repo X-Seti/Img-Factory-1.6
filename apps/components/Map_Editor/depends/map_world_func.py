@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 5
+#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 6
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop world load
 
 """
@@ -39,6 +39,7 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _populate_models_panel_from_ipl
 # _preload_img_archives_to_os_cache
 # _radar_align_offset
+# _radar_rotation
 # _radar_scale
 # _radar_settings_path
 # _read_water_offsets
@@ -52,6 +53,7 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _save_water_dat
 # _save_water_levels
 # _set_radar_align_offset
+# _set_radar_rotation
 # _set_radar_scale
 # _set_water_fix
 # _set_water_quad
@@ -1109,10 +1111,10 @@ class MapWorldMixin: #vers 1
         root = getattr(self, '_game_root', '') or ''
         return os.path.join(root, 'radar_settings.json') if root and os.path.isdir(root) else ''
 
-    def _load_radar_settings(self): #vers 3
+    def _load_radar_settings(self): #vers 4
         """Per-game alignment: radar from radar_settings.json, water from data/water_offset.dat."""
         path = self._radar_settings_path()
-        data = {'radar_offset': [0.0, 0.0], 'radar_scale': 1.0,
+        data = {'radar_offset': [0.0, 0.0], 'radar_scale': 1.0, 'radar_rotation': 0.0,
                 'water_offset': [0.0, 0.0], 'water_fix': None}
         if path and os.path.isfile(path):
             try:
@@ -1198,7 +1200,7 @@ class MapWorldMixin: #vers 1
         except OSError as e:
             self._set_status(f"Could not save water_offset.dat: {e}")
 
-    def _apply_radar_settings(self): #vers 3
+    def _apply_radar_settings(self): #vers 4
         """Push saved radar offset/scale, water offsets and fix to the viewport."""
         data = self._load_radar_settings()
         self._radar_settings = data
@@ -1209,6 +1211,8 @@ class MapWorldMixin: #vers 1
             vp.set_radar_tex_offset(*data['radar_offset'])
         if hasattr(vp, 'set_radar_tex_scale'):
             vp.set_radar_tex_scale(data.get('radar_scale', 1.0))
+        if hasattr(vp, 'set_radar_tex_rotation'):
+            vp.set_radar_tex_rotation(data.get('radar_rotation', 0.0))
         if hasattr(vp, 'set_water2_nudge'):
             vp.set_water2_nudge(*data['water_offset'])
         if hasattr(vp, 'set_water2_fix_override'):
@@ -1264,6 +1268,18 @@ class MapWorldMixin: #vers 1
         dlg._refresh()
         dlg.show()
         dlg.raise_()
+
+    def _radar_rotation(self): #vers 1
+        """Radar tile layer rotation in degrees for this game."""
+        data = getattr(self, '_radar_settings', None) or self._load_radar_settings()
+        return float(data.get('radar_rotation', 0.0))
+
+    def _set_radar_rotation(self, degrees): #vers 1
+        """Save and apply the radar tile layer rotation."""
+        data = getattr(self, '_radar_settings', None) or self._load_radar_settings()
+        data['radar_rotation'] = float(degrees)
+        self._save_radar_settings(data)
+        self._apply_radar_settings()
 
     def _radar_scale(self): #vers 1
         """Radar tile layer scale for this game (1.0 = preset size)."""

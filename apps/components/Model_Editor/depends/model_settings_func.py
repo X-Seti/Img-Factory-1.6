@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 6
+#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 7
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Model Workshop settings
 
 """
@@ -12,6 +12,7 @@ Workshop settings, fonts, theme, hotkeys and About dialog for ModelWorkshop.
 # _apply_panel_font
 # _apply_theme
 # _apply_title_font
+# _extra_settings_tabs
 # _get_icon_color
 # _get_icon_set
 # _launch_theme_settings
@@ -36,7 +37,10 @@ from apps.components.Model_Editor.depends.model_setup_ui_func import App_name, A
 class ModelSettingsMixin: #vers 1
     """Settings, fonts, theme, hotkeys, About."""
 
-    def _show_workshop_settings(self): #vers 5
+    def _extra_settings_tabs(self, tabs): #vers 1
+        """Hook: workshops built on this one add their own settings tabs."""
+
+    def _show_workshop_settings(self): #vers 6
 
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -361,6 +365,7 @@ class ModelSettingsMixin: #vers 1
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        self._extra_settings_tabs(tabs)                       # subclass tabs (Ped: Grid)
         from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
         add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
@@ -524,7 +529,7 @@ class ModelSettingsMixin: #vers 1
 
 
 
-    def _show_settings_dialog(self): #vers 6
+    def _show_settings_dialog(self): #vers 7
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -967,6 +972,7 @@ class ModelSettingsMixin: #vers 1
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        self._extra_settings_tabs(tabs)                       # subclass tabs (Ped: Grid)
         from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
         add_sizes_tab(self, tabs)
         layout.addWidget(tabs)

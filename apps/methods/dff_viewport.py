@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 41
+# this belongs in apps/methods/dff_viewport.py - Version: 46
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -29,6 +29,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._draw_footprint
 # DFFViewport._draw_gizmo
 # DFFViewport._draw_grid
+# DFFViewport._draw_grid_checker
 # DFFViewport._draw_mesh_hover
 # DFFViewport._draw_reticle
 # DFFViewport._draw_rubber_band
@@ -170,6 +171,8 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.set_show_mesh
 # DFFViewport.set_view_lock
 # DFFViewport.set_wheel_heading
+# DFFViewport.set_show_axes
+# DFFViewport.set_squares_fill_alpha
 # DFFViewport.set_wire_hint
 # DFFViewport.toggle_door
 # DFFViewport.toggle_snap_axis_constraint
@@ -340,10 +343,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_hide_over_radar_tiles = False   # suppress grid lines within the radar tex layer's own real bounds, still shown outside
         # Grid line/dot colour + thickness (Aug 20 2026)
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
-        self._grid_line_size  = 4               # 4-10px range
+        self._grid_line_size  = 4               # 1-10px range
+        self._squares_fill_alpha = 0.12         # 'squares' fill strength (solid floor near 1)
         self._grid_spacing    = 5               # divisor of _dist -> step (zoom_relative mode)
         self._grid_fixed_step = 200             # world units per cell (fixed mode - real map scale, not the small zoom_relative divisor)
         self._grid_cell_count = 24               # total grid diameter in cells (replaces the old fixed *10 multiplier)
+        self._grid_origin = (0.0, 0.0, 0.0)      # grid shift (x, y slide; z height)
         # Radar tex layer - real generated radar tiles shown at their
         # own real world positions, as an alternative to the grid
         self._show_radar_tex_layer = False
@@ -527,6 +532,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_nudge = (0.0, 0.0)
         self._radar_tex_offset = (0.0, 0.0)
         self._radar_tex_scale = 1.0          # per-game radar layer scale
+        self._radar_tex_rotation = 0.0       # degrees about the world origin
 
         # Cull zone boxes (Aug 16 2026)
         self.show_cull_boxes = False
@@ -1562,7 +1568,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 return int(candidate)
         return int(magnitude * 10)
 
-    def _draw_grid(self): #vers 3
+    def _draw_grid(self): #vers 5
         """Draw the viewport's own reference grid, in whichever real
         visual style self._grid_type currently selects (Aug 20 2026)"""
         if not OPENGL_AVAILABLE: return
@@ -1595,9 +1601,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             return
 
         was_depth_test = glIsEnabled(GL_DEPTH_TEST)
-        glDisable(GL_DEPTH_TEST)
+        ox, oy, oz = self._grid_origin
+        if oz == 0.0:                                   # ground grid under a model: keep depth
+            glDisable(GL_DEPTH_TEST)
+        glPushMatrix()
+        glTranslatef(ox % step, oy % step, oz)          # slide within one cell, set height
         if grid_type == 'squares':
             self._draw_grid_squares(step, rng, cx, cy)
+        elif grid_type == 'checker':
+            self._draw_grid_checker(step, rng, cx, cy)
         elif grid_type == 'dashed':
             self._draw_grid_dashed(step, rng, cx, cy)
         elif grid_type == 'dots':
@@ -1608,6 +1620,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_grid_honeycomb(step, rng, cx, cy, dashed=True)
         else:
             self._draw_grid_lines(step, rng, cx, cy)
+        glPopMatrix()
         if was_depth_test:
             glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -1657,7 +1670,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not was_blend:
             glDisable(GL_BLEND)
 
-    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 4
+    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 5
         """'squares' grid style - colour fill (default) or a tiled
         user image/texture, per fill_mode. Outline lines on top are
         now gated on self._grid_show_lines (Aug 20 2026)"""
@@ -1689,7 +1702,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = self._squares_color
-        glColor4f(r / 255, g / 255, b / 255, 0.12)
+        glColor4f(r / 255, g / 255, b / 255, self._squares_fill_alpha)
         glBegin(GL_QUADS)
         for gy in range(cy - rng, cy + rng, step):
             for gx in range(cx - rng, cx + rng, step):
@@ -1701,6 +1714,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_BLEND)
         if self._grid_show_lines:
             self._draw_grid_lines(step, rng, cx, cy)
+
+    def _draw_grid_checker(self, step, rng, cx=0, cy=0): #vers 1
+        """'checker' grid style - alternate cells in fill and line colour."""
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        cols = (self._squares_color, self._grid_line_color)
+        glBegin(GL_QUADS)
+        for gy in range(cy - rng, cy + rng, step):
+            for gx in range(cx - rng, cx + rng, step):
+                r, g, b = cols[((gx // step) + (gy // step)) % 2]
+                glColor4f(r / 255, g / 255, b / 255, 0.55)
+                glVertex3f(gx, gy, 0)
+                glVertex3f(gx + step, gy, 0)
+                glVertex3f(gx + step, gy + step, 0)
+                glVertex3f(gx, gy + step, 0)
+        glEnd()
+        glDisable(GL_BLEND)
 
     def _ensure_squares_texture(self): #vers 1
         """Lazily load self._squares_texture_path as a repeating GL
@@ -2046,8 +2076,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not was_blend:
             glDisable(GL_BLEND)
 
-    def _draw_axes(self): #vers 1
-        if not OPENGL_AVAILABLE: return
+    def _draw_axes(self): #vers 2
+        if not OPENGL_AVAILABLE or not getattr(self, '_show_axes', True): return
         glDisable(GL_LIGHTING); glLineWidth(1.5)
         s = max(1.0, self._dist * 0.1)
         glBegin(GL_LINES)
@@ -2512,9 +2542,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_line_color = line_rgb
         self.update()
 
-    def set_grid_line_size(self, size): #vers 1
-        """4-10px range for grid lines/dots."""
-        self._grid_line_size = max(4, min(10, size))
+    def set_grid_line_size(self, size): #vers 2
+        """1-10px range for grid lines/dots."""
+        self._grid_line_size = max(1, min(10, size))
+        self.update()
+
+    def set_squares_fill_alpha(self, alpha: float): #vers 1
+        """Fill strength of the 'squares' grid (0.12 tint, 0.9 solid floor)."""
+        self._squares_fill_alpha = max(0.0, min(1.0, float(alpha)))
         self.update()
 
     def set_grid_spacing(self, spacing): #vers 1
@@ -2591,7 +2626,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             tile['tex_id'] = False
         return tile['tex_id']
 
-    def _draw_radar_tex_layer(self): #vers 4
+    def _draw_radar_tex_layer(self): #vers 5
         """V-coordinates: row 0 of the saved PNG is north (capture_
         radar_tile uses grabFramebuffer's own display-ready, already-
         correctly-oriented output), which uploads as V=0 - so V=0
@@ -2609,6 +2644,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glColor4f(1, 1, 1, 1)
         glPushMatrix()
         glTranslatef(self._radar_tex_offset[0], self._radar_tex_offset[1], 0.0)
+        glRotatef(self._radar_tex_rotation, 0.0, 0.0, 1.0)
         glScalef(self._radar_tex_scale, self._radar_tex_scale, 1.0)
         for tile in self._radar_tex_tiles:
             tex_id = self._ensure_radar_tex_tile(tile)
@@ -3356,6 +3392,21 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_radar_tex_offset(self, x, y): #vers 1
         """Per-game radar tile layer offset in world units."""
         self._radar_tex_offset = (float(x), float(y))
+        self.update()
+
+    def set_show_axes(self, on: bool): #vers 1
+        """Show / hide the red-green-blue axis gizmo at the origin."""
+        self._show_axes = bool(on)
+        self.update()
+
+    def set_grid_origin(self, x: float, y: float, z: float): #vers 1
+        """Grid slide (x, y) and height (z), e.g. ground under a ped."""
+        self._grid_origin = (float(x), float(y), float(z))
+        self.update()
+
+    def set_radar_tex_rotation(self, degrees): #vers 1
+        """Radar tile layer rotation in degrees about the world origin."""
+        self._radar_tex_rotation = float(degrees)
         self.update()
 
     def set_radar_tex_scale(self, scale): #vers 1

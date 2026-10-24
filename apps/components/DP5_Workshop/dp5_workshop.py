@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 109
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 110
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -382,6 +382,7 @@ from apps.methods.doc_tabs import DocTabsMixin
 # DP5Workshop._scale_canvas
 # DP5Workshop._select_all
 # DP5Workshop._select_tool
+# DP5Workshop._send_bitmap_back
 # DP5Workshop._set_brush_size
 # DP5Workshop._set_canvas_mode
 # DP5Workshop._set_opacity
@@ -6474,7 +6475,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
         #    Left panel: bitmap list                                                
 
-    def _on_bitmap_selected(self, row: int): #vers 3
+    def _on_bitmap_selected(self, row: int): #vers 4
         """Show another loaded image; each keeps its own zoom and scroll position."""
         if 0 <= row < len(self._bitmap_list):
             old = getattr(self, '_current_bitmap', None)
@@ -6491,6 +6492,10 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 self._apply_view_state(bm.get('view'))
                 self.dp5_canvas.update()
                 self._set_status(f"{bm['name']}  {bm['w']}×{bm['h']}")
+            back = getattr(self, '_bitmap_back_btn', None)
+            if back is not None:                       # Send back: only for images an editor sent
+                back.setEnabled(bm.get('return_cb') is not None)
+                back.setToolTip(f"Send back to {bm.get('return_label') or 'the editor'}")
 
     def _park_bitmap_view(self): #vers 1
         """Before a new image loads: keep the shown image's zoom / scroll in its list entry."""
@@ -6522,6 +6527,24 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 sa.verticalScrollBar().setValue(v)
             _scroll()
             QTimer.singleShot(0, _scroll)          # again once the scroll range follows the resize
+
+    def _send_bitmap_back(self): #vers 1
+        """Return the painted bitmap to the editor that sent it (Model, Ped, Map...)."""
+        row = self._bitmap_lw.currentRow()
+        if not 0 <= row < len(self._bitmap_list):
+            return
+        bm = self._bitmap_list[row]
+        cb = bm.get('return_cb')
+        if cb is None:
+            self._set_status("This bitmap was not sent by an editor")
+            return
+        c = self.dp5_canvas
+        if c is not None and getattr(self, '_current_bitmap', None) == row:
+            w, h, rgba = c.tex_w, c.tex_h, bytes(c.rgba)
+        else:
+            w, h, rgba = bm['w'], bm['h'], bytes(bm['rgba'])
+        cb(bm['name'], rgba, w, h)
+        self._set_status(f"Sent {bm['name']} back to {bm.get('return_label') or 'the editor'}")
 
     def _delete_bitmap(self): #vers 1
         row = self._bitmap_lw.currentRow()
@@ -13544,7 +13567,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             QMessageBox.warning(self, "Art Studio Import Error", str(e))
 
 
-    def _load_rgba(self, rgba: bytearray, w: int, h: int, name: str = ""): #vers 3
+    def _load_rgba(self, rgba: bytearray, w: int, h: int, name: str = "",
+                   return_cb=None, return_label: str = ""): #vers 4
         """Load raw RGBA data into canvas, update palette, fit zoom."""
         if not self.dp5_canvas: return
         if name:
@@ -13564,8 +13588,9 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             pass
         self._set_status(f"Loaded: {name}  {w}×{h}" if name else f"Canvas: {w}×{h}")
         if name:
-            self._bitmap_list.append({'name':name,'rgba':rgba,'w':w,'h':h})
-            self._bitmap_lw.addItem(name)
+            self._bitmap_list.append({'name':name,'rgba':rgba,'w':w,'h':h,
+                                      'return_cb':return_cb,'return_label':return_label})
+            self._bitmap_lw.addItem(name + (f"  <- {return_label}" if return_cb else ""))
             self._bitmap_lw.setCurrentRow(len(self._bitmap_list)-1)
         self._set_status(f"Loaded: {name}  {w}×{h}")
 

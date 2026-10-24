@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 43
+#this belongs in apps/gui/gui_layout.py - Version: 44
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -1571,7 +1571,7 @@ class IMGFactoryGUILayout:
             return color
 
 
-    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 5
+    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 6
         """Get SVG icon based on icon name identifier"""
         icon_map = {
             # IMG file actions
@@ -1619,7 +1619,7 @@ class IMGFactoryGUILayout:
 
             # Editor buttons (same icons as the Intro tiles)
             "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.mesh_icon(size, '#4a9fd4'),
-            "ipf-edit": get_ipf_anim_icon,
+            "ipf-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.ped_app_icon(size),
             "ide-edit": get_ide_editor_icon,
             "ipl-edit": lambda size=24, color=None, bg_color=None: get_ipl_editor_icon(size),
             "dat-edit": get_dat_browser_icon,
@@ -1628,7 +1628,7 @@ class IMGFactoryGUILayout:
             "zones-cull": lambda size=24, color=None, bg_color=None: get_cull_zone_icon(size, color),
             "weap-edit": get_weapons_icon,
             "vehi-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.vehicle_app_icon(size),
-            "peds-edit": get_peds_icon,
+            "peds-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.ped_app_icon(size),
             "carcols": get_carcols_icon,
             "radar-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.radar_workshop_icon(size),
             "paths-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.path_app_icon(size),

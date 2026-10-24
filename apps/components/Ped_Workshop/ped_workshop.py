@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ped_Workshop/ped_workshop.py - Version: 12
+#this belongs in apps/components/Ped_Workshop/ped_workshop.py - Version: 20
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop
 
 """
@@ -14,12 +14,18 @@ stop-motion keyframe editing) for GTA III, VC and SA.
 ##class PedWorkshop: -
 # _cycle_ped_view
 # _default_ped_docks
+# _extra_settings_tabs
 # _load_ped_prefs
 # _ped_dirty_items
+# _ped_grid_cfg
+# _ped_grid_custom
 # _ped_open_menu
 # _ped_save_all
 # _ribbon_config_path
+# _ped_resize_textures
+# _ped_set_grid
 # _save_ped_prefs
+# _show_dff
 # _titlebar_title
 # closeEvent
 # setup_ui
@@ -39,13 +45,19 @@ from PyQt6.QtWidgets import QApplication
 
 from apps.components.Model_Editor.model_workshop import ModelWorkshop
 from apps.components.Ped_Workshop.depends.ped_anim_func import PedAnimMixin
+from apps.components.Ped_Workshop.depends.ped_anim_library_func import PedAnimLibraryMixin
 from apps.components.Ped_Workshop.depends.ped_data_func import PedDataMixin
+from apps.components.Ped_Workshop.depends.ped_iv_func import PedIVMixin
+from apps.components.Ped_Workshop.depends.ped_pad_func import PedPadMixin
+from apps.components.Ped_Workshop.depends.ped_skin_func import PedSkinMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 
 App_name = "Ped Workshop"
+GRID_PATTERNS = {'squares': ('lines', "Squares"), 'hex': ('honeycomb', "Hex"),     # key: (viewport type, label)
+                 'solid': ('squares', "Solid"), 'checker': ('checker', "Checkerboard")}
 
 
-class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
+class PedWorkshop(PedDataMixin, PedIVMixin, PedAnimMixin, PedAnimLibraryMixin, PedPadMixin, PedSkinMixin, ModelWorkshop): #vers 6
     """Model Workshop plus ped data and animation docks."""
     _OUTER_LAYOUT_VERSION = 13           # own dock layout (Peds / Animation / Bones)
 
@@ -78,6 +90,135 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
         nxt = self._PED_VIEWS[(self._ped_view + 1) % len(self._PED_VIEWS)][0]
         self._ped_view_act.setToolTip(f"Ped view: {name} (click for {nxt})")
         self._set_status(f"View: {name}")
+
+    def _ped_resize_textures(self, px: int): #vers 1
+        """Scale the loaded ped textures down so the longest side is px (smooth)."""
+        from PyQt6.QtCore import Qt as _Qt
+        from PyQt6.QtGui import QImage
+        texs = getattr(self, '_mod_textures', None) or []
+        done = 0
+        for t in texs:
+            w, h = t.get('width', 0), t.get('height', 0)
+            if not t.get('rgba_data') or max(w, h) <= px:
+                continue
+            f = px / max(w, h)
+            nw, nh = max(1, int(w * f)), max(1, int(h * f))
+            img = QImage(bytes(t['rgba_data']), w, h, w * 4, QImage.Format.Format_RGBA8888)
+            img = img.scaled(nw, nh, _Qt.AspectRatioMode.IgnoreAspectRatio,
+                             _Qt.TransformationMode.SmoothTransformation).convertToFormat(QImage.Format.Format_RGBA8888)
+            t['rgba_data'] = bytes(img.constBits().asstring(img.sizeInBytes()))
+            t['width'], t['height'] = nw, nh
+            t['compressed_data'], t['mipmap_levels'] = b'', []     # re-encoded on save
+            t.pop('dxt_levels', None)
+            if t.get('format') in ('PAL8', 'PAL4'):
+                t['format'] = 'DXT1'
+            done += 1
+        if not done:
+            self._set_status(f"Textures: nothing larger than {px} px")
+            return
+        self._populate_texture_list()
+        vp = self.preview_widget
+        vp._upload_textures(texs)
+        vp.update()
+        self._set_status(f"Textures: {done} scaled to {px} px - Save TXD to keep")
+
+    def _ped_set_grid(self, kind: str, path: str = ''): #vers 2
+        """Grid style preset or 'custom' (Settings Grid tab); saved in the ped prefs."""
+        from PyQt6.QtWidgets import QFileDialog
+        vp = self.preview_widget
+        if kind == 'custom':
+            self._ped_grid_custom(self._ped_grid_cfg())
+            self._save_ped_prefs(grid=dict(self._ped_grid_cfg(), kind='custom', path=''))
+            self._set_status("Grid: custom")
+            return
+        if kind == 'texture' and not path:
+            path, _ = QFileDialog.getOpenFileName(self, "Grid texture", '',
+                                                  "Images (*.png *.jpg *.jpeg *.bmp *.tga)")
+            if not path:
+                return
+        styles = {'lines': ('lines', (40, 40, 60), (76, 76, 102)),
+                  'holodeck': ('lines', (0, 0, 0), (255, 200, 40)),
+                  'checker': ('checker', (60, 60, 72), (118, 118, 132)),
+                  'honeycomb': ('honeycomb', (40, 40, 60), (76, 76, 102)),
+                  'texture': ('squares', (40, 40, 60), (76, 76, 102)),
+                  'none': ('none', (40, 40, 60), (76, 76, 102))}
+        gtype, fill, line = styles.get(kind, styles['lines'])
+        vp.set_grid_colors(fill, line)
+        vp.set_squares_fill('texture' if kind == 'texture' else 'color', path=path or None, tile_size=2.0)
+        vp.set_squares_fill_alpha(0.12)
+        vp.set_grid_show_lines(True)
+        vp.set_grid_line_size(4)
+        vp.set_grid_type(gtype)
+        prev = self._load_ped_prefs().get('grid') or {}
+        keep = {k: prev[k] for k in ('pattern', 'fill', 'line', 'width') if k in prev}
+        self._save_ped_prefs(grid=dict(keep, kind=kind, path=path))   # custom values kept
+        self._set_status(f"Grid: {kind}")
+
+    def _ped_grid_cfg(self) -> dict: #vers 1
+        """Saved custom grid: pattern, fill, line colour, width."""
+        cfg = {'pattern': 'squares', 'fill': [40, 40, 60], 'line': [76, 76, 102], 'width': 1}
+        saved = self._load_ped_prefs().get('grid') or {}
+        cfg.update({k: saved[k] for k in cfg if k in saved})
+        return cfg
+
+    def _ped_grid_custom(self, cfg: dict): #vers 1
+        """Apply custom grid pattern, colours and thickness to the viewport."""
+        vp = self.preview_widget
+        pat = cfg.get('pattern', 'squares')
+        vp.set_grid_colors(tuple(cfg['fill']), tuple(cfg['line']))
+        vp.set_squares_fill('color')
+        vp.set_grid_line_size(int(cfg.get('width', 1)))
+        vp.set_squares_fill_alpha(0.9 if pat == 'solid' else 0.12)
+        vp.set_grid_show_lines(pat != 'solid')
+        vp.set_grid_type(GRID_PATTERNS.get(pat, ('lines', ''))[0])
+
+    def _extra_settings_tabs(self, tabs): #vers 1
+        """Settings Grid tab: pattern, line / fill colour, thickness (live)."""
+        from PyQt6.QtGui import QColor
+        from PyQt6.QtWidgets import QColorDialog, QComboBox, QFormLayout, QPushButton, QSpinBox, QWidget
+        cfg = self._ped_grid_cfg()
+        page = QWidget()
+        form = QFormLayout(page)
+        combo = QComboBox()
+        for key, (_t, label) in GRID_PATTERNS.items():
+            combo.addItem(label, key)
+        combo.setCurrentIndex(max(0, combo.findData(cfg['pattern'])))
+        spin = QSpinBox()
+        spin.setRange(1, 10)
+        spin.setSuffix(" px")
+        spin.setValue(int(cfg['width']))
+
+        def apply():
+            cfg['pattern'], cfg['width'] = combo.currentData(), spin.value()
+            self._ped_grid_custom(cfg)
+            self._save_ped_prefs(grid=dict(cfg, kind='custom', path=''))
+
+        def colour_btn(key, title):
+            btn = QPushButton()
+            btn.setToolTip(f"Grid {title.lower()} colour")
+
+            def paint():
+                r, g, b = cfg[key]
+                btn.setText(f"#{r:02X}{g:02X}{b:02X}")
+                btn.setStyleSheet(f"background: rgb({r},{g},{b}); color: {'#000' if r + g + b > 380 else '#FFF'};")
+
+            def pick():
+                c = QColorDialog.getColor(QColor(*cfg[key]), self, f"Grid {title}")
+                if c.isValid():
+                    cfg[key] = [c.red(), c.green(), c.blue()]
+                    paint()
+                    apply()
+            paint()
+            btn.clicked.connect(pick)
+            return btn
+
+        combo.currentIndexChanged.connect(apply)
+        spin.valueChanged.connect(apply)
+        form.addRow("Pattern:", combo)
+        form.addRow("Line colour:", colour_btn('line', "Line"))
+        form.addRow("Fill colour:", colour_btn('fill', "Fill"))
+        form.addRow("Thickness:", spin)
+        tabs.addTab(page, "Grid")
 
     def _titlebar_title(self): #vers 1
         return App_name
@@ -117,7 +258,7 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
         m.addAction("Model / TXD file...", self._open_file)
         m.exec(QCursor.pos())
 
-    def _ped_dirty_items(self) -> list: #vers 1
+    def _ped_dirty_items(self) -> list: #vers 2
         """Names of unsaved items."""
         out = []
         if getattr(self, '_ped_ide_dirty', False):
@@ -126,9 +267,11 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
             out.append(os.path.basename(self._ped_file_shown))
         if getattr(self, '_ifp_dirty', False):
             out.append(f"{self._ifp.name}.ifp" if self._ifp else "IFP")
+        if getattr(self, '_skin_dirty', False):
+            out.append("skin weights")
         return out
 
-    def _ped_save_all(self): #vers 1
+    def _ped_save_all(self): #vers 2
         """Save every changed item: peds IDE, data file, IFP."""
         items = self._ped_dirty_items()
         if not items:
@@ -140,6 +283,8 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
             self._save_ped_text(self._ped_file_shown)
         if getattr(self, '_ifp_dirty', False):
             self._anim_save_ifp()
+        if getattr(self, '_skin_dirty', False):
+            self._skin_save()
         self._set_status("Saved: " + ", ".join(items))
 
     def closeEvent(self, event): #vers 1
@@ -157,9 +302,21 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
                 self._ped_save_all()
         super().closeEvent(event)
 
-    def setup_ui(self): #vers 11
+    def _show_dff(self, file_path, model): #vers 2
+        """Any DFF opened (Open, IMG, tabs): also set up bones / anims / skinning."""
+        super()._show_dff(file_path, model)
+        if file_path and os.path.isfile(file_path):
+            with open(file_path, 'rb') as f:
+                raw = f.read()
+            self._ped_dff_src = (file_path, raw)               # skin weights save back here
+            self._init_animator(raw)
+            self._skin_refresh()
+
+    def setup_ui(self): #vers 17
         """Model Workshop layout, then Peds, Animation and Bones docks on the right."""
         super().setup_ui()
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self.setWindowIcon(SVGIconFactory.ped_app_icon(32))       # same icon as Intro / right pane
         mw = self._outer_mw
         docks = (self._create_peds_dock(), self._create_anim_dock(), self._create_bones_dock())
         for dock, title in zip(docks, ("Peds", "Animation", "Bones")):
@@ -225,6 +382,50 @@ class PedWorkshop(PedDataMixin, PedAnimMixin, ModelWorkshop): #vers 2
         self._ped_view_act.triggered.connect(self._cycle_ped_view)
         if nav is not None:
             nav.addAction(self._ped_view_act)
+        from PyQt6.QtWidgets import QToolButton
+        view_btn = QToolButton()                             # also in the Bones title, always visible
+        view_btn.setDefaultAction(self._ped_view_act)
+        view_btn.setAutoRaise(True)
+        add_title_widget(docks[2], view_btn, 1)
+        quad_act = getattr(self, '_quad_view_act', None)
+        if quad_act is not None:                             # 4-pane: Top / Front / Side / Perspective
+            quad_btn = QToolButton()
+            quad_btn.setDefaultAction(quad_act)
+            quad_btn.setAutoRaise(True)
+            quad_btn.setToolTip("4-pane view on / off (Top, Front, Side, Perspective)")
+            add_title_widget(docks[2], quad_btn, 2)
+        from PyQt6.QtWidgets import QMenu
+        grid_btn = QToolButton()                             # grid style menu
+        grid_btn.setIcon(SVGIconFactory.grid_icon(16, self._get_icon_color()))
+        grid_btn.setToolTip("Grid style: lines, holodeck, checkerboard, honeycomb, texture")
+        grid_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        grid_btn.setAutoRaise(True)
+        menu = QMenu(grid_btn)
+        for key, label in (('lines', "Lines"), ('holodeck', "Holodeck (yellow)"), ('checker', "Checkerboard"),
+                           ('honeycomb', "Honeycomb"), ('texture', "Texture..."), ('custom', "Custom (Settings > Grid)"),
+                           ('none', "No grid")):
+            menu.addAction(label, lambda k=key: self._ped_set_grid(k))
+        grid_btn.setMenu(menu)
+        add_title_widget(docks[2], grid_btn, 3)
+        add_title_widget(docks[2], self._anim_tool_button(        # skinning window
+            'paint_icon', "Skinning: bone weights (heat map, paint) and texture / UV", self._skin_window), 4)
+        size_btn = QToolButton()                             # texture size: render down
+        size_btn.setIcon(SVGIconFactory.dp_resize_icon(16, self._get_icon_color()))
+        size_btn.setToolTip("Texture size: scale the ped textures down (longest side)")
+        size_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        size_btn.setAutoRaise(True)
+        smenu = QMenu(size_btn)
+        for px in (512, 256, 128):
+            smenu.addAction(f"{px} px", lambda p=px: self._ped_resize_textures(p))
+        size_btn.setMenu(smenu)
+        tex_dock = getattr(self, '_texture_dock', None)
+        if tex_dock is not None and tex_dock.titleBarWidget() is not None:
+            add_title_widget(tex_dock, size_btn)
+        saved = self._load_ped_prefs().get('grid')
+        if saved:
+            self._ped_set_grid(saved.get('kind', 'lines'), saved.get('path', ''))
+        self._ped_view_act.setToolTip("Ped view: Front, Right, Back, Left in turn\n"
+                                      "(right-drag to orbit, middle-drag to pan)")
         self.setWindowTitle(App_name)
 
 

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Terrain_Workshop/depends/terrain_image_func.py - Version: 2
+#this belongs in apps/components/Terrain_Workshop/depends/terrain_image_func.py - Version: 4
 # X-Seti - October 22 2026 - IMG Factory 1.6 - Terrain Workshop image / radar base
 
 """
@@ -13,6 +13,7 @@ colours can pre-paint materials; sculpt it with the Brush tools after.
 # _tw_guide_textures
 # _tw_load_guide
 # _tw_pick_guide_file
+# _tw_radar_layer
 # _tw_toggle_guide
 
 import os
@@ -141,7 +142,7 @@ class TerrainImageMixin: #vers 1
         if p:
             edit.setText(p)
 
-    def _tw_load_guide(self, guide: dict): #vers 1
+    def _tw_load_guide(self, guide: dict): #vers 2
         """Picture (h, w, 4) for a guide source; raises if it can't be read."""
         if 'image' in guide:
             return load_image_rgba(guide['image'])
@@ -155,9 +156,10 @@ class TerrainImageMixin: #vers 1
             raise IOError("No IMG chosen and no game loaded in this workshop.")
         if not any(tiles):
             raise IOError("No radar tiles found (radar00.txd ...).")
+        self._tw_radar_tiles, self._tw_radar_game = tiles, g     # also shown as the radar layer
         return stitch_radar(tiles, per)
 
-    def _tw_build_from_picture(self, guide, width, depth, cell, tile, origin, paint): #vers 1
+    def _tw_build_from_picture(self, guide, width, depth, cell, tile, origin, paint): #vers 2
         """Flat terrain covering the picture; guide layer on; optional pre-paint."""
         if (width / cell) * (depth / cell) > 600000:
             QMessageBox.warning(self, "Terrain from image", "Too many cells - use a bigger cell size.")
@@ -176,8 +178,11 @@ class TerrainImageMixin: #vers 1
         self._tw_path, self._tw_dirty = '', True
         self._tw_brush.undo_stack.clear()
         self._tw_guide_textures()
-        self._tw_toggle_guide(True)
+        radar = 'radar' in guide
+        self._tw_toggle_guide(not radar)                 # radar: real radar layer under the ground
         self._tw_show(fit=True)
+        if radar:
+            self._tw_radar_layer(True)
 
     def _tw_guide_textures(self): #vers 1
         """Upload one guide texture per tile (old ones dropped)."""
@@ -198,10 +203,12 @@ class TerrainImageMixin: #vers 1
             texs.append(guide_tile_texture(self._tw_guide, frac, f"tguide_{tx}_{ty}"))
         vp._upload_textures(texs, additive=True)
 
-    def _tw_toggle_guide(self, on: bool): #vers 2
+    def _tw_toggle_guide(self, on: bool): #vers 3
         """Show the guide picture on the ground (or the painted materials)."""
         on = bool(on) and getattr(self, '_tw_guide', None) is not None
         self._tw_guide_on = on
+        if on and self.preview_widget._mode == 'solid':   # picture needs textured view
+            self.preview_widget.set_render_mode('textured')
         btn = getattr(self, '_tw_guide_btn', None)
         if btn is not None:
             btn.blockSignals(True)
@@ -210,3 +217,22 @@ class TerrainImageMixin: #vers 1
         if self._tw_terrain is not None and hasattr(self, '_tw_entries'):   # tiles already shown
             self._tw_refresh_tiles(None)
             self._tw_status()
+
+    def _tw_radar_layer(self, on: bool): #vers 1
+        """Game radar map under the terrain (move / rotate / scale with Align)."""
+        tiles = getattr(self, '_tw_radar_tiles', None)
+        game = getattr(self, '_tw_radar_game', None) or getattr(getattr(self, '_world_loader', None), 'game', 'sa')
+        if on and not tiles:
+            if getattr(self, '_model_cache', None) is None:
+                QMessageBox.information(self, "Radar layer", "Use From image / radar with a game radar, "
+                                        "or load a game in this workshop first.")
+                on = False
+            else:
+                tiles = self._load_radar_tex_tiles(game)
+        self.preview_widget.set_radar_tex_layer(on, tiles if on else None, game)
+        self._apply_radar_settings()
+        btn = getattr(self, '_tw_radar_btn', None)
+        if btn is not None:
+            btn.blockSignals(True)
+            btn.setChecked(on)
+            btn.blockSignals(False)

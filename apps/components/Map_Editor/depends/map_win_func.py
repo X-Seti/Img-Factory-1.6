@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_win_func.py - Version: 4
+#this belongs in apps/components/Map_Editor/depends/map_win_func.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop window frame
 
 """
@@ -871,29 +871,36 @@ class MapWindowMixin: #vers 1
             pass
         event.accept()
 
-    def _save_dock_state(self): #vers 1
+    def _save_dock_state(self): #vers 2
         """Capture the current dock layout - every dock's own position,
         size, floating state, and tab grouping/order within a shared
         area - via Qt's own built-in QMainWindow.saveState(), rather
         than hand-tracking each dock's own geometry separately (Aug 19
         2026)"""
         inner_mw = getattr(self, '_inner_mw', None)
-        if inner_mw is None or not hasattr(self, 'map_settings'):
+        if inner_mw is None:
             return
+        import json
+        path = self._ribbon_config_path()                # own file per workshop (Terrain, Map)
         try:
-            state_bytes = bytes(inner_mw.saveState())
-            encoded = base64.b64encode(state_bytes).decode('ascii')
-            self.map_settings.set('workshop_dock_state', encoded)
-        except Exception:
-            pass
+            data = json.loads(path.read_text()) if path.exists() else {}
+            data['workshop_dock_state'] = base64.b64encode(bytes(inner_mw.saveState())).decode('ascii')
+            path.write_text(json.dumps(data, indent=2))
+        except (OSError, ValueError) as e:
+            print(f"[MapWorkshop] _save_dock_state: {e}")
 
-    def _restore_dock_state(self): #vers 1
+    def _restore_dock_state(self): #vers 2
         """Restore a previously-saved dock layout, if one exists (Aug
         19 2026)"""
         inner_mw = getattr(self, '_inner_mw', None)
-        if inner_mw is None or not hasattr(self, 'map_settings'):
+        if inner_mw is None:
             return
-        encoded = self.map_settings.get('workshop_dock_state')
+        import json
+        path = self._ribbon_config_path()
+        try:
+            encoded = json.loads(path.read_text()).get('workshop_dock_state') if path.exists() else None
+        except (OSError, ValueError):
+            encoded = None
         if not encoded:
             return
         try:

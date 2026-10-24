@@ -1,4 +1,4 @@
-#this belongs in apps/components/Terrain_Workshop/depends/terrain_grid_func.py - Version: 3
+#this belongs in apps/components/Terrain_Workshop/depends/terrain_grid_func.py - Version: 6
 # X-Seti - October 22 2026 - IMG Factory 1.6 - Terrain Workshop grid, brush and view
 
 """
@@ -29,6 +29,7 @@ brushes on the height grid, and the tiles shown in the viewport.
 # _tw_refresh_tiles
 # _tw_save
 # _tw_set_mode
+# _tw_set_opacity
 # _tw_show
 # _tw_status
 # _tw_tool_button
@@ -199,7 +200,7 @@ class GridBrush: #vers 1
 class TerrainGridMixin: #vers 1
     """Terrain project, brush dock and tile display for TerrainWorkshop."""
 
-    def _create_tw_grid_dock(self): #vers 4
+    def _create_tw_grid_dock(self): #vers 6
         """New terrain settings (two columns) and the project info line."""
         from apps.methods.ui_sizes import rule_label, size
         self._tw_terrain, self._tw_path, self._tw_dirty = None, '', False
@@ -239,6 +240,22 @@ class TerrainGridMixin: #vers 1
         create.setToolTip("Flat ground with these settings, painted with the first material")
         create.clicked.connect(self._tw_new)
         lay.addWidget(create)
+        orow = QHBoxLayout()
+        orow.setSpacing(4)
+        self._tw_opacity = 0.8                          # slightly see-through ground
+        op = QSlider(Qt.Orientation.Horizontal)
+        op.setRange(55, 100)
+        op.setValue(80)
+        op.setFixedHeight(size('input', self))
+        op.setToolTip("Terrain opacity - see the game world through the ground")
+        op_lbl = QLabel("80%")
+        op_lbl.setFixedWidth(34)
+        op.valueChanged.connect(lambda v: op_lbl.setText(f"{v}%"))
+        op.sliderReleased.connect(lambda: self._tw_set_opacity(op.value() / 100.0))
+        orow.addWidget(rule_label("Opacity", op.toolTip(), self))
+        orow.addWidget(op, 1)
+        orow.addWidget(op_lbl)
+        lay.addLayout(orow)
         self._tw_info = QLabel("No terrain")
         self._tw_info.setWordWrap(True)
         lay.addWidget(self._tw_info)
@@ -252,8 +269,14 @@ class TerrainGridMixin: #vers 1
                                 lambda: self._tw_toggle_guide(self._tw_guide_btn.isChecked()))
         self._tw_guide_btn.setCheckable(True)
         self._tw_guide, self._tw_guide_on = None, False
+        self._tw_radar_btn = tb('view_icon', "Show the game radar map under the ground",
+                                lambda: self._tw_radar_layer(self._tw_radar_btn.isChecked()))
+        from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons
+        self._tw_radar_btn.setIcon(OverlayIcons.radar_icon(size('title_icon', self)))
+        self._tw_radar_btn.setCheckable(True)
+        align = tb('settings_icon', "Align the radar: move, rotate, scale", self._show_radar_align_dialog)
         self._tw_grid_title = [tb('terrain_image_icon', "New terrain from an image or the game's radar map",
-                                  self._tw_from_image), self._tw_guide_btn,
+                                  self._tw_from_image), self._tw_guide_btn, self._tw_radar_btn, align,
                                tb('open_icon', "Open a terrain project (.terrain.json)", self._tw_open),
                                tb('save_icon', "Save the terrain project", lambda: self._tw_save(False)),
                                tb('saveas_icon', "Save the terrain project as...", lambda: self._tw_save(True))]
@@ -347,6 +370,12 @@ class TerrainGridMixin: #vers 1
         b.clicked.connect(lambda _c=False: slot())
         return b
 
+    def _tw_set_opacity(self, value: float): #vers 1
+        """Ground opacity (0.55 - 1.0); redraws the tiles."""
+        self._tw_opacity = value
+        if self._tw_terrain is not None and hasattr(self, '_tw_entries'):
+            self._tw_refresh_tiles(None)
+
     def _tw_set_mode(self, mode): #vers 1
         self._tw_brush.mode = mode
         self._tw_status()
@@ -423,9 +452,11 @@ class TerrainGridMixin: #vers 1
             self._set_status("Terrain: nothing to undo")
         self._tw_status()
 
-    def _tw_show(self, fit=False): #vers 1
-        """Put every tile in the viewport, brush on."""
+    def _tw_show(self, fit=False): #vers 2
+        """Put every tile in the viewport, brush on, textured view."""
         vp = self.preview_widget
+        if vp._mode == 'solid':                       # solid mode draws the ground white
+            vp.set_render_mode('textured')
         keep = [e for e in (vp._world_instances or []) if not e.get('terrain')]
         self._tw_entries = {}
         vp._tw_keys = set()
@@ -434,9 +465,10 @@ class TerrainGridMixin: #vers 1
         vp.set_brush_tool(self._tw_brush)
         self._tw_status()
 
-    def _tw_refresh_tiles(self, tiles=None, keep=None, fit=False): #vers 2
+    def _tw_refresh_tiles(self, tiles=None, keep=None, fit=False): #vers 3
         """Rebuild tile entries (all, or the given (tx, ty) set) and redraw."""
-        from apps.methods.dff_classes import Material
+        from apps.methods.dff_classes import RGBA, Material
+        alpha = int(255 * getattr(self, '_tw_opacity', 1.0))
         t, vp = self._tw_terrain, self.preview_widget
         if t is None:
             return
@@ -454,6 +486,7 @@ class TerrainGridMixin: #vers 1
                 uvs = [((x - x0) / w, (y1 - y) / h) for x, y, _z in mesh['vertices']]
                 remap = {m: 0 for m in mesh['used']}
                 mat = Material(texture_name=f"tguide_{tx}_{ty}")
+                mat.color = RGBA(255, 255, 255, alpha)
                 mat.colour = mat.color
                 mats = [mat]
             else:
@@ -462,6 +495,7 @@ class TerrainGridMixin: #vers 1
                 mats = []
                 for m in mesh['used']:
                     mat = Material(texture_name=lib[min(m, len(lib) - 1)]['texture'])
+                    mat.color = RGBA(255, 255, 255, alpha)    # opacity setting
                     mat.colour = mat.color                    # viewport reads .colour
                     mats.append(mat)
             key = f"terrain:{tx}_{ty}"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 84
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 88
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -83,6 +83,7 @@ from PyQt6.QtCore import Qt
 # frame_prev_icon
 # generate_alpha_icon
 # generate_mipmaps_icon
+# gizmo_axes_icon
 # globe_icon
 # guide_layer_icon
 # handling_app_icon
@@ -3730,6 +3731,15 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
+    def gizmo_axes_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Show / hide the axis gizmo - three arrows from one corner"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 18 L20 18 M6 18 L6 4 M6 18 L15 9" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <path d="M17 15.5 L20 18 L17 20.5 M3.5 7 L6 4 L8.5 7 M12 8.5 L15 9 L14.5 12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+            <circle cx="6" cy="18" r="1.8" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
     def guide_layer_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
         """Show / hide the guide picture layer - eye over a sheet"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -3737,6 +3747,35 @@ class SVGIconFactory: #vers 8
             <path d="M3 21 L9 17 L21 17 L15 21 Z" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.6"/>
             <path d="M4 7 Q12 0 20 7 Q12 14 4 7 Z" stroke="currentColor" stroke-width="1.6" fill="none"/>
             <circle cx="12" cy="7" r="2.3" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def disc_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Disc Workshop application icon - CD with a file sheet"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="#2a2a34"/>
+            <circle cx="28" cy="30" r="20" fill="#b8c0d0" stroke="#ffffff" stroke-width="1.5"/>
+            <circle cx="28" cy="30" r="13" fill="none" stroke="#8ea0c0" stroke-width="3"/>
+            <circle cx="28" cy="30" r="5" fill="#2a2a34" stroke="#ffffff" stroke-width="1"/>
+            <rect x="40" y="30" width="18" height="22" rx="2" fill="#f0f0f0" stroke="#2a2a34" stroke-width="1"/>
+            <path d="M43 36 H55 M43 41 H55 M43 46 H51" stroke="#5a7a9a" stroke-width="1.5"/>
+            <text x="22" y="60" font-size="10" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">DISC</text>
+        </svg>''', size, color)
+
+    @staticmethod
+    def retro_gta_app_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Retro GTA Workshop application icon - top-down city blocks and car"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="#2a2a34"/>
+            <rect x="6" y="6" width="20" height="18" fill="#8a6a4a" stroke="#ffffff" stroke-width="1"/>
+            <rect x="38" y="6" width="20" height="18" fill="#5a7a9a" stroke="#ffffff" stroke-width="1"/>
+            <rect x="6" y="30" width="52" height="12" fill="#404048"/>
+            <path d="M8 36 L56 36" stroke="#ffd84a" stroke-width="1.2" stroke-dasharray="4 3"/>
+            <rect x="30" y="6" width="4" height="24" fill="#404048"/>
+            <rect x="40" y="32" width="10" height="7" rx="2" fill="#e04040"/>
+            <text x="32" y="58" font-size="12" fill="#ffffff" text-anchor="middle"
+                font-weight="bold" font-family="Arial, sans-serif">GTA2</text>
         </svg>''', size, color)
 
     @staticmethod
@@ -7131,6 +7170,7 @@ def redo_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
 SVGIconFactory.redo_icon            = staticmethod(redo_icon)
 SVGIconFactory.get_cull_zone_icon   = staticmethod(get_cull_zone_icon)
 SVGIconFactory.get_zone_icon        = staticmethod(get_zone_icon)
+SVGIconFactory.get_pin_icon         = staticmethod(get_pin_icon)
 SVGIconFactory.get_occlusion_icon   = staticmethod(get_occlusion_icon)
 SVGIconFactory.get_paths_icon       = staticmethod(get_paths_icon)
 SVGIconFactory.get_tracks_icon      = staticmethod(get_tracks_icon)

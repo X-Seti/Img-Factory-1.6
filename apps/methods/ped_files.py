@@ -1,5 +1,5 @@
-#this belongs in apps/methods/ped_files.py - Version: 3
-# X-Seti - October 21 2026 - IMG Factory 1.6 - Ped data files (III / VC / SA)
+#this belongs in apps/methods/ped_files.py - Version: 4
+# X-Seti - October 21 2026 - IMG Factory 1.6 - Ped data files (III / VC / SA / IV)
 
 """
 Ped data files: the peds section of peds.ide (SA, IV) / default.ide (III, VC),
@@ -11,8 +11,10 @@ Rows are edited in place; every other line is written back unchanged.
 ##Methods list -
 # _resolve
 # game_ped_paths
+# iv_component_names
 # ped_data_files
 # read_ped_ide
+# read_ped_variations
 # write_ped_ide
 
 import os
@@ -69,8 +71,8 @@ def ped_data_files(root: str) -> List[Tuple[str, str]]: #vers 2
     return out
 
 
-def game_ped_paths(root: str) -> Dict[str, Optional[str]]: #vers 3
-    """game, ide, data files, ifp, anim.img and gta3.img paths for a III / VC / SA / IV root."""
+def game_ped_paths(root: str) -> Dict[str, Optional[str]]: #vers 5
+    """game, ide, data files, ifp, anim.img, gta3.img (IV: componentpeds, variations) paths."""
     iv_ide = _resolve(root, 'common/data/peds.ide')
     sa_ide = None if iv_ide else _resolve(root, 'data/peds.ide')
     ide = iv_ide or sa_ide or _resolve(root, 'data/default.ide')
@@ -79,8 +81,11 @@ def game_ped_paths(root: str) -> Dict[str, Optional[str]]: #vers 3
         _lines, rows = read_ped_ide(ide)
         game = 'vc' if rows and len(rows[0][1]) >= 8 else 'gta3'
     return {'game': game, 'ide': ide,
-            'ifp': _resolve(root, 'anim/ped.ifp'), 'anim_img': _resolve(root, 'anim/anim.img'),
-            'img': _resolve(root, 'models/gta3.img'), 'data_files': ped_data_files(root)}
+            'ifp': _resolve(root, 'anim/ped.ifp'),
+            'anim_img': _resolve(root, 'anim/anim.img') or _resolve(root, 'pc/anim/anim.img'),   # IV: .wad
+            'img': _resolve(root, 'models/gta3.img'), 'data_files': ped_data_files(root),
+            'components': _resolve(root, 'pc/models/cdimages/componentpeds.img'),   # GTA IV
+            'variations': _resolve(root, 'common/data/pedVariations.dat')}
 
 
 def read_ped_ide(path: str) -> Tuple[List[str], List[Tuple[int, List[str], str]]]: #vers 2
@@ -122,3 +127,38 @@ def write_ped_ide(path: str, rows: List[Tuple[int, List[str], str]]) -> int: #ve
         text = nl.join(lines) + (nl if raw.endswith(b'\n') else '')
         safe_write_bytes(path, text.encode('latin-1'), f"Ped IDE: {os.path.basename(path)}")
     return changed
+
+
+IV_SLOTS = ('head', 'uppr', 'lowr', 'suse', 'sus2', 'hand', 'feet', 'jack', 'hair', 'teef', 'face', 'decl')
+
+
+def iv_component_names(hashes: List[int]) -> Dict[int, str]: #vers 1
+    """GTA IV ped drawable names (slot_NNN_r / _u) for the given name hashes."""
+    from apps.methods.xtd_textures import iv_hash
+    want, out = set(hashes), {}
+    for slot in IV_SLOTS:
+        for i in range(64):
+            for race in ('r', 'u'):
+                n = f"{slot}_{i:03d}_{race}"
+                h = iv_hash(n)
+                if h in want:
+                    out[h] = n
+    return out
+
+
+def read_ped_variations(path: str) -> Dict[str, List[Tuple[str, int]]]: #vers 1
+    """GTA IV pedVariations.dat: {ped (lower): [(slot, geometry index)]}."""
+    out, cur = {}, None
+    with open(path, 'r', encoding='latin-1') as f:
+        for line in f:
+            body = line.split('#', 1)[0].strip()
+            if not body:
+                continue
+            fields = [x.strip() for x in body.split(',') if x.strip()]
+            if body.lower() == 'end':
+                cur = None
+            elif cur is None:
+                cur = out.setdefault(fields[0].lower(), [])
+            elif len(fields) >= 2 and fields[1].lstrip('-').isdigit():
+                cur.append((fields[0].lower(), int(fields[1])))
+    return out

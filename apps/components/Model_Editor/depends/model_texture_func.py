@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_texture_func.py - Version: 2
+#this belongs in apps/components/Model_Editor/depends/model_texture_func.py - Version: 3
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop textures
 
 """
@@ -24,6 +24,7 @@ Texture panel, TXD loading, texlist folders, texture export for ModelWorkshop.
 # _open_txd_combined
 # _open_txd_smart
 # _parse_txd_lightweight
+# _pass_textures_to_dp5_workshop
 # _pass_textures_to_txd_workshop
 # _populate_tex_thumbnails
 # _populate_texture_list
@@ -32,6 +33,7 @@ Texture panel, TXD loading, texlist folders, texture export for ModelWorkshop.
 # _save_textures_as_txd
 # _show_tex_hover
 # _tex_context_menu
+# _texture_back_from_dp5
 # _toggle_tex_view
 
 import os
@@ -107,7 +109,7 @@ class ModelTextureMixin: #vers 1
 
     # - Texture management
 
-    def _create_texture_panel(self): #vers 6
+    def _create_texture_panel(self): #vers 7
         """Collapsible texture panel in middle column.
         Shows textures loaded from TXD files.
         Toggle between List view (table) and Thumbnail view (64x64 grid).
@@ -180,6 +182,9 @@ class ModelTextureMixin: #vers 1
         _tbtn('tex_pass_btn',    'WShop',  'export_icon',  # export_icon used; txd_workshop_icon if added later
               'Send all textures to TXD Workshop for editing/rebuilding',
               self._pass_textures_to_txd_workshop, enabled=False)
+        _tbtn('tex_dp5_btn',     'DP5',    'dp5_workshop_icon',
+              'Send the selected textures (or all) to DP5 Workshop to paint',
+              self._pass_textures_to_dp5_workshop, enabled=False)
         _tbtn('tex_save_btn',    'Save',   'save_icon',
               'Save current textures as a new TXD file',
               self._save_textures_as_txd, enabled=False)
@@ -868,7 +873,7 @@ class ModelTextureMixin: #vers 1
         except Exception as e:
             print(f"Add textures error: {e}")
 
-    def _populate_texture_list(self): #vers 2
+    def _populate_texture_list(self): #vers 3
         """Fill the texture QTableWidget from self._mod_textures."""
         from PyQt6.QtGui import QImage, QPixmap, QIcon
         tbl = self._tex_list
@@ -921,7 +926,7 @@ class ModelTextureMixin: #vers 1
         if hasattr(self, '_tex_count_lbl'):
             self._tex_count_lbl.setText(f"{count} texture{'s' if count != 1 else ''}")
         has = count > 0
-        for btn in ('tex_pass_btn', 'tex_save_btn'):
+        for btn in ('tex_pass_btn', 'tex_dp5_btn', 'tex_save_btn'):
             b = getattr(self, btn, None)
             if b: b.setEnabled(has)
         # Refresh thumbnail grid if it's currently visible
@@ -1087,7 +1092,7 @@ class ModelTextureMixin: #vers 1
                 f"{tex.get('format','?')}  "
                 f"{tex.get('mipmaps',1)} mip(s)")
 
-    def _tex_context_menu(self, pos): #vers 1
+    def _tex_context_menu(self, pos): #vers 2
         """Right-click context menu on texture list."""
         from PyQt6.QtWidgets import QMenu
         rows = self._tex_list.selectionModel().selectedRows()
@@ -1103,6 +1108,7 @@ class ModelTextureMixin: #vers 1
         if self._mod_textures:
             menu.addSeparator()
             menu.addAction("Pass to TXD Workshop", self._pass_textures_to_txd_workshop)
+            menu.addAction("Pass to DP5 Workshop", self._pass_textures_to_dp5_workshop)
             menu.addAction("Save as TXD…",         self._save_textures_as_txd)
         menu.exec(self._tex_list.viewport().mapToGlobal(pos))
 
@@ -1140,6 +1146,27 @@ class ModelTextureMixin: #vers 1
             except Exception as e:
                 print(f"Export tex error: {e}")
         self._set_status(f"Exported {exported} texture(s) to {folder}")
+
+    def _pass_textures_to_dp5_workshop(self): #vers 2
+        """Selected textures (or all) into DP5 Workshop; DP5's Send back returns them here."""
+        from apps.methods.dp5_link import send_textures_to_dp5
+        if not self._mod_textures:
+            return
+        rows = sorted({i.row() for i in self._tex_list.selectionModel().selectedRows()})
+        texs = [self._mod_textures[r] for r in rows if r < len(self._mod_textures)] or list(self._mod_textures)
+        sent = send_textures_to_dp5(self, texs, self._titlebar_title(), self._texture_back_from_dp5)
+        self._set_status(f"Passed {sent} texture(s) to DP5 Workshop")
+
+    def _texture_back_from_dp5(self, tex, rgba, w, h): #vers 1
+        """DP5 Send back: painted pixels into the texture, list and viewport."""
+        from apps.methods.dp5_link import texture_from_dp5
+        if tex not in self._mod_textures or texture_from_dp5(tex, rgba, w, h) is None:
+            self._set_status("DP5: texture no longer loaded here")
+            return
+        self._populate_texture_list()
+        self.preview_widget._upload_textures(self._mod_textures)  # re-upload all (replaces the old one)
+        self.preview_widget.update()
+        self._set_status(f"{tex.get('name')} updated from DP5 - Save TXD to keep")
 
     def _pass_textures_to_txd_workshop(self): #vers 1
         """Send current textures to TXD Workshop for editing."""

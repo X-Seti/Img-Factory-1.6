@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_skin.py - Version: 1
+#this belongs in apps/methods/dff_skin.py - Version: 2
 # X-Seti - October 21 2026 - IMG Factory 1.6 - DFF skin and bone hierarchy
 
 """
@@ -12,6 +12,8 @@ matrices, and poses the mesh (CPU skinning, row-vector RW matrices).
 # _frame_matrix
 # quat_to_matrix
 # read_skeleton
+# _read_skin
+# write_skin_weights
 #
 ##class Skeleton: -
 # __init__
@@ -173,11 +175,14 @@ def read_skeleton(raw: bytes) -> Skeleton: #vers 1
     return sk
 
 
-def _read_skin(d: bytes, o: int, n: int) -> dict:
+def _read_skin(d: bytes, o: int, n: int) -> dict: #vers 2
+    """Skin PLG: bone indices / weights (with file offsets), inverse binds."""
     nb, nused, _maxw, _pad = d[o:o + 4]
     o += 4 + nused
+    i_off = o
     idx = np.frombuffer(d, np.uint8, n * 4, o).reshape(n, 4).astype(np.int64)
     o += n * 4
+    w_off = o
     w = np.frombuffer(d, '<f4', n * 4, o).reshape(n, 4).astype(np.float64)
     o += n * 16
     inv = np.zeros((nb, 4, 4))
@@ -187,4 +192,16 @@ def _read_skin(d: bytes, o: int, n: int) -> dict:
         inv[b] = np.frombuffer(d, '<f4', 16, o).reshape(4, 4)
         o += 64
     inv[:, :, 3] = (0, 0, 0, 1)
-    return {'num_bones': nb, 'indices': np.minimum(idx, max(nb - 1, 0)), 'weights': w, 'inv': inv}
+    return {'num_bones': nb, 'indices': np.minimum(idx, max(nb - 1, 0)), 'weights': w, 'inv': inv,
+            'i_off': i_off, 'w_off': w_off}
+
+
+def write_skin_weights(raw: bytes, skins: dict) -> bytes: #vers 1
+    """DFF bytes with each skin's indices / weights patched in place (same size)."""
+    out = bytearray(raw)
+    for sk in skins.values():
+        idx = np.asarray(sk['indices'], dtype=np.uint8)
+        w = np.asarray(sk['weights'], dtype='<f4')
+        out[sk['i_off']:sk['i_off'] + idx.size] = idx.tobytes()
+        out[sk['w_off']:sk['w_off'] + w.size * 4] = w.tobytes()
+    return bytes(out)

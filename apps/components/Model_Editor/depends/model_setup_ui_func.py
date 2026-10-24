@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 18
+#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 19
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop UI setup
 
 """
@@ -62,7 +62,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
 
 
 
-    def _refresh_icons(self): #vers 2
+    def _refresh_icons(self): #vers 3
         """Refresh all button icons after theme change — picks up current text_primary colour."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
@@ -78,6 +78,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
             ('tex_load_btn',       'open_icon'),
             ('tex_browse_btn',     'folder_icon'),
             ('tex_pass_btn',       'export_icon'),
+            ('tex_dp5_btn',        'dp5_workshop_icon'),
             ('tex_save_btn',       'save_icon'),
             ('save_btn',           'save_icon'),
             ('saveall_btn',        'saveas_icon'),

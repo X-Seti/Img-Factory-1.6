@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 119
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 121
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -2992,7 +2992,7 @@ class IMGFactory(QMainWindow):
             return False
 
 
-    def load_file_unified(self, file_path: str): #vers 10
+    def load_file_unified(self, file_path: str): #vers 11
         """Unified file loader - handles IMG, COL, TXD, HXD, MXD, AGR, LVZ"""
         try:
             if not file_path or not os.path.exists(file_path):
@@ -3007,6 +3007,9 @@ class IMGFactory(QMainWindow):
                 return True
             elif file_ext in ('.hxd', '.mxd', '.agr', '.lvz'):
                 self._load_img_file_in_new_tab(file_path)
+                return True
+            elif file_ext in ('.iso', '.bin'):                 # disc images
+                self.open_disc_workshop_docked(file_path)
                 return True
 
             if file_ext == '.img':
@@ -3050,7 +3053,7 @@ class IMGFactory(QMainWindow):
                 continue
             self._load_img_file_in_new_tab(p, batch=batch)
 
-    def _load_img_file_in_new_tab(self, file_path, batch=None): #vers 4
+    def _load_img_file_in_new_tab(self, file_path, batch=None): #vers 5
         """Load IMG file in a new tab.
 
         Each file gets its own IMGLoadThread carrying the target tab_index so
@@ -3058,6 +3061,10 @@ class IMGFactory(QMainWindow):
         batch: ImgBatchLoadDialog - results go there, no per-file error popup.
         """
         try:
+            from apps.methods.cd_image import is_cd_image
+            if is_cd_image(file_path):                     # CD / DVD image, not a GTA IMG
+                self.open_disc_workshop_docked(file_path)
+                return
             from apps.methods.tab_system import create_tab
 
             # Create the tab first — get back the index for THIS file
@@ -4726,6 +4733,16 @@ class IMGFactory(QMainWindow):
         """Open Terrain Workshop in a tab."""
         from apps.components.Terrain_Workshop.terrain_workshop import open_terrain_workshop
         return open_terrain_workshop(self)
+
+    def open_disc_workshop_docked(self, file_path=None): #vers 1
+        """Open Disc Workshop (CD / DVD images) in a tab."""
+        from apps.components.Disc_Workshop.disc_workshop import open_disc_workshop
+        return open_disc_workshop(self, file_path)
+
+    def open_retro_gta_workshop_docked(self, file_path=None): #vers 1
+        """Open Retro GTA Workshop (GTA2 maps / styles) in a tab."""
+        from apps.components.Retro_GTA_Workshop.retro_gta_workshop import open_retro_gta_workshop
+        return open_retro_gta_workshop(self, file_path)
 
     def open_scm_workshop_docked(self, file_path=None): #vers 1
         """Open SCM Workshop docked in a tab."""

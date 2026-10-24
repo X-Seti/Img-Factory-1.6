@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_data_func.py - Version: 7
+#this belongs in apps/components/Ped_Workshop/depends/ped_data_func.py - Version: 9
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop ped data
 
 """
@@ -13,6 +13,8 @@ popcycle, Decision) and loading a ped's DFF + TXD.
 # _load_ped
 # _open_ped_root
 # _open_ped_file
+# _ped_file_table_apply
+# _ped_file_table_view
 # _ped_img_bytes
 # _ped_selected
 # _save_ped_ide
@@ -32,8 +34,8 @@ from apps.methods.ped_files import PED_COLUMNS, game_ped_paths, read_ped_ide, wr
 class PedDataMixin: #vers 1
     """Peds IDE, ped groups and ped types for PedWorkshop."""
 
-    def _create_peds_dock(self): #vers 6
-        """Game folder row, tabs: Peds table / Data files."""
+    def _create_peds_dock(self): #vers 7
+        """Game folder row, tabs: Peds table / Data files / Components (IV)."""
         self._ped_root, self._ped_paths, self._ped_rows = '', {}, []
         self._ped_ide_dirty = False
         panel = QWidget()
@@ -67,12 +69,22 @@ class PedDataMixin: #vers 1
         self._ped_file_combo.currentIndexChanged.connect(self._show_ped_file)
         self._ped_file_shown = None
         row.addWidget(self._ped_file_combo, 1)
+        self._ped_table_btn = tb('grid_icon', "Table view: one row per data line (comma or space columns)",
+                                 None, checkable=True)
+        self._ped_table_btn.toggled.connect(self._ped_file_table_view)
+        row.addWidget(self._ped_table_btn)
         row.addWidget(tb('save_icon', "Save this file (backup first)", lambda: self._save_ped_text()))
         dl.addLayout(row)
         self._ped_file_edit = QPlainTextEdit()
         self._ped_file_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         dl.addWidget(self._ped_file_edit, 1)
+        self._ped_file_grid = QTableWidget(0, 0)                # table view of the same text
+        self._ped_file_grid.hide()
+        self._ped_file_grid_rows = []
+        dl.addWidget(self._ped_file_grid, 1)
         tabs.addTab(data, "Data files")
+        self._iv_tab_index = tabs.addTab(self._create_iv_tab(), "Components")   # GTA IV peds
+        tabs.setTabVisible(self._iv_tab_index, False)
         lay.addWidget(tabs, 1)
         dock = QDockWidget("Peds", self)
         dock.setObjectName("Peds")
@@ -80,7 +92,7 @@ class PedDataMixin: #vers 1
         self._peds_dock = dock
         return dock
 
-    def _open_ped_root(self, root: str): #vers 4
+    def _open_ped_root(self, root: str): #vers 5
         """Load peds IDE, pedgrp.dat, ped.dat and ped.ifp of a game folder."""
         if not root:
             root = QFileDialog.getExistingDirectory(self, "GTA game folder", self._ped_root or '')
@@ -95,6 +107,7 @@ class PedDataMixin: #vers 1
             recent = [root] + [r for r in self._load_ped_prefs().get('recent_roots', []) if r != root]
             self._save_ped_prefs(recent_roots=recent[:8])
         self._ped_root_label.setText(f"{os.path.basename(os.path.normpath(root))}  ({paths['game'].upper()})")
+        self._ped_tabs.setTabVisible(self._iv_tab_index, paths['game'] == 'iv')
         _lines, self._ped_rows = read_ped_ide(paths['ide'])
         cols = PED_COLUMNS[paths['game']]
         width = max([len(cols)] + [len(f) for _i, f, _c in self._ped_rows])
@@ -138,12 +151,14 @@ class PedDataMixin: #vers 1
                                for c in range(min(3, t.columnCount())))
             t.setRowHidden(r, not hit)
 
-    def _ped_selected(self): #vers 2
+    def _ped_selected(self): #vers 3
         rows = self._ped_table.selectionModel().selectedRows()
         if rows:
             r = rows[0].row()
-            if self._ped_paths.get('game') == 'iv':
-                self._set_status("Ped: GTA IV ped models (componentpeds) not previewed yet")
+            if self._ped_paths.get('game') == 'iv':            # component ped (componentpeds.img)
+                name = self._ped_table.item(r, 0).text() if self._ped_table.item(r, 0) else ''
+                if name:
+                    self._iv_load_ped(name)
                 return
             model = self._ped_table.item(r, 1).text() if self._ped_table.item(r, 1) else ''
             txd = self._ped_table.item(r, 2).text() if self._ped_table.item(r, 2) else model
@@ -165,8 +180,8 @@ class PedDataMixin: #vers 1
         e = next((x for x in arc.entries if x.name.lower() == name.lower()), None)
         return arc.read_entry_data(e) if e is not None else None
 
-    def _load_ped(self, model: str, txd: str): #vers 1
-        """Show a ped DFF with its TXD and hand it to the animator."""
+    def _load_ped(self, model: str, txd: str): #vers 2
+        """Show a ped DFF with its TXD (animator set up by _show_dff)."""
         import tempfile
         raw = self._ped_img_bytes(model + '.dff')
         if raw is None:
@@ -180,9 +195,55 @@ class PedDataMixin: #vers 1
         tex = self._ped_img_bytes(txd + '.txd')
         if tex is not None:
             self._load_txd_file_from_data(tex, txd + '.txd')
-        if hasattr(self, '_init_animator'):
-            self._init_animator(raw)
         self._set_status(f"Ped: {model}")
+
+    def _ped_file_table_view(self, on: bool): #vers 1
+        """Show the data file as a table (on) or text (off, table edits written in)."""
+        grid, edit = self._ped_file_grid, self._ped_file_edit
+        if on:
+            rows = []
+            for i, line in enumerate(edit.toPlainText().split('\n')):
+                body, sep, comment = line.partition('#')
+                if not body.strip():
+                    continue
+                comma = ',' in body
+                fields = [x.strip() for x in (body.split(',') if comma else body.split())]
+                rows.append((i, fields, comma, sep + comment))
+            self._ped_file_grid_rows = rows
+            grid.blockSignals(True)
+            grid.clear()
+            grid.setRowCount(len(rows))
+            grid.setColumnCount(max([len(f) for _i, f, _c, _t in rows] + [1]))
+            grid.setVerticalHeaderLabels([str(i + 1) for i, _f, _c, _t in rows])   # file line numbers
+            for r, (_i, fields, _c, _t) in enumerate(rows):
+                for c, v in enumerate(fields):
+                    grid.setItem(r, c, QTableWidgetItem(v))
+            grid.resizeColumnsToContents()
+            grid.blockSignals(False)
+        else:
+            self._ped_file_table_apply()
+        self._ped_file_grid_on = on
+        grid.setVisible(on)
+        edit.setVisible(not on)
+
+    def _ped_file_table_apply(self): #vers 1
+        """Write changed table rows back into their text lines."""
+        grid, edit = self._ped_file_grid, self._ped_file_edit
+        if not getattr(self, '_ped_file_grid_on', False) or not self._ped_file_grid_rows:
+            return
+        lines = edit.toPlainText().split('\n')
+        changed = 0
+        for r, (i, fields, comma, tail) in enumerate(self._ped_file_grid_rows):
+            new = [grid.item(r, c).text().strip() if grid.item(r, c) else '' for c in range(grid.columnCount())]
+            while len(new) > len(fields) and not new[-1]:
+                new.pop()
+            if new != fields and i < len(lines):
+                lines[i] = (', ' if comma else '\t').join(new) + (('\t' + tail) if tail else '')
+                self._ped_file_grid_rows[r] = (i, new, comma, tail)
+                changed += 1
+        if changed:
+            edit.setPlainText('\n'.join(lines))
+            edit.document().setModified(True)
 
     def _save_ped_ide(self): #vers 2
         """Write edited table cells back into the peds section."""
@@ -202,8 +263,9 @@ class PedDataMixin: #vers 1
         self._ped_ide_dirty = False
         self._set_status(f"Peds IDE: {n} row(s) saved")
 
-    def _show_ped_file(self, _index: int): #vers 2
+    def _show_ped_file(self, _index: int): #vers 3
         """Load the chosen ped data file; offers to save edits to the last one."""
+        self._ped_file_table_apply()
         if self._ped_file_shown and self._ped_file_edit.document().isModified():
             name = os.path.basename(self._ped_file_shown)
             if QMessageBox.question(self, "Ped Workshop", f"Save changes to {name}?") == \
@@ -214,13 +276,16 @@ class PedDataMixin: #vers 1
         self._ped_file_edit.setReadOnly(not p)
         self._ped_file_edit.document().setModified(False)
         self._ped_file_shown = p
+        if self._ped_table_btn.isChecked():                 # table view follows the file
+            self._ped_file_table_view(True)
 
-    def _save_ped_text(self, path: str = ''): #vers 3
+    def _save_ped_text(self, path: str = ''): #vers 4
         """Save the shown ped data file (backup first)."""
         from apps.methods.file_backup import safe_write_bytes
         p = path or self._ped_file_combo.currentData()
         if not p:
             return
+        self._ped_file_table_apply()                        # table edits into the text first
         with open(p, 'rb') as f:
             nl = '\r\n' if b'\r\n' in f.read() else '\n'
         text = self._ped_file_edit.toPlainText().replace('\n', nl)

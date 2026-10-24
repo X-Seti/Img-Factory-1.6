@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Terrain_Workshop/terrain_workshop.py - Version: 4
+#this belongs in apps/components/Terrain_Workshop/terrain_workshop.py - Version: 5
 # X-Seti - October 22 2026 - IMG Factory 1.6 - Terrain Workshop
 
 """
@@ -13,6 +13,7 @@ tiling, and export DFF / COL / TXD / IDE / IPL for III, VC and SA.
 #
 ##class TerrainWorkshop: -
 # _ribbon_config_path
+# _radar_settings_path
 # _titlebar_title
 # closeEvent
 # setup_ui
@@ -47,6 +48,10 @@ class TerrainWorkshop(TerrainGridMixin, TerrainImageMixin, TerrainMaterialMixin,
     def _ribbon_config_path(self): #vers 1
         from apps.components.Map_Editor.depends.map_widgets_func import _model_workshop_config_dir
         return _model_workshop_config_dir() / 'terrain_workshop.json'
+
+    def _radar_settings_path(self): #vers 1
+        """Game root radar_settings.json, else Terrain's own file."""
+        return super()._radar_settings_path() or str(self._ribbon_config_path().with_name('terrain_radar.json'))
 
     def _titlebar_title(self): #vers 1
         return App_name

@@ -1,4 +1,4 @@
-#this belongs in apps/methods/path_nodes.py - Version: 5
+#this belongs in apps/methods/path_nodes.py - Version: 6
 # X-Seti - October 19 2026 - IMG Factory 1.6 - Path node writers
 
 """
@@ -107,7 +107,7 @@ def _patch_sa_bytes(data, path_file, nodes): #vers 1
     return bytes(buf)
 
 
-def write_back(src, make_bytes): #vers 2
+def write_back(src, make_bytes): #vers 3
     """Rewrite a loose file or an 'x.img:entry' in place (backup first).
     make_bytes(old) -> new; an IMG entry is padded in place, or rewritten when it grows."""
     img_path, sep, entry_name = src.rpartition(':')
@@ -124,7 +124,8 @@ def write_back(src, make_bytes): #vers 2
         stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         with open(os.path.join(bdir, f"{entry_name}.{stamp}.bak"), 'wb') as f:
             f.write(data)                      # entry backup, not whole IMG
-        if len(new) <= len(data):
+        same_rsc = new[:4] != b'RSC\x05' or new[8:12] == data[8:12]   # IV table keeps RSC flags
+        if len(new) <= len(data) and same_rsc:
             arc.write_entry_data(entry, new.ljust(len(data), b'\0'))
         elif not arc.add_entry(entry.name, new):          # grew: IMG rewrites the entry
             raise ValueError(f"{entry_name}: {getattr(arc, 'last_error', '') or 'IMG refused the larger entry'}")

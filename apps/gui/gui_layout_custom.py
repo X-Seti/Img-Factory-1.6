@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 26
+#this belongs in apps/gui/gui_layout_custom.py - Version: 28
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -223,6 +223,12 @@ def _show_intro_panel(mw): #vers 7
                     ws.open_terrain_workshop.connect(
                         lambda: mw.open_terrain_workshop_docked()
                         if hasattr(mw, 'open_terrain_workshop_docked') else None)
+                    ws.open_disc_workshop.connect(
+                        lambda: mw.open_disc_workshop_docked()
+                        if hasattr(mw, 'open_disc_workshop_docked') else None)
+                    ws.open_retro_gta_workshop.connect(
+                        lambda: mw.open_retro_gta_workshop_docked()
+                        if hasattr(mw, 'open_retro_gta_workshop_docked') else None)
                     ws.open_scm_workshop.connect(
                         lambda: mw.open_scm_workshop_docked()
                         if hasattr(mw, 'open_scm_workshop_docked') else None)

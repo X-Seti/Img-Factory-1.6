@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dock_panels.py - Version: 8
+#this belongs in apps/methods/dock_panels.py - Version: 11
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Workshop dock panels
 
 """
@@ -19,13 +19,14 @@ _ribbon_config_path and section_title_font.
 #
 ##class DockPanelsMixin: -
 # _make_dock_collapsible
+# _outer_dock_menu
 # _restore_outer_layout
 # _save_outer_layout
 
 import json
 
 from PyQt6.QtCore import QByteArray, QEvent, QObject, Qt
-from PyQt6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QMainWindow,
+from PyQt6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QMainWindow, QMenu,
                              QTabBar, QToolButton, QToolTip, QWidget)
 
 
@@ -126,7 +127,7 @@ def redock_to_tab(ws): #vers 1
 class DockPanelsMixin: #vers 1
     """Collapsible dock titles and saved outer dock layout."""
 
-    def _make_dock_collapsible(self, dock, title): #vers 11
+    def _make_dock_collapsible(self, dock, title): #vers 14
         """Title bar: double-click collapses, or re-docks when floating; close."""
         #TODO missing splitter between middle panel and right panel, or right panel, and newly placed "middle panel", that was moved to the right of the right panel.
         #X gadgets do not work, and right click menu recovery bar needs work.
@@ -140,6 +141,7 @@ class DockPanelsMixin: #vers 1
         lbl = QLabel(title)
         lbl.setFont(self.section_title_font)
         dock._title_label = lbl        # callers can update the shown title
+        lbl.setMinimumWidth(20)        # long titles never stop the panel getting narrow
         lay.addWidget(lbl)
         lay.addStretch()
         close_btn = QToolButton()
@@ -160,7 +162,31 @@ class DockPanelsMixin: #vers 1
                 content.setVisible(not content.isVisible())
         bar.mouseDoubleClickEvent = _dbl_click
         lbl.mouseDoubleClickEvent = _dbl_click
+        for w in (bar, dock):                           # right-click title / panel: reopen panels
+            w.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            w.customContextMenuRequested.connect(lambda pos, ww=w: self._outer_dock_menu(ww.mapToGlobal(pos)))
+        mw = dock.parentWidget()
+        if isinstance(mw, QMainWindow) and not getattr(mw, '_panel_menu', False):   # separators / empty areas
+            mw._panel_menu = True
+            mw.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            mw.customContextMenuRequested.connect(lambda pos, m=mw: self._outer_dock_menu(m.mapToGlobal(pos)))
         dock.setTitleBarWidget(bar)
+
+    def _outer_dock_menu(self, global_pos, menu=None): #vers 1
+        """Panel show / hide toggles (+ Ribbon Manager); added to menu, else shown at global_pos."""
+        own = menu is None
+        if own:
+            menu = QMenu(self)
+        for d in getattr(self, '_outer_docks', []):
+            a = menu.addAction(d.windowTitle())
+            a.setCheckable(True)
+            a.setChecked(d.isVisible())
+            a.toggled.connect(lambda on, dd=d: (dd.setVisible(on), dd.raise_()) if on else dd.setVisible(False))
+        if hasattr(self, 'open_ribbon_manager'):
+            menu.addSeparator()
+            menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
+        if own:
+            menu.exec(global_pos)
 
     def _save_outer_layout(self): #vers 3
         """Save _outer_mw dock layout to the workshop config."""

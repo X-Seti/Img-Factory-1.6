@@ -1,6 +1,60 @@
-#this belongs in root /ChangeLog.md - Version: 305
+#this belongs in root /ChangeLog.md - Version: 357
 
 
+- Oct 24 2026 - Retro GTA Workshop panels: rows never stack; labels turn to icons (IconLabel), flags are icon toggles, Tiles buttons one row. FoldRow removed.
+- Oct 24 2026 - FoldRow wraps one part at a time (no all-or-nothing stack); Block Help is a 26 x 26 icon.
+- Oct 24 2026 - Retro-GTA-Workshop standalone: retro_gta_workshop.spec, build_retro_gta_workshop.bat, requirements.txt (PyInstaller, Windows exe). All imports present.
+- Oct 24 2026 - Ribbon Manager: moved widget buttons saved and restored (_RIBBON_WIDGET_ITEMS, on in Retro GTA Workshop); layout applied at start.
+- Oct 24 2026 - Retro GTA Workshop: panels go narrower (rows stack, buttons go icon-only). New methods/fold_widgets.py (ButtonRow, FoldRow, fit_height). Dock titles shrink.
+- Oct 24 2026 - Retro GTA Workshop: right splitter stuck (Text / Data button rows too wide), now two rows. Ribbon Manager OK crash (_save_toolbar_state) fixed.
+- Oct 24 2026 - Ribbons: no floating (Wayland could not re-dock them); saved floating ribbons docked again; right-click Dock All Ribbons.
+- Oct 24 2026 - SVG icons: get_pin_icon registered on SVGIconFactory; Retro GTA Workshop Mission objects ribbon button showed [Mi] with no icon.
+- Oct 24 2026 - Workshops: corner handles resize only that corner (system resize, Wayland safe). Panel menu on right-click anywhere in panels / around them.
+- Oct 24 2026 - Workshops: right-click a panel title or ribbon to reopen closed panels; View - Panels menu. Retro GTA Workshop: Ribbon Manager added.
+- Oct 24 2026 - Retro GTA Workshop: drag lights, map objects, zones (traffic lights) and mission objects on the map; Data / Text CSV import / export.
+- Oct 24 2026 - Retro GTA Workshop: palettes export / import / DP5 (all 4 style types); tile PNG import / export; PS1 image Edit in DP5; Help button icon. Shared png_rgba.
+- Oct 24 2026 - Retro GTA Workshop: right dock splitter fixed (Media button rows shrink), Block editor gap removed, Help beside title, Files panel Folder button.
+- Oct 24 2026 - Retro GTA Workshop: Block panel - flags beside face / tile, 8 arrows in one row, [Help] tooltip in dock title. New [X-Ref] format reference (retro_xref_func.py).
+- Oct 24 2026 - Retro GTA Workshop: lid rotation fixed (rotate, then flip) in map, thumbnails and 3D export. Map right-click: snapshot, export / import map PNG.
+- Oct 24 2026 - Retro GTA Workshop: Block panel redesigned (splitter, tile preview, arrow buttons, New / Delete / Clear); Files panel style + missions row, import / export missions; settings tab.
+- Oct 24 2026 - Retro GTA Workshop: Media tab - Sounds / Images / Videos tabs, prev / play / next, import (wav to sdt / PS-ADPCM bank, PNG to vsr). Tile hover enlarge, sprite zoom / import. gui_workshop: _extra_settings_tab.
+- Oct 24 2026 - Disc Workshop: bigger files move after the image end, Add file to a folder (no Joliet discs); volume size + CloneCD .ccd lead-out updated.
+- Oct 24 2026 - Retro GTA Workshop: 3D export - gradient slopes (types 1-44) tilt lids / walls; export an area (default visible area).
+- Oct 24 2026 - Retro GTA Workshop: move mission objects (Data tab), Save missions writes MISSION.INI / .scr; GTA2 trigger areas, gang, crane markers. PS1 MISSION.VSR not read.
+- Oct 24 2026 - Retro GTA Workshop: Data tab - edit zones (GTA1/GTA2/PS1 GTA2), GTA2 lights + map objects (drawn on map); New blank map; Save map as. GTA2 junctions (RGEN) not done.
+- Oct 24 2026 - Retro GTA Workshop: Media tab - PC .sdt/.raw sounds, PS1 AUDIO.vsr banks, PS1 .vsr images (fonts, front end), .str to MP4 (ffmpeg), .wav; play / export. New retro_media.py, retro_media_func.py.
+- Oct 24 2026 - Retro GTA Workshop: GTA1 .gry styles; sprite editing via DP5 (all styles). New methods/retro_palette.py shares PS1 colour / quantize code (duplicates removed).
+- Oct 24 2026 - Retro GTA Workshop: Export 3D - OBJ whole map, sector DFF + COL, IDE / IPL, TXD (hidden faces culled, slopes flat). New retro_mesh.py, retro_mesh_func.py.
+- Oct 24 2026 - Retro GTA Workshop: Port blocks from another map (PC <-> PS1, GTA1 / GTA2), tiles matched by look. New retro_port.py, retro_port_func.py.
+- Oct 24 2026 - Retro GTA Workshop: mission markers - GTA1 MISSION.INI objects, GTA2 .scr placements on map, Missions combo, hover info. New retro_missions.py, retro_mission_func.py.
+- Oct 24 2026 - Retro GTA Workshop: Text tab - GTA1 .fxt / GTA2 .gxt view, filter, edit, add / delete keys, save. New methods/retro_text.py, depends/retro_text_func.py.
+- Oct 24 2026 - Retro GTA Workshop: PS1 GTA2 .sty sprites read (2956: cars mirrored 8-bit, peds, objects, fonts, deltas). gta2_psx.py v2.
+- Oct 24 2026 - Retro GTA Workshop: PS1 GTA2 .gmp (CMAP) map read/write and .sty 32px tiles read/write. New methods/gta2_psx.py. PS1 GTA2 sprites not read yet.
+- Oct 23 2026 - Retro GTA Workshop: PS1 GTA1 city .vsr (NYC/SANB/MIAMI) read and write - map, 32px tiles, sprites. New methods/vsr_archive.py, methods/gta1_psx.py.
+- Oct 23 2026 - New Disc Workshop + methods/cd_image.py: CloneCD .img / .bin / .iso read, extract, replace in place (EDC/ECC, Joliet). IMG Factory routes disc .img files to it.
+- Oct 23 2026 - Retro GTA Workshop: see-through lids (lamps, poles) drew black - lids now stacked from every level. Ground types + traffic arrows overlay.
+- Oct 23 2026 - Retro GTA Workshop: export all tiles + sprites as PNGs (tiles/, sprites/<group>/) or one 32-bit TXD.
+- Oct 23 2026 - Retro GTA Workshop: crash on mouse move before a map is open - fixed (hover and New block need a map).
+- Oct 23 2026 - New Retro GTA Workshop (GTA1 .cmp/.g24, GTA2 .gmp/.sty): map view, block editor, lid paint, tiles to DP5, sprites, save. Standalone repo Retro-GTA-Workshop.
+- Oct 23 2026 - Ped Workshop: GTA IV peds skinned to the .wft skeleton; .wad anims (anim.img) play. Components save to componentpeds.img. IMG v3 rebuild used old data for replaced entries - fixed.
+- Oct 23 2026 - Ped Workshop: GTA IV peds from componentpeds.img - Components tab picks each slot drawable + texture variation. Data files get a Table view.
+- Oct 23 2026 - Ped Workshop: Skinning window - bone weight heat map, paint / undo / save into DFF and gta3.img; Texture / UV view, UV PNG export, Edit in DP5.
+- Oct 23 2026 - Ped Workshop: Search all anims across every IFP; batch export chosen anims to one IFP or one per anim.
+- Oct 23 2026 - Terrain Workshop: guide picture rendered white - solid view; terrain and guide now switch the viewport to textured.
+- Oct 22 2026 - Ped Workshop: Settings Grid tab - pattern (Squares, Hex, Solid, Checkerboard), line / fill colour, thickness 1-10 px; live, saved. Grid menu gets Custom.
+- Oct 22 2026 - DP5 Send back: textures sent from Model, Ped or Map Workshop return to that editor (new methods/dp5_link.py). Map Workshop gets Pass to DP5.
+- Oct 22 2026 - Model / Ped Workshop: Pass to DP5 Workshop (Textures button and right-click) sends selected or all textures to DP5 to paint.
+- Oct 22 2026 - Ped Workshop: gizmo toggle next to bones hides the axis gizmo and joint rotate rings. New gizmo_axes_icon.
+- Oct 22 2026 - Ped Workshop: texture size button in the Textures title (512 / 256 / 128) scales ped textures down smoothly; Save TXD keeps it.
+- Oct 22 2026 - Ped Workshop: wireframe toggle, 4-pane button (posed ped in all panes), grid styles (lines, holodeck, checkerboard, honeycomb, texture). Viewport checker grid.
+- Oct 22 2026 - Ped Workshop: controller walk (new ped_pad_func.py). Left stick walk / run and face, grid slides, right stick orbit, L2 / R2 zoom, Cross idle.
+- Oct 22 2026 - Ped Workshop: peds stored lying down (some VC / SA DFFs) now stand up; pelvis-to-head set upright.
+- Oct 22 2026 - Ped Workshop: Ped view button (Front / Right / Back / Left) also in the Bones title; tooltip shows orbit / pan mouse.
+- Oct 22 2026 - Ped Workshop: bones / anims now work for any opened DFF (Open, IMG, tabs), not only the Peds list.
+- Oct 22 2026 - Ped Workshop: grid sits at the feet and slides under in-place walks; IFP dropdown list wider; ped icon on Peds / Ipf Edit buttons and window.
+- Oct 22 2026 - Radar layer rotate (Map + Terrain align window). Terrain: radar layer under ground, align button (move, rotate, scale), saved per game or terrain_radar.json.
+- Oct 22 2026 - Terrain Workshop: ground slightly see-through (80% default), Opacity slider in the Terrain pane.
+- Oct 22 2026 - Terrain Workshop ribbon / toolbar layout no longer shared with Map Workshop; each saves its own. Guide fix: no refresh before first show.
 - Oct 22 2026 - Terrain Workshop: new terrain from image or game radar (flat, guide layer, colours pre-paint materials). Guide toggle. Radar speed still to check.
 - Oct 22 2026 - Model / Ped Workshop: [=] view toggle moved into the Models title next to [x]; empty button row hidden when standalone.
 - Oct 22 2026 - Ped / Terrain ribbons save to their own config (icon set, icon scale, toolbar state, info ribbons, dock layout). Saved icon scale restored on open. Col/Txd standalones synced.

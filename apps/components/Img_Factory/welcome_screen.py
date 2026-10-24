@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 28
+# apps/components/Img_Factory/welcome_screen.py — Version 30
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -176,6 +176,8 @@ class WelcomeScreen(QWidget):
     open_vehicle_workshop  = pyqtSignal()
     open_ped_workshop      = pyqtSignal()
     open_terrain_workshop  = pyqtSignal()
+    open_retro_gta_workshop = pyqtSignal()
+    open_disc_workshop     = pyqtSignal()
     open_scm_workshop      = pyqtSignal()
     open_hex_workshop      = pyqtSignal()
     open_asset_checker     = pyqtSignal()
@@ -385,7 +387,7 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 10
+    def _build_quickstart_tab(self): #vers 12
         from PyQt6.QtCore import Qt as _Qt
         # Scroll area — vertical scrollbar always visible (ready for future cards)
         scroll = QScrollArea()
@@ -469,6 +471,14 @@ class WelcomeScreen(QWidget):
              "Create ground, sculpt hills, paint grass, sand, rock and roads "
              "with UV tiling. Exports DFF / COL / TXD / IDE / IPL.",
              self.open_terrain_workshop),
+            (_SVG.retro_gta_app_icon(36), "Retro GTA Workshop",
+             "Top-down GTA editor. GTA2 maps (.gmp) and styles (.sty): map view, "
+             "block faces, lid painting, tiles and sprites.",
+             self.open_retro_gta_workshop),
+            (_SVG.disc_app_icon(36), "Disc Workshop",
+             "CD / DVD images (CloneCD .img, .bin, .iso): browse, extract the "
+             "whole disc, replace files in place. PS1 GTA discs too.",
+             self.open_disc_workshop),
             (_SVG.asset_app_icon(36), "Asset Checker",
              "Cross-reference model names across an IMG archive, a COL file "
              "and an IDE file sharing the same base name.",
@@ -533,7 +543,7 @@ class WelcomeScreen(QWidget):
         scroll.setWidget(w)
         return scroll
 
-    def _build_functions_tab(self): #vers 4
+    def _build_functions_tab(self): #vers 6
         from PyQt6.QtCore import Qt as _Qt
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -681,6 +691,36 @@ class WelcomeScreen(QWidget):
              "Own PNG or a game TXD texture; generated colour by default."),
             ("Export",             "Export tab",
              "Tiles as DFF + COL, one TXD, IDE + IPL for III, VC or SA; optional IMG add."),
+        ]))
+
+        #  Disc Workshop
+        lay.addWidget(self._section("Disc Workshop"))
+        lay.addWidget(self._doc_table([
+            ("Open a disc image",  "Open (or open any .img that is a CD image)",
+             "CloneCD .img, raw .bin (PS1 Mode 2), .iso: ISO 9660 file tree, sizes, sectors."),
+            ("Extract",            "Files ribbon - extract selected / whole disc",
+             "STR / XA video and audio as raw 2336-byte sectors, CD audio tracks as .wav."),
+            ("Replace a file",     "Files ribbon - replace",
+             "Must fit the sectors the file already uses; EDC / ECC rewritten. Save writes the image (backup first)."),
+            ("GTA1 / GTA2 maps",   "Double-click a .gmp / .sty / .cmp / .g24",
+             "Opens it in Retro GTA Workshop."),
+        ]))
+
+        #  Retro GTA Workshop
+        lay.addWidget(self._section("Retro GTA Workshop"))
+        lay.addWidget(self._doc_table([
+            ("Open GTA2",          "File ribbon - folder",
+             "Lists the .gmp maps (with .mmp descriptions) and .sty styles."),
+            ("View a map",         "Maps list - double-click",
+             "Wheel zoom, right-drag pan, Top or one level, grid and zones."),
+            ("Edit a block",       "Click a block - Block pane",
+             "Faces lid / left / right / top / bottom: tile, rotation, flip, flat, wall, light, ground, slope, arrows."),
+            ("Paint lids",         "Tiles pane - pick a tile, Edit ribbon - brush",
+             "Click or drag on the map; Undo steps back."),
+            ("Tiles and sprites",  "Tiles pane - Edit in DP5 / Sprites tab",
+             "DP5 Send back writes the tile into the style; sprites export as PNG."),
+            ("Save",               "File ribbon - save map / save style",
+             "Backups first; the map's DMAP is rebuilt, other chunks kept."),
         ]))
 
         lay.addStretch()

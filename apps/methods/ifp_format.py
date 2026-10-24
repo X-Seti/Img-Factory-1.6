@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ifp_format.py - Version: 1
+#this belongs in apps/methods/ifp_format.py - Version: 2
 # X-Seti - October 21 2026 - IMG Factory 1.6 - IFP animation read / write
 
 """
@@ -58,7 +58,7 @@ class IFPBone: #vers 1
     name_raw: bytes = b''
     extra: bytes = b''               # ANPK ANIM fields after frame count
 
-    def sample(self, t: float): #vers 1
+    def sample(self, t: float): #vers 2
         """(rot quat, trans or None) at time t, slerp / lerp between keys."""
         ks = self.keys
         if not ks:
@@ -77,6 +77,11 @@ class IFPBone: #vers 1
         a, b = ks[lo], ks[hi]
         f = (t - a.time) / max(b.time - a.time, 1e-9)
         qa, qb = a.rot, b.rot
+        if qa is None or qb is None:                 # translation-only track (GTA IV)
+            tr = None
+            if a.trans is not None and b.trans is not None:
+                tr = tuple(x + (y - x) * f for x, y in zip(a.trans, b.trans))
+            return None, tr
         dot = sum(x * y for x, y in zip(qa, qb))
         if dot < 0:
             qb, dot = tuple(-x for x in qb), -dot

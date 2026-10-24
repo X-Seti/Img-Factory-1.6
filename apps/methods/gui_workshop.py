@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 14
+#this belongs in apps/methods/gui_workshop.py - Version: 16
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -261,7 +261,11 @@ class _ToolbarMixin(TitlebarMixin):
 
     #  [Settings] — Workshop-local settings dialog
 
-    def _show_workshop_settings(self): #vers 1
+    def _extra_settings_tab(self, tabs): #vers 1
+        """Override: add a workshop's own tab to Settings; return a callable run on OK (or None)."""
+        return None
+
+    def _show_workshop_settings(self): #vers 2
         """[Settings] button — workshop-local settings.
         Tabs: Fonts / Display / Menu / About
         Reads/writes WorkshopSettings (per-app JSON).
@@ -381,6 +385,7 @@ class _ToolbarMixin(TitlebarMixin):
         #  Dialog buttons
         from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
         add_sizes_tab(self, tabs)
+        extra_apply = self._extra_settings_tab(tabs)          # subclass tab, applied on OK
         lo.addWidget(tabs)
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
@@ -407,6 +412,8 @@ class _ToolbarMixin(TitlebarMixin):
         ws.set("menu_style",               "dropdown" if ms_cb.currentIndex()==0 else "topbar")
         ws.set("menu_dropdown_font_size",  mf_dd.value())
         ws.set("menu_bar_height",          mf_bh.value())
+        if extra_apply is not None:
+            extra_apply()
         ws.save()
 
         # Live-apply without restart where possible
@@ -682,7 +689,7 @@ class _LogicStubsMixin:
     def get_menu_title(self) -> str:
         return self.App_name
 
-    def _build_menus_into_qmenu(self, pm):
+    def _build_menus_into_qmenu(self, pm): #vers 2
         """Override to populate File / Edit / View menus for your app."""
         fm = pm.addMenu("File")
         fm.addAction("Open…  Ctrl+O",  self._open_file)
@@ -707,6 +714,9 @@ class _LogicStubsMixin:
         vm.addAction("Zoom In  +",     lambda: self._zoom(1.25))
         vm.addAction("Zoom Out  -",    lambda: self._zoom(0.8))
         vm.addAction("Fit  Ctrl+0",    self._fit)
+        if getattr(self, '_outer_docks', None):        # reopen closed panels, Ribbon Manager
+            vm.addSeparator()
+            self._outer_dock_menu(None, vm.addMenu("Panels"))
         vm.addSeparator()
         vm.addAction("About " + self.App_name, self._show_about)
 
@@ -917,25 +927,19 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
              "bottom-right": Qt.CursorShape.SizeFDiagCursor}
         self.setCursor(c.get(corner, Qt.CursorShape.ArrowCursor))
 
-    def _handle_corner_resize(self, global_pos):
-        if not self.resize_corner or not self.drag_position: return
-        delta = global_pos - self.drag_position
-        g = self.initial_geometry; dx, dy = delta.x(), delta.y()
-        if "right"  in self.resize_corner: self.resize(max(800,g.width()+dx), self.height())
-        if "bottom" in self.resize_corner: self.resize(self.width(), max(500,g.height()+dy))
-        if "left"   in self.resize_corner:
-            self.setGeometry(g.x()+dx, g.y(), max(800,g.width()-dx), g.height())
-        if "top"    in self.resize_corner:
-            self.setGeometry(g.x(), g.y()+dy, g.width(), max(500,g.height()-dy))
-
-    def mousePressEvent(self, ev):
+    def mousePressEvent(self, ev): #vers 2
+        """Corner: system resize of that corner only (Wayland safe); title bar: system move."""
         if ev.button() != Qt.MouseButton.LeftButton:
             super().mousePressEvent(ev); return
-        self.resize_corner = self._get_resize_corner(ev.pos())
-        if self.resize_corner:
-            self.resizing = True
-            self.drag_position = ev.globalPosition().toPoint()
-            self.initial_geometry = self.geometry()
+        corner = self._get_resize_corner(ev.pos())
+        if corner:
+            E = Qt.Edge
+            edges = {"top-left": E.TopEdge | E.LeftEdge, "top-right": E.TopEdge | E.RightEdge,
+                     "bottom-left": E.BottomEdge | E.LeftEdge,
+                     "bottom-right": E.BottomEdge | E.RightEdge}[corner]
+            handle = self.windowHandle()
+            if handle:
+                handle.startSystemResize(edges)
             ev.accept(); return
         if (hasattr(self, "titlebar") and
                 self.titlebar.geometry().contains(ev.pos())):
@@ -944,12 +948,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             ev.accept(); return
         super().mousePressEvent(ev)
 
-    def mouseMoveEvent(self, ev): #vers 2
-        if ev.buttons() == Qt.MouseButton.LeftButton:
-            if self.resizing and self.resize_corner:
-                self._handle_corner_resize(ev.globalPosition().toPoint())
-                ev.accept(); return
-        else:
+    def mouseMoveEvent(self, ev): #vers 3
+        if ev.buttons() != Qt.MouseButton.LeftButton:
             corner = self._get_resize_corner(ev.pos())
             if corner != self.hover_corner:
                 self.hover_corner = corner

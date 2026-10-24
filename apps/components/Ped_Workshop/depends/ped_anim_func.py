@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_anim_func.py - Version: 10
+#this belongs in apps/components/Ped_Workshop/depends/ped_anim_func.py - Version: 18
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop animation
 
 """
@@ -8,6 +8,7 @@ and stop-motion editing - pick a bone, rotate it, key it, step the frame.
 
 ##Methods list -
 # euler_from_matrix
+# heat_colour
 # matrix_from_euler
 # matrix_to_quat
 #
@@ -19,13 +20,19 @@ and stop-motion editing - pick a bone, rotate it, key it, step the frame.
 ##class PedAnimator: -
 # __init__
 # bone_track
+# bone_weights
 # delete_key
+# facing
+# ground_z
 # key_times
 # local_matrix
+# mesh_points
 # pose
 # pose_at
 # render
+# root_shift
 # set_key
+# upright_matrix
 #
 ##class PedAnimMixin: -
 # _anim_bone_changed
@@ -58,6 +65,7 @@ and stop-motion editing - pick a bone, rotate it, key it, step the frame.
 # _init_animator
 
 import math
+import os
 
 import numpy as np
 
@@ -71,6 +79,17 @@ from apps.methods.dff_skin import quat_to_matrix, read_skeleton
 from apps.methods.ifp_format import IFPAnim, IFPBone, IFPKey, load_ifp, save_ifp
 
 FPS = 30.0
+
+
+def heat_colour(w: float) -> tuple: #vers 1
+    """Weight 0..1 as blue, green, yellow, red (0-255 RGB)."""
+    w = max(0.0, min(1.0, float(w)))
+    stops = ((0.0, (25, 35, 110)), (0.33, (40, 190, 80)), (0.66, (240, 220, 40)), (1.0, (230, 40, 30)))
+    for (a, ca), (b, cb) in zip(stops, stops[1:]):
+        if w <= b:
+            f = (w - a) / (b - a)
+            return tuple(int(x + (y - x) * f) for x, y in zip(ca, cb)) + (255,)
+    return stops[-1][1] + (255,)
 
 
 def matrix_to_quat(m) -> tuple: #vers 1
@@ -149,9 +168,9 @@ class KeySlider(QSlider): #vers 1
 class PedAnimator: #vers 1
     """Skeleton + current IFP anim; poses and draws the ped."""
 
-    def __init__(self, model, raw: bytes): #vers 1
+    def __init__(self, model, raw: bytes, skeleton=None): #vers 5
         self.model = model
-        self.sk = read_skeleton(raw)
+        self.sk = skeleton if skeleton is not None else read_skeleton(raw)   # IV: iv_skeleton
         self.anim = None
         self.time = 0.0
         self.override = {}        # frame -> 4x4 local (unkeyed edit)
@@ -166,6 +185,12 @@ class PedAnimator: #vers 1
                 [(u.u, u.v) for u in g.uv_layers[0]] if g.uv_layers else [],
                 [(t.v1, t.v2, t.v3, t.material_id) for t in g.triangles],
                 [(c.r, c.g, c.b, c.a) for c in g.colors] if g.colors else [])
+        self.upright = np.eye(4)
+        self.upright = self.upright_matrix()
+        self.heading = 0.0          # degrees about Z (controller walk)
+        self.walk_pos = (0.0, 0.0)  # metres walked (grid slides by this)
+        self.pad_walk = False       # controller walk: no per-cycle root slide
+        self.weight_frame = -1      # >= 0: heat-map that bone's skin weights
 
     def bone_track(self, fi: int, create: bool = False): #vers 1
         """IFPBone of frame fi in the current anim (made on request)."""
@@ -184,7 +209,7 @@ class PedAnimator: #vers 1
             self.anim.bones.append(b)
         return b
 
-    def local_matrix(self, fi: int) -> np.ndarray: #vers 1
+    def local_matrix(self, fi: int) -> np.ndarray: #vers 2
         """Current local 4x4 of frame fi (edit, anim key or bind)."""
         if fi in self.override:
             return self.override[fi]
@@ -194,7 +219,7 @@ class PedAnimator: #vers 1
             return f['local']
         q, tr = b.sample(self.time)
         m = np.eye(4)
-        m[:3, :3] = quat_to_matrix(q)
+        m[:3, :3] = quat_to_matrix(q) if q is not None else f['local'][:3, :3]   # IV: trans-only
         m[3, :3] = tr if tr is not None else f['local'][3, :3]
         if self.in_place and tr is not None and f['parent'] == 0:
             m[3, :2] = f['local'][3, :2]
@@ -213,13 +238,17 @@ class PedAnimator: #vers 1
             self.time, self.override = keep, over
 
     def render(self, vp, mesh=True, bones=True, selected=-1, pick_cb=None, drag_cb=None,
-               ring_cb=None, ghost_times=()): #vers 2
+               ring_cb=None, ghost_times=()): #vers 7
         """Push the posed meshes, stick-man bones, rings and onion ghosts into the viewport."""
         ltms = self.pose()
         out = []
         space = np.eye(4)
         if self.sk.skins:
             space = np.linalg.inv(ltms[self.sk.atomics.get(next(iter(self.sk.skins)), 0)])
+        space = space @ self.facing()
+        if hasattr(vp, 'set_grid_origin'):                 # grid at the feet, slides under a walk
+            sx, sy = (0.0, 0.0) if self.pad_walk else self.root_shift(ltms, space)   # pad: steady slide
+            vp.set_grid_origin(-sx - self.walk_pos[0], -sy - self.walk_pos[1], self.ground_z())
         if bones:
             joints = [tuple((L @ space)[3, :3]) for L in ltms]
             pairs = [(i, f['parent']) for i, f in enumerate(self.sk.frames) if f['parent'] > 0]
@@ -230,7 +259,8 @@ class PedAnimator: #vers 1
             ghosts = []
             for gt in ghost_times:
                 g = self.pose_at(gt)
-                gs = np.linalg.inv(g[self.sk.atomics.get(next(iter(self.sk.skins)), 0)]) if self.sk.skins else space
+                gs = (np.linalg.inv(g[self.sk.atomics.get(next(iter(self.sk.skins)), 0)]) @ self.facing()
+                      if self.sk.skins else space)
                 ghosts.append([tuple((L @ gs)[3, :3]) for L in g])
             vp.set_skeleton(joints, pairs, selected, pick_cb, drag_cb, axes, ring_cb, ghosts)
         else:
@@ -240,20 +270,102 @@ class PedAnimator: #vers 1
             vp._all_geoms = []
             vp.update()
             return
-        for gi, fi in sorted(self.sk.atomics.items()):
+        for gi, (P, PN) in self.mesh_points(ltms).items():
             V, N, uvs, tris, prelit = self.geo[gi]
             g = self.model.geometries[gi]
-            if gi in self.sk.skins:
-                P, PN = self.sk.skin_vertices(gi, V, N, ltms)
-            else:
-                M = ltms[fi]
-                P = V @ M[:3, :3] + M[3, :3]
-                PN = N @ M[:3, :3] if N is not None else None
+            if self.weight_frame >= 0:                     # weight view: heat colours, no textures
+                heat = [(heat_colour(w)) for w in self.bone_weights(gi, self.weight_frame)]
+                out.append((P.tolist(), PN.tolist() if PN is not None else [], uvs, tris,
+                            [], heat, 0x02 | 0x08 | 0x10))
+                continue
             out.append((P.tolist(), PN.tolist() if PN is not None else [], uvs, tris,
                         g.materials, prelit, getattr(g, 'flags', 0)))
         vp._vertices = []
         vp._all_geoms = out
         vp.update()
+
+    def bone_weights(self, gi: int, fi: int) -> np.ndarray: #vers 1
+        """Per-vertex weight of frame fi's bone in geometry gi (0 if unskinned)."""
+        n = len(self.geo[gi][0])
+        sk = self.sk.skins.get(gi)
+        b = self.sk.bone_of_frame().get(fi)
+        if sk is None or b is None:
+            return np.zeros(n)
+        return (sk['weights'] * (sk['indices'] == b)).sum(axis=1)
+
+    def mesh_points(self, ltms) -> dict: #vers 3
+        """Posed (points, normals) per geometry for frame LTMs."""
+        out = {}
+        for gi, fi in sorted(self.sk.atomics.items()):
+            V, N, _uvs, _tris, _prelit = self.geo[gi]
+            if gi in self.sk.skins:
+                P, PN = self.sk.skin_vertices(gi, V, N, ltms)
+            else:
+                M = ltms[fi]
+                P, PN = V @ M[:3, :3] + M[3, :3], (N @ M[:3, :3] if N is not None else None)
+            U = self.facing()[:3, :3]                     # stand lying peds up, face the walk
+            out[gi] = (P @ U, PN @ U if PN is not None else None)
+        return out
+
+    def facing(self) -> np.ndarray: #vers 1
+        """Upright fix then the walk heading, as a 4x4 (row vectors)."""
+        h = np.radians(self.heading)
+        rz = np.eye(4)
+        rz[:2, :2] = [[np.cos(h), np.sin(h)], [-np.sin(h), np.cos(h)]]
+        return self.upright @ rz
+
+    def upright_matrix(self) -> np.ndarray: #vers 1
+        """Rotation standing the bind pose up: pelvis to head along +Z."""
+        ltms = self.pose()
+        space = np.linalg.inv(ltms[self.sk.atomics.get(next(iter(self.sk.skins)), 0)]) if self.sk.skins else np.eye(4)
+        names = [f['name'].strip().lower() for f in self.sk.frames]
+        head = next((i for i, n in enumerate(names) if 'head' in n), None)
+        hip = next((i for i, n in enumerate(names) if 'pelvis' in n), None)
+        if hip is None:
+            hip = next((i for i, f in enumerate(self.sk.frames) if f['parent'] == 0), None)
+        m = np.eye(4)
+        if head is None or hip is None:
+            return m
+        u = (ltms[head] @ space)[3, :3] - (ltms[hip] @ space)[3, :3]
+        n = np.linalg.norm(u)
+        if n < 1e-6:
+            return m
+        u = u / n
+        z = np.array([0.0, 0.0, 1.0])
+        c = float(u @ z)
+        if c > 0.85:                                      # standing (lean under ~30 deg)
+            return m
+        axis = np.cross(u, z)
+        if np.linalg.norm(axis) < 1e-6:                   # upside down: turn about X
+            axis = np.array([1.0, 0.0, 0.0])
+        axis = axis / np.linalg.norm(axis)
+        k = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
+        r = np.eye(3) + np.sin(np.arccos(c)) * k + (1 - c) * (k @ k)   # Rodrigues: r @ u = z
+        m[:3, :3] = r.T                                   # row vectors: p @ r.T
+        return m
+
+    def root_shift(self, ltms, space) -> tuple: #vers 1
+        """World XY the anim moves the top bone (0, 0 when not in place)."""
+        if not self.in_place or self.anim is None:
+            return 0.0, 0.0
+        top = next((i for i, f in enumerate(self.sk.frames) if f['parent'] == 0), None)
+        if top is None:
+            return 0.0, 0.0
+        self.in_place = False
+        try:
+            free = self.pose()
+        finally:
+            self.in_place = True
+        d = (free[top] @ space)[3, :2] - (ltms[top] @ space)[3, :2]
+        return float(d[0]), float(d[1])
+
+    def ground_z(self) -> float: #vers 1
+        """Lowest point of the ped at the anim start (cached per anim)."""
+        key = id(self.anim)
+        if getattr(self, '_ground_key', None) != key:
+            pts = [P[:, 2].min() for P, _n in self.mesh_points(self.pose_at(0.0)).values() if len(P)]
+            self._ground_key, self._ground = key, float(min(pts)) if pts else 0.0
+        return self._ground
 
     def key_times(self, fi: int) -> list: #vers 1
         b = self.bone_track(fi)
@@ -284,7 +396,7 @@ class PedAnimator: #vers 1
 class PedAnimMixin: #vers 1
     """Animation dock for PedWorkshop."""
 
-    def _create_anim_dock(self): #vers 8
+    def _create_anim_dock(self): #vers 11
         """Anim info + filter, anim list, transport, time slider.
         The IFP combo and load / save / new go in the title bar (title_widgets)."""
         self._animator = None
@@ -306,7 +418,9 @@ class PedAnimMixin: #vers 1
             self._ifp_source, self._ifp_label, self._anim_search,
             tb('open_icon', "Load an IFP file", lambda: self._anim_open_ifp('')),
             tb('save_icon', "Save the IFP (backup first)", self._anim_save_ifp),
-            tb('add_icon', "New anim: copy of the selected one", self._anim_new)]
+            tb('add_icon', "New anim: copy of the selected one", self._anim_new),
+            tb('search_icon', "Search all anims in the game (every IFP)", self._anim_game_search),
+            tb('export_icon', "Batch export: chosen anims to one IFP or one per anim", self._anim_batch_export)]
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(4, 4, 4, 4)
@@ -329,8 +443,17 @@ class PedAnimMixin: #vers 1
         self._inplace_chk = tb('in_place_icon', "In place: no root walk motion", None, checkable=True, checked=True)
         self._inplace_chk.toggled.connect(lambda on: (setattr(self._animator, 'in_place', on)
                                                       if self._animator else None, self._anim_render()))
+        self._wire_btn = tb('wireframe_icon', "Wireframe over the ped (off: clean shaded view)",
+                            None, checkable=True, checked=True)
+        self._wire_btn.toggled.connect(lambda on: self.preview_widget.set_wire_hint(on))
         row.addWidget(self._loop_chk)
+        row.addWidget(self._wire_btn)
         row.addWidget(self._inplace_chk)
+        self._pad_btn = tb('controller_icon', "Walk the ped with a game controller:\n"
+                           "left stick walk / run, right stick orbit, L2 / R2 zoom, Cross jump to idle",
+                           None, checkable=True)
+        self._pad_btn.toggled.connect(self._ped_pad_toggle)
+        row.addWidget(self._pad_btn)
         row.addStretch(1)
         self._speed_spin = QDoubleSpinBox()
         self._speed_spin.setRange(0.05, 4.0)
@@ -355,25 +478,28 @@ class PedAnimMixin: #vers 1
         self._anim_dock = dock
         return dock
 
-    def _create_bones_dock(self): #vers 2
+    def _create_bones_dock(self): #vers 3
         """Bone list, pose fields and key row; view toggles go in the title bar."""
         tb = self._anim_tool_button
         self._show_mesh_btn = tb('mesh_icon', "Show the mesh", None, checkable=True, checked=True)
         self._show_bones_btn = tb('bones_icon', "Show stick-man bones: click a joint to pick it,\n"
                                   "drag to rotate (X / Z, Shift+drag Y), or drag a ring", None,
                                   checkable=True, checked=True)
+        self._gizmo_btn = tb('gizmo_axes_icon', "Show the axis gizmo and the joint rotate rings",
+                             None, checkable=True, checked=True)
+        self._gizmo_btn.toggled.connect(lambda on: self.preview_widget.set_show_axes(on))
         self._onion_btn = tb('onion_skin_icon', "Onion skin: ghost poses before (blue) and after (red)",
                              None, checkable=True)
         self._onion_spin = QSpinBox()
         self._onion_spin.setRange(1, 30)
-        self._onion_spin.setValue(3)
-        self._onion_spin.setSuffix(" frames")
+        self._onion_spin.setValue(4)
+        self._onion_spin.setSuffix(" fr")
         self._onion_spin.setToolTip("Onion skin spacing in frames")
         self._onion_spin.valueChanged.connect(lambda _v: self._anim_render())
-        for b in (self._show_mesh_btn, self._show_bones_btn, self._onion_btn):
+        for b in (self._show_mesh_btn, self._show_bones_btn, self._gizmo_btn, self._onion_btn):
             b.toggled.connect(lambda _on: self._anim_render())
-        self._bones_title_widgets = [self._show_mesh_btn, self._show_bones_btn, self._onion_btn,
-                                     self._onion_spin]
+        self._bones_title_widgets = [self._show_mesh_btn, self._show_bones_btn, self._gizmo_btn,
+                                     self._onion_btn, self._onion_spin]
         panel = QWidget()
         bl = QVBoxLayout(panel)
         bl.setContentsMargins(4, 4, 4, 2)
@@ -417,7 +543,7 @@ class PedAnimMixin: #vers 1
         self._step_spin = QSpinBox()
         self._step_spin.setRange(1, 60)
         self._step_spin.setValue(5)
-        self._step_spin.setSuffix(" frames")
+        self._step_spin.setSuffix(" fr")
         self._step_spin.setToolTip("Frames to step after a key")
         row.addWidget(self._step_spin)
         self._key_info = QLabel("")                        # key count, frames in its tooltip
@@ -451,8 +577,8 @@ class PedAnimMixin: #vers 1
             b.clicked.connect(lambda _c=False: slot())
         return b
 
-    def _init_animator(self, raw: bytes): #vers 2
-        """New ped loaded: skeleton, bone list, current anim reapplied."""
+    def _init_animator(self, raw: bytes, skeleton=None): #vers 4
+        """New ped loaded: skeleton (IV: from the .wft), bone list, current anim reapplied."""
         self._anim_timer.stop()
         self._play_btn.setChecked(False)
         model = getattr(self, '_current_dff_model', None)
@@ -460,9 +586,10 @@ class PedAnimMixin: #vers 1
         self._bone_list.clear()
         if model is None:
             return
-        self._animator = PedAnimator(model, raw)
+        self._animator = PedAnimator(model, raw, skeleton)
         self._animator.anim_version = self._ifp.version if self._ifp else 'ANPK'
         self._animator.in_place = self._inplace_chk.isChecked()
+        self._animator.pad_walk = getattr(self, '_ped_pad', None) is not None
         for i, f in enumerate(self._animator.sk.frames):
             depth, p = 0, f['parent']
             while p >= 0 and depth < 40:
@@ -475,10 +602,11 @@ class PedAnimMixin: #vers 1
         cur = self._anim_list.currentItem()
         self._anim_select(cur)
 
-    def _anim_render(self): #vers 3
+    def _anim_render(self): #vers 6
         """Draw the ped with the Show option and bone picking."""
         an = self._animator
         if an is None:
+            self._set_status("Bones / anims: open a ped first (Peds list or Open)")
             return
         ghosts = ()
         if self._onion_btn.isChecked() and an.anim is not None:
@@ -486,10 +614,24 @@ class PedAnimMixin: #vers 1
             ghosts = [an.time - step * k for k in range(n, 0, -1)] + [an.time + step * k for k in range(1, n + 1)]
             ghosts = [g for g in ghosts if 0.0 <= g <= an.anim.duration()]
         an.render(self.preview_widget, mesh=self._show_mesh_btn.isChecked(),
-                  bones=self._show_bones_btn.isChecked(), ring_cb=self._anim_ring_rotate,
+                  bones=self._show_bones_btn.isChecked(),
+                  ring_cb=self._anim_ring_rotate if self._gizmo_btn.isChecked() else None,
                   ghost_times=ghosts,
                   selected=self._bone_list.currentRow(),
                   pick_cb=self._anim_pick_joint, drag_cb=self._anim_drag_joint)
+        vp = self.preview_widget
+        quad = getattr(self, '_quad_container', None)
+        if quad is not None and quad.isVisible():          # 4-pane: same posed ped in every pane
+            for pane in getattr(self, '_quad_panes', []):
+                pane._vertices, pane._all_geoms = [], vp._all_geoms
+                pane._skeleton = vp._skeleton
+                pane._grid_origin = vp._grid_origin
+                if not getattr(pane, '_ped_fitted', False):  # ped-sized zoom once
+                    pane._dist, pane._ped_fitted = vp._dist, True
+                    pane.makeCurrent()
+                    pane.resizeGL(pane.width(), pane.height())   # ortho panes size from _dist
+                    pane.doneCurrent()
+                pane.update()
 
     def _anim_pick_joint(self, fi, _mods): #vers 1
         """Joint clicked in the viewport: select that bone."""
@@ -510,7 +652,7 @@ class PedAnimMixin: #vers 1
             sp.blockSignals(False)
         self._anim_euler_changed()
 
-    def _fill_ifp_sources(self, paths: dict): #vers 1
+    def _fill_ifp_sources(self, paths: dict): #vers 3
         """IFP list for a game folder; opens ped.ifp."""
         self._ifp_source.clear()
         if paths.get('ifp'):
@@ -520,10 +662,15 @@ class PedAnimMixin: #vers 1
             arc = IMGFile(paths['anim_img'])
             if arc.open():
                 for e in sorted(arc.entries, key=lambda x: x.name.lower()):
-                    if e.name.lower().endswith('.ifp'):
+                    if e.name.lower().endswith(('.ifp', '.wad')):          # .wad: GTA IV
                         self._ifp_source.addItem(f"anim.img: {e.name}", f"{paths['anim_img']}:{e.name}")
+        fm = self._ifp_source.fontMetrics()                # popup wide enough for the names
+        names = [self._ifp_source.itemText(i) for i in range(self._ifp_source.count())]
+        self._ifp_source.view().setMinimumWidth(max([fm.horizontalAdvance(n) for n in names] + [0]) + 40)
         if self._ifp_source.count():
-            self._anim_open_ifp(self._ifp_source.itemData(0))
+            first = max(0, self._ifp_source.findText("anim.img: move_player.wad"))   # IV: player moves
+            self._ifp_source.setCurrentIndex(first)
+            self._anim_open_ifp(self._ifp_source.itemData(first))
 
     def _anim_ring_rotate(self, axis: int, degrees: float): #vers 1
         """Rotate ring dragged: turn the selected bone about its own axis."""
@@ -544,10 +691,11 @@ class PedAnimMixin: #vers 1
             sp.blockSignals(False)
         self._anim_render()
 
-    def _anim_open_ifp(self, path: str): #vers 3
+    def _anim_open_ifp(self, path: str): #vers 4
         if not path:
             path, _ = QFileDialog.getOpenFileName(self, "Open IFP", getattr(self, '_ped_root', '') or '',
-                                                  "IFP animations (*.ifp);;All files (*)")
+                                                  "Animations (*.ifp *.wad);;IFP animations (*.ifp);;"
+                                                  "GTA IV anims (*.wad);;All files (*)")
             if not path:
                 return
         try:
@@ -558,7 +706,17 @@ class PedAnimMixin: #vers 1
                 arc = IMGFile(img_path)
                 arc.open()
                 e = next(x for x in arc.entries if x.name.lower() == entry.lower())
-                self._ifp = parse_ifp(arc.read_entry_data(e))
+                data = arc.read_entry_data(e)
+                if entry.lower().endswith('.wad'):
+                    from apps.methods.iv_anim import parse_wad
+                    self._ifp = parse_wad(data, entry[:-4])
+                else:
+                    self._ifp = parse_ifp(data)
+                self._ifp.path = path
+            elif path.lower().endswith('.wad'):
+                from apps.methods.iv_anim import parse_wad
+                with open(path, 'rb') as f:
+                    self._ifp = parse_wad(f.read(), os.path.splitext(os.path.basename(path))[0])
                 self._ifp.path = path
             else:
                 self._ifp = load_ifp(path)
@@ -780,8 +938,11 @@ class PedAnimMixin: #vers 1
         self._anim_list.addItem(it)
         self._anim_list.setCurrentItem(it)
 
-    def _anim_save_ifp(self): #vers 3
+    def _anim_save_ifp(self): #vers 4
         if self._ifp is None:
+            return
+        if self._ifp.version == 'WAD':
+            QMessageBox.information(self, "Save IFP", "GTA IV .wad anims play only - saving them is not done yet.")
             return
         path = self._ifp.path
         if not path:
