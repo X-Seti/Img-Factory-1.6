@@ -1,5 +1,5 @@
 #this belongs in root /Credits.md - Version: 2
-# X-Seti - October24 2026 - IMG Factory 1.5 Credits
+# X-Seti - October24 2026 - IMG Factory 1.6 Credits
 
 # IMG Factory 1.6 - Credits
 
