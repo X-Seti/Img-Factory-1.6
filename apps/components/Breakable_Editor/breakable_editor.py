@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 6
+#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 7
 # X-Seti - May08 2026 - Img Factory 1.6 - Breakable Objects Editor
 
 """
@@ -325,6 +325,7 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
     _ribbon_name = "breakable_editor"
     # Bump when the set of ribbons changes (1 = File/Edit/Tools)
     _RIBBON_LAYOUT_VERSION = 1
+    DROP_EXTS = ('.dat',)          # object.dat
 
     def __init__(self, main_window=None, parent=None): #vers 2
         self._defer_setup_ui = True
@@ -364,8 +365,7 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
         lay = QVBoxLayout(w)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(4)
-
-        lay.addWidget(QLabel("Objects"))
+        #lay.addWidget(QLabel())
 
         self._search_box = QLineEdit()
         self._search_box.setPlaceholderText("Search model name…")
@@ -485,13 +485,13 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
         lay.addWidget(self._info_box)
         return w
 
-    def setup_ui(self): #vers 3
-        """Titlebar / [objects | fields | reference] inside the ribbon host / status bar."""
+    def setup_ui(self): #vers 4
+        """Titlebar / Objects dock | ribbon-wrapped fields | Reference dock / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
         ml.addWidget(self._create_toolbar())
-        ml.addWidget(self.ribbon_wrap(self._create_centre_panel()), 1)
+        ml.addWidget(self._create_centre_panel(), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
@@ -586,13 +586,12 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
         dup = [f"   {n} x{k}" for n, k in c.items() if k > 1]
         show_integrity_dialog(self, f"Duplicate object names: {len(dup)}\n\n" + "\n".join(dup))
 
-    def _create_centre_panel(self): #vers 1
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._build_left_panel(self))
-        sp.addWidget(self._build_centre_panel(self))
-        sp.addWidget(self._build_right_panel(self))
-        sp.setSizes([200, 560, 200])
-        return sp
+    def _create_centre_panel(self): #vers 2
+        """Fields form central; object list and reference as docks."""
+        L, R = Qt.DockWidgetArea.LeftDockWidgetArea, Qt.DockWidgetArea.RightDockWidgetArea
+        return self._dock_layout(self.ribbon_wrap(self._build_centre_panel(self)), [
+            ("Object Controls", self._build_left_panel(self), 180, L),
+            ("Reference", self._build_right_panel(self), 160, R)])
 
     def _open_file(self, path=None): #vers 2
         if path is None or path is False or path is True:

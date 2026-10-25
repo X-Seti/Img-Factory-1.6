@@ -1,5 +1,179 @@
-#this belongs in root /ChangeLog.md - Version: 260
+#this belongs in root /ChangeLog.md - Version: 357
 
+
+- Oct 24 2026 - Retro GTA Workshop panels: rows never stack; labels turn to icons (IconLabel), flags are icon toggles, Tiles buttons one row. FoldRow removed.
+- Oct 24 2026 - FoldRow wraps one part at a time (no all-or-nothing stack); Block Help is a 26 x 26 icon.
+- Oct 24 2026 - Retro-GTA-Workshop standalone: retro_gta_workshop.spec, build_retro_gta_workshop.bat, requirements.txt (PyInstaller, Windows exe). All imports present.
+- Oct 24 2026 - Ribbon Manager: moved widget buttons saved and restored (_RIBBON_WIDGET_ITEMS, on in Retro GTA Workshop); layout applied at start.
+- Oct 24 2026 - Retro GTA Workshop: panels go narrower (rows stack, buttons go icon-only). New methods/fold_widgets.py (ButtonRow, FoldRow, fit_height). Dock titles shrink.
+- Oct 24 2026 - Retro GTA Workshop: right splitter stuck (Text / Data button rows too wide), now two rows. Ribbon Manager OK crash (_save_toolbar_state) fixed.
+- Oct 24 2026 - Ribbons: no floating (Wayland could not re-dock them); saved floating ribbons docked again; right-click Dock All Ribbons.
+- Oct 24 2026 - SVG icons: get_pin_icon registered on SVGIconFactory; Retro GTA Workshop Mission objects ribbon button showed [Mi] with no icon.
+- Oct 24 2026 - Workshops: corner handles resize only that corner (system resize, Wayland safe). Panel menu on right-click anywhere in panels / around them.
+- Oct 24 2026 - Workshops: right-click a panel title or ribbon to reopen closed panels; View - Panels menu. Retro GTA Workshop: Ribbon Manager added.
+- Oct 24 2026 - Retro GTA Workshop: drag lights, map objects, zones (traffic lights) and mission objects on the map; Data / Text CSV import / export.
+- Oct 24 2026 - Retro GTA Workshop: palettes export / import / DP5 (all 4 style types); tile PNG import / export; PS1 image Edit in DP5; Help button icon. Shared png_rgba.
+- Oct 24 2026 - Retro GTA Workshop: right dock splitter fixed (Media button rows shrink), Block editor gap removed, Help beside title, Files panel Folder button.
+- Oct 24 2026 - Retro GTA Workshop: Block panel - flags beside face / tile, 8 arrows in one row, [Help] tooltip in dock title. New [X-Ref] format reference (retro_xref_func.py).
+- Oct 24 2026 - Retro GTA Workshop: lid rotation fixed (rotate, then flip) in map, thumbnails and 3D export. Map right-click: snapshot, export / import map PNG.
+- Oct 24 2026 - Retro GTA Workshop: Block panel redesigned (splitter, tile preview, arrow buttons, New / Delete / Clear); Files panel style + missions row, import / export missions; settings tab.
+- Oct 24 2026 - Retro GTA Workshop: Media tab - Sounds / Images / Videos tabs, prev / play / next, import (wav to sdt / PS-ADPCM bank, PNG to vsr). Tile hover enlarge, sprite zoom / import. gui_workshop: _extra_settings_tab.
+- Oct 24 2026 - Disc Workshop: bigger files move after the image end, Add file to a folder (no Joliet discs); volume size + CloneCD .ccd lead-out updated.
+- Oct 24 2026 - Retro GTA Workshop: 3D export - gradient slopes (types 1-44) tilt lids / walls; export an area (default visible area).
+- Oct 24 2026 - Retro GTA Workshop: move mission objects (Data tab), Save missions writes MISSION.INI / .scr; GTA2 trigger areas, gang, crane markers. PS1 MISSION.VSR not read.
+- Oct 24 2026 - Retro GTA Workshop: Data tab - edit zones (GTA1/GTA2/PS1 GTA2), GTA2 lights + map objects (drawn on map); New blank map; Save map as. GTA2 junctions (RGEN) not done.
+- Oct 24 2026 - Retro GTA Workshop: Media tab - PC .sdt/.raw sounds, PS1 AUDIO.vsr banks, PS1 .vsr images (fonts, front end), .str to MP4 (ffmpeg), .wav; play / export. New retro_media.py, retro_media_func.py.
+- Oct 24 2026 - Retro GTA Workshop: GTA1 .gry styles; sprite editing via DP5 (all styles). New methods/retro_palette.py shares PS1 colour / quantize code (duplicates removed).
+- Oct 24 2026 - Retro GTA Workshop: Export 3D - OBJ whole map, sector DFF + COL, IDE / IPL, TXD (hidden faces culled, slopes flat). New retro_mesh.py, retro_mesh_func.py.
+- Oct 24 2026 - Retro GTA Workshop: Port blocks from another map (PC <-> PS1, GTA1 / GTA2), tiles matched by look. New retro_port.py, retro_port_func.py.
+- Oct 24 2026 - Retro GTA Workshop: mission markers - GTA1 MISSION.INI objects, GTA2 .scr placements on map, Missions combo, hover info. New retro_missions.py, retro_mission_func.py.
+- Oct 24 2026 - Retro GTA Workshop: Text tab - GTA1 .fxt / GTA2 .gxt view, filter, edit, add / delete keys, save. New methods/retro_text.py, depends/retro_text_func.py.
+- Oct 24 2026 - Retro GTA Workshop: PS1 GTA2 .sty sprites read (2956: cars mirrored 8-bit, peds, objects, fonts, deltas). gta2_psx.py v2.
+- Oct 24 2026 - Retro GTA Workshop: PS1 GTA2 .gmp (CMAP) map read/write and .sty 32px tiles read/write. New methods/gta2_psx.py. PS1 GTA2 sprites not read yet.
+- Oct 23 2026 - Retro GTA Workshop: PS1 GTA1 city .vsr (NYC/SANB/MIAMI) read and write - map, 32px tiles, sprites. New methods/vsr_archive.py, methods/gta1_psx.py.
+- Oct 23 2026 - New Disc Workshop + methods/cd_image.py: CloneCD .img / .bin / .iso read, extract, replace in place (EDC/ECC, Joliet). IMG Factory routes disc .img files to it.
+- Oct 23 2026 - Retro GTA Workshop: see-through lids (lamps, poles) drew black - lids now stacked from every level. Ground types + traffic arrows overlay.
+- Oct 23 2026 - Retro GTA Workshop: export all tiles + sprites as PNGs (tiles/, sprites/<group>/) or one 32-bit TXD.
+- Oct 23 2026 - Retro GTA Workshop: crash on mouse move before a map is open - fixed (hover and New block need a map).
+- Oct 23 2026 - New Retro GTA Workshop (GTA1 .cmp/.g24, GTA2 .gmp/.sty): map view, block editor, lid paint, tiles to DP5, sprites, save. Standalone repo Retro-GTA-Workshop.
+- Oct 23 2026 - Ped Workshop: GTA IV peds skinned to the .wft skeleton; .wad anims (anim.img) play. Components save to componentpeds.img. IMG v3 rebuild used old data for replaced entries - fixed.
+- Oct 23 2026 - Ped Workshop: GTA IV peds from componentpeds.img - Components tab picks each slot drawable + texture variation. Data files get a Table view.
+- Oct 23 2026 - Ped Workshop: Skinning window - bone weight heat map, paint / undo / save into DFF and gta3.img; Texture / UV view, UV PNG export, Edit in DP5.
+- Oct 23 2026 - Ped Workshop: Search all anims across every IFP; batch export chosen anims to one IFP or one per anim.
+- Oct 23 2026 - Terrain Workshop: guide picture rendered white - solid view; terrain and guide now switch the viewport to textured.
+- Oct 22 2026 - Ped Workshop: Settings Grid tab - pattern (Squares, Hex, Solid, Checkerboard), line / fill colour, thickness 1-10 px; live, saved. Grid menu gets Custom.
+- Oct 22 2026 - DP5 Send back: textures sent from Model, Ped or Map Workshop return to that editor (new methods/dp5_link.py). Map Workshop gets Pass to DP5.
+- Oct 22 2026 - Model / Ped Workshop: Pass to DP5 Workshop (Textures button and right-click) sends selected or all textures to DP5 to paint.
+- Oct 22 2026 - Ped Workshop: gizmo toggle next to bones hides the axis gizmo and joint rotate rings. New gizmo_axes_icon.
+- Oct 22 2026 - Ped Workshop: texture size button in the Textures title (512 / 256 / 128) scales ped textures down smoothly; Save TXD keeps it.
+- Oct 22 2026 - Ped Workshop: wireframe toggle, 4-pane button (posed ped in all panes), grid styles (lines, holodeck, checkerboard, honeycomb, texture). Viewport checker grid.
+- Oct 22 2026 - Ped Workshop: controller walk (new ped_pad_func.py). Left stick walk / run and face, grid slides, right stick orbit, L2 / R2 zoom, Cross idle.
+- Oct 22 2026 - Ped Workshop: peds stored lying down (some VC / SA DFFs) now stand up; pelvis-to-head set upright.
+- Oct 22 2026 - Ped Workshop: Ped view button (Front / Right / Back / Left) also in the Bones title; tooltip shows orbit / pan mouse.
+- Oct 22 2026 - Ped Workshop: bones / anims now work for any opened DFF (Open, IMG, tabs), not only the Peds list.
+- Oct 22 2026 - Ped Workshop: grid sits at the feet and slides under in-place walks; IFP dropdown list wider; ped icon on Peds / Ipf Edit buttons and window.
+- Oct 22 2026 - Radar layer rotate (Map + Terrain align window). Terrain: radar layer under ground, align button (move, rotate, scale), saved per game or terrain_radar.json.
+- Oct 22 2026 - Terrain Workshop: ground slightly see-through (80% default), Opacity slider in the Terrain pane.
+- Oct 22 2026 - Terrain Workshop ribbon / toolbar layout no longer shared with Map Workshop; each saves its own. Guide fix: no refresh before first show.
+- Oct 22 2026 - Terrain Workshop: new terrain from image or game radar (flat, guide layer, colours pre-paint materials). Guide toggle. Radar speed still to check.
+- Oct 22 2026 - Model / Ped Workshop: [=] view toggle moved into the Models title next to [x]; empty button row hidden when standalone.
+- Oct 22 2026 - Ped / Terrain ribbons save to their own config (icon set, icon scale, toolbar state, info ribbons, dock layout). Saved icon scale restored on open. Col/Txd standalones synced.
+- Oct 22 2026 - Sizes tab in every workshop settings (own sizes override global, ui_sizes.json). Size rules applied on workshop show and live from App Settings. Terrain docks scroll.
+- Oct 22 2026 - Per-workshop sizes: shared Sizes panel (ui_sizes v3), workshop Settings > Sizes with "Use own sizes (override global)", saved in its config. Map/Terrain first.
+- Oct 22 2026 - Terrain Workshop: material tile grid, compact centred rows, icon-only dock tabs (tooltips). dock_panels uses ui_sizes; icon_only_tabs added. Synced standalones.
+- Oct 22 2026 - App Settings: new Sizes tab (heightrules.md values, live preview, reset). methods/ui_sizes.py feeds global input, tab, header, status bar heights.
+- Oct 22 2026 - Added heightrules.md: one set of UI heights for all workshops and IMG Factory.
+- Oct 22 2026 - Terrain Workshop on the Intro screen (card, functions, workflow), docked opener, terrain_app_icon. Standalone Terrain-Workshop folder created.
+- Oct 22 2026 - New Terrain Workshop: create grid, sculpt, paint materials with UV tiling, export DFF/COL/TXD/IDE/IPL (III/VC/SA), optional IMG add.
+- Oct 22 2026 - TXD Workshop: no Alpha Channel Error popups while loading. Opaque / greyscale alpha is info only; real mismatches go to an Alpha report (strip ticked).
+- Oct 22 2026 - Ped Workshop: Ped view button on the Navigation ribbon cycles Front / Right / Back / Left. New ped_view_icon.
+- Oct 21 2026 - Ped Workshop Bones pane: Rot / Pos / key row on one centre line, key count inline (frames in tooltip), no gap under the controls.
+- Oct 21 2026 - dock_panels v7: panel [x] buttons work on every dock (Models, Frame Hierarchy, Textures were locked). Ped Workshop: IFP name and filter moved into the Animation title.
+- Oct 21 2026 - Intro: Ped Workshop section (functions) and a stop-motion ped animation workflow.
+- Oct 21 2026 - Ped Workshop: Animation title holds IFP list + load / save / new; IFP name (anims) beside filter; Bones is its own dock with view toggles in its title.
+- Oct 21 2026 - New save_all_icon (disk with ALL). Ped Workshop title: Save (peds IDE) and Save all side by side.
+- Oct 21 2026 - Ped Workshop: Peds title bar holds folder name, folder / open / save all, filter and save IDE; rows 24 px, table rows 22 px; Animation fits narrow docks.
+- Oct 21 2026 - dock_panels v6: every collapsible panel header fixed at 26 px; title-bar buttons 22 px.
+- Oct 21 2026 - Ped Workshop: bone rotate rings in viewport (X/Y/Z), onion skin ghosts, Animation pane scrolls so Peds keeps its height, folder name fix. dff_viewport v41.
+- Oct 21 2026 - Ped Workshop: Peds pane taller than Animation, Frame Hierarchy synced with bones, key marks on time slider, Key all bones, copy / paste pose.
+- Oct 21 2026 - Ped Workshop: one custom title bar, compact icon docks, Open menu (recent folders) / Save all, unsaved-change prompts. IMG Factory Peds + Ipf Edit buttons open it. Docked workshop see-through bleed fixed.
+- Oct 21 2026 - ped_workshop.py v2: runs directly (sys.path, xcb). New standalone repo folder Ped-Workshop; Model-Workshop given missing titlebar_func.py.
+- Oct 21 2026 - Ped Workshop: welcome card + ped icon, file router (ped, pedgrp, pedstats, clothes, animgrp, shopping, popcycle, peds.ide, ped.ifp), Decision files, SA anim.img IFPs, GTA IV peds data.
+- Oct 21 2026 - New Ped Workshop (Model Workshop base): peds IDE / pedgrp / ped.dat editing, IFP play + stop-motion keys, stick-man bones (III/VC/SA). New ifp_format, dff_skin, ped_files.
+- Oct 21 2026 - Map Workshop Terrain tools: brush dock (Raise, Lower, Flatten, Level, Smooth, Roughen, Ramp), live DFF + COL edits, undo, save into IMG. New map_terrain_func.py, methods/terrain_brush.py.
+- Oct 21 2026 - imgfactory_svg_icons v76: duplicate get_water_workshop_icon - mono anchor version renamed get_water_anchor_icon (icons differ).
+- Oct 21 2026 - Map Workshop Ribbon Manager: Overlays tool buttons and Water depth gauge now show icon and name.
+- Oct 21 2026 - Files panes: TXD Files and Model Textures / Files counts moved into dock titles; new methods/file_list_filter.py type filter (Map / Model). Ribbon Manager: Selection count icon.
+- Oct 21 2026 - Map Workshop: LCS / VCS PS2 world drawn - level sectors (.LVZ + .IMG, VCS area resources) decoded to textured building pieces (read only). New methods/stories_world.py. Bully world renders.
+- Oct 21 2026 - Map Workshop Files pane: status and search moved into the title bar; opening docked lists the open IMG tab models (Models / TXD / COL counts).
+- Oct 21 2026 - 3D viewport (dff_viewport v38): alpha forced to 1 after drawing, so see-through windows no longer show the desktop through the map / models.
+- Oct 21 2026 - See-through windows: docked workshops with a 3D view (Map, Model) stay solid; GL views in a translucent window left ghosts of other tabs and the desktop.
+- Oct 21 2026 - Map Workshop: ribbon layout saved on hide/quit too (was close only). Models [=] and Textures count/Thumbnails in dock title bars, 26px table headers, arrow icons for toolbar collapse.
+- Oct 21 2026 - Map Workshop: Bully SE world loads from game root - objects from Objects/ide.img (.idb) + text IDEs, 8757 placements from World.img (.ipb inst/spec), NIF/NFT models. Read only.
+- Oct 21 2026 - game.dtz write in Map Workshop: instances (move/rotate/model/area), objs/tobj IDE edits, water level heights (VC waterpro.dat too). Dir tree: game.dtz opens Map / Path Workshop.
+- Oct 21 2026 - Path Workshop car recordings: Add tool inserts a frame, Join appends another .rrr (re-timed); carrec.img entries that grow are rewritten via IMG rebuild.
+- Oct 21 2026 - App_Settings_System v92: utils extras moved to utils/depends; duplicate IconProvider removed (depends copy used); left panes scroll so they re-dock. Old files in _to_delete.
+- Oct 20 2026 - DP5: Settings > Gadgets tool buttons no longer clipped - icon with full label underneath. Fixed DP5 bug entries removed.
+- Oct 20 2026 - Docks: double-click a floating pane title to dock it back (dock_panels v4, all workshops). App_Settings_System standalone runs xcb so drag re-dock works.
+- Oct 20 2026 - App_Settings_System v90: runs as script again (adds project root to sys.path).
+- Oct 20 2026 - App_Settings_System: removed _create_buttons_tab v1, _preview_gadget_styles, _on_color_changed; Colors tab Refresh button; contrast helpers in methods/ui_color.py.
+- Oct 20 2026 - App_Settings_System v89: split SettingsDialog into utils/depends appsys_logic/ui/win mixins; dead/duplicate code removed; shared corner handles; Colors/Gadgets panes dockable; shared TitlebarMixin titlebar.
+- Oct 20 2026 - Model: Settings Apply crashes fixed (DFFViewport bg_color; missing _apply_button_mode_to_button). Synced Model-Workshop.
+- Oct 20 2026 - TXD: Show status bar in workshop Settings (shared statusbar_func, both dialogs). Titlebar Settings button keeps text in icons mode.
+- Oct 20 2026 - DP5: Plugins menu + plugins/ folder - Colour Mask (tint greyscale), Split RGB/CMYK/YPbPr to tabs, Combine RGB tabs. COL settings Apply crash (bg_color) fixed.
+- Oct 20 2026 - Format audit: TXD/COL/Model open all samples (PC, PS2, PSP, Android, iOS, Bully, mobile DB, LCS/VCS PS2+PSP game.dtz). Fixed LOD-only DFF (air_vlo) showing nothing.
+- Oct 20 2026 - DAT Browser: LCS/VCS roots load from game.dtz when no .dat ('Cannot find DAT file' fixed).
+- Oct 20 2026 - Map Workshop: water.dat quads editable - Water right-click, click select, drag move, corner X/Y/Z dialog, undo, save (untouched lines kept). VC waterpro grid not editable.
+- Oct 20 2026 - Path Workshop: LCS/VCS game.dtz path nodes editable (move, X/Y/Z) and saved back; no-op save byte identical (zlib 9). stories_dtz v2.
+- Oct 20 2026 - Path Workshop: SA car recordings editable - frame fields, drag, delete frame, shift/rotate/re-time, save into carrec.img (entry backup) or .rrr.
+- Oct 20 2026 - Model Workshop: Settings Apply crashed (format_combo not in that dialog); export format line removed there.
+- Oct 20 2026 - Deleted unused methods/txd_platform_pc.py (duplicate of txd_reader), main and Model-Workshop.
+- Oct 20 2026 - Map model_mesh_editor.py (unused old copy of COL col_mesh_editor, bad Vector3 import) moved to _to_delete in main, Map-workshop, Model-Workshop.
+- Oct 20 2026 - New methods/statusbar_func.py: per-workshop Show status bar (Settings > Display) for COL, Model, Map, Path, Radar, Model Viewer. COL/Model status bar now built.
+- Oct 20 2026 - Model Viewer: shared titlebar (Menu, Settings, Info, Theme), Tools ribbon removed (ribbon layout v2), titlebar shown docked too.
+- Oct 20 2026 - TXD, Asset: removed status bar resize-grip icon; window corners handle resizing, status bar can be toggled later.
+- Oct 20 2026 - New methods/corner_handles.py: COL style corner handles for all workshops and IMG Factory; overlay classes removed, 5px window margin.
+- Oct 20 2026 - Path Workshop corner handles painted like COL (under content, 5px margin); _CornerOverlay removed from path_win_func.
+- Oct 20 2026 - Map Workshop: radar tile layer scale per game (Radar/Water Alignment, radar_settings.json radar_scale) for SOL. dff_viewport set_radar_tex_scale.
+- Oct 20 2026 - Map/Model depends cleanup: 81 unused copies to _to_delete/. audioparser (Map version), model_cache, max_icon_set, max_svg_icons moved to methods/. Standalones get missing methods/core files.
+- Oct 20 2026 - New methods/titlebar_func.py TitlebarMixin: one titlebar for all workshops (COL/TXD layout, hooks for extras). GUIWorkshop, COL, TXD, Model, Map, Path, Radar, Vehicle, Asset, AI, DP5 and Model Viewer converted; icons mode shows icon-only buttons.
+- Oct 20 2026 - app_settings v88: _titlebars finds QWidget titlebars (IMG Factory main), so panel image paints there; strength set by Titlebar opacity.
+- Oct 20 2026 - Panel image limited to some areas: AppPanelEffect keeps widget wrappers alive (tint attrs lost on GC). IMG Factory applies effects like Settings Apply on start and new workshop tabs.
+- Oct 20 2026: app_settings v86: panel image Titlebar option - panels and titlebar / panels only / titlebar only; workshop top bars (COL/TXD/Model/Map/GUIWorkshop) treated alike.
+
+- Oct 20 2026: app_settings v85: "Keep viewports solid (no bleed-through)" option (default on); off lets 2D canvases show image / desktop, 3D views always solid.
+
+- Oct 20 2026: app_settings v84: panel image through titlebar and buttons (Titlebar/Buttons opacity), canvases/viewports excluded; new See-through windows option (no image); effects applied at startup, workshop open and to all open windows.
+
+- Oct 20 2026: COL Workshop: COL Files + Models are docks (DockPanelsMixin, layout saved); main splitter and SplitterSizesMixin removed. Col-Workshop synced.
+
+- Oct 20 2026: Path Workshop drag and drop: radar files (.img/.txd/images) load the map, path files (.ipl/.dat/.dtz/.rrr, several, Shift adds) load paths.
+
+- Oct 20 2026: SA car recordings (.rrr in carrec.img, 32-byte frames) parsed in sa_path_parser; Path Workshop shows them (view), SA game load includes carrec.img.
+
+- Oct 20 2026: Path Workshop Node Properties condensed: 3 fields per row (type/next/cross, x/y/z, median/left/right, flags), group row, world line.
+
+- Oct 20 2026: Path Workshop crash (segfault) fixed: Node Properties field deleted inside its own edit signal; rebuild now deferred, old fields deleteLater.
+
+- Oct 20 2026: Path Workshop: load several path files at once (Shift+click in dialog), Shift+Load adds to loaded set, file dialogs remember last folder.
+
+- Oct 20 2026: Path Workshop loads gta3.img nodes (Carcer City etc.) and LCS/VCS game.dtz paths (view). Parser keeps SA IPL 13th path field; CC/VC paths.ipl save identical.
+
+- Oct 20 2026: Path Workshop: delete group, reverse flow, group header edit, path colours/sizes, shift/rotate + edit + save tracks, SA roadblocks and III chase paths (view). Faster numpy draw/pick.
+
+- Oct 20 2026: Path Workshop zoom max 10x -> 200x; zoom buttons keep view centre; deep zoom draws visible tile part only.
+
+- Oct 20 2026: Path Workshop split: depends/path_ui_func (UI, RadarGridWidget), path_logic_func (radar load, presets), path_win_func (window, corner overlay). Main keeps class + __init__. Paths-Workshop synced.
+
+- Oct 19 2026: Path Workshop loads single .ipl, nodesN.dat, tracks/flight/spath .dat (view only). VC ped groups (type 0) green. Parser keeps crossroad field and fractional flag3; VC paths.ipl saves byte-identical.
+
+- Oct 19 2026: Capture Workshop: Linux portal recording crashed (undefined path, missing subprocess import); duplicate capture_sources import removed.
+
+- Oct 19 2026: Docks: Water (Water), Hex (Inspector/Tools), Timecyc (Colours/Sky Preview), IPL (Sections), Handling (Vehicles/Stats), Capture (Captures). Drop-open for Water/Timecyc/IPL/Handling. Standalones synced.
+
+- Oct 19 2026: GUIWorkshop: _dock_layout (side panels as docks) and DROP_EXTS drag-and-drop open. Breakable Editor: Objects / Reference docks, drop object.dat. Standalones synced.
+
+- Oct 19 2026: Map Workshop IPL save wrote path x/y/z without x16 - now uses shared ipl_path_section_lines. Map-workshop synced.
+
+- Oct 19 2026: Path Workshop: radar as one image, Path Nodes / Node Properties docks, load III/VC/SOL/SA paths, select/drag/add/link/delete/undo, save IPL/IDE path sections and SA nodes (backups). New methods/path_nodes.py.
+
+- Oct 19 2026: Paths-Workshop standalone re-synced to main path_workshop.py (radar layer via Radar_Editor). Launcher updated. Old Paths_Workshop fork moved to _to_delete.
+
+- Oct 19 2026: Radar, Path, AI, Vehicle tear-off now a real window; D / tab Dock Back returns it to its tab. Standalones synced.
+
+- Oct 19 2026: GUIWorkshop tools (Water, Hex, Timecyc, IPL, Handling, Breakable, Capture) can tear off and dock back. Tab right-click: Tear Off Workshop / Dock Back.
+
+- Oct 19 2026: Asset Workshop: Textures list is now a dock (DockPanelsMixin, shown when TXD loaded). Drop .dat/.img/.col/.ide to check, .txd to open.
+
+- Oct 19 2026: D (dock back) button now re-docks torn-off COL, TXD, Model, Map, Asset into their tab. Shared redock_to_tab in methods/dock_panels.py. Standalones synced.
+
+- Oct 19 2026: Checklists audited (comments added). Col-Workshop app_settings_system and Txd-Workshop txd_ui_func standalones synced to main.
+
+## Oct 19 2026 - Water BMP import
+- Water Workshop: BMP import only treats white as land; SOL red/blue lake pixels stay water (were turned into land). Edit + save verified byte-exact (1 cell = 1 byte).
+
+## Oct 19 2026 - Map water scale
+- Map Workshop: water grid scale in the Radar/Water Alignment window (10-400 %, 0.5 % steps, 50 / 66.7 / 100 % buttons) and Radar right-click menu. Saved per game as "scale" in data/water_offset.dat.
 
 ## Oct 14 2026 - Radar save format
 - Radar Workshop: PC/Xbox tiles saved in their own format (DXT1/3/5, PAL8, 888) via shared TXD rebuild; was always DXT1.
@@ -108,12 +282,13 @@
 - Viewport: already-uploaded textures skipped before reading pixels (DXT textures were CPU-decoded on every refresh; SA load slow).
 
 ## TODO (next session, from Oct 12 2026)
+- Exit crash (sip cleanup_on_exit segfault, ~1 in 6 closes) in TXD/Path standalone; PyQt6 has no sip.setdestroyonexit, needs another fix.
+- IMG Factory last: titlebar (TitlebarMixin + Tool menu, RW Ref, taskbar, AI hooks), ribbons, docked panes, status bar - same treatment as workshops.
+- LCS/VCS game.dtz write: objects, instances, water still to do (paths done).
 - Emojis in Model Workshop log/print strings (~280): Keith removing.
 - Rebuilt MDL/WDR/WFT meshes untested in game; skinned MDL rebuild (face/vertex changes on peds) to do. DFF save: SA night colours / skin rebuild.
 - Map Workshop: Bully world (.ipb placements, Bully dat). 1 of 1118 Bully NFT fails.
-- Format audit: TXD/Model/COL Workshops open every format.
-- Map Workshop: water object editing (gauge shown, editing to do). Path Workshop: draw path nodes (paint_paths needs world_to_screen).
-- methods/txd_platform_pc.py unused, duplicate of txd_reader: suggest removal.
+- TXD open: 'Alpha Channel Error' pops per texture when alpha is all 255 (common, not corrupt) - make it a log line?
 - Staging rule: copy files to a new outputs/cNNNNNN folder per commit (same name sends stale cache).
 - Low priority: GTA IV image formats (TODO_bugs ivCellConverter, ivXenonConverter, retrevnoCnoneXvi samples).
 - Low priority: re-sync all standalone repos (Col, DP5, Hex, Map, Model-Viewer, Model, Paths, Radar, Timecyc, Txd, Vehicle, Water, Zon) from main, ready for Windows exe builds.

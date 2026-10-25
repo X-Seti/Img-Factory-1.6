@@ -1,4 +1,4 @@
-#this belongs in apps/methods/wdr_model.py - Version: 4
+#this belongs in apps/methods/wdr_model.py - Version: 6
 # X-Seti - October 07 2026 - IMG Factory 1.6 - GTA IV drawables
 
 """
@@ -9,6 +9,7 @@ GTA IV .wdr / .wdd / .wft (RSC5 drawables) to DFFModel geometry for Map Workshop
 # _bone_matrices
 # _collection
 # _cstr
+# _decode_blend
 # _decode_vertices
 # _drawable_model
 # _encode_element
@@ -16,6 +17,7 @@ GTA IV .wdr / .wdd / .wft (RSC5 drawables) to DFFModel geometry for Map Workshop
 # _rsc5_flags
 # _shader_textures
 # _unpack
+# _wdd_geometries
 # is_iv_drawable
 # parse_wdd
 # parse_wdr
@@ -158,6 +160,33 @@ def _decode_vertices(z: bytes, vs: int, vb: int): #vers 1
     return pos, nrm, uv
 
 
+def _decode_blend(z: bytes, vs: int, g: int) -> Optional[Tuple[np.ndarray, np.ndarray]]: #vers 1
+    """Skin (skeleton bone index (n, 4), weight 0-1 (n, 4)) of a geometry, or None."""
+    vb = _ptr(z, vs, g + 0x0C)
+    count = struct.unpack_from('<H', z, vb + 0x04)[0]
+    stride = struct.unpack_from('<I', z, vb + 0x0C)[0]
+    decl, data = _ptr(z, vs, vb + 0x10), _ptr(z, vs, vb + 0x18)
+    if data is None:
+        data = _ptr(z, vs, vb + 0x08)
+    used, _st, _a, _b, types = struct.unpack_from('<IHBBQ', z, decl)
+    if not (used & 0b110):
+        return None
+    raw = np.frombuffer(z, np.uint8, count * stride, data).reshape(count, stride)
+    cols, off = {}, 0
+    for bit in range(16):
+        if used & (1 << bit):
+            cols[bit] = off
+            off += _TYPE_SIZE[(types >> (4 * bit)) & 0xF]
+    w = raw[:, cols[1]:cols[1] + 4].astype(np.float64) / 255.0
+    idx = raw[:, cols[2]:cols[2] + 4].astype(np.int64)
+    mp, mc = _ptr(z, vs, g + 0x38), struct.unpack_from('<H', z, g + 0x3E)[0]
+    if mp is not None and mc:                     # geometry bone list -> skeleton bones
+        mapping = np.array(struct.unpack_from(f'<{mc}H', z, mp), np.int64)
+        idx = mapping[np.minimum(idx, mc - 1)]
+    s = w.sum(axis=1, keepdims=True)
+    return idx, w / np.where(s > 0, s, 1.0)
+
+
 def _bone_matrices(z: bytes, vs: int, drawable: int) -> List[np.ndarray]: #vers 1
     """World 4x4 matrix per skeleton bone (parent chain, offset + quaternion)."""
     sk = _ptr(z, vs, drawable + 0x0C)
@@ -184,7 +213,7 @@ def _bone_matrices(z: bytes, vs: int, drawable: int) -> List[np.ndarray]: #vers 
 def _drawable_model(z: bytes, vs: int, drawable: int, name: str,
                     textures: Optional[List[str]] = None,
                     bones: Optional[List[np.ndarray]] = None,
-                    out: Optional[DFFModel] = None) -> DFFModel: #vers 4
+                    out: Optional[DFFModel] = None) -> DFFModel: #vers 5
     """Highest LOD of one drawable as a DFFModel, bone transforms applied."""
     if textures is None:
         textures = _shader_textures(z, vs, drawable)
@@ -220,6 +249,7 @@ def _drawable_model(z: bytes, vs: int, drawable: int, name: str,
             shader = struct.unpack_from('<H', z, smap + 2 * gi)[0] if smap is not None else 0
             geom = Geometry(flags=_GEOM_FLAGS)
             geom._wdr = (g, m, drawable, mat)          # for write_wdr_model
+            geom._iv_blend = _decode_blend(z, vs, g) if skinned else None   # ped skinning
             geom.vertices = [Vector3(*map(float, p)) for p in pos]
             if nrm is not None:
                 geom.normals = [Vector3(*map(float, n)) for n in nrm]
@@ -329,14 +359,24 @@ def _rsc5_flags(flags: int, vs: int, ps: int) -> Tuple[int, int]: #vers 1
     raise ValueError("physical segment too large")
 
 
-def write_wdr_model(original: bytes, model) -> Tuple[bytes, List[str]]: #vers 1
-    """Write edited geometry back into the original .wdr / .wft; (bytes, report)."""
+def _wdd_geometries(data: bytes) -> List[Geometry]: #vers 1
+    """Every geometry of every drawable in a .wdd (dictionary order)."""
+    out = []
+    for h in wdd_hashes(data):
+        m = parse_wdd(data, h)
+        out += m.geometries if m else []
+    return out
+
+
+def write_wdr_model(original: bytes, model, wdd: bool = False) -> Tuple[bytes, List[str]]: #vers 2
+    """Write edited geometry back into the original .wdr / .wft / .wdd; (bytes, report)."""
     from apps.methods.xtd_textures import _rsc5_sizes
     z, vs = _unpack(original)
     flags = struct.unpack_from('<I', original, 8)[0]
     _vs, ps = _rsc5_sizes(flags)
     frag = struct.unpack_from('<I', original, 4)[0] == _FRAGMENT_TYPE
-    base = {g._wdr[0]: g for g in (parse_wft(original) if frag else parse_wdr(original)).geometries}
+    base = {g._wdr[0]: g for g in (_wdd_geometries(original) if wdd else
+                                   (parse_wft(original) if frag else parse_wdr(original)).geometries)}
     z = bytearray(z)
     report, grown = [], False
     for gi, geom in enumerate(model.geometries):
@@ -440,7 +480,7 @@ def write_wdr_model(original: bytes, model) -> Tuple[bytes, List[str]]: #vers 1
         flags, size = _rsc5_flags(flags, vs, len(z) - vs)
         z += bytes(vs + size - len(z))
     data = original[:8] + struct.pack('<I', flags) + zlib.compress(bytes(z), 9)
-    back = parse_wft(data) if frag else parse_wdr(data)
-    if len(back.geometries) != len(base):
+    back = _wdd_geometries(data) if wdd else (parse_wft(data) if frag else parse_wdr(data)).geometries
+    if len(back) != len(base):
         raise ValueError("written file did not read back the same")
     return data, report

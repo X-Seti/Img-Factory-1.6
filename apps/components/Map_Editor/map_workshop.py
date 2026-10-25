@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 255
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 261
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -34,6 +34,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QByteArray, QPointF, QTi
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 
 # Shared DFFViewport — import from methods/, fallback to local methods/
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.dock_panels import DockPanelsMixin
 from apps.methods.dff_viewport import DFFViewport
@@ -68,6 +69,7 @@ from apps.components.Map_Editor.depends.map_ipl_func import MapIplMixin
 from apps.components.Map_Editor.depends.map_edit_func import MapEditMixin
 from apps.components.Map_Editor.depends.map_inst_func import MapInstMixin
 from apps.components.Map_Editor.depends.map_overlay_func import MapOverlayMixin
+from apps.components.Map_Editor.depends.map_terrain_func import MapTerrainMixin
 from apps.components.Map_Editor.depends.map_widgets_func import (
     App_name, DEBUG_STANDALONE, MapSettings, _write_ipl_lines)
 
@@ -104,8 +106,8 @@ from apps.components.Map_Editor.depends.map_widgets_func import (
 _MODEL_WORKSHOP_INSTANCE_COUNT = 0
 
 
-class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelMixin, MapWorldMixin, MapIplMixin, MapEditMixin, MapInstMixin, MapOverlayMixin,
-                    DockPanelsMixin, GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 6
+class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelMixin, MapWorldMixin, MapIplMixin, MapEditMixin, MapInstMixin, MapOverlayMixin, MapTerrainMixin,
+                    DockPanelsMixin, GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 7
     """Model Workshop - Main window"""
 
     # Compact button height for grafted Control Panel widgets
@@ -384,7 +386,7 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
         QTimer.singleShot(0, self._apply_gamepad_setting)
 
 
-    def setup_ui(self): #vers 14
+    def setup_ui(self): #vers 19
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -531,6 +533,20 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
                                (self._texture_dock, "Textures")):
             if _dock is not None:
                 self._make_dock_collapsible(_dock, _title)
+        from apps.methods.dock_panels import add_title_widget
+        for _b in (self.col_view_toggle_btn, self._tex_view_btn):             # fit the slim title bar
+            _b.setFixedHeight(18)
+            _b.setStyleSheet("padding: 0px 4px;")
+        add_title_widget(self._middle_dock, self.col_view_toggle_btn)         # [=] list / table toggle
+        self._texture_dock._title_label.setVisible(False)                     # count replaces "Textures"
+        add_title_widget(self._texture_dock, self._tex_count_lbl, 0)
+        add_title_widget(self._texture_dock, self._tex_view_btn)
+        if self._left_dock is not None:                                       # Files: status + search
+            self._left_dock._title_label.setVisible(False)
+            add_title_widget(self._left_dock, self._left_panel_header, 0)
+            from apps.methods.file_list_filter import make_type_filter
+            add_title_widget(self._left_dock, make_type_filter(self))
+            add_title_widget(self._left_dock, self._model_search_btn)
 
         # Grafted in from map_workshop_old.py (Aug 1 2026)
 
@@ -551,6 +567,12 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
         self._make_dock_collapsible(ipl_controls_dock, "IPL Controls")
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, ipl_controls_dock)
 
+        terrain_dock = self._create_terrain_dock()               # hidden until Terrain tools
+        self._make_dock_collapsible(terrain_dock, "Terrain")
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, terrain_dock)
+        outer_mw.tabifyDockWidget(ipl_controls_dock, terrain_dock)
+        terrain_dock.hide()
+
         #This breaks the docking.
         #outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)
 
@@ -569,6 +591,7 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
         # Status bar (Aug 1 2026)
         status_frame = self._create_status_bar()
         main_layout.addWidget(status_frame)
+        register_statusbar(self, status_frame)
 
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()
@@ -610,7 +633,7 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
 
 
 
-def open_map_workshop(main_window, game_root=None, dat_path=None, force_preload_img=False): #vers 3
+def open_map_workshop(main_window, game_root=None, dat_path=None, force_preload_img=False): #vers 4
     """Open Map Workshop and load a GTA world - either a whole game
     folder (game_root) or one specific .dat file (dat_path), matching
     the signature apps/components/Img_Factory/imgfactory.py's
@@ -619,6 +642,7 @@ def open_map_workshop(main_window, game_root=None, dat_path=None, force_preload_
     right-clicking a .dat entry in the Dat Browser tree).
     force_preload_img (Aug 16 2026)"""
     try:
+        img_path = getattr(getattr(main_window, 'current_img', None), 'file_path', None)
         if main_window and hasattr(main_window, 'main_tab_widget'):
             from PyQt6.QtWidgets import QWidget, QVBoxLayout
             container = QWidget()
@@ -643,6 +667,8 @@ def open_map_workshop(main_window, game_root=None, dat_path=None, force_preload_
             workshop.resize(1200, 800)
             workshop.show()
 
+        if img_path and os.path.isfile(img_path):          # open IMG tab: list its models in Files
+            workshop.load_from_img_archive(img_path)
         if game_root:
             workshop._load_game_folder(game_root)
         elif dat_path:

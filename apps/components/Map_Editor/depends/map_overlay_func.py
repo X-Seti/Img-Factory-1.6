@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop overlays
 
 """
@@ -279,7 +279,7 @@ class MapOverlayMixin: #vers 1
         progress.setValue(len(tiles))
         self._set_status(f"Generated {saved} of {len(tiles)} radar tiles to {output_dir}")
 
-    def _on_radar_tiles_context_menu(self, button, pos): #vers 5
+    def _on_radar_tiles_context_menu(self, button, pos): #vers 7
         """Right-click menu on the Radar button - "Send to TXD
         Workshop" (Aug 20 2026)"""
         menu = QMenu(button)
@@ -289,6 +289,13 @@ class MapOverlayMixin: #vers 1
         fix.setCheckable(True)
         fix.setChecked(self._water_fix_active())
         fix.toggled.connect(self._set_water_fix)
+        cur = self._water_scale()
+        sm = menu.addMenu(f"Water scale ({cur * 100:.1f} %)")
+        sm.addAction("Custom... (Alignment window)", self._show_radar_align_dialog)
+        for label, val in (("50 %", 0.5), ("66.7 %", 2.0 / 3), ("100 %", 1.0), ("200 %", 2.0)):
+            act = sm.addAction(label, lambda v=val: self._set_water_scale(v))
+            act.setCheckable(True)
+            act.setChecked(abs(cur - val) < 1e-6)
         menu.addSeparator()
         regen = menu.addAction("Regenerate tiles touched by unsaved edits")
         regen.setEnabled(bool(getattr(self, '_dirty_ipls', None)))
@@ -687,7 +694,7 @@ class MapOverlayMixin: #vers 1
             QMessageBox.information(self, "Bake Prelight", msg + "\n\n" + "\n".join(notes[:30]))
         self._set_status(msg)
 
-    def _create_ipl_controls_dock(self): #vers 11
+    def _create_ipl_controls_dock(self): #vers 12
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons
@@ -1139,7 +1146,7 @@ class MapOverlayMixin: #vers 1
         # Show Water (Aug 20 2026)
         show_water_btn = _MapOverlayToggleButton("Water", supports_edit=True, icon=OverlayIcons.water_icon(24))
         show_water_btn.show_toggled.connect(self._on_show_water_toggled)
-        show_water_btn.edit_toggled.connect(lambda _on: self._show_radar_align_dialog())
+        show_water_btn.edit_toggled.connect(self._toggle_water_edit)   # quad editing
         # Middle-click switches water layers (Sep 5 2026, .per:
         # "the right click toggle between vis_water and phy_water
         # needs to be moved to the middle button so it doesnt clash
@@ -1153,7 +1160,7 @@ class MapOverlayMixin: #vers 1
             "Left-click: show/hide Water.\n"
             "Middle-click: switch between visible_map and\n"
             "physical_map layers (waterpro.dat only).\n"
-            "Right-click: radar/water alignment.")
+            "Right-click: edit water quads (water.dat).")
         show_water_btn.middle_clicked.connect(
             lambda: self._on_water_layer_toggled(
                 not getattr(self, '_water2_showing_physical', False)))

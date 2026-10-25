@@ -1,8 +1,8 @@
-#this belongs in apps/methods/stories_dtz.py - Version: 1
+#this belongs in apps/methods/stories_dtz.py - Version: 3
 # X-Seti - October 08 2026 - IMG Factory 1.6 - LCS/VCS GAME.DTZ reader
 
 """
-GTA LCS/VCS (PS2/PSP) GAME.DTZ: zlib'd relocatable resource image
+GTA LCS/VCS (PS2/PSP) GAME.DTZ: zlib'd relocatable resource image (read; paths write)
 holding model infos, entity pools, streaming directory and water.
 Layouts follow g3DTZ by guard3 (MIT).
 """
@@ -11,6 +11,7 @@ Layouts follow g3DTZ by guard3 (MIT).
 # _ci
 # _entity_quat
 # _modelinfo
+# _quat_matrix
 # _pool
 # _streaming_infos
 # dtz_paths
@@ -20,7 +21,14 @@ Layouts follow g3DTZ by guard3 (MIT).
 # StoriesDTZ.instances
 # StoriesDTZ.model_name
 # StoriesDTZ.objects
+# StoriesDTZ._path_layout
 # StoriesDTZ.path_links
+# StoriesDTZ.path_nodes
+# StoriesDTZ.save
+# StoriesDTZ.set_instance
+# StoriesDTZ.set_object
+# StoriesDTZ.set_path_node
+# StoriesDTZ.set_water_levels
 # StoriesDTZ.txd_name
 # StoriesDTZ.waterpro_bytes
 
@@ -105,7 +113,17 @@ def _entity_quat(m: Tuple[float, ...]) -> Tuple[float, float, float, float]: #ve
     return -q[0] + 0.0, -q[1] + 0.0, -q[2] + 0.0, q[3]
 
 
-class StoriesDTZ: #vers 1
+def _quat_matrix(q: Tuple[float, float, float, float]) -> Tuple[float, ...]: #vers 1
+    """IPL quaternion to RslMatrix rows (inverse of _entity_quat)."""
+    x, y, z, w = q
+    n = math.sqrt(x * x + y * y + z * z + w * w) or 1.0
+    x, y, z, w = x / n, y / n, z / n, w / n
+    return (1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w),
+            2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w),
+            2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y))
+
+
+class StoriesDTZ: #vers 2
     """Parsed GAME.DTZ for one LCS/VCS PS2/PSP build."""
 
     def __init__(self, path: str, game: str, platform: str): #vers 1
@@ -152,7 +170,7 @@ class StoriesDTZ: #vers 1
         """Texlist (TXD) name for a texlist store slot."""
         return self._texlists.get(slot, '')
 
-    def objects(self) -> List[dict]: #vers 1
+    def objects(self) -> List[dict]: #vers 2
         """Model infos as IDE-style dicts (id, name, txd, section, extra)."""
         out = []
         base = 36 if self.vcs else 32                  # vtable end -> CSimpleModelInfo
@@ -171,14 +189,16 @@ class StoriesDTZ: #vers 1
                          'flags': ((flags >> 2) & 1) | ((flags & 0xFFE0) >> 4)}
                 if num > 1:
                     extra['draw_dist2'] = lods[1]
+                if num > 2:
+                    extra['draw_dist3'] = lods[2]
                 if mtype == 3:
                     extra['time_on'], extra['time_off'] = struct.unpack_from('<2i', self.data, p + base + 28)
             out.append({'id': idx, 'name': self.model_name(idx), 'txd': self.txd_name(tex),
                         'section': section, 'extra': extra})
         return out
 
-    def instances(self) -> List[dict]: #vers 1
-        """Building, treadable and dummy pool entities as IPL-style dicts."""
+    def instances(self) -> List[dict]: #vers 2
+        """Building, treadable and dummy pool entities as IPL-style dicts (+ offset)."""
         out = []
         for field, label in ((1, 'buildings'), (2, 'treadables'), (3, 'dummys')):
             for _i, e in self._pool(self.fields[field], _ENTITY):
@@ -188,7 +208,8 @@ class StoriesDTZ: #vers 1
                     continue
                 m = struct.unpack_from('<16f', self.data, e)
                 out.append({'id': idx, 'name': name, 'pos': m[12:15],
-                            'rot': _entity_quat(m), 'area': self.data[e + 91], 'pool': label})
+                            'rot': _entity_quat(m), 'area': self.data[e + 91], 'pool': label,
+                            'offset': e})
         return out
 
     def _streaming_infos(self) -> List[Tuple[str, int, int]]: #vers 1
@@ -234,11 +255,11 @@ class StoriesDTZ: #vers 1
         out.sort(key=lambda e: e[1])
         return out
 
-    def path_links(self) -> List[Tuple[str, Tuple[float, float, float], Tuple[float, float, float]]]: #vers 1
-        """CPathFind graph as ('car'|'ped', node a, node b) links, each once."""
+    def _path_layout(self): #vers 1
+        """(nodes, conns, n, n_car, n_conn, stride) of CPathFind, or None."""
         P = self.fields[0]
         if not P:
-            return []
+            return None
         d = self.data
         if self.vcs:
             nodes = self._u32(P)
@@ -250,27 +271,121 @@ class StoriesDTZ: #vers 1
             n, n_car = struct.unpack_from('<2i', d, P + 20)
             n_conn = struct.unpack_from('<h', d, P + 34)[0]
             stride = 20
-        pts, first = [], []
+        return nodes, conns, n, n_car, n_conn, stride
+
+    def path_nodes(self) -> List[dict]: #vers 1
+        """CPathFind nodes: index, 'car'|'ped', x, y, z and linked node indices."""
+        lay = self._path_layout()
+        if lay is None:
+            return []
+        nodes, conns, n, n_car, n_conn, stride = lay
+        d = self.data
+        out, first = [], []
         for i in range(n):
             o = nodes + i * stride
             if self.vcs:
                 x, y = struct.unpack_from('<2h', d, o)
-                pts.append((x / 8.0, y / 8.0, float(struct.unpack_from('<b', d, o + 4)[0])))
+                z = float(struct.unpack_from('<b', d, o + 4)[0])
                 first.append(struct.unpack_from('<h', d, o + 6)[0])
             else:
-                x, y, z = struct.unpack_from('<3h', d, o + 4)
-                pts.append((x / 8.0, y / 8.0, z / 8.0))
+                x, y, zi = struct.unpack_from('<3h', d, o + 4)
+                z = zi / 8.0
                 first.append(struct.unpack_from('<h', d, o + 12)[0])
+            out.append({'index': i, 'kind': 'car' if i < n_car else 'ped',
+                        'x': x / 8.0, 'y': y / 8.0, 'z': z, 'links': []})
         first.append(n_conn & 0xFFFF)
-        out, seen = [], set()
         for i in range(n):
             for k in range(first[i], first[i + 1]):
                 j = struct.unpack_from('<H', d, conns + k * 2)[0] & 0x3FFF
-                key = (min(i, j), max(i, j))
-                if j < n and key not in seen:
-                    seen.add(key)
-                    out.append(('car' if i < n_car else 'ped', pts[i], pts[j]))
+                if j < n:
+                    out[i]['links'].append(j)
         return out
+
+    def path_links(self) -> List[Tuple[str, Tuple[float, float, float], Tuple[float, float, float]]]: #vers 2
+        """CPathFind graph as ('car'|'ped', node a, node b) links, each once."""
+        nodes = self.path_nodes()
+        out, seen = [], set()
+        for nd in nodes:
+            i = nd['index']
+            for j in nd['links']:
+                key = (min(i, j), max(i, j))
+                if key not in seen:
+                    seen.add(key)
+                    b = nodes[j]
+                    out.append((nd['kind'], (nd['x'], nd['y'], nd['z']), (b['x'], b['y'], b['z'])))
+        return out
+
+    def set_path_node(self, i: int, x: float, y: float, z: float): #vers 1
+        """Write one node position into the resource image (int16 /8; VCS z int8)."""
+        nodes, _c, n, _nc, _ncn, stride = self._path_layout()
+        if not 0 <= i < n:
+            raise IndexError(f"path node {i} out of range")
+        h = lambda v: max(-32768, min(32767, round(v * 8)))
+        buf = bytearray(self.data)
+        o = nodes + i * stride
+        if self.vcs:
+            struct.pack_into('<2h', buf, o, h(x), h(y))
+            struct.pack_into('<b', buf, o + 4, max(-128, min(127, round(z))))
+        else:
+            struct.pack_into('<3h', buf, o + 4, h(x), h(y), h(z))
+        self.data = bytes(buf)
+
+    def set_instance(self, offset: int, model_id: int, pos, rot, area: int): #vers 1
+        """Write one pool entity: matrix from pos + IPL quaternion, model, area."""
+        buf = bytearray(self.data)
+        cur = _entity_quat(struct.unpack_from('<16f', self.data, offset))
+        same = max(abs(a - b) for a, b in zip(cur, rot)) < 1e-6 or \
+            max(abs(a + b) for a, b in zip(cur, rot)) < 1e-6      # q and -q: same rotation
+        if not same:                                              # unchanged: keep exact bytes
+            r = _quat_matrix(rot)
+            for row in range(3):
+                struct.pack_into('<3f', buf, offset + row * 16, *r[row * 3:row * 3 + 3])
+        struct.pack_into('<3f', buf, offset + 48, *pos)
+        struct.pack_into('<h', buf, offset + 88, model_id)
+        buf[offset + 91] = area & 0xFF
+        self.data = bytes(buf)
+
+    def set_object(self, idx: int, extra: dict, txd: str = None): #vers 1
+        """Write draw distances, flags, times and TXD of a model info (objs/tobj/weap)."""
+        p = self._modelinfo(idx)
+        if p is None or self.data[p + 16] not in (1, 3, 4):
+            raise ValueError(f"model {idx} has no editable object fields")
+        base = 36 if self.vcs else 32
+        buf = bytearray(self.data)
+        for k, key in enumerate(('draw_dist', 'draw_dist2', 'draw_dist3')):
+            if key in extra:
+                struct.pack_into('<f', buf, p + base + 8 + k * 4, float(extra[key]))
+        if 'flags' in extra:
+            f = int(extra['flags'])
+            old = struct.unpack_from('<H', buf, p + base + 22)[0]
+            struct.pack_into('<H', buf, p + base + 22, (old & 0x1B) | ((f & 1) << 2) | ((f & 0xFFE) << 4))
+        if self.data[p + 16] == 3 and 'time_on' in extra:
+            struct.pack_into('<2i', buf, p + base + 28, int(extra['time_on']), int(extra['time_off']))
+        if txd is not None:
+            slot = next((i for i, n in self._texlists.items() if n.lower() == txd.lower()), None)
+            if slot is None:
+                raise ValueError(f"TXD '{txd}' is not in GAME.DTZ")
+            struct.pack_into('<h', buf, p + 30, slot)
+        self.data = bytes(buf)
+
+    def set_water_levels(self, heights): #vers 1
+        """Write CWaterLevel heights (up to 48) back into the resource image."""
+        w = self._u32(_HEADER + _WATER_FIELD[self.game] * 4)
+        if not w:
+            raise ValueError("GAME.DTZ has no water level data")
+        zs = self._u32(w + 4)
+        buf = bytearray(self.data)
+        struct.pack_into(f'<{len(heights[:48])}f', buf, zs, *heights[:48])
+        self.data = bytes(buf)
+
+    def save(self, path: str = None, label: str = "GAME.DTZ"): #vers 2
+        """Write back (zlib level 9 when the original was compressed), backup first."""
+        from apps.methods.file_backup import safe_write_bytes
+        path = path or self.path
+        with open(self.path, 'rb') as f:
+            packed = f.read(4) != b'GATG'
+        out = zlib.compress(self.data, 9) if packed else self.data
+        safe_write_bytes(path, out, f"{label}: {os.path.basename(path)}")
 
     def waterpro_bytes(self) -> bytes: #vers 1
         """CWaterLevel as waterpro.dat bytes (count, 48 Zs, 48 rects, grids)."""

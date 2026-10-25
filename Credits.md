@@ -1,10 +1,10 @@
 #this belongs in root /Credits.md - Version: 2
-# X-Seti - October22 2025 - IMG Factory 1.5 Credits
+# X-Seti - October24 2026 - IMG Factory 1.6 Credits
 
-# IMG Factory 1.5 - Credits
+# IMG Factory 1.6 - Credits
 
 ## Project Lead & Primary Developer
-**X-Seti** (2025)
+**X-Seti** (2025-2026)
 - Project architecture and design
 - Core IMG/COL/TXD functionality
 - GUI system and theming
@@ -51,7 +51,7 @@
 ## Component Authors
 
 ### (Clean Implementation)
-**X-Seti** (June-July 2025)
+**X-Seti** (June 2025 - October 24 2026)
 - COL_Parser.py - Clean parser from scratch - October 25
 - COL_Materials.py - Material database implementation
 - COL_viewer.py - 3D viewport widget
@@ -67,9 +67,10 @@
 - **Txd_Converter** - Simple collision converter - Deplicated.
 - **File Dialog** - File_Editor, build in file management.
 - **Project Manager** - Game and Assit paths.
+- **Retro GTA Workshop** - Workshop for the original GTA 1 and 2.
 
 ### Theme System
-**X-Seti** (July-August 2025)
+**X-Seti** (July-August 2025 - October24 2026)
 - app_settings_system.py - Theme engine
 - Theme JSON format
 - Multiple theme support

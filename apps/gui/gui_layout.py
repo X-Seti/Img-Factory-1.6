@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 42
+#this belongs in apps/gui/gui_layout.py - Version: 44
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -395,7 +395,7 @@ class IMGFactoryGUILayout:
         self.method_mappings = self._create_method_mappings()
 
 
-    def _create_method_mappings(self): #vers 6
+    def _create_method_mappings(self): #vers 7
         """Create centralized method mappings for all buttons"""
         method_mappings = {
             # Nav Operations - Keep hidden unless custom theme requires these 3 buttons.
@@ -462,7 +462,7 @@ class IMGFactoryGUILayout:
             'edit_col_file': lambda: edit_col_file(self.main_window),
             'edit_txd_file': lambda: edit_txd_file(self.main_window),
             'edit_dff_file': lambda: edit_dff_file(self.main_window),
-            'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
+            'edit_ipf_file': lambda: getattr(self.main_window, 'open_ped_workshop_docked', lambda: None)(),   # IFP: Ped Workshop
             'edit_ide_file': lambda: getattr(self.main_window, 'open_ide_editor_docked', lambda: getattr(self.main_window, 'open_ide_editor', lambda: None)())(),
             'edit_ipl_file': lambda: self._open_ipl_workshop(),
             'edit_handling': lambda: getattr(self.main_window, 'open_handling_editor', lambda: None)(),
@@ -473,7 +473,7 @@ class IMGFactoryGUILayout:
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
             'edit_vehi_file': lambda: self._open_vehicle_workshop(),
-            'edit_peds_file': lambda: self._log_missing_method('edit_peds_file'),
+            'edit_peds_file': lambda: getattr(self.main_window, 'open_ped_workshop_docked', lambda: None)(),
             'edit_radar_map': lambda: getattr(self.main_window, 'open_radar_map', lambda: None)(),
             'open_dp5_workshop_docked': lambda: getattr(self.main_window, 'open_dp5_workshop_docked', lambda: None)(),
             'edit_paths_map': lambda: getattr(self.main_window, 'open_paths_map', lambda: None)(),
@@ -1571,7 +1571,7 @@ class IMGFactoryGUILayout:
             return color
 
 
-    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 5
+    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 6
         """Get SVG icon based on icon name identifier"""
         icon_map = {
             # IMG file actions
@@ -1619,7 +1619,7 @@ class IMGFactoryGUILayout:
 
             # Editor buttons (same icons as the Intro tiles)
             "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.mesh_icon(size, '#4a9fd4'),
-            "ipf-edit": get_ipf_anim_icon,
+            "ipf-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.ped_app_icon(size),
             "ide-edit": get_ide_editor_icon,
             "ipl-edit": lambda size=24, color=None, bg_color=None: get_ipl_editor_icon(size),
             "dat-edit": get_dat_browser_icon,
@@ -1628,7 +1628,7 @@ class IMGFactoryGUILayout:
             "zones-cull": lambda size=24, color=None, bg_color=None: get_cull_zone_icon(size, color),
             "weap-edit": get_weapons_icon,
             "vehi-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.vehicle_app_icon(size),
-            "peds-edit": get_peds_icon,
+            "peds-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.ped_app_icon(size),
             "carcols": get_carcols_icon,
             "radar-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.radar_workshop_icon(size),
             "paths-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.path_app_icon(size),

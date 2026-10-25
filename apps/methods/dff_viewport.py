@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 34
+# this belongs in apps/methods/dff_viewport.py - Version: 46
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -8,39 +8,53 @@ Standalone tools import from their own methods/dff_viewport.py.
 ##Methods list -
 # _GizmoOverlay.__init__
 # _GizmoOverlay.paintEvent
+# DFFViewport.__init__
+# DFFViewport._anim_tick
 # DFFViewport._apply_move
 # DFFViewport._apply_rotate
+# DFFViewport._apply_selection_click
+# DFFViewport._auto_fit
+# DFFViewport._brush_tick
 # DFFViewport._build_gizmo_chips
+# DFFViewport._calc_world_matrix
+# DFFViewport._closest_point_on_ray
 # DFFViewport._constraint_axis
 # DFFViewport._cycle_constraint
-# DFFViewport._draw_detached_wires
-# DFFViewport._draw_mesh_hover
-# DFFViewport._draw_wire_hint
-# DFFViewport._mesh_chip_state
-# DFFViewport._mesh_render_menu
-# DFFViewport._mesh_ring
-# DFFViewport._place_mesh_chips
-# DFFViewport._sync_mesh_chips
-# DFFViewport._update_mesh_hover
-# DFFViewport.cycle_render_mode
-# DFFViewport.dragEnterEvent
-# DFFViewport.dragMoveEvent
+# DFFViewport._draw_assembly
+# DFFViewport._draw_axes
+# DFFViewport._draw_brush_ring
+# DFFViewport._draw_skeleton
 # DFFViewport._draw_cone
+# DFFViewport._draw_detached_wires
 # DFFViewport._draw_footprint
 # DFFViewport._draw_gizmo
+# DFFViewport._draw_grid
+# DFFViewport._draw_grid_checker
+# DFFViewport._draw_mesh_hover
 # DFFViewport._draw_reticle
 # DFFViewport._draw_rubber_band
 # DFFViewport._draw_script_markers
 # DFFViewport._draw_selection_marks
+# DFFViewport._draw_selection_overlay
 # DFFViewport._draw_snap_feedback
-# DFFViewport.dropEvent
+# DFFViewport._draw_solid
+# DFFViewport._draw_textured
+# DFFViewport._draw_wire_hint
+# DFFViewport._draw_wireframe
 # DFFViewport._edge_snap
+# DFFViewport._emit_verts
 # DFFViewport._entry_box
 # DFFViewport._entry_for
 # DFFViewport._entry_radius
-# DFFViewport.focusNextPrevChild
+# DFFViewport._face_color
+# DFFViewport._flush_pending_textures
 # DFFViewport._footprint
-# DFFViewport.gamepad_step
+# DFFViewport._geom_flags
+# DFFViewport._get_anim_rotation
+# DFFViewport._get_bg_color
+# DFFViewport._get_selection_count
+# DFFViewport._get_ui_color
+# DFFViewport._get_wheel_geom_data
 # DFFViewport._gizmo_axis_param
 # DFFViewport._gizmo_begin
 # DFFViewport._gizmo_cancel
@@ -50,44 +64,23 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._gizmo_project
 # DFFViewport._gizmo_size
 # DFFViewport._gizmo_update
-# DFFViewport.ground_z_below
-# DFFViewport.__init__
-# DFFViewport._anim_tick
-# DFFViewport._apply_selection_click
-# DFFViewport._auto_fit
-# DFFViewport._calc_world_matrix
-# DFFViewport._closest_point_on_ray
-# DFFViewport._draw_assembly
-# DFFViewport._draw_axes
-# DFFViewport._draw_grid
-# DFFViewport._draw_selection_overlay
-# DFFViewport._draw_solid
-# DFFViewport._draw_textured
-# DFFViewport._draw_wireframe
-# DFFViewport._place_edit_banner
-# DFFViewport.set_detached_faces
-# DFFViewport.set_edit_mode_banner
-# DFFViewport._water2_arrays
-# DFFViewport._emit_verts
-# DFFViewport._face_color
-# DFFViewport._flush_pending_textures
-# DFFViewport._geom_flags
-# DFFViewport._get_anim_rotation
-# DFFViewport._get_bg_color
-# DFFViewport._get_selection_count
-# DFFViewport._get_ui_color
-# DFFViewport._get_wheel_geom_data
+# DFFViewport._mesh_chip_state
+# DFFViewport._mesh_render_menu
+# DFFViewport._mesh_ring
 # DFFViewport._notify_selection_changed
 # DFFViewport._pad_begin_grab
 # DFFViewport._pad_end_grab
 # DFFViewport._pad_pick_centre
+# DFFViewport._paint_scene
 # DFFViewport._pick_edge
 # DFFViewport._pick_face
 # DFFViewport._pick_ray
 # DFFViewport._pick_vertex
+# DFFViewport._place_edit_banner
 # DFFViewport._place_gizmo_chips
-# DFFViewport._project_in_paint
+# DFFViewport._place_mesh_chips
 # DFFViewport._point_seg_dist2
+# DFFViewport._project_in_paint
 # DFFViewport._quat_axis
 # DFFViewport._quat_mul
 # DFFViewport._quat_rotate
@@ -100,32 +93,27 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._rubber_select
 # DFFViewport._rw_wrap_to_gl
 # DFFViewport._seg2d_dist2
-# DFFViewport.selected_instances
 # DFFViewport._selected_set_for_mode
-# DFFViewport.set_gamepad
-# DFFViewport.set_gizmo_constraint
-# DFFViewport.set_gizmo_mode
-# DFFViewport.set_gizmo_move_callback
-# DFFViewport.set_gizmo_rotate_callback
-# DFFViewport.set_gizmo_target
-# DFFViewport.set_mesh_face_mode
-# DFFViewport.set_mesh_face_mode_callback
-# DFFViewport.set_mesh_gizmo_mode
-# DFFViewport.set_mesh_xform_callback
-# DFFViewport.set_model_drop_callback
-# DFFViewport.set_script_markers
-# DFFViewport.set_selection
-# DFFViewport.set_selection_callback
 # DFFViewport._set_snap_feedback
 # DFFViewport._setup_lighting
 # DFFViewport._strip_tex_suffix
 # DFFViewport._sync_gizmo_chips
+# DFFViewport._sync_mesh_chips
 # DFFViewport._update_gizmo_ground
+# DFFViewport._update_mesh_hover
 # DFFViewport._upload_textures
+# DFFViewport._water2_arrays
 # DFFViewport.clear_textures
+# DFFViewport.cycle_render_mode
+# DFFViewport.dragEnterEvent
+# DFFViewport.dragMoveEvent
+# DFFViewport.dropEvent
 # DFFViewport.fit_to_window
 # DFFViewport.flip_horizontal
 # DFFViewport.flip_vertical
+# DFFViewport.focusNextPrevChild
+# DFFViewport.gamepad_step
+# DFFViewport.ground_z_below
 # DFFViewport.initializeGL
 # DFFViewport.load_all_geometries
 # DFFViewport.load_geometry
@@ -134,12 +122,14 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.mousePressEvent
 # DFFViewport.mouseReleaseEvent
 # DFFViewport.paintGL
+# DFFViewport.refresh_world_models
 # DFFViewport.pan
 # DFFViewport.reset_camera
 # DFFViewport.reset_view
 # DFFViewport.resizeGL
 # DFFViewport.rotate_ccw
 # DFFViewport.rotate_cw
+# DFFViewport.selected_instances
 # DFFViewport.set_ambient
 # DFFViewport.set_animation
 # DFFViewport.set_animation_speed
@@ -147,17 +137,42 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.set_backface
 # DFFViewport.set_backface_cull
 # DFFViewport.set_background_color
+# DFFViewport.set_brush_tool
+# DFFViewport.set_skeleton
+# DFFViewport._pick_skeleton_joint
+# DFFViewport._pick_skeleton_ring
+# DFFViewport._skel_ring_angle
+# DFFViewport._skel_ring_pts
+# DFFViewport._skel_ring_radius
 # DFFViewport.set_checkerboard_background
 # DFFViewport.set_current_model
+# DFFViewport.set_detached_faces
 # DFFViewport.set_diffuse
+# DFFViewport.set_edit_mode_banner
+# DFFViewport.set_gamepad
+# DFFViewport.set_gizmo_constraint
+# DFFViewport.set_gizmo_mode
+# DFFViewport.set_gizmo_move_callback
+# DFFViewport.set_gizmo_rotate_callback
+# DFFViewport.set_gizmo_target
 # DFFViewport.set_light_dir
+# DFFViewport.set_mesh_face_mode
+# DFFViewport.set_mesh_face_mode_callback
+# DFFViewport.set_mesh_gizmo_mode
+# DFFViewport.set_mesh_xform_callback
+# DFFViewport.set_model_drop_callback
 # DFFViewport.set_prelight
 # DFFViewport.set_render_mode
+# DFFViewport.set_script_markers
+# DFFViewport.set_selection
+# DFFViewport.set_selection_callback
 # DFFViewport.set_show_grid
 # DFFViewport.set_show_lod
 # DFFViewport.set_show_mesh
 # DFFViewport.set_view_lock
 # DFFViewport.set_wheel_heading
+# DFFViewport.set_show_axes
+# DFFViewport.set_squares_fill_alpha
 # DFFViewport.set_wire_hint
 # DFFViewport.toggle_door
 # DFFViewport.toggle_snap_axis_constraint
@@ -165,11 +180,6 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.wheelEvent
 # DFFViewport.zoom_in
 # DFFViewport.zoom_out
-# DFFViewport.set_show_grid
-# DFFViewport.set_show_lod
-# DFFViewport.set_view_lock
-# DFFViewport.wheelEvent
-# DFFViewport._upload_textures
 """
 
 import ctypes
@@ -250,7 +260,7 @@ class _CRTTimeOverlay(QLabel):
         self.setToolTip("Left-click: start/stop time flow.\nRight-click: time flow settings.")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def mousePressEvent(self, event): #vers 1
+    def mousePressEvent(self, event): #vers 2
         if event.button() == Qt.MouseButton.LeftButton:
             self.left_clicked.emit()
         elif event.button() == Qt.MouseButton.RightButton:
@@ -333,10 +343,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_hide_over_radar_tiles = False   # suppress grid lines within the radar tex layer's own real bounds, still shown outside
         # Grid line/dot colour + thickness (Aug 20 2026)
         self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
-        self._grid_line_size  = 4               # 4-10px range
+        self._grid_line_size  = 4               # 1-10px range
+        self._squares_fill_alpha = 0.12         # 'squares' fill strength (solid floor near 1)
         self._grid_spacing    = 5               # divisor of _dist -> step (zoom_relative mode)
         self._grid_fixed_step = 200             # world units per cell (fixed mode - real map scale, not the small zoom_relative divisor)
         self._grid_cell_count = 24               # total grid diameter in cells (replaces the old fixed *10 multiplier)
+        self._grid_origin = (0.0, 0.0, 0.0)      # grid shift (x, y slide; z height)
         # Radar tex layer - real generated radar tiles shown at their
         # own real world positions, as an alternative to the grid
         self._show_radar_tex_layer = False
@@ -401,6 +413,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
         # Interactive path node editing (Aug 17 2026)
         self._path_edit_mode = False
+        self._water_edit_mode = False      # click / drag water quads
+        self._brush_tool = None            # terrain brush: hover/press/tick/release/ring
+        self._skeleton = None              # stick-man overlay dict (set_skeleton)
+        self._skel_drag = self._skel_ring = None
+        self._brush_timer = None
+        self._water_sel = -1
+        self._water_drag = None            # (index, start x, start y, z)
+        self._water_live = (0.0, 0.0)
+        self._water_select_cb = None
+        self._water_move_cb = None
         self._path_node_owner_map = {}
         self._dragging_path_node_start_key = None
         # ('cull'|'zone', index) of the box currently cycled/selected
@@ -509,6 +531,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_fix_override = None   # per-game True/False, None = mode
         self._water2_nudge = (0.0, 0.0)
         self._radar_tex_offset = (0.0, 0.0)
+        self._radar_tex_scale = 1.0          # per-game radar layer scale
+        self._radar_tex_rotation = 0.0       # degrees about the world origin
 
         # Cull zone boxes (Aug 16 2026)
         self.show_cull_boxes = False
@@ -1088,8 +1112,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glMatrixMode(GL_MODELVIEW)
         self._label_widget.move(4, 2)
 
-    def paintGL(self): #vers 15
+    def paintGL(self): #vers 16
+        """Draw the scene, then force alpha 1 so translucent windows don't show through."""
         if not OPENGL_AVAILABLE: return
+        self._paint_scene()
+        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE)
+        glClearColor(0.0, 0.0, 0.0, 1.0)
+        glClear(GL_COLOR_BUFFER_BIT)
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE)
+
+    def _paint_scene(self): #vers 3
+        """Scene body of paintGL (was paintGL vers 15)."""
         self._gizmo2d = None                     # mesh gizmo screen data, set by _draw_mesh_gizmo
         self._gizmo_overlay.update()
         bg = self._get_bg_color()
@@ -1177,10 +1210,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # Water drawn after the grid now (Aug 20 2026)
             if self.show_water:
                 self._draw_water2()
+            if self._brush_tool is not None:
+                self._draw_brush_ring()
             self._draw_axes()
             return
         if not has_geoms and not has_verts:
             if self._show_grid: self._draw_grid()
+            self._draw_skeleton()
             self._draw_axes()
             return
         if self._mesh_chip_state() != getattr(self, '_mesh_chip_shown', None):
@@ -1198,6 +1234,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_selection_overlay()
             self._draw_mesh_gizmo()
         if self._show_grid: self._draw_grid()
+        self._draw_skeleton()
         self._draw_axes()
 
     def _draw_paths(self): #vers 4
@@ -1531,7 +1568,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 return int(candidate)
         return int(magnitude * 10)
 
-    def _draw_grid(self): #vers 3
+    def _draw_grid(self): #vers 5
         """Draw the viewport's own reference grid, in whichever real
         visual style self._grid_type currently selects (Aug 20 2026)"""
         if not OPENGL_AVAILABLE: return
@@ -1564,9 +1601,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             return
 
         was_depth_test = glIsEnabled(GL_DEPTH_TEST)
-        glDisable(GL_DEPTH_TEST)
+        ox, oy, oz = self._grid_origin
+        if oz == 0.0:                                   # ground grid under a model: keep depth
+            glDisable(GL_DEPTH_TEST)
+        glPushMatrix()
+        glTranslatef(ox % step, oy % step, oz)          # slide within one cell, set height
         if grid_type == 'squares':
             self._draw_grid_squares(step, rng, cx, cy)
+        elif grid_type == 'checker':
+            self._draw_grid_checker(step, rng, cx, cy)
         elif grid_type == 'dashed':
             self._draw_grid_dashed(step, rng, cx, cy)
         elif grid_type == 'dots':
@@ -1577,6 +1620,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_grid_honeycomb(step, rng, cx, cy, dashed=True)
         else:
             self._draw_grid_lines(step, rng, cx, cy)
+        glPopMatrix()
         if was_depth_test:
             glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -1626,7 +1670,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not was_blend:
             glDisable(GL_BLEND)
 
-    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 4
+    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 5
         """'squares' grid style - colour fill (default) or a tiled
         user image/texture, per fill_mode. Outline lines on top are
         now gated on self._grid_show_lines (Aug 20 2026)"""
@@ -1658,7 +1702,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         r, g, b = self._squares_color
-        glColor4f(r / 255, g / 255, b / 255, 0.12)
+        glColor4f(r / 255, g / 255, b / 255, self._squares_fill_alpha)
         glBegin(GL_QUADS)
         for gy in range(cy - rng, cy + rng, step):
             for gx in range(cx - rng, cx + rng, step):
@@ -1670,6 +1714,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_BLEND)
         if self._grid_show_lines:
             self._draw_grid_lines(step, rng, cx, cy)
+
+    def _draw_grid_checker(self, step, rng, cx=0, cy=0): #vers 1
+        """'checker' grid style - alternate cells in fill and line colour."""
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        cols = (self._squares_color, self._grid_line_color)
+        glBegin(GL_QUADS)
+        for gy in range(cy - rng, cy + rng, step):
+            for gx in range(cx - rng, cx + rng, step):
+                r, g, b = cols[((gx // step) + (gy // step)) % 2]
+                glColor4f(r / 255, g / 255, b / 255, 0.55)
+                glVertex3f(gx, gy, 0)
+                glVertex3f(gx + step, gy, 0)
+                glVertex3f(gx + step, gy + step, 0)
+                glVertex3f(gx, gy + step, 0)
+        glEnd()
+        glDisable(GL_BLEND)
 
     def _ensure_squares_texture(self): #vers 1
         """Lazily load self._squares_texture_path as a repeating GL
@@ -2015,8 +2076,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if not was_blend:
             glDisable(GL_BLEND)
 
-    def _draw_axes(self): #vers 1
-        if not OPENGL_AVAILABLE: return
+    def _draw_axes(self): #vers 2
+        if not OPENGL_AVAILABLE or not getattr(self, '_show_axes', True): return
         glDisable(GL_LIGHTING); glLineWidth(1.5)
         s = max(1.0, self._dist * 0.1)
         glBegin(GL_LINES)
@@ -2481,9 +2542,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._grid_line_color = line_rgb
         self.update()
 
-    def set_grid_line_size(self, size): #vers 1
-        """4-10px range for grid lines/dots."""
-        self._grid_line_size = max(4, min(10, size))
+    def set_grid_line_size(self, size): #vers 2
+        """1-10px range for grid lines/dots."""
+        self._grid_line_size = max(1, min(10, size))
+        self.update()
+
+    def set_squares_fill_alpha(self, alpha: float): #vers 1
+        """Fill strength of the 'squares' grid (0.12 tint, 0.9 solid floor)."""
+        self._squares_fill_alpha = max(0.0, min(1.0, float(alpha)))
         self.update()
 
     def set_grid_spacing(self, spacing): #vers 1
@@ -2560,7 +2626,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             tile['tex_id'] = False
         return tile['tex_id']
 
-    def _draw_radar_tex_layer(self): #vers 3
+    def _draw_radar_tex_layer(self): #vers 5
         """V-coordinates: row 0 of the saved PNG is north (capture_
         radar_tile uses grabFramebuffer's own display-ready, already-
         correctly-oriented output), which uploads as V=0 - so V=0
@@ -2578,6 +2644,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glColor4f(1, 1, 1, 1)
         glPushMatrix()
         glTranslatef(self._radar_tex_offset[0], self._radar_tex_offset[1], 0.0)
+        glRotatef(self._radar_tex_rotation, 0.0, 0.0, 1.0)
+        glScalef(self._radar_tex_scale, self._radar_tex_scale, 1.0)
         for tile in self._radar_tex_tiles:
             tex_id = self._ensure_radar_tex_tile(tile)
             if not tex_id:
@@ -2615,13 +2683,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._radar_grid_half_extent = half_extent
         self.update()
 
-    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 4
+    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 5
         self._all_geoms = []
         self._vertices  = []  # clear single-geom data
         # Use flags from first geometry as representative
         if geometries:
             self._current_geom_flags = getattr(geometries[0], 'flags', 0)
         fname = {i: (f.name.lower() if f.name else '') for i,f in enumerate(frames)}
+        shown, lods = [], []
         for i, geom in enumerate(geometries):
             atomic = next((a for a in atomics if a.geometry_index == i), None)
             if not atomic: continue
@@ -2632,9 +2701,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             is_lod = name.endswith('_vlo') or name.endswith('_lo')
             if is_dam and not damaged: continue
             if is_ok  and damaged: continue
-            if is_lod and not getattr(self, '_show_lod', False): continue
             # Skip frames hidden by the frame tree
             if name and name in getattr(self, '_hidden_frames', set()): continue
+            (lods if is_lod and not getattr(self, '_show_lod', False) else shown).append((geom, fi))
+        for geom, fi in shown or lods:          # LOD-only model (e.g. air_vlo): show its LOD
             rot, tx, ty, tz = self._calc_world_matrix(frames, fi)
             verts = [(rot[0]*v.x+rot[1]*v.y+rot[2]*v.z+tx,
                       rot[3]*v.x+rot[4]*v.y+rot[5]*v.z+ty,
@@ -3324,6 +3394,26 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._radar_tex_offset = (float(x), float(y))
         self.update()
 
+    def set_show_axes(self, on: bool): #vers 1
+        """Show / hide the red-green-blue axis gizmo at the origin."""
+        self._show_axes = bool(on)
+        self.update()
+
+    def set_grid_origin(self, x: float, y: float, z: float): #vers 1
+        """Grid slide (x, y) and height (z), e.g. ground under a ped."""
+        self._grid_origin = (float(x), float(y), float(z))
+        self.update()
+
+    def set_radar_tex_rotation(self, degrees): #vers 1
+        """Radar tile layer rotation in degrees about the world origin."""
+        self._radar_tex_rotation = float(degrees)
+        self.update()
+
+    def set_radar_tex_scale(self, scale): #vers 1
+        """Per-game radar tile layer scale about the world origin."""
+        self._radar_tex_scale = max(0.01, float(scale))
+        self.update()
+
     def set_water2_offset_mode(self, mode): #vers 1
         """Radar/water fix: 'vc' VC only, 'all' every game, 'off'."""
         self._water2_offset_mode = mode if mode in ('vc', 'all', 'off') else 'vc'
@@ -3421,7 +3511,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_va = (key + (self._water2_alpha,), v)
         return v
 
-    def _draw_water2(self): #vers 7
+    def _draw_water2(self): #vers 8
         """Water cells as one vertex-array draw (SOL has 140k cells)."""
         if not OPENGL_AVAILABLE or not self._water2_cells:
             return
@@ -3472,7 +3562,236 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisableClientState(GL_VERTEX_ARRAY)
         glDepthMask(GL_TRUE)
         glDisable(GL_BLEND)
+        self._draw_water_selection(verts)
         glEnable(GL_LIGHTING)
+
+    def _draw_water_selection(self, verts): #vers 1
+        """Outline of the selected water quad, following a live drag."""
+        i = self._water_sel
+        if not self._water_edit_mode or not 0 <= i < len(verts) // 4:
+            return
+        dx, dy = self._water_live
+        glDisable(GL_DEPTH_TEST)
+        glColor3f(1.0, 0.85, 0.1)
+        glLineWidth(2.0)
+        glBegin(GL_LINE_LOOP)
+        for x, y, z in verts[i * 4:i * 4 + 4]:
+            glVertex3f(float(x) + dx, float(y) + dy, float(z) + 0.2)
+        glEnd()
+        glLineWidth(1.0)
+        glEnable(GL_DEPTH_TEST)
+
+    def set_skeleton(self, joints=None, bones=None, selected=-1, pick_cb=None, drag_cb=None,
+                     ring_axes=None, ring_cb=None, ghosts=None): #vers 2
+        """Stick-man overlay: joints, (a, b) bones, onion-skin ghosts (joint lists);
+        pick_cb(i, mods), drag_cb(i, dx, dy, mods); rotate rings on the selected
+        joint (3 world axes): ring_cb(axis, degrees)."""
+        self._skeleton = dict(joints=joints, bones=bones or [], sel=selected, pick=pick_cb,
+                              drag=drag_cb, axes=ring_axes, ring=ring_cb,
+                              ghosts=ghosts or []) if joints else None
+        if not joints:
+            self._skel_drag = self._skel_ring = None
+        self.update()
+
+    def _skel_ring_radius(self): #vers 1
+        return max(0.05, self._dist * 0.05)
+
+    def _skel_ring_pts(self, c, axis, r, n=32): #vers 1
+        """Circle of n points around unit axis at c."""
+        ax = [float(v) for v in axis]
+        ref = (1.0, 0.0, 0.0) if abs(ax[0]) < 0.9 else (0.0, 1.0, 0.0)
+        u = (ax[1] * ref[2] - ax[2] * ref[1], ax[2] * ref[0] - ax[0] * ref[2], ax[0] * ref[1] - ax[1] * ref[0])
+        ul = math.sqrt(sum(v * v for v in u)) or 1.0
+        u = tuple(v / ul for v in u)
+        v = (ax[1] * u[2] - ax[2] * u[1], ax[2] * u[0] - ax[0] * u[2], ax[0] * u[1] - ax[1] * u[0])
+        return [tuple(c[i] + r * (math.cos(2 * math.pi * k / n) * u[i] + math.sin(2 * math.pi * k / n) * v[i])
+                      for i in range(3)) for k in range(n)]
+
+    def _draw_skeleton(self): #vers 2
+        """Ghost poses, bones, joints, and rotate rings on the selected joint."""
+        sk = self._skeleton
+        if not OPENGL_AVAILABLE or not sk:
+            return
+        joints, bones, sel = sk['joints'], sk['bones'], sk['sel']
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glLineWidth(1.5)
+        for gi, ghost in enumerate(sk['ghosts']):
+            before = gi < len(sk['ghosts']) // 2
+            glColor4f(0.4, 0.6, 1.0, 0.45) if before else glColor4f(1.0, 0.45, 0.45, 0.45)
+            glBegin(GL_LINES)
+            for a, b in bones:
+                glVertex3f(*ghost[a])
+                glVertex3f(*ghost[b])
+            glEnd()
+        glLineWidth(2.5)
+        glColor3f(1.0, 0.75, 0.1)
+        glBegin(GL_LINES)
+        for a, b in bones:
+            glVertex3f(*joints[a])
+            glVertex3f(*joints[b])
+        glEnd()
+        glPointSize(7.0)
+        glBegin(GL_POINTS)
+        used = {i for pair in bones for i in pair} if bones else set(range(len(joints)))
+        for i, p in enumerate(joints):
+            if i not in used:
+                continue
+            if i == sel:
+                glColor3f(1.0, 0.2, 0.2)
+            else:
+                glColor3f(0.2, 0.8, 1.0)
+            glVertex3f(*p)
+        glEnd()
+        if sk['axes'] and 0 <= sel < len(joints):
+            active = getattr(self, '_skel_ring', None)
+            r = self._skel_ring_radius()
+            for ai, axis in enumerate(sk['axes']):
+                col = [(1.0, 0.25, 0.25), (0.3, 1.0, 0.3), (0.35, 0.55, 1.0)][ai]
+                glLineWidth(3.5 if active and active['axis'] == ai else 2.0)
+                glColor3f(*col)
+                glBegin(GL_LINE_LOOP)
+                for q in self._skel_ring_pts(joints[sel], axis, r):
+                    glVertex3f(*q)
+                glEnd()
+        glLineWidth(1.0)
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _pick_skeleton_ring(self, mx, my): #vers 1
+        """Axis index of the rotate ring under the mouse (8 px), or None."""
+        sk = self._skeleton
+        if not sk or not sk['axes'] or not sk['ring'] or not 0 <= sk['sel'] < len(sk['joints']):
+            return None
+        c, r = sk['joints'][sk['sel']], self._skel_ring_radius()
+        best, best_d = None, 8.0
+        for ai, axis in enumerate(sk['axes']):
+            pts = self._gizmo_project(self._skel_ring_pts(c, axis, r, 48))
+            if not pts:
+                return None
+            for x, y, _z in pts:
+                d = math.hypot(x - mx, y - my)
+                if d < best_d:
+                    best, best_d = ai, d
+        return best
+
+    def _skel_ring_angle(self, mx, my): #vers 1
+        """Screen angle (degrees) of the mouse round the selected joint."""
+        c = self._gizmo_project([self._skeleton['joints'][self._skeleton['sel']]])
+        if not c:
+            return 0.0
+        return math.degrees(math.atan2(-(my - c[0][1]), mx - c[0][0]))
+
+    def _pick_skeleton_joint(self, mx, my): #vers 2
+        """Joint index within 10 px of the mouse, nearest first; None if none."""
+        ray = self._pick_ray(mx, my)
+        if ray is None:
+            return None
+        best, best_d2 = None, None
+        for i, p in enumerate(self._skeleton['joints']):
+            t, d2 = self._closest_point_on_ray(ray[0], ray[1], p)
+            px = self._dist * 0.012
+            if t > 0 and d2 < px * px and (best_d2 is None or d2 < best_d2):
+                best, best_d2 = i, d2
+        return best
+
+    def set_brush_tool(self, tool): #vers 1
+        """Terrain brush on (tool) or off (None); left mouse goes to the tool."""
+        if self._brush_timer is None:
+            from PyQt6.QtCore import QTimer
+            self._brush_timer = QTimer(self)
+            self._brush_timer.setInterval(33)
+            self._brush_timer.timeout.connect(self._brush_tick)
+        self._brush_timer.stop()
+        self._brush_tool = tool
+        self.update()
+
+    def _brush_tick(self): #vers 1
+        """Repeat the held brush while the left button is down."""
+        if self._brush_tool is not None:
+            self._brush_tool.tick()
+            self.update()
+
+    def _draw_brush_ring(self): #vers 1
+        """Brush circle (and ramp line) from the tool's ring() data."""
+        ring = self._brush_tool.ring()
+        if not ring:
+            return
+        (cx, cy, cz), radius, colour, line = ring
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glDisable(GL_DEPTH_TEST)
+        glColor3f(*colour)
+        glLineWidth(2.0)
+        glBegin(GL_LINE_LOOP)
+        for k in range(64):
+            a = k * math.tau / 64
+            glVertex3f(cx + radius * math.cos(a), cy + radius * math.sin(a), cz + 0.3)
+        glEnd()
+        glPointSize(5.0)
+        glBegin(GL_POINTS)
+        glVertex3f(cx, cy, cz + 0.3)
+        glEnd()
+        if line:
+            glBegin(GL_LINES)
+            for x, y, z in line:
+                glVertex3f(x, y, z + 0.3)
+            glEnd()
+        glLineWidth(1.0)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def refresh_world_models(self, model_keys): #vers 1
+        """Drop cached display lists of these models so edits redraw."""
+        keys = set(model_keys)
+        inst_ids = {('inst', id(e)) for e in self._world_instances or []
+                    if e.get('model_key') in keys}
+        if OPENGL_AVAILABLE and self.isValid():
+            self.makeCurrent()
+            for cache in (self._world_display_lists, self._col_display_lists):
+                for ck in [k for k in cache if k[0] in keys or k[0] in inst_ids]:
+                    glDeleteLists(cache.pop(ck), 1)
+            self.doneCurrent()
+        self.update()
+
+    def set_water_edit_mode(self, enabled, select_cb=None, move_cb=None): #vers 1
+        """Water quad editing: select_cb(index), move_cb(index, dx, dy) on drop."""
+        self._water_edit_mode = bool(enabled)
+        self._water_select_cb, self._water_move_cb = select_cb, move_cb
+        self._water_drag, self._water_live = None, (0.0, 0.0)
+        if not enabled:
+            self._water_sel = -1
+        self.update()
+
+    def set_water_selection(self, index): #vers 1
+        """Highlight one water quad (-1 for none)."""
+        self._water_sel = index
+        self.update()
+
+    def _pick_water_cell(self, mx, my): #vers 1
+        """Topmost drawn water quad under the mouse: (index, x, y, z) or None."""
+        va = getattr(self, '_water2_va', None)
+        ray = self._pick_ray(mx, my)
+        if va is None or ray is None:
+            return None
+        v = va[1].reshape(-1, 4, 3)
+        (ox, oy, oz), (dx, dy, dz) = ray
+        if abs(dz) < 1e-9:
+            return None
+        z = v[:, 0, 2]
+        t = (z - oz) / dz
+        px, py = ox + dx * t, oy + dy * t
+        x0, x1 = v[:, :, 0].min(1), v[:, :, 0].max(1)
+        y0, y1 = v[:, :, 1].min(1), v[:, :, 1].max(1)
+        hit = (t > 0) & (px >= x0) & (px <= x1) & (py >= y0) & (py <= y1)
+        if not hit.any():
+            return None
+        i = int(np.argmin(np.where(hit, t, np.inf)))
+        return i, float(px[i]), float(py[i]), float(z[i])
 
     def _draw_sa_nodes(self): #vers 1
         """Draw SA's real vehicle/ped path node graph as disconnected
@@ -4173,8 +4492,29 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             pass
         self.update()
 
-    def mousePressEvent(self, event): #vers 8
+    def mousePressEvent(self, event): #vers 11
         self._last_pos = event.pos()
+        if self._skeleton and event.button() == Qt.MouseButton.LeftButton:
+            mx, my = event.pos().x(), event.pos().y()
+            ai = self._pick_skeleton_ring(mx, my)
+            if ai is not None:                                  # rotate ring drag
+                axis = self._skeleton['axes'][ai]
+                ray = self._pick_ray(mx, my)
+                facing = ray is not None and sum(a * b for a, b in zip(axis, ray[1])) > 0
+                self._skel_ring = {'axis': ai, 'angle': self._skel_ring_angle(mx, my),
+                                   'sign': 1.0 if facing else -1.0}
+                self.update()
+                return
+            j = self._pick_skeleton_joint(mx, my) if self._skeleton['pick'] else None
+            if j is not None:
+                self._skeleton['pick'](j, event.modifiers())
+                self._skel_drag = j
+                return
+        if self._brush_tool is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._brush_tool.press(event.pos().x(), event.pos().y(), event.modifiers())
+            self._brush_timer.start()
+            self.update()
+            return
         if event.button() == Qt.MouseButton.RightButton:
             # Tracks where a right-click started (Aug 19 2026)
             self._right_press_pos = event.pos()
@@ -4182,6 +4522,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # Tracks where a middle-click started (Aug 21 2026)
             self._middle_press_pos = event.pos()
         if event.button() == Qt.MouseButton.LeftButton:
+            if self._water_edit_mode and self.show_water:          # water quad select / drag
+                hit = self._pick_water_cell(event.pos().x(), event.pos().y())
+                if hit is not None:
+                    self._water_sel = hit[0]
+                    self._water_drag, self._water_live = hit, (0.0, 0.0)
+                    if self._water_select_cb is not None:
+                        self._water_select_cb(hit[0])
+                    self.update()
+                    return
             # Path node editing (Aug 17 2026)
             if getattr(self, '_path_edit_mode', False):
                 mx, my = event.pos().x(), event.pos().y()
@@ -4304,7 +4653,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                                                 | Qt.KeyboardModifier.ShiftModifier))
                 self._mesh_region = [mx, my, mx, my, add]   # empty space: region drag
 
-    def mouseMoveEvent(self, event): #vers 9
+    def mouseMoveEvent(self, event): #vers 13
+        ring = getattr(self, '_skel_ring', None)
+        if ring is not None and self._skeleton and event.buttons() & Qt.MouseButton.LeftButton:
+            ang = self._skel_ring_angle(event.pos().x(), event.pos().y())
+            delta = (ang - ring['angle'] + 180.0) % 360.0 - 180.0
+            ring['angle'] = ang
+            if delta and self._skeleton['ring']:
+                self._skeleton['ring'](ring['axis'], delta * ring['sign'])
+            self._last_pos = event.pos()
+            return
+        if getattr(self, '_skel_drag', None) is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            if self._skeleton and self._skeleton['drag']:
+                self._skeleton['drag'](self._skel_drag, event.pos().x() - self._last_pos.x(),
+                                       event.pos().y() - self._last_pos.y(), event.modifiers())
+            self._last_pos = event.pos()
+            return
+        if self._brush_tool is not None:
+            self._brush_tool.hover(event.pos().x(), event.pos().y())
+            if event.buttons() & Qt.MouseButton.LeftButton:
+                self._last_pos = event.pos()
+                self.update()
+                return
+            if not event.buttons():
+                self.update()
         if getattr(self, '_mesh_drag', None) is not None and event.buttons() & Qt.MouseButton.LeftButton:
             self._mesh_gizmo_update(event.pos().x(), event.pos().y())
             self._last_pos = event.pos()
@@ -4324,6 +4696,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # Yaw-compensated pan (Aug 1 2026)
             scale = self._dist * 0.002 * sens
             self._apply_pan_step(dx * scale, -dy * scale)
+        elif event.buttons() & Qt.MouseButton.LeftButton and self._water_drag is not None:
+            _i, sx, sy, sz = self._water_drag                       # water quad drag
+            p = self._screen_to_ground_position(event.pos().x(), event.pos().y(), ground_z=sz)
+            if p is not None:
+                self._water_live = (p[0] - sx, p[1] - sy)
+                self.update()
         elif (event.buttons() & Qt.MouseButton.LeftButton
               and getattr(self, '_dragging_path_node_start_key', None) is not None):
             # Path node drag in progress (Aug 17 2026)
@@ -5856,8 +6234,27 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPopMatrix()
         glLineWidth(1.0)
 
-    def mouseReleaseEvent(self, event): #vers 9
+    def mouseReleaseEvent(self, event): #vers 13
         self._last_pos = event.pos()
+        if getattr(self, '_skel_ring', None) is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._skel_ring = None
+            self.update()
+            return
+        if getattr(self, '_skel_drag', None) is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._skel_drag = None
+            return
+        if self._brush_tool is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._brush_timer.stop()
+            self._brush_tool.release()
+            self.update()
+            return
+        if self._water_drag is not None and event.button() == Qt.MouseButton.LeftButton:
+            idx, (dx, dy) = self._water_drag[0], self._water_live
+            self._water_drag, self._water_live = None, (0.0, 0.0)
+            if (dx or dy) and self._water_move_cb is not None:
+                self._water_move_cb(idx, dx, dy)
+            self.update()
+            return
         if getattr(self, '_mesh_drag', None) is not None and event.button() == Qt.MouseButton.LeftButton:
             self._mesh_gizmo_end()
             return

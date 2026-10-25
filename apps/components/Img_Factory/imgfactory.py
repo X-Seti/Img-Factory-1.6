@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 114
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 121
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -47,6 +47,7 @@ except ImportError:
 
 # App utilities
 from apps.utils.app_settings_system import AppSettings, apply_theme_to_app, SettingsDialog
+from apps.methods.corner_handles import paint_corner_handles
 
 # Components
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
@@ -460,6 +461,7 @@ class IMGFactory(QMainWindow):
         # Apply button display mode from settings
         self._apply_button_display_mode_from_settings()
         self._apply_button_settings_at_startup()
+        QTimer.singleShot(0, self._apply_panel_effects_now)   # image / see-through at startup
 
         integrate_remove_functions(self)
         from apps.core.rename import integrate_rename_functions
@@ -873,6 +875,14 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Dir tree autoload error: {e}")
 
+
+    def _apply_panel_effects_now(self, widget=None): #vers 2
+        """Panel image, button and see-through settings, same path as Settings Apply."""
+        if getattr(self, 'app_settings', None) is None:
+            return
+        from apps.utils.app_settings_system import apply_panel_effects
+        self.setStyleSheet(self.app_settings.get_stylesheet())   # tints read from window QSS
+        apply_panel_effects(self, self.app_settings)
 
     def _apply_button_settings_at_startup(self): #vers 1
         """Apply button sizing and spacing settings at startup"""
@@ -2214,14 +2224,15 @@ class IMGFactory(QMainWindow):
 
 
 
-    def _create_ui(self): #vers 14
+    def _create_ui(self): #vers 15
         """Create the main user interface - WITH TABS FIXED"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+        self.setContentsMargins(5, 5, 5, 5)          # COL corner strip around the window
 
         # Main layout
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(5, 0, 5, 5)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
         # IN CUSTOM UI MODE: Add toolbar FIRST (before tabs)
@@ -2981,7 +2992,7 @@ class IMGFactory(QMainWindow):
             return False
 
 
-    def load_file_unified(self, file_path: str): #vers 10
+    def load_file_unified(self, file_path: str): #vers 11
         """Unified file loader - handles IMG, COL, TXD, HXD, MXD, AGR, LVZ"""
         try:
             if not file_path or not os.path.exists(file_path):
@@ -2996,6 +3007,9 @@ class IMGFactory(QMainWindow):
                 return True
             elif file_ext in ('.hxd', '.mxd', '.agr', '.lvz'):
                 self._load_img_file_in_new_tab(file_path)
+                return True
+            elif file_ext in ('.iso', '.bin'):                 # disc images
+                self.open_disc_workshop_docked(file_path)
                 return True
 
             if file_ext == '.img':
@@ -3039,7 +3053,7 @@ class IMGFactory(QMainWindow):
                 continue
             self._load_img_file_in_new_tab(p, batch=batch)
 
-    def _load_img_file_in_new_tab(self, file_path, batch=None): #vers 4
+    def _load_img_file_in_new_tab(self, file_path, batch=None): #vers 5
         """Load IMG file in a new tab.
 
         Each file gets its own IMGLoadThread carrying the target tab_index so
@@ -3047,6 +3061,10 @@ class IMGFactory(QMainWindow):
         batch: ImgBatchLoadDialog - results go there, no per-file error popup.
         """
         try:
+            from apps.methods.cd_image import is_cd_image
+            if is_cd_image(file_path):                     # CD / DVD image, not a GTA IMG
+                self.open_disc_workshop_docked(file_path)
+                return
             from apps.methods.tab_system import create_tab
 
             # Create the tab first — get back the index for THIS file
@@ -4706,6 +4724,26 @@ class IMGFactory(QMainWindow):
             'VehicleWorkshop', None,
             'Vehicle Workshop', file_path)
 
+    def open_ped_workshop_docked(self, file_path=None, game_root=None): #vers 1
+        """Open Ped Workshop in a tab; game root from file or last loaded game."""
+        from apps.components.Ped_Workshop.ped_workshop import open_ped_workshop
+        return open_ped_workshop(self, game_root or getattr(self, 'game_root', '') or '', file_path)
+
+    def open_terrain_workshop_docked(self): #vers 1
+        """Open Terrain Workshop in a tab."""
+        from apps.components.Terrain_Workshop.terrain_workshop import open_terrain_workshop
+        return open_terrain_workshop(self)
+
+    def open_disc_workshop_docked(self, file_path=None): #vers 1
+        """Open Disc Workshop (CD / DVD images) in a tab."""
+        from apps.components.Disc_Workshop.disc_workshop import open_disc_workshop
+        return open_disc_workshop(self, file_path)
+
+    def open_retro_gta_workshop_docked(self, file_path=None): #vers 1
+        """Open Retro GTA Workshop (GTA2 maps / styles) in a tab."""
+        from apps.components.Retro_GTA_Workshop.retro_gta_workshop import open_retro_gta_workshop
+        return open_retro_gta_workshop(self, file_path)
+
     def open_scm_workshop_docked(self, file_path=None): #vers 1
         """Open SCM Workshop docked in a tab."""
         from apps.components.Scm_Workshop.scm_workshop import open_scm_workshop
@@ -4892,7 +4930,7 @@ class IMGFactory(QMainWindow):
             'BreakableEditor', None,
             'Breakable', file_path or None)
 
-    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 2
+    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 3
         """Generic: import module, instantiate class, dock in tab. Reuses existing tab if open."""
         try:
             import importlib
@@ -4928,6 +4966,7 @@ class IMGFactory(QMainWindow):
             self._ensure_tab_area_visible()
             self.register_tool(class_name.lower(), tab_label.replace(' Workshop', ''), icon,
                                tab_container, workshop.windowTitle())
+            QTimer.singleShot(0, self._apply_panel_effects_now)
             self.log_message(f"{tab_label} opened")
             return workshop
         except Exception as e:
@@ -5076,11 +5115,12 @@ class IMGFactory(QMainWindow):
         return workshop
 
 
-    def _ensure_tab_area_visible(self): #vers 2
+    def _ensure_tab_area_visible(self): #vers 3
         """Ensure main_tab_widget is visible and has space in the content splitter.
         Works whether or not an IMG file is loaded.
         """
         try:
+            QTimer.singleShot(0, self._apply_panel_effects_now)   # effects on new workshop tab
             # Ensure the tab widget itself is shown
             if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
                 if not self.main_tab_widget.isVisible():
@@ -5353,105 +5393,18 @@ class IMGFactory(QMainWindow):
 
 
 
-    def paintEvent(self, event): #vers 4
-        """Corner handles drawn by _corner_overlay — see setup_corner_overlay"""
+    def paintEvent(self, event): #vers 5
+        """Corner handles, COL style (methods/corner_handles.py); frameless only."""
         super().paintEvent(event)
+        if self.windowFlags() & Qt.WindowType.FramelessWindowHint:
+            self.hover_corner = getattr(getattr(self, 'gui_layout', None), 'hover_corner', None)
+            paint_corner_handles(self)
 
-    def setup_corner_overlay(self): #vers 2
-        """Transparent overlay draws corner handles above all child widgets."""
-        if hasattr(self, '_corner_overlay') and self._corner_overlay:
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.raise_()
-            return
-        # Create fresh overlay
-        from PyQt6.QtWidgets import QWidget
-        from PyQt6.QtGui import QPainter, QColor, QBrush, QPainterPath
-        from PyQt6.QtCore import Qt
-
-        parent = self
-
-        class CornerOverlay(QWidget):
-            SIZE = 20
-            def __init__(self, parent):
-                super().__init__(parent)
-                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-                self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-                self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-                self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
-                self.setGeometry(0, 0, parent.width(), parent.height())
-                self._update_mask()
-
-            def _update_mask(self):
-                from PyQt6.QtGui import QRegion, QPolygon
-                from PyQt6.QtCore import QPoint
-                s = self.SIZE; w, h = self.width(), self.height()
-                region = QRegion()
-                for pts in [
-                    [QPoint(0,0),QPoint(s,0),QPoint(0,s)],
-                    [QPoint(w,0),QPoint(w-s,0),QPoint(w,s)],
-                    [QPoint(0,h),QPoint(s,h),QPoint(0,h-s)],
-                    [QPoint(w,h),QPoint(w-s,h),QPoint(w,h-s)],
-                ]:
-                    region = region.united(QRegion(QPolygon(pts)))
-                self.setMask(region)
-
-            def resizeEvent(self, ev):
-                super().resizeEvent(ev); self._update_mask()
-
-            def setGeometry(self, *args):
-                super().setGeometry(*args); self._update_mask()
-
-            def paintEvent(self, event):
-                size = self.SIZE
-                gl = getattr(parent, 'gui_layout', None)
-                if not gl: return
-                if hasattr(gl, 'app_settings') and gl.app_settings:
-                    try:
-                        colors = gl.app_settings.get_theme_colors()
-                        accent = QColor(colors.get('accent_primary', '#4682FF'))
-                    except Exception:
-                        accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70, 130, 255)
-                else:
-                    accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70, 130, 255)
-                accent.setAlpha(200)
-                hover_c = QColor(accent); hover_c.setAlpha(255)
-                w, h = self.width(), self.height()
-                hover = getattr(gl, 'hover_corner', None)
-                corners = {
-                    'top-left':     [(0,0),(size,0),(0,size)],
-                    'top-right':    [(w,0),(w-size,0),(w,size)],
-                    'bottom-left':  [(0,h),(size,h),(0,h-size)],
-                    'bottom-right': [(w,h),(w-size,h),(w,h-size)],
-                }
-                p = QPainter(self)
-                p.setRenderHint(QPainter.RenderHint.Antialiasing)
-                for name, pts in corners.items():
-                    path = QPainterPath()
-                    path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
-                    path.closeSubpath()
-                    p.setPen(Qt.PenStyle.NoPen)
-                    p.setBrush(QBrush(hover_c if hover == name else accent))
-                    p.drawPath(path)
-                p.end()
-
-        self._corner_overlay = CornerOverlay(self)
-        self._corner_overlay.raise_()
-
-    def showEvent(self, event): #vers 3
+    def showEvent(self, event): #vers 4
         super().showEvent(event)
         from PyQt6.QtCore import Qt, QTimer
-        # Corner overlay only makes sense in frameless mode
-        if self.windowFlags() & Qt.WindowType.FramelessWindowHint:
-            QTimer.singleShot(100, self.setup_corner_overlay)
         # Register [Intro] taskbar button → left panel welcome screen
         QTimer.singleShot(900, self._register_intro_tool)
-
-    def refresh_corner_overlay(self): #vers 1
-        if hasattr(self, '_corner_overlay'):
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.raise_()
-            self._corner_overlay.update()
-
 
     def _get_resize_corner(self, pos): #vers 4
         """Determine which corner is under mouse position"""
@@ -5520,7 +5473,7 @@ class IMGFactory(QMainWindow):
         super().mousePressEvent(event)
 
 
-    def mouseMoveEvent(self, event): #vers 4
+    def mouseMoveEvent(self, event): #vers 5
         """Handle mouse move for resizing and hover effects"""
         from PyQt6.QtCore import Qt
 
@@ -5540,7 +5493,7 @@ class IMGFactory(QMainWindow):
                 if hasattr(self.gui_layout, 'hover_corner'):
                     if corner != self.gui_layout.hover_corner:
                         self.gui_layout.hover_corner = corner
-                        self.refresh_corner_overlay()
+                        self.update()
                 self._update_cursor(corner)
 
         super().mouseMoveEvent(event)
@@ -5639,10 +5592,10 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
-    def resizeEvent(self, event): #vers 3
+    def resizeEvent(self, event): #vers 4
         """Handle window resize event"""
         super().resizeEvent(event)
-        self.refresh_corner_overlay()
+        self.update()
 
 
     def _toggle_maximize(self): #vers 1

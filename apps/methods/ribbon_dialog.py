@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ribbon_dialog.py - Version: 5
+#this belongs in apps/methods/ribbon_dialog.py - Version: 6
 # X-Seti - September30 2026 - IMG Factory 1.6 - Ribbon Manager dialog
 
 """
@@ -610,10 +610,12 @@ class RibbonIconsMixin: #vers 2
             label = label or w.toolTip() or w.windowTitle() or w.objectName()
         return f"{tb.objectName()}/{label}" if label and tb.objectName() else None
 
-    def _ribbon_layout_snapshot(self) -> dict: #vers 2
-        """Button order, dividers ('|') and hidden buttons; hidden widget items by 'toolbar/label'."""
+    def _ribbon_layout_snapshot(self) -> dict: #vers 3
+        """Button order, dividers ('|') and hidden buttons; hidden widget items by 'toolbar/label'.
+        _RIBBON_WIDGET_ITEMS: widget buttons kept in the order too, as 'w:label'."""
         from PyQt6.QtWidgets import QToolBar
         mw = getattr(self, '_inner_mw', None)
+        widget_items = getattr(self, '_RIBBON_WIDGET_ITEMS', False)
         names = {id(e['action']): e['name'] for e in getattr(self, '_ribbon_actions', [])}
         bars, hidden, hidden_widgets = {}, [], []
         for tb in (mw.findChildren(QToolBar) if mw else []):
@@ -628,8 +630,14 @@ class RibbonIconsMixin: #vers 2
                     if not a.isVisible():
                         hidden.append(names[id(a)])
                 else:
-                    row = None                           # mixed toolbar: order not managed
                     key = self._widget_action_key(tb, a)
+                    if widget_items and key:              # widget button: ordered by its label
+                        if row is not None:
+                            row.append('w:' + key.split('/', 1)[1])
+                        if not a.isVisible():
+                            hidden_widgets.append(key)
+                        continue
+                    row = None                           # mixed toolbar: order not managed
                     if key and not a.isVisible():
                         hidden_widgets.append(key)
             if row is not None and tb.objectName():
@@ -640,7 +648,7 @@ class RibbonIconsMixin: #vers 2
         """Store button order, dividers and hidden buttons in the ribbon config."""
         self._ribbon_config_set('ribbon_layout', self._ribbon_layout_snapshot())
 
-    def _apply_ribbon_layout(self): #vers 2
+    def _apply_ribbon_layout(self): #vers 3
         """Rebuild saved toolbars: order, dividers, moves, hidden; new buttons stay at the end."""
         from PyQt6.QtWidgets import QToolBar
         mw = getattr(self, '_inner_mw', None)
@@ -661,6 +669,14 @@ class RibbonIconsMixin: #vers 2
                 bars[name] = tb
                 current[name] = []
         managed = [bars[n] for n in current]
+        ids = {id(e['action']) for e in entries.values()}
+        widgets = {}                                     # 'w:label' -> (action, its toolbar)
+        for tb in managed:
+            for a in tb.actions():
+                if not a.isSeparator() and id(a) not in ids:
+                    key = self._widget_action_key(tb, a)
+                    if key:
+                        widgets['w:' + key.split('/', 1)[1]] = (a, tb)
         for tb in managed:
             for a in list(tb.actions()):
                 tb.removeAction(a)
@@ -675,14 +691,19 @@ class RibbonIconsMixin: #vers 2
                 elif item in entries and item not in placed:
                     tb.addAction(entries[item]['action'])
                     placed.add(item)
+                elif item in widgets and item not in placed:
+                    tb.addAction(widgets[item][0])
+                    placed.add(item)
         for name, e in entries.items():                 # buttons added since the save
             if name not in placed and e.get('toolbar') in managed:
                 e['toolbar'].addAction(e['action'])
+        for name, (a, tb) in widgets.items():            # widget buttons added since the save
+            if name not in placed:
+                tb.addAction(a)
         hidden = set(layout.get('hidden', []))
         for name, e in entries.items():
             e['action'].setVisible(name not in hidden)
         hidden_w = set(layout.get('hidden_widgets', []))
-        ids = {id(e['action']) for e in entries.values()}
         for tb in mw.findChildren(QToolBar):             # gauges, combos, labels
             for a in tb.actions():
                 if not a.isSeparator() and id(a) not in ids:

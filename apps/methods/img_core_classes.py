@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_core_classes.py - Version: 20
+#this belongs in apps/methods/img_core_classes.py - Version: 21
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -1108,13 +1108,14 @@ class IMGFile:
             return f"file_{len(self.entries):04d}.dat"
 
 
-    def _rebuild_version3(self) -> bool: #vers 1
+    def _rebuild_version3(self) -> bool: #vers 2
         """Rebuild GTA IV IMG (V3); table re-encrypted when it was."""
         import struct
         _out = getattr(self, '_rebuild_target', None) or self.file_path
         _tmp_img = _out + '.rebuild.tmp'
         try:
-            datas = [self.read_entry_data(e) for e in self.entries]
+            datas = [getattr(e, '_cached_data', None) or self.read_entry_data(e)   # replaced data first
+                     for e in self.entries]
             plain_types = [getattr(e, 'v3_type', 0) for e, d in zip(self.entries, datas)
                            if d[:4] != b'RSC\x05']
             plain_type = max(set(plain_types), key=plain_types.count) if plain_types else 0

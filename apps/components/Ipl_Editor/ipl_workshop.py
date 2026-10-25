@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ipl_Editor/ipl_workshop.py - Version: 5
+#this belongs in apps/components/Ipl_Editor/ipl_workshop.py - Version: 6
 # X-Seti - Apr 2026 - IMG Factory 1.6 - IPL Workshop
 # Item Placement List editor for GTA III / VC / SA / SOL
 # Built on GUIWorkshop base (temp_workshop pattern)
@@ -814,6 +814,7 @@ class IPLWorkshop(RibbonMixin, GUIWorkshop):
     _ribbon_name    = "ipl_workshop"
     # Bump when the set of ribbons changes (3 = Sort buttons added)
     _RIBBON_LAYOUT_VERSION = 3
+    DROP_EXTS = ('.ipl', '.ide', '.ifx')
 
     # Column indices for the instance table
     COL_ID    = 0
@@ -1008,12 +1009,12 @@ class IPLWorkshop(RibbonMixin, GUIWorkshop):
         cl.addWidget(self._centre_tabs)
         return panel
 
-    def _on_centre_tab_changed(self, idx: int): #vers 3
+    def _on_centre_tab_changed(self, idx: int): #vers 4
         """Refresh the map when its tab opens; hide the IPL section list while
         the IDE tab (which has its own file/section lists) is showing."""
         w = self._centre_tabs.widget(idx)
-        if hasattr(self, "_main_splitter"):
-            self._main_splitter.widget(0).setVisible(w is not self._ide_panel)
+        if getattr(self, "_outer_docks", None):
+            self._outer_docks[0].setVisible(w is not self._ide_panel)
         if w is self._map_panel:
             self._map_panel.refresh(self._current_entries())
             if self._files:
@@ -1627,21 +1628,16 @@ class IPLWorkshop(RibbonMixin, GUIWorkshop):
                 btn.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 2
-        from PyQt6.QtWidgets import QSplitter
+    def setup_ui(self): #vers 3
+        """Titlebar / Sections dock | ribbon-wrapped tabs / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
         ml.addWidget(self._create_toolbar())
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._create_left_panel())
-        sp.addWidget(self._create_centre_panel())
-        sp.setStretchFactor(0, 1)
-        sp.setStretchFactor(1, 6)
-        sp.setSizes([200, 1100])
-        self._main_splitter = sp
+        left = self._create_left_panel()
         self._draw_btns = {}
-        ml.addWidget(self.ribbon_wrap(sp), 1)
+        ml.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()),
+                                       [("Sections", left, 180, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)

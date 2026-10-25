@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 128
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 133
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -31,6 +31,7 @@ from PyQt6.QtGui import QColor, QFont
 # QAction location varies by PyQt6 version — try bothQStyledItemDelegate
 
 # Import project modules AFTER path setup
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 from apps.gui.tool_menu_mixin import ToolMenuMixin
@@ -45,7 +46,7 @@ from apps.components.Col_Editor.depends.col_core_logic_func import COLCoreLogicM
 from apps.components.Col_Editor.depends.col_setup_ui_func import COLSetupUIMixin, App_name, App_build
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.doc_tabs import DocTabsMixin
-from apps.methods.grip_splitter import SplitterSizesMixin
+from apps.methods.dock_panels import DockPanelsMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 
 
@@ -87,7 +88,7 @@ DEBUG_STANDALONE = False
 # SplitterSizesMixin - methods/grip_splitter.py
 
 
-class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, DocTabsMixin, RibbonIconsMixin, SplitterSizesMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 14
+class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMixin, COLPaintMixin, COLEditMixin, DocTabsMixin, RibbonIconsMixin, DockPanelsMixin, GLViewportMixin, ToolMenuMixin, QWidget): #vers 15
     """COL Workshop - Main window"""
 
     #    ToolMenuMixin implementation                                      
@@ -103,6 +104,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # 2 = added Name/Format/Shadow Mesh ribbons (replacing the old
     # dual text/icon bottom info panel).
     _RIBBON_LAYOUT_VERSION = 4
+    _OUTER_LAYOUT_VERSION = 1      # COL Files / Models docks
 
     def __init__(self, parent=None, main_window=None): #vers 12
         """initialize_features"""
@@ -133,6 +135,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         # Thumbnail view axis (applied to all static thumbnails)
         self._thumb_yaw   = 0.0    # top-down (XY plane) by default
         self._thumb_pitch = 0.0
+        self._bg_color     = (25, 25, 35)  # overridden on first paint
 
         # Set default fonts
         from PyQt6.QtGui import QFont
@@ -140,6 +143,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         self.setFont(default_font)
         self.title_font = QFont("Arial", 14)
         self.panel_font = QFont("Arial", 10)
+        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)
         self.button_font = QFont("Arial", 10)
         self.infobar_font = QFont("Courier New", 9)
         self.standalone_mode = (main_window is None)
@@ -308,7 +312,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     # STUB: dock_btn, tearoff_btn, colour swatch buttons and _svg_to_icon()
     # created icons do not yet update on theme change. Wire to _refresh_icons.
 
-    def _show_workshop_settings(self): #vers 2
+    def _show_workshop_settings(self): #vers 5
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -475,6 +479,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
 
         table_group.setLayout(table_layout)
         display_layout.addWidget(table_group)
+        add_statusbar_checkbox(self, display_layout)
 
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
@@ -631,6 +636,8 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -691,11 +698,8 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
 
             # Update preview widget
             if hasattr(self, 'preview_widget'):
-                if self.background_mode == 'checkerboard':
-                    self.preview_widget.set_checkerboard_background()
-                    self.preview_widget._checkerboard_size = self._checkerboard_size
-                else:
-                    self.preview_widget.set_background_color(self.preview_widget.bg_color)
+                self.preview_widget._checkerboard_size = self._checkerboard_size
+                self.preview_widget.update()   # viewport has no bg_color attr
 
             # Apply button display mode
             if hasattr(self, '_update_all_buttons'):
@@ -812,8 +816,8 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 9
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 10
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -822,13 +826,9 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True
@@ -954,7 +954,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
             QMessageBox.warning(self, "Theme Error", f"Could not load theme system:\n{e}")
 
 
-    def _show_settings_dialog(self): #vers 6
+    def _show_settings_dialog(self): #vers 7
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -1362,6 +1362,8 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # Dialog buttons

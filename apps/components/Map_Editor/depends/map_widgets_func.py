@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 4
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop widgets
 
 """
@@ -65,6 +65,15 @@ Settings store, helper widgets, dialogs and table models used by Map Workshop.
 # set_display_style
 # set_middle_click_menu_available
 # set_shown
+
+##class _WaterLevelsDialog: -
+# __init__
+# _apply
+
+##class _WaterQuadDialog: -
+# _apply
+# __init__
+# show_quad
 
 ##class _PathGroupEditDialog: -
 # _apply
@@ -1104,11 +1113,96 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
             f"border-radius: 3px; padding: 1px 4px; }}")
 
 
+class _WaterLevelsDialog(QDialog): #vers 1
+    """Non-modal editor for waterpro level heights (VC waterpro.dat, LCS/VCS GAME.DTZ)."""
+
+    def __init__(self, workshop, heights, source, parent=None): #vers 1
+        super().__init__(parent)
+        self.ws = workshop
+        self.setWindowTitle("Water Levels")
+        self.setModal(False)
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(f"{len(heights)} water level(s) in {source}\n"
+                             f"Each grid cell uses one level; changing a height moves all its cells."))
+        self.table = QTableWidget(len(heights), 1)
+        self.table.setHorizontalHeaderLabels(["Height (Z)"])
+        self.spins = []
+        for r, h in enumerate(heights):
+            sp = QDoubleSpinBox(); sp.setRange(-2000, 2000); sp.setDecimals(3); sp.setValue(h)
+            self.table.setCellWidget(r, 0, sp)
+            self.spins.append(sp)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        lay.addWidget(self.table)
+        btns = QHBoxLayout()
+        for text, slot in (("Apply", self._apply), ("Save", workshop._save_water_levels)):
+            b = QPushButton(text); b.clicked.connect(lambda _c=False, f=slot: f()); btns.addWidget(b)
+        lay.addLayout(btns)
+
+    def _apply(self): #vers 1
+        """Push heights to the loaded waterpro and the view."""
+        self.ws._apply_water_levels([sp.value() for sp in self.spins])
+
+
+class _WaterQuadDialog(QDialog): #vers 1
+    """Non-modal editor for one water.dat quad: corner X/Y/Z, undo, save."""
+
+    def __init__(self, workshop, parent=None): #vers 1
+        super().__init__(parent)
+        self.ws = workshop
+        self.index = -1
+        self.setWindowTitle("Water Quad")
+        self.setModal(False)
+        lay = QVBoxLayout(self)
+        self.title = QLabel("Click a water quad in the view")
+        lay.addWidget(self.title)
+        self.grid = QGridLayout()
+        for c, h in enumerate(("", "X", "Y", "Z")):
+            self.grid.addWidget(QLabel(h), 0, c)
+        self.spins = []
+        for r in range(4):
+            self.grid.addWidget(QLabel(f"Corner {r + 1}"), r + 1, 0)
+            row = []
+            for c, (lo, hi) in enumerate(((-9000, 9000), (-9000, 9000), (-2000, 2000))):
+                sp = QDoubleSpinBox(); sp.setRange(lo, hi); sp.setDecimals(3)
+                self.grid.addWidget(sp, r + 1, c + 1)
+                row.append(sp)
+            self.spins.append(row)
+        lay.addLayout(self.grid)
+        btns = QHBoxLayout()
+        for text, slot in (("Apply", self._apply), ("Undo", workshop._undo_water_edit),
+                           ("Save water.dat", workshop._save_water_dat),
+                           ("Alignment...", workshop._show_radar_align_dialog)):
+            b = QPushButton(text); b.clicked.connect(lambda _c=False, f=slot: f()); btns.addWidget(b)
+        lay.addLayout(btns)
+
+    def show_quad(self, index, quad): #vers 1
+        """Fill the fields from one quad (triangles leave corner 4 off)."""
+        self.index = index
+        n = len(quad["corners"])
+        self.title.setText(f"Water quad {index}  ({'triangle' if n == 3 else 'quad'})")
+        for r, row in enumerate(self.spins):
+            on = r < n
+            for c, sp in enumerate(row):
+                sp.setEnabled(on)
+                sp.blockSignals(True)
+                if on:
+                    cr = quad["corners"][r]
+                    sp.setValue((cr["x"], cr["y"], cr["f"][0])[c])
+                sp.blockSignals(False)
+
+    def _apply(self): #vers 1
+        """Send the typed corner values to the workshop."""
+        if self.index < 0:
+            return
+        vals = [tuple(sp.value() for sp in row) for row in self.spins if row[0].isEnabled()]
+        self.ws._set_water_quad(self.index, vals)
+
+
 class _PathGroupEditDialog(QDialog): #vers 1
     """Path Group Editor - add/move/delete/connect nodes within one
     path group (Aug 16 2026)"""
 
-    def __init__(self, group, workshop, parent=None): #vers 1
+    def __init__(self, group, workshop, parent=None): #vers 2
         super().__init__(parent)
         self.group = group
         self.workshop = workshop
@@ -1193,8 +1287,10 @@ class _PathGroupEditDialog(QDialog): #vers 1
 
             flag_row = []
             for col, val in ((9, node.flag1), (10, node.flag2), (11, node.flag3)):
-                spin = QSpinBox()
+                spin = QDoubleSpinBox() if col == 11 else QSpinBox()   # flag3 fractional
                 spin.setRange(0, 255)
+                if col == 11:
+                    spin.setDecimals(3)
                 spin.setValue(val)
                 self._table.setCellWidget(i, col, spin)
                 flag_row.append(spin)
@@ -1237,8 +1333,9 @@ class _PathGroupEditDialog(QDialog): #vers 1
         for spin in self._flag_spins[row]:
             spin.setValue(0)
 
-    def _apply(self): #vers 1
+    def _apply(self): #vers 3
         from apps.methods.gta_dat_parser import PathNode
+        old = list(self.group.nodes)
         self.group.header_a = self._header_a_spin.value()
         self.group.header_b = self._header_b_spin.value()
         new_nodes = []
@@ -1253,6 +1350,8 @@ class _PathGroupEditDialog(QDialog): #vers 1
                 flag1=self._flag_spins[i][0].value(),
                 flag2=self._flag_spins[i][1].value(),
                 flag3=self._flag_spins[i][2].value(),
+                cross=getattr(old[i], 'cross', 0) if i < len(old) else 0,   # keep crossroad
+                extra=getattr(old[i], 'extra', ()) if i < len(old) else (),
             ))
         self.group.nodes = new_nodes
         if hasattr(self.workshop, '_refresh_path_visualization'):

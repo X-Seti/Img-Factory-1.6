@@ -1,4 +1,4 @@
-#this belongs in gui/tab_context_menu.py - Version: 1
+#this belongs in gui/tab_context_menu.py - Version: 2
 # X-Seti - October22 2025 - IMG Factory 1.5 - Tab Context Menu
 
 """
@@ -15,10 +15,22 @@ except ImportError:
 from PyQt6.QtCore import Qt
 
 ##Methods list -
+# _tab_workshop
 # close_other_tabs
 # rename_tab
 # setup_tab_context_menu
 # show_tab_context_menu
+
+def _tab_workshop(tab_widget): #vers 1
+    """Workshop hosted in a tab container, or None."""
+    lay = tab_widget.layout() if tab_widget is not None else None
+    if lay is None:
+        return None
+    for i in range(lay.count()):
+        w = lay.itemAt(i).widget()
+        if w is not None and hasattr(w, 'toggle_dock_mode') and hasattr(w, 'is_docked'):
+            return w
+    return None
 
 def setup_tab_context_menu(main_window): #vers 1
     """Setup right-click context menu for tabs"""
@@ -42,7 +54,7 @@ def setup_tab_context_menu(main_window): #vers 1
             main_window.log_message(f"Error setting up tab context menu: {e}")
         return False
 
-def show_tab_context_menu(main_window, position): #vers 1
+def show_tab_context_menu(main_window, position): #vers 2
     """Show context menu for tabs"""
     try:
         tab_bar = main_window.main_tab_widget.tabBar()
@@ -87,6 +99,13 @@ def show_tab_context_menu(main_window, position): #vers 1
         tab_widget = main_window.main_tab_widget.widget(tab_index)
         file_type  = getattr(tab_widget, 'file_type', None)
         file_path  = getattr(tab_widget, 'file_path', None)
+
+        workshop = _tab_workshop(tab_widget)
+        if workshop is not None:
+            menu.addSeparator()
+            dock_action = QAction("Dock Back" if not workshop.is_docked else "Tear Off Workshop", menu)
+            dock_action.triggered.connect(workshop.toggle_dock_mode)
+            menu.addAction(dock_action)
 
         if file_type == 'COL' and file_path:
             menu.addSeparator()

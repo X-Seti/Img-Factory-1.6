@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 16
+#this belongs in apps/components/Asset_Workshop/asset_workshop.py - Version: 22
 # X-Seti - October10 2025 - Img Factory 1.5 - Asset Workshop
 
 """
@@ -21,6 +21,7 @@ import io
 import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
+from apps.methods.corner_handles import paint_corner_handles
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStackedWidget
 )
@@ -28,7 +29,9 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 from PyQt6.QtSvg import QSvgRenderer
 
+from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.dock_panels import DockPanelsMixin, add_outer_dock, make_outer_mw
 from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow, ZoomablePreview
 from apps.methods.txd_versions import ( detect_txd_version, get_platform_name, get_game_from_version, get_version_capabilities, get_platform_capabilities, is_mipmap_supported, is_bumpmap_supported, validate_txd_format, TXDPlatform, detect_platform_from_data)
 
@@ -77,7 +80,7 @@ class _NumericSortItem(QTableWidgetItem): #vers 1
 
 
 
-class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
+class AssetWorkshop(TitlebarMixin, RibbonIconsMixin, DockPanelsMixin, ToolMenuMixin, QWidget): #vers 7
     """Workshop - Main texture editing window"""
 
     workshop_closed = pyqtSignal()
@@ -93,6 +96,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
     # 6 = removed Name/Format/Mipmaps ribbons and Transform's flip/
     # rotate/switch/invert/generate-alpha actions.
     _RIBBON_LAYOUT_VERSION = 7
+    _OUTER_LAYOUT_VERSION = 1      # Textures dock
 
     def _get_ui_color(self, key): #vers 2
         """Theme QColor via shared helper."""
@@ -100,7 +104,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         return get_ui_color(self, key)
 
 
-    def __init__(self, parent=None, main_window=None): #vers 11
+    def __init__(self, parent=None, main_window=None): #vers 12
         """Initialize Workshop"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
@@ -141,6 +145,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self.setFont(default_font)
         self.title_font = QFont("Arial", 14)
         self.panel_font = QFont("Arial", 10)
+        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)
         self.button_font = QFont("Arial", 10)
         self.infobar_font = QFont("Courier New", 9)
 
@@ -244,6 +249,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
         # Setup UI FIRST
         self.setup_ui()
+        self.setAcceptDrops(True)       # .dat/.img/.col/.ide/.txd dropped here
 
         # THEN setup context menu
 
@@ -304,7 +310,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         vm = parent_menu.addMenu("View")
         vm.addAction("TXD Info",             self._show_txd_info)
 
-    def setup_ui(self): #vers 9
+    def setup_ui(self): #vers 10
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -329,25 +335,21 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
 
-        # Main splitter
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        # Create all panels first
+        # Viewport + ribbons central; Textures list as a dock
         #left_panel = self._create_left_panel() # Disabled pane.
         middle_panel = self._create_middle_panel()
         self._middle_panel = middle_panel
-        middle_panel.setVisible(False)   # hidden until a TXD is actually loaded
         right_panel = self._create_right_panel()
-
-        # Left panel disabled - just middle (texture list) + right (viewport)
-        main_splitter.addWidget(middle_panel)
-        main_splitter.addWidget(right_panel)
-        main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 2)
-
-        self._main_splitter = main_splitter
-        self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
-        main_layout.addWidget(main_splitter)
+        outer_mw = make_outer_mw(right_panel)
+        self._outer_mw = outer_mw
+        self._outer_docks = []          # Textures dock follows TXD load state
+        self._tex_dock = add_outer_dock(self, outer_mw, "Textures", middle_panel, 250)
+        self._tex_dock.setVisible(False)   # hidden until a TXD is actually loaded
+        main_layout.addWidget(outer_mw)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(400, self._restore_outer_layout)
+        QTimer.singleShot(450, self._update_texture_panel_visibility)
+        self.window_closed.connect(self._save_outer_layout)
 
         # Apply themed icons now UI is fully built
         self._refresh_icons()
@@ -726,7 +728,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         paths = self.result.ide_paths or ([self.result.ide_path] if self.result.ide_path else None)
         open_master_ide_workshop(self.main_window, ide_paths=paths)
 
-    def _on_load_from_dat(self): #vers 1
+    def _on_load_from_dat(self): #vers 2
         """Load a whole game's real IMG/COL/IDE via its .dat, same
         resolution open_asset_workshop's own dat_path branch uses -
         needed standalone, where nothing else can hand this a path."""
@@ -734,8 +736,11 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             self, "Load from .dat", "",
             "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat "
             "gtasol.dat gta_quick.dat);;All files (*.dat)")
-        if not dat_path:
-            return
+        if dat_path:
+            self._load_from_dat_path(dat_path)
+
+    def _load_from_dat_path(self, dat_path): #vers 1
+        """Check a whole game from its .dat file."""
         img_path, col_path, ide_paths, game = find_game_asset_files(
             dat_path, auto_find_gta3_img=getattr(self, 'auto_find_gta3_img', True))
         if not img_path and not col_path and not ide_paths:
@@ -746,6 +751,45 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self._all_img_paths, self._all_col_paths, self._all_ide_paths = [], [], []   # new game - recapture
         self.dat_path, self._dat_game = dat_path, game
         self.load_result(result)
+
+    def _dropped_files(self, event): #vers 1
+        """Local .dat/.img/.col/.ide/.txd paths in a drag."""
+        md = event.mimeData()
+        if not md.hasUrls():
+            return []
+        exts = ('.dat', '.img', '.col', '.ide', '.txd')
+        return [u.toLocalFile() for u in md.urls()
+                if u.isLocalFile() and u.toLocalFile().lower().endswith(exts)]
+
+    def dragEnterEvent(self, event): #vers 1
+        """Accept game asset files."""
+        if self._dropped_files(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event): #vers 1
+        """Keep accepting while over the workshop."""
+        self.dragEnterEvent(event)
+
+    def dropEvent(self, event): #vers 1
+        """.dat loads a game; img/col/ide are checked; .txd opens."""
+        paths = self._dropped_files(event)
+        if not paths:
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        by = lambda ext: [p for p in paths if p.lower().endswith(ext)]
+        dats = by('.dat')
+        if dats:
+            self._load_from_dat_path(dats[0])
+            return
+        imgs, cols, ides = by('.img'), by('.col'), by('.ide')
+        if imgs or cols or ides:
+            self._all_img_paths, self._all_col_paths, self._all_ide_paths = [], [], []
+            self.load_result(check_assets(img_path=imgs, col_path=cols, ide_path=ides))
+        for p in by('.txd'):
+            self.open_txd_file(p)
 
     def _on_integrity_check(self): #vers 2
         """Read-only consistency report: orphaned IPL/2dfx/path, duplicate
@@ -1272,7 +1316,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
 # - Settings Reusable
 
-    def _show_workshop_settings(self): #vers 6
+    def _show_workshop_settings(self): #vers 7
         """Show workshop settings dialog - Fonts/Display/Preview only,
         Export and Performance tabs removed (values were never read
         anywhere, and Texture List Display referenced a table that
@@ -1556,6 +1600,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -1769,8 +1815,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 9
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 10
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -1779,13 +1825,9 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True
@@ -1996,68 +2038,10 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             return False
 
 
-    def paintEvent(self, event): #vers 3
-        """Paint corner resize triangles"""
+    def paintEvent(self, event): #vers 4
+        """Corner handles, COL style (methods/corner_handles.py)."""
         super().paintEvent(event)
-        if not self.standalone_mode:           # docked: no corner handles
-            return
-
-        from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Colors
-
-        normal_color = self._get_ui_color('viewport_text'); normal_color.setAlpha(150)
-        hover_color = self._get_ui_color('accent_primary'); hover_color.setAlpha(200)
-
-        w = self.width()
-        h = self.height()
-        grip_size = 8  # Make corners visible (8x8px)
-        size = self.corner_size
-
-        # Define corner triangles
-        corners = {
-            'top-left': [(0, 0), (size, 0), (0, size)],
-            'top-right': [(w, 0), (w-size, 0), (w, size)],
-            'bottom-left': [(0, h), (size, h), (0, h-size)],
-            'bottom-right': [(w, h), (w-size, h), (w, h-size)]
-        }
-        corners2 = {
-            "top-left": [(0, grip_size), (0, 0), (grip_size, 0)],
-            "top-right": [(w-grip_size, 0), (w, 0), (w, grip_size)],
-            "bottom-left": [(0, h-grip_size), (0, h), (grip_size, h)],
-            "bottom-right": [(w-grip_size, h), (w, h), (w, h-grip_size)]
-        }
-
-        # Get theme colors for corner indicators
-        if self.app_settings:
-            theme_colors = self.app_settings.get_theme_colors()
-            accent_color = QColor(theme_colors.get('accent_primary', '#1976d2'))
-            accent_color.setAlpha(180)
-        else:
-            accent_color = self._get_ui_color('accent_primary'); accent_color.setAlpha(180)
-
-        hover_color = QColor(accent_color)
-        hover_color.setAlpha(255)
-
-        # Draw all corners with hover effect
-        for corner_name, points in corners.items():
-            path = QPainterPath()
-            path.moveTo(points[0][0], points[0][1])
-            path.lineTo(points[1][0], points[1][1])
-            path.lineTo(points[2][0], points[2][1])
-            path.closeSubpath()
-
-            # Use hover color if mouse is over this corner
-            color = hover_color if self.hover_corner == corner_name else accent_color
-
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(color))
-            painter.drawPath(path)
-
-        painter.end()
+        paint_corner_handles(self)
 
 
     def _get_resize_corner(self, pos): #vers 4
@@ -2242,10 +2226,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
 
-    def _on_splitter_moved(self, pos, index): #vers 3
-        """Main splitter dragged - refresh ribbon text mode."""
-        self._update_transform_text_panel_visibility()
-
     def _update_transform_text_panel_visibility(self): #vers 6
         """Apply the icon/text/both display mode to the ribbon toolbars via
         QToolBar's native setToolButtonStyle - replaces the old approach of
@@ -2292,151 +2272,23 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
 # - Panel Setup
 
-    def _create_toolbar(self): #vers 12
-        """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
-
-        # Install event filter for drag detection
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
-        self.layout = QHBoxLayout(self.titlebar)
-        self.layout.setContentsMargins(5, 5, 5, 5)
-        self.layout.setSpacing(5)
-
-        # Get icon color from theme
-        icon_color = self._get_icon_color()
-
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(50)
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-
-        # Settings button
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon(color=self._get_icon_color()))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip(App_name + " Settings")
-        layout.addWidget(self.settings_btn)
-
-        layout.addStretch()
-
-        # App title in center
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_label)
-
-        layout.addStretch()
-        #layout.addStretch()
-
-        # Only show "Open IMG" button if NOT standalone
+    def _titlebar_actions(self, layout): #vers 1
+        """Asset titlebar: OpenIMG (docked), Undo."""
         if not self.standalone_mode:
-            self.open_img_btn = QPushButton("OpenIMG")
-            self.open_img_btn.setFont(self.button_font)
-            self.open_img_btn.setIcon(self.icon_factory.folder_icon(color=self._get_icon_color()))
-            self.open_img_btn.setIconSize(QSize(20, 20))
-            self.open_img_btn.clicked.connect(self.open_img_archive)
+            self.open_img_btn = self._tb_button('folder_icon', "OpenIMG", "Open an IMG archive",
+                                                self.open_img_archive)
             layout.addWidget(self.open_img_btn)
-
-        self.undo_btn = QPushButton()
-        self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon(color=self._get_icon_color()))
-        self.undo_btn.setText("Undo")
-        self.undo_btn.setIconSize(QSize(20, 20))
-        self.undo_btn.clicked.connect(self._undo_last_action)
+        self.undo_btn = self._tb_button('undo_icon', "Undo", "Undo last change", self._undo_last_action)
         self.undo_btn.setEnabled(False)
-        self.undo_btn.setToolTip("Undo last change")
         layout.addWidget(self.undo_btn)
 
-        layout.addSpacing(10)
+    def _titlebar_info(self): #vers 1
+        """Info button: asset info."""
+        self._show_txd_info()
 
-        # Info button
-        self.info_btn = QPushButton("")
-        self.info_btn.setText("")  # CHANGED from "Info"
-        self.info_btn.setIcon(self.icon_factory.info_icon(color=self._get_icon_color()))
-        self.info_btn.setMinimumWidth(40)
-        self.info_btn.setMaximumWidth(40)
-        self.info_btn.setMinimumHeight(30)
-        self.info_btn.setToolTip("Information")
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_txd_info)
-        layout.addWidget(self.info_btn)
-
-        # Properties/Theme button
-        self.properties_btn = QPushButton()
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
-        self.properties_btn.setToolTip("Theme")
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
-        layout.addWidget(self.properties_btn)
-
-        # Dock button [D]
-        self.dock_btn = QPushButton("D")
-        #self.dock_btn.setFont(self.button_font)
-        self.dock_btn.setMinimumWidth(40)
-        self.dock_btn.setMaximumWidth(40)
-        self.dock_btn.setMinimumHeight(30)
-        self.dock_btn.setToolTip("Dock")
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        layout.addWidget(self.dock_btn)
-
-        # Tear-off button [T] - only in IMG Factory mode
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton("T")
-            #self.tearoff_btn.setFont(self.button_font)
-            self.tearoff_btn.setMinimumWidth(40)
-            self.tearoff_btn.setMaximumWidth(40)
-            self.tearoff_btn.setMinimumHeight(30)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip(App_name + " - Tearoff window")
-            layout.addWidget(self.tearoff_btn)
-
-        # Window controls
-        self.minimize_btn = QPushButton()
-        self.minimize_btn.setIcon(self.icon_factory.minimize_icon(color=self._get_icon_color()))
-        self.minimize_btn.setIconSize(QSize(20, 20))
-        self.minimize_btn.setMinimumWidth(40)
-        self.minimize_btn.setMaximumWidth(40)
-        self.minimize_btn.setMinimumHeight(30)
-        self.minimize_btn.clicked.connect(self.showMinimized)
-        self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
-        layout.addWidget(self.minimize_btn)
-
-        self.maximize_btn = QPushButton()
-        self.maximize_btn.setIcon(self.icon_factory.maximize_icon(color=self._get_icon_color()))
-        self.maximize_btn.setIconSize(QSize(20, 20))
-        self.maximize_btn.setMinimumWidth(40)
-        self.maximize_btn.setMaximumWidth(40)
-        self.maximize_btn.setMinimumHeight(30)
-        self.maximize_btn.clicked.connect(self._toggle_maximize)
-        self.maximize_btn.setToolTip("Maximize/Restore Window")
-        layout.addWidget(self.maximize_btn)
-
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(self.icon_factory.close_icon(color=self._get_icon_color()))
-        self.close_btn.setIconSize(QSize(20, 20))
-        self.close_btn.setMinimumWidth(40)
-        self.close_btn.setMaximumWidth(40)
-        self.close_btn.setMinimumHeight(30)
-        self.close_btn.clicked.connect(self.close)
-        self.close_btn.setToolTip("Close Window") # closes tab
-        layout.addWidget(self.close_btn)
-
-        return self.toolbar
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
 
 
     def _create_left_panel(self): #vers 6
@@ -2446,7 +2298,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         return None
 
         #Been disabled as this is no longer needed in Asset_Browser
-    def _create_middle_panel(self): #vers 6
+    def _create_middle_panel(self): #vers 7
         """Create middle panel - just the texture list. The old mini
         toolbar (Open/Save/Extract/Undo) was dropped (Sep 17 2026) -
         those are all still reachable via the Tools menu and their
@@ -2463,10 +2315,10 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(4)
 
-        # Header label
-        self._textures_header = QLabel("Textures")
-        self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(self._textures_header)
+        # Header label - dock title shows "Textures" now
+        #self._textures_header = QLabel("Textures")
+        #self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        #layout.addWidget(self._textures_header)
 
         #    Texture table
         self.texture_table = QTableWidget()
@@ -2893,7 +2745,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
 
 
-    def _show_settings_dialog(self): #vers 6
+    def _show_settings_dialog(self): #vers 7
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -3365,6 +3217,8 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # Dialog buttons
@@ -3940,7 +3794,7 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
 
 
     #Keep function
-    def _setup_status_indicators(self): #vers 5
+    def _setup_status_indicators(self): #vers 6
         """Setup status indicators with texture info and visible resize button"""
         self.status_frame = QFrame()
         self.status_frame.setFixedHeight(24)
@@ -3969,25 +3823,6 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
         self.format_status_label = QLabel("Format: -")
         self.status_layout.addWidget(self.format_status_label)
 
-        # Add visible resize button with icon
-        self.resize_grip_btn = QPushButton()
-        self.resize_grip_btn.setIcon(self.icon_factory._resize_icon(color=self._get_icon_color()))
-        self.resize_grip_btn.setIconSize(QSize(20, 20))
-        self.resize_grip_btn.setFixedSize(20, 20)
-        self.resize_grip_btn.setToolTip("Drag to resize window")
-        self.resize_grip_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: palette(mid);
-            }
-        """)
-        # Make it act like a resize grip
-        self.resize_grip_btn.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        self.status_layout.addWidget(self.resize_grip_btn)
 
         return self.status_frame
 
@@ -5733,15 +5568,15 @@ class AssetWorkshop(RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 5
                     break
         self._update_texture_panel_visibility()
 
-    def _update_texture_panel_visibility(self): #vers 1
+    def _update_texture_panel_visibility(self): #vers 2
         """Show the texture list panel only while a TXD is actually
         loaded (Sep 17 2026, per Keith: "any reason for it, maybe
         hide it when not in use") - Asset Workshop's real job is the
         checker + Master IDE, texture editing is secondary, so this
         panel should stay out of the way until there's something in
         it."""
-        if hasattr(self, '_middle_panel'):
-            self._middle_panel.setVisible(bool(self.texture_list))
+        if hasattr(self, '_tex_dock'):
+            self._tex_dock.setVisible(bool(self.texture_list))
 
 
     def _save_undo_state(self, action_name): #vers 2

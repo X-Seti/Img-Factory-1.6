@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 5
+#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 9
 # X-Seti - May10 2026 - IMG Factory 1.6 - DFF Model Viewer
 """
 DFF Model Viewer - OpenGL hardware 3D viewer for GTA RenderWare DFF files.
@@ -23,6 +23,9 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
+from apps.methods.titlebar_func import TitlebarMixin
+from apps.methods.corner_handles import paint_corner_handles
 from apps.methods.ribbon_system import RibbonMixin
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
@@ -148,10 +151,9 @@ except ImportError:
 # ModelViewer._open_dff / _open_txd / load_dff / load_txd
 # ModelViewer._populate_geom_list / _on_geom_selected / _set_status
 # ModelViewer._get_resize_corner / _update_cursor / _is_on_draggable_area
-# ModelViewer._handle_corner_resize / _setup_corner_overlay / _refresh_corner_overlay
+# ModelViewer._handle_corner_resize
 # ModelViewer.mousePressEvent / mouseMoveEvent / mouseReleaseEvent
 # ModelViewer.resizeEvent / showEvent / closeEvent / paintEvent
-# _CornerOverlay.__init__ / paintEvent / update_state
 # open_model_viewer
 
 
@@ -195,95 +197,17 @@ class MVSettings:
 
 
 # - Corner overlay (from RadarWorkshop)
-class _CornerOverlay(QWidget):
-    """Transparent overlay that draws corner resize triangles on top of all children.
-    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
-    WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
-
-    SIZE = 20   # triangle leg size in pixels
-
-    def __init__(self, parent): #vers 3
-        super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
-        self.setWindowFlags(Qt.WindowType.Widget)
-        self._hover_corner = None
-        self._app_settings = None
-        self.setGeometry(0, 0, parent.width(), parent.height())
-        self._update_mask()
-
-    def _update_mask(self): #vers 1
-        """Create a mask covering only the four corner triangles."""
-        from PyQt6.QtGui import QRegion, QPolygon
-        from PyQt6.QtCore import QPoint
-        s = self.SIZE
-        w, h = self.width(), self.height()
-        region = QRegion()
-        for pts in [
-            [QPoint(0,0),    QPoint(s,0),    QPoint(0,s)],     # top-left
-            [QPoint(w,0),    QPoint(w-s,0),  QPoint(w,s)],     # top-right
-            [QPoint(0,h),    QPoint(s,h),    QPoint(0,h-s)],   # bottom-left
-            [QPoint(w,h),    QPoint(w-s,h),  QPoint(w,h-s)],   # bottom-right
-        ]:
-            region = region.united(QRegion(QPolygon(pts)))
-        self.setMask(region)
-
-    def update_state(self, hover_corner, app_settings): #vers 2
-        self._hover = hover_corner
-        self._settings = app_settings
-        self.update()
-
-    def setGeometry(self, *args): #vers 1
-        super().setGeometry(*args)
-        self._update_mask()
-
-    def resizeEvent(self, event): #vers 1
-        super().resizeEvent(event)
-        self._update_mask()
-
-    def paintEvent(self, event): #vers 2
-        s = self.SIZE
-        if self._app_settings:
-            try:
-                colors = self._app_settings.get_theme_colors()
-                accent = QColor(colors.get('accent_primary', '#4682FF'))
-            except Exception:
-                accent = QColor(70, 130, 255)
-        else:
-            accent = QColor(70, 130, 255)
-        accent.setAlpha(200)
-        hover_c = QColor(accent); hover_c.setAlpha(255)
-        w, h = self.width(), self.height()
-        corners = {
-            'top-left':     [(0,0),  (s,0),   (0,s)],
-            'top-right':    [(w,0),  (w-s,0), (w,s)],
-            'bottom-left':  [(0,h),  (s,h),   (0,h-s)],
-            'bottom-right': [(w,h),  (w-s,h), (w,h-s)],
-        }
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        for name, pts in corners.items():
-            path = QPainterPath()
-            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
-            path.closeSubpath()
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
-            painter.drawPath(path)
-        painter.end()
-
 # DFFViewport imported from apps.methods.dff_viewport
 
 # - Main workshop widget (RadarWorkshop pattern)
-class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
+class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
     """Model Viewer — RadarWorkshop UI template with DFFViewport canvas."""
 
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
     _ribbon_name = "model_viewer"
-    _RIBBON_LAYOUT_VERSION = 1     # 1 = File / Tools ribbons
+    _RIBBON_LAYOUT_VERSION = 2     # 2 = File ribbon (Tools moved to titlebar)
 
     def _build_menus_into_qmenu(self, pm): #vers 1
         fm = pm.addMenu("File")
@@ -310,7 +234,7 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
         vm.addSeparator()
         vm.addAction("About", self._show_about)
 
-    def __init__(self, parent=None, main_window=None): #vers 1
+    def __init__(self, parent=None, main_window=None): #vers 2
         super().__init__(parent)
         self.main_window      = main_window
         self.standalone_mode  = (main_window is None)
@@ -350,7 +274,7 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
         self.MV_settings = MVSettings()
 
         # Spacing/margins (template pattern)
-        self.contmergina=1; self.contmerginb=1; self.contmerginc=1; self.contmergind=1
+        self.contmergina=5; self.contmerginb=5; self.contmerginc=5; self.contmergind=5
         self.setspacing=2
         self.panelmergina=5; self.panelmerginb=5; self.panelmerginc=5; self.panelmergind=5
         self.panelspacing=5
@@ -413,7 +337,7 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
 
     # - setup_ui
 
-    def setup_ui(self): #vers 2
+    def setup_ui(self): #vers 4
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -423,7 +347,6 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
         self.viewport.app_settings = self.app_settings
 
         self._tb_frame = self._create_toolbar()
-        self._tb_frame.setVisible(self.standalone_mode)   # title / window buttons only
         main_layout.addWidget(self._tb_frame)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -436,104 +359,32 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
         splitter.setSizes([200, 800, 180])
         main_layout.addWidget(self.ribbon_wrap(splitter), 1)
         self._build_ribbons()
-        main_layout.addWidget(self._create_status_bar())
+        status_bar = self._create_status_bar()
+        main_layout.addWidget(status_bar)
+        register_statusbar(self, status_bar)
         self.ribbon_restore_state()
 
-    def _build_ribbons(self): #vers 1
-        """File and Tools ribbons (moved out of the old title bar)."""
-        from PyQt6.QtWidgets import QToolButton
+    def _build_ribbons(self): #vers 2
+        """File ribbon; Menu, Settings, Info, Theme live in the titlebar."""
         B = self.ribbon_button
         tb = self.ribbon_toolbar("File")
         self.open_dff_btn = B(tb, "open_icon", "Open DFF model (Ctrl+O)", self._open_dff, text="DFF")
         self.open_txd_btn = B(tb, "texture_icon", "Open TXD textures", self._open_txd, text="TXD")
-        tb = self.ribbon_toolbar("Tools")
-        mb = QToolButton()
-        mb.setText("Menu"); mb.setMinimumHeight(self._RIBBON_BTN)
-        mb.setToolTip("Viewer menus"); mb.clicked.connect(self._on_menu_btn_clicked)
-        tb.addWidget(mb)
-        self.menu_toggle_btn = mb
-        self.settings_btn = B(tb, "settings_icon", "Viewer Settings", self._show_workshop_settings, text="Set")
-        self.info_radar_btn = B(tb, "info_icon", "About Model Viewer", self._show_about, text="i")
-        self.properties_btn = B(tb, "properties_icon", "Theme / App Settings", self._open_app_settings, text="Th")
 
 
 
     # - toolbar
-    def _create_toolbar(self): #vers 2
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setObjectName("titlebar")
-        self.toolbar.installEventFilter(self)
-        self.toolbar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.toolbar.setMouseTracking(True)
-        self.toolbar.setFixedHeight(self.titlebarheight)
-        self.titlebar = self.toolbar
-        ic = self._get_icon_color()
-        lay = QHBoxLayout(self.toolbar)
-        lay.setContentsMargins(*self.get_panel_margins())
-        lay.setSpacing(self.panelspacing)
+    def _menu_btn_popup(self): #vers 1
+        """Menu button calls _on_menu_btn_clicked (top bar or drop-down)."""
+        return False
 
-        def _icon(name, size=20):
-            if not ICONS_AVAILABLE: return None
-            try:
-                fn = getattr(SVGIconFactory, name+'_icon', None)
-                return fn(size, ic) if fn else None
-            except Exception: return None
-
-        def _ibtn(tip, cb, iname, size=35):
-            b = QPushButton(); b.setFixedSize(size, 28)
-            b.setToolTip(tip)
-            ico = _icon(iname)
-            if ico: b.setIcon(ico); b.setIconSize(QSize(size-15, size-15))
-            b.clicked.connect(cb)
-            return b
-
-        def _tbtn(text, tip, cb, iname=None):
-            from PyQt6.QtWidgets import QToolButton
-            b = QToolButton(); b.setToolTip(tip); b.setFixedHeight(28)
-            b.setFont(self.button_font)
-            ico = _icon(iname)
-            if ico:
-                b.setIcon(ico); b.setIconSize(QSize(16,16))
-                b.setText(text)
-                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            else:
-                b.setText(text)
-            b.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            b.clicked.connect(cb)
-            return b
-
-        # → title (draggable centre area) →
-        self._title_lbl = QLabel(App_name)
-        self._title_lbl.setFont(self.title_font)
-        self._title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._title_lbl.setVisible(self.standalone_mode)
-        lay.addStretch()
-        lay.addWidget(self._title_lbl)
-        lay.addStretch()
-
-        # ⓘ ⚙ − □ ✕  (standalone only)
-        if self.standalone_mode:
-            lay.addSpacing(4)
-            self.minimize_btn = QPushButton(); self.minimize_btn.setFixedSize(32,28)
-            self.maximize_btn = QPushButton(); self.maximize_btn.setFixedSize(32,28)
-            self.close_btn    = QPushButton(); self.close_btn.setFixedSize(32,28)
-            for btn, iname, fallback, tip, cb in [
-                (self.minimize_btn,'minimize','—','Minimise', self.showMinimized),
-                (self.maximize_btn,'maximize','□','Maximise', self._toggle_maximise),
-                (self.close_btn,   'close',   '✕','Close',    self.close),
-            ]:
-                ico = _icon(iname)
-                if ico: btn.setIcon(ico); btn.setIconSize(QSize(14,14))
-                else:   btn.setText(fallback)
-                btn.setToolTip(tip); btn.clicked.connect(cb)
-                lay.addWidget(btn)
-
-        return self.toolbar
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
 
 
 
-    def _toggle_maximise(self): #vers 1
+    def _toggle_maximize(self): #vers 2
         if self.isMaximized(): self.showNormal()
         else:                  self.showMaximized()
 
@@ -766,7 +617,7 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
 
 
     # - settings dialog
-    def _show_workshop_settings(self): #vers 1
+    def _show_workshop_settings(self): #vers 3
         dlg = QDialog(self); dlg.setWindowTitle("Model Viewer Settings"); dlg.resize(400,300)
         lay = QVBoxLayout(dlg)
         tabs = QTabWidget(); lay.addWidget(tabs, 1)
@@ -775,11 +626,14 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
         disp = QWidget(); dl = QFormLayout(disp)
         bg_check = QCheckBox("Dark viewport background"); bg_check.setChecked(True)
         dl.addRow(bg_check)
+        add_statusbar_checkbox(self, dl)
         tabs.addTab(disp, "Display")
 
         # About tab
         about = QWidget(); al = QVBoxLayout(about)
         al.addWidget(QLabel(f"{App_name}\n{Build}\n{App_build}"))
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         tabs.addTab(about, "About")
 
         btn_row = QHBoxLayout()
@@ -908,7 +762,7 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
     def _show_about(self): #vers 1
         QMessageBox.about(self, App_name, f"{App_name}\n{Build} — {App_build}\n\nOpenGL DFF viewer for GTA models.")
 
-    def _open_app_settings(self): #vers 1
+    def _launch_theme_settings(self): #vers 2
         try:
             from apps.utils.app_settings_system import SettingsDialog
             if self.app_settings:
@@ -968,7 +822,7 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
             return
         pm = QMenu(self)
         self._build_menus_into_qmenu(pm)
-        btn = self.menu_toggle_btn
+        btn = self.menu_btn
         pm.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def _toggle_assembly_mode(self, enabled: bool): #vers 2
@@ -1782,7 +1636,7 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
             if corner != self.hover_corner:
                 self.hover_corner = corner
                 self.update()
-            self._refresh_corner_overlay()
+            self.update()
             self._update_cursor(corner)
         super().mouseMoveEvent(event)
 
@@ -1827,49 +1681,25 @@ class ModelViewer(RibbonMixin, ToolMenuMixin, QWidget):
                 self.setGeometry(nx, ny, nw, nh)
 
 
-    def paintEvent(self, event): #Vers 2
+    def paintEvent(self, event): #vers 3
+        """Corner handles, COL style (methods/corner_handles.py)."""
         super().paintEvent(event)
-        # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
-
-    def _setup_corner_overlay(self): #vers 4
-        """Create or refresh the corner resize overlay."""
-        if not self.standalone_mode:
-            return
-        # Destroy stale overlay if window was resized before it was created
-        existing = getattr(self, '_corner_overlay', None)
-        if existing is not None:
-            existing.setGeometry(0, 0, self.width(), self.height())
-            existing.raise_()
-            existing.update()
-            return
-        overlay = _CornerOverlay(self)
-        self._corner_overlay = overlay
-        overlay.setGeometry(0, 0, self.width(), self.height())
-        overlay.show()
-        overlay.raise_()
-
-    def _refresh_corner_overlay(self): #vers 1
-        if hasattr(self, '_corner_overlay'):
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.update_state(
-                getattr(self, 'hover_corner', None),
-                self.app_settings)
-            self._corner_overlay.raise_()
+        paint_corner_handles(self)
 
     def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
-        self._refresh_corner_overlay()
+        self.update()
 
     def showEvent(self, event): #vers 2
         super().showEvent(event)
         if self.standalone_mode:
             # Small delay ensures window geometry is finalised
-            QTimer.singleShot(150, self._setup_corner_overlay)
+            self.update()
 
     def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
-        self._refresh_corner_overlay()
+        self.update()
 
     def closeEvent(self, event): #Vers 3
         self.ribbon_save_state()

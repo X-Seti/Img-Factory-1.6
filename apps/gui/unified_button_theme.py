@@ -1,4 +1,4 @@
-#this belongs in gui/ unified_button_theme.py - Version: 1
+#this belongs in gui/ unified_button_theme.py - Version: 2
 # X-Seti - Aug06 2025 - IMG Factory 1.5 - Unified Button Theme System
 # REPLACES: gui/pastel_button_theme.py with universal light/dark theme support
 # SUPPORTS: Light themes (pastel), Dark themes (inverted/high-contrast)
@@ -240,17 +240,9 @@ def is_dark_theme(theme_colors):
         bg_color = ''.join([c*2 for c in bg_color])
     
     try:
-        # Convert to RGB
-        r = int(bg_color[0:2], 16) / 255.0
-        g = int(bg_color[2:4], 16) / 255.0  
-        b = int(bg_color[4:6], 16) / 255.0
-        
-        # Calculate relative luminance
-        def luminance_component(c):
-            return c / 12.92 if c <= 0.03928 else pow((c + 0.055) / 1.055, 2.4)
-        
-        luminance = 0.2126 * luminance_component(r) + 0.7152 * luminance_component(g) + 0.0722 * luminance_component(b)
-        
+        from apps.methods.ui_color import relative_luminance
+        luminance = relative_luminance(bg_color)
+
         # Dark theme if luminance < 0.5
         return luminance < 0.5
     except:

@@ -1,4 +1,4 @@
-#this belongs in apps/gui/radar_align_dialog.py - Version: 1
+#this belongs in apps/gui/radar_align_dialog.py - Version: 5
 # X-Seti - October 08 2026 - IMG Factory 1.6 - Radar/water alignment window
 
 """
@@ -11,9 +11,11 @@ Nudge radar and water layers per game; values saved by the owner.
 # _nudge
 # _refresh
 # _reset
+# _rotation_row
+# _scale_row
 # _step
 
-from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QGridLayout,
+from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QGridLayout,
                              QGroupBox, QHBoxLayout, QLabel, QPushButton,
                              QVBoxLayout)
 
@@ -23,7 +25,7 @@ class RadarAlignDialog(QDialog):
 
     STEPS = (1, 10, 50, 100)
 
-    def __init__(self, owner, parent=None): #vers 1
+    def __init__(self, owner, parent=None): #vers 5
         super().__init__(parent)
         self._owner = owner
         self.setWindowTitle("Radar / Water Alignment")
@@ -48,10 +50,65 @@ class RadarAlignDialog(QDialog):
         self._fix_chk.setToolTip("Off for LCS ports, LC, SA. Saved per game.")
         self._fix_chk.toggled.connect(lambda on: self._owner._set_water_fix(on))
         lay.addWidget(self._fix_chk)
+        self._scale_spin = self._scale_row(lay, "Water scale:",
+            "Water grid size against the map (100 % = file size). "
+            "Arrows / wheel: 0.5 % steps. Saved per game.", self._owner._set_water_scale)
+        self._radar_scale_spin = self._scale_row(lay, "Radar scale:",
+            "Radar tile layer size (100 % = game preset, SOL needs its own). "
+            "Arrows / wheel: 0.5 % steps. Saved per game.", self._owner._set_radar_scale)
+        self._radar_rot_spin = self._rotation_row(lay)
         close = QPushButton("Close")
         close.clicked.connect(self.close)
         lay.addWidget(close)
         self._refresh()
+
+    def _scale_row(self, lay, title, tip, setter): #vers 1
+        """Percent spin box plus 50 / 66.7 / 100 % presets; returns the spin."""
+        row = QHBoxLayout()
+        row.addWidget(QLabel(title))
+        spin = QDoubleSpinBox()
+        spin.setRange(10.0, 400.0)
+        spin.setDecimals(1)
+        spin.setSingleStep(0.5)
+        spin.setSuffix(" %")
+        spin.setKeyboardTracking(False)
+        spin.setToolTip(tip)
+        spin.valueChanged.connect(lambda v: setter(v / 100.0))
+        row.addWidget(spin)
+        for label, val in (("50%", 50.0), ("66.7%", 200.0 / 3), ("100%", 100.0)):
+            b = QPushButton(label)
+            b.clicked.connect(lambda _c=False, v=val: spin.setValue(v))
+            row.addWidget(b)
+        row.addStretch()
+        lay.addLayout(row)
+        return spin
+
+    def _rotation_row(self, lay): #vers 1
+        """Radar rotation in degrees with -15 / -1 / +1 / +15 / 0 buttons."""
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Radar rotate:"))
+        spin = QDoubleSpinBox()
+        spin.setRange(-180.0, 180.0)
+        spin.setDecimals(1)
+        spin.setSingleStep(0.5)
+        spin.setSuffix(" deg")
+        spin.setWrapping(True)
+        spin.setKeyboardTracking(False)
+        spin.setToolTip("Radar tile layer rotation about the map centre. Saved per game.")
+        spin.valueChanged.connect(self._owner._set_radar_rotation)
+        row.addWidget(spin)
+        for label, d in (("-15", -15.0), ("-1", -1.0), ("+1", 1.0), ("+15", 15.0)):
+            b = QPushButton(label)
+            b.setAutoRepeat(True)
+            b.clicked.connect(lambda _c=False, v=d: spin.setValue(spin.value() + v))
+            row.addWidget(b)
+        zero = QPushButton("0")
+        zero.setToolTip("No rotation")
+        zero.clicked.connect(lambda: spin.setValue(0.0))
+        row.addWidget(zero)
+        row.addStretch()
+        lay.addLayout(row)
+        return spin
 
     def _arrow_box(self, layer, title): #vers 1
         """Up/down/left/right/reset grid for one layer."""
@@ -87,8 +144,8 @@ class RadarAlignDialog(QDialog):
         self._owner._set_radar_align_offset(layer, 0.0, 0.0)
         self._refresh()
 
-    def _refresh(self): #vers 1
-        """Labels and fix checkbox from the owner's saved values."""
+    def _refresh(self): #vers 5
+        """Labels, fix checkbox, water and radar scale from the owner's saved values."""
         path = self._owner._radar_settings_path()
         self._root_lbl.setText(f"Saved to: {path}" if path else "Load a game first - nothing to save to.")
         for layer, lbl in self._labels.items():
@@ -97,3 +154,12 @@ class RadarAlignDialog(QDialog):
         self._fix_chk.blockSignals(True)
         self._fix_chk.setChecked(self._owner._water_fix_active())
         self._fix_chk.blockSignals(False)
+        self._scale_spin.blockSignals(True)
+        self._scale_spin.setValue(self._owner._water_scale() * 100.0)
+        self._scale_spin.blockSignals(False)
+        self._radar_scale_spin.blockSignals(True)
+        self._radar_scale_spin.setValue(self._owner._radar_scale() * 100.0)
+        self._radar_scale_spin.blockSignals(False)
+        self._radar_rot_spin.blockSignals(True)
+        self._radar_rot_spin.setValue(self._owner._radar_rotation())
+        self._radar_rot_spin.blockSignals(False)

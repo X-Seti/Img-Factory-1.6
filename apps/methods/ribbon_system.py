@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ribbon_system.py - Version: 5
+#this belongs in apps/methods/ribbon_system.py - Version: 7
 # X-Seti - September 20 2026 - IMG Factory 1.6 - Shared ribbon (toolbar) system
 
 """ribbon_system.py - Ribbon toolbars for QWidget-based workshops (same
@@ -19,6 +19,7 @@ an older ribbon structure is rejected via _RIBBON_LAYOUT_VERSION."""
 # RibbonMixin.ribbon_context_menu
 # RibbonMixin.ribbon_save_state
 # RibbonMixin.ribbon_restore_state
+# RibbonMixin._ribbon_dock_all
 # RibbonMixin._ribbon_schedule_save
 
 import json
@@ -45,13 +46,13 @@ class RibbonMixin:
         self._ribbon_mw = mw
         return mw
 
-    def ribbon_toolbar(self, name: str) -> QToolBar: #vers 2
+    def ribbon_toolbar(self, name: str) -> QToolBar: #vers 3
         mw = self._ribbon_mw
         tb = QToolBar(name, mw)
         tb.setObjectName(name)
         tb.setIconSize(QSize(self._RIBBON_ICON, self._RIBBON_ICON))
         tb.setMovable(True)
-        tb.setFloatable(True)
+        tb.setFloatable(False)                  # Wayland can't re-dock a floating toolbar
         tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         tb.customContextMenuRequested.connect(
             lambda pos, t=tb: self.ribbon_context_menu(t, pos))
@@ -129,13 +130,30 @@ class RibbonMixin:
         tb.addWidget(lbl)
         return lbl
 
-    def ribbon_context_menu(self, toolbar, pos): #vers 1
+    def ribbon_context_menu(self, toolbar, pos): #vers 3
+        """Save / lock ribbons; panel toggles and Ribbon Manager when the workshop has them."""
         menu = QMenu(self)
         menu.addAction("Save Ribbon Config", self.ribbon_save_state)
         menu.addSeparator()
+        menu.addAction("Dock All Ribbons", self._ribbon_dock_all)
         menu.addAction("Lock All Toolbars", lambda: self._ribbon_set_movable(False))
         menu.addAction("Unlock All Toolbars", lambda: self._ribbon_set_movable(True))
+        if hasattr(self, '_outer_dock_menu'):
+            menu.addSeparator()
+            self._outer_dock_menu(None, menu)
+        elif hasattr(self, 'open_ribbon_manager'):
+            menu.addSeparator()
+            menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
         menu.exec(toolbar.mapToGlobal(pos))
+
+    def _ribbon_dock_all(self): #vers 1
+        """Floating ribbons back into the top ribbon area."""
+        mw = self._ribbon_mw
+        for tb in mw.findChildren(QToolBar):
+            if tb.isFloating():
+                mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+                tb.setVisible(True)
+        self._ribbon_schedule_save()
 
     def _ribbon_set_movable(self, movable: bool): #vers 1
         for tb in self._ribbon_mw.findChildren(QToolBar):
@@ -160,7 +178,7 @@ class RibbonMixin:
         except Exception as e:
             print(f"[{self._ribbon_name}] ribbon_save_state error: {e}")
 
-    def ribbon_restore_state(self): #vers 2
+    def ribbon_restore_state(self): #vers 3
         """Restore the saved layout; rejects an older ribbon structure and
         always forces every ribbon visible afterwards so a bad state can
         never leave one hidden with no way back."""
@@ -179,6 +197,8 @@ class RibbonMixin:
             print(f"[{self._ribbon_name}] ribbon_restore_state error: {e}")
         finally:
             for tb in mw.findChildren(QToolBar):
+                if tb.isFloating():                     # saved floating: docked again
+                    mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
                 tb.setVisible(True)
                 if hasattr(tb, '_side'):
                     self.ribbon_fit_side(tb)

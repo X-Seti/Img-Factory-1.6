@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_model_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_model_func.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop models
 
 """
@@ -111,6 +111,7 @@ Model, COL, DFF, texture and IDE handling (Model Workshop base) for ModelWorksho
 # _open_txd_smart
 # _paint_cycle_mat
 # _parse_txd_lightweight
+# _pass_textures_to_dp5_workshop
 # _pass_textures_to_txd_workshop
 # _paste_model_from_clipboard
 # _paste_surface
@@ -161,6 +162,7 @@ Model, COL, DFF, texture and IDE handling (Model Workshop base) for ModelWorksho
 # _stop_thumbnail_spin
 # _tbl_item
 # _tex_context_menu
+# _texture_back_from_dp5
 # _tick_thumbnail_spin
 # _toggle_backface_cull
 # _toggle_col_view
@@ -2506,7 +2508,7 @@ class MapModelMixin: #vers 1
 
     # - Texture management
 
-    def _create_texture_panel(self): #vers 5
+    def _create_texture_panel(self): #vers 6
         """Collapsible texture panel in middle column.
         Shows textures loaded from TXD files.
         Toggle between List view (table) and Thumbnail view (64x64 grid).
@@ -2522,22 +2524,17 @@ class MapModelMixin: #vers 1
 
         # - Header row (count + view toggle only - the dock's own title
         # bar already shows "Textures", a second label here was duplicate)
-        hdr = QHBoxLayout()
-        self._tex_count_lbl = QLabel("0 textures")
+        self._tex_count_lbl = QLabel("0 textures")       # shown in the dock title bar
         self._tex_count_lbl.setFont(self.panel_font)
-        hdr.addWidget(self._tex_count_lbl)
-        hdr.addStretch()
 
         # View toggle: list ⇔ thumbnails
         self._tex_view_mode = 'list'
-        self._tex_view_btn = QPushButton("⊞ Thumbnails")
-        self._tex_view_btn.setFixedHeight(26)
+        self._tex_view_btn = QPushButton("⊞ Thumbnails")    # shown in the dock title bar
+        self._tex_view_btn.setFixedHeight(20)
         self._tex_view_btn.setFont(self.panel_font)
         self._tex_view_btn.setToolTip(
             "Toggle between list view and 64×64 thumbnail grid")
         self._tex_view_btn.clicked.connect(self._toggle_tex_view)
-        hdr.addWidget(self._tex_view_btn)
-        lay.addLayout(hdr)
 
         # - Button row
         btn_row = QHBoxLayout()
@@ -2546,8 +2543,10 @@ class MapModelMixin: #vers 1
         # Collapse/expand toggle - hides Load/Texlist/WShop/Save to
         # reclaim space, independent of the icon-only/icon+text compacting.
         self._tex_btn_row_collapsed = False
-        self.tex_btn_collapse_btn = QPushButton("−")
-        self.tex_btn_collapse_btn.setFixedSize(18, 26)
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self.tex_btn_collapse_btn = QPushButton()
+        self.tex_btn_collapse_btn.setIcon(SVGIconFactory.arrow_up_icon(16, icon_color))
+        self.tex_btn_collapse_btn.setFixedSize(26, 26)
         self.tex_btn_collapse_btn.setToolTip("Collapse/expand this toolbar")
         self.tex_btn_collapse_btn.clicked.connect(self._toggle_tex_btn_row_collapsed)
         btn_row.addWidget(self.tex_btn_collapse_btn)
@@ -2555,7 +2554,7 @@ class MapModelMixin: #vers 1
         # tex buttons: adaptive — show label when panel wide enough, icon-only when narrow
         self._tex_btns_meta = []   # [(attr, label, icon_method)] for compact update
 
-        def _tbtn(attr, text, icon_method, tip, slot, enabled=True):  #vers 1
+        def _tbtn(attr, text, icon_method, tip, slot, enabled=True):  #vers 2
             b = QPushButton(text)
             b.setFont(self.button_font)
             try:
@@ -2584,6 +2583,9 @@ class MapModelMixin: #vers 1
         _tbtn('tex_pass_btn',    'WShop',  'export_icon',  # export_icon used; txd_workshop_icon if added later
               'Send all textures to TXD Workshop for editing/rebuilding',
               self._pass_textures_to_txd_workshop, enabled=False)
+        _tbtn('tex_dp5_btn',     'DP5',    'dp5_workshop_icon',
+              'Send the selected textures (or all) to DP5 Workshop to paint',
+              self._pass_textures_to_dp5_workshop, enabled=False)
         _tbtn('tex_save_btn',    'Save',   'save_icon',
               'Save current textures as a new TXD file',
               self._save_textures_as_txd, enabled=False)
@@ -2600,6 +2602,7 @@ class MapModelMixin: #vers 1
         self._tex_list.setColumnCount(4)
         self._tex_list.setHorizontalHeaderLabels(["", "Name", "Size", "Format"])
         self._tex_list.horizontalHeader().setStretchLastSection(True)
+        self._tex_list.horizontalHeader().setFixedHeight(26)
         self._tex_list.setColumnWidth(0, 56)  # thumbnail
         self._tex_list.setColumnWidth(2, 72)  # size
         self._tex_list.setColumnWidth(3, 56)  # format
@@ -3295,7 +3298,7 @@ class MapModelMixin: #vers 1
         except Exception as e:
             print(f"Add textures error: {e}")
 
-    def _populate_texture_list(self): #vers 2
+    def _populate_texture_list(self): #vers 3
         """Fill the texture QTableWidget from self._mod_textures."""
         from PyQt6.QtGui import QImage, QPixmap, QIcon
         tbl = self._tex_list
@@ -3348,7 +3351,7 @@ class MapModelMixin: #vers 1
         if hasattr(self, '_tex_count_lbl'):
             self._tex_count_lbl.setText(f"{count} texture{'s' if count != 1 else ''}")
         has = count > 0
-        for btn in ('tex_pass_btn', 'tex_save_btn'):
+        for btn in ('tex_pass_btn', 'tex_dp5_btn', 'tex_save_btn'):
             b = getattr(self, btn, None)
             if b: b.setEnabled(has)
         # Refresh thumbnail grid if it's currently visible
@@ -3514,7 +3517,7 @@ class MapModelMixin: #vers 1
                 f"{tex.get('format','?')}  "
                 f"{tex.get('mipmaps',1)} mip(s)")
 
-    def _tex_context_menu(self, pos): #vers 1
+    def _tex_context_menu(self, pos): #vers 2
         """Right-click context menu on texture list."""
         from PyQt6.QtWidgets import QMenu
         rows = self._tex_list.selectionModel().selectedRows()
@@ -3530,6 +3533,7 @@ class MapModelMixin: #vers 1
         if self._mod_textures:
             menu.addSeparator()
             menu.addAction("Pass to TXD Workshop", self._pass_textures_to_txd_workshop)
+            menu.addAction("Pass to DP5 Workshop", self._pass_textures_to_dp5_workshop)
             menu.addAction("Save as TXD…",         self._save_textures_as_txd)
         menu.exec(self._tex_list.viewport().mapToGlobal(pos))
 
@@ -3567,6 +3571,27 @@ class MapModelMixin: #vers 1
             except Exception as e:
                 print(f"Export tex error: {e}")
         self._set_status(f"Exported {exported} texture(s) to {folder}")
+
+    def _pass_textures_to_dp5_workshop(self): #vers 1
+        """Selected textures (or all) into DP5 Workshop; DP5's Send back returns them here."""
+        from apps.methods.dp5_link import send_textures_to_dp5
+        if not self._mod_textures:
+            return
+        rows = sorted({i.row() for i in self._tex_list.selectionModel().selectedRows()})
+        texs = [self._mod_textures[r] for r in rows if r < len(self._mod_textures)] or list(self._mod_textures)
+        sent = send_textures_to_dp5(self, texs, self._titlebar_title(), self._texture_back_from_dp5)
+        self._set_status(f"Passed {sent} texture(s) to DP5 Workshop")
+
+    def _texture_back_from_dp5(self, tex, rgba, w, h): #vers 1
+        """DP5 Send back: painted pixels into the texture, list and viewport."""
+        from apps.methods.dp5_link import texture_from_dp5
+        if tex not in self._mod_textures or texture_from_dp5(tex, rgba, w, h) is None:
+            self._set_status("DP5: texture no longer loaded here")
+            return
+        self._populate_texture_list()
+        self.preview_widget._upload_textures(self._mod_textures)  # re-upload all (replaces the old one)
+        self.preview_widget.update()
+        self._set_status(f"{tex.get('name')} updated from DP5 - Save TXD to keep")
 
     def _pass_textures_to_txd_workshop(self): #vers 1
         """Send current textures to TXD Workshop for editing."""
@@ -5231,7 +5256,7 @@ class MapModelMixin: #vers 1
             QMessageBox.critical(self, "Error", f"Failed to open IMG:\n{str(e)}")
 
 
-    def load_from_img_archive(self, img_path): #vers 3
+    def load_from_img_archive(self, img_path): #vers 5
         """Load IMG archive — populates left panel with all DFF/COL/TXD entries."""
         try:
             from apps.methods.img_core_classes import IMGFile
@@ -5269,10 +5294,8 @@ class MapModelMixin: #vers 1
                 n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
                 n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
                 n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
-                hdr = getattr(self, '_left_panel_header', None)
-                if hdr:
-                    hdr.setText(
-                        f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
+                from apps.methods.file_list_filter import refresh_type_filter
+                refresh_type_filter(self)                  # header counts + type filter
 
             n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
             n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
@@ -5345,16 +5368,10 @@ class MapModelMixin: #vers 1
         else:
             box.clear()
 
-    def _filter_model_list(self, text: str): #vers 1
+    def _filter_model_list(self, text: str): #vers 2
         """Filter left panel list by search text."""
-        lw = getattr(self, 'col_list_widget', None)
-        if not lw:
-            return
-        text = text.lower()
-        for i in range(lw.count()):
-            item = lw.item(i)
-            if item:
-                item.setHidden(bool(text) and text not in item.text().lower())
+        from apps.methods.file_list_filter import apply_file_filter
+        apply_file_filter(self)                        # search text + type filter together
 
     def _on_col_selected(self, item): #vers 3
         """Handle entry selection from left panel — routes by extension."""

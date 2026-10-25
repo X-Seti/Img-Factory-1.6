@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/bitmaps_widget.py - Version: 2
+#this belongs in apps/components/DP5_Workshop/depends/bitmaps_widget.py - Version: 3
 # X-Seti - Jul 2026 - DP5 Workshop - Bitmaps dock widget
 """
 Self-contained Bitmaps dock widget: dock container, collapsible title
@@ -47,7 +47,7 @@ def _apply_panel_stylesheet(owner, panel): #vers 1
         panel.setStyleSheet(ss)
 
 
-def _create_content_panel(owner): #vers 2
+def _create_content_panel(owner): #vers 3
     panel = QFrame()
     panel.setObjectName("dp5_bitmaps_panel")
     panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -88,6 +88,12 @@ def _create_content_panel(owner): #vers 2
     btn_row.addWidget(export_btn)
     btn_row.addWidget(del_btn)
     layout.addLayout(btn_row)
+    owner._bitmap_back_btn = QPushButton("Send back")      # to the editor that sent it
+    owner._bitmap_back_btn.setFont(owner.button_font)
+    owner._bitmap_back_btn.setToolTip("Send the painted bitmap back to the editor that sent it")
+    owner._bitmap_back_btn.setEnabled(False)
+    owner._bitmap_back_btn.clicked.connect(owner._send_bitmap_back)
+    layout.addWidget(owner._bitmap_back_btn)
 
     return panel
 

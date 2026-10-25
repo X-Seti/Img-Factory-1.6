@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 14
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 15
 # X-Seti - October 07 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -18,6 +18,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _build_txd_from_dff
 # _change_bit_depth
 # _change_format
+# _alpha_load_report
 # _check_alpha_validity
 # _check_txd_vs_dff
 # _clear_modified
@@ -2670,7 +2671,7 @@ class TXDLogicMixin: #vers 1
                 self.main_window.log_message(f"Extract error: {str(e)}")
             return None
 
-    def _load_txd_textures(self, txd_data, txd_name): #vers 16
+    def _load_txd_textures(self, txd_data, txd_name): #vers 17
         """Load textures from TXD data with detailed structural parsing, log output, and granular control"""
         try:
             from PyQt6.QtWidgets import (QProgressDialog, QMessageBox, QDialog,
@@ -2722,9 +2723,6 @@ class TXDLogicMixin: #vers 1
 
             # Tracking
             alpha_errors = []
-            skip_alpha_textures = False
-            ignore_all_errors = False
-            skip_all_entries = False
             user_cancelled = False
 
             def log(message):  #vers 1
@@ -2901,7 +2899,7 @@ class TXDLogicMixin: #vers 1
                             log(f"  Alpha Name   : {alpha_name}")
 
                         # === ALPHA CHANNEL VALIDATION ===
-                        if has_alpha and not skip_alpha_textures and not skip_all_entries:
+                        if has_alpha:
                             log(f"  Validating alpha channel...")
 
                             rgba_data = tex.get('rgba_data', b'')
@@ -2909,6 +2907,7 @@ class TXDLogicMixin: #vers 1
                                 has_transparency = False
                                 all_opaque = True
                                 identical_to_rgb = True
+                                greyscale = True
 
                                 sample_size = min(1000, len(rgba_data) // 4)
 
@@ -2926,107 +2925,21 @@ class TXDLogicMixin: #vers 1
 
                                         if a != r and a != g and a != b:
                                             identical_to_rgb = False
+                                        if r != g or g != b:
+                                            greyscale = False
 
-                                # Detect problematic alpha
-                                alpha_error = None
+                                # Opaque alpha and greyscale (HUD / font) alpha are normal:
+                                # log only; a real mismatch is listed for the report (no popup)
                                 if all_opaque:
-                                    alpha_error = f"Alpha channel is all opaque (255) - no transparency"
-                                    log(f"  ALPHA ERROR  : {alpha_error}")
-                                elif identical_to_rgb:
-                                    alpha_error = f"Alpha channel identical to RGB data - corrupted"
-                                    log(f"  ALPHA ERROR  : {alpha_error}")
-
-                                # Handle alpha errors
-                                if alpha_error and not ignore_all_errors:
+                                    log(f"  Alpha Info   : all opaque (255) - flag set, no transparency")
+                                elif identical_to_rgb and not greyscale:
+                                    alpha_error = "Alpha channel identical to RGB data"
+                                    log(f"  ALPHA WARN   : {alpha_error}")
                                     alpha_errors.append((i+1, tex_name, alpha_error))
-
-                                    # Show error dialog with options
-                                    error_dialog = QDialog(dialog)
-                                    error_dialog.setWindowTitle("Alpha Channel Error")
-                                    error_dialog.setModal(True)
-                                    error_dialog.setMinimumWidth(500)
-
-                                    error_layout = QVBoxLayout(error_dialog)
-
-                                    error_label = QLabel(
-                                        f"Corrupted alpha channel detected:\n\n"
-                                        f"Texture {i+1}: {tex_name}\n"
-                                        f"Error: {alpha_error}\n\n"
-                                        f"How would you like to proceed?"
-                                    )
-                                    error_label.setWordWrap(True)
-                                    error_layout.addWidget(error_label)
-
-                                    btn_layout = QHBoxLayout()
-
-                                    ignore_entry_btn = QPushButton("Ignore Entry")
-                                    ignore_entry_btn.setToolTip("Load this texture with alpha as-is")
-
-                                    ignore_all_btn = QPushButton("Ignore All")
-                                    ignore_all_btn.setToolTip("Ignore all alpha errors and continue")
-
-                                    skip_alpha_btn = QPushButton("Strip Alpha")
-                                    skip_alpha_btn.setToolTip("Remove alpha from this texture only")
-
-                                    skip_all_btn = QPushButton("Strip All Alpha")
-                                    skip_all_btn.setToolTip("Remove alpha from all remaining textures")
-                                    skip_all_btn.setStyleSheet("background-color: palette(button); color: palette(buttonText);")
-
-                                    cancel_load_btn = QPushButton("Cancel Loading")
-                                    cancel_load_btn.setStyleSheet("background-color: palette(highlight); color: palette(highlightedText);")
-
-                                    btn_layout.addWidget(ignore_entry_btn)
-                                    btn_layout.addWidget(ignore_all_btn)
-                                    btn_layout.addWidget(skip_alpha_btn)
-                                    btn_layout.addWidget(skip_all_btn)
-                                    btn_layout.addWidget(cancel_load_btn)
-
-                                    error_layout.addLayout(btn_layout)
-
-                                    user_choice = [None]
-
-                                    def set_choice(choice):  #vers 1
-                                        user_choice[0] = choice
-                                        error_dialog.accept()
-
-                                    ignore_entry_btn.clicked.connect(lambda: set_choice('ignore_entry'))
-                                    ignore_all_btn.clicked.connect(lambda: set_choice('ignore_all'))
-                                    skip_alpha_btn.clicked.connect(lambda: set_choice('skip_alpha'))
-                                    skip_all_btn.clicked.connect(lambda: set_choice('skip_all'))
-                                    cancel_load_btn.clicked.connect(lambda: set_choice('cancel'))
-
-                                    error_dialog.exec()
-
-                                    choice = user_choice[0]
-
-                                    if choice == 'cancel':
-                                        log(f"  User Action  : CANCELLED LOADING")
-                                        raise Exception("Loading cancelled due to alpha errors")
-                                    elif choice == 'ignore_entry':
-                                        log(f"  User Action  : Ignored this entry, loading with alpha")
-                                    elif choice == 'ignore_all':
-                                        ignore_all_errors = True
-                                        log(f"  User Action  : Ignoring all future alpha errors")
-                                    elif choice == 'skip_alpha':
-                                        tex['has_alpha'] = False
-                                        if 'alpha_name' in tex:
-                                            del tex['alpha_name']
-                                        log(f"  User Action  : Stripped alpha from this texture")
-                                    elif choice == 'skip_all':
-                                        skip_alpha_textures = True
-                                        tex['has_alpha'] = False
-                                        if 'alpha_name' in tex:
-                                            del tex['alpha_name']
-                                        log(f"  User Action  : Stripping alpha from all remaining textures")
-
-                            else:
-                                log(f"  Alpha Valid  : Channel validated successfully")
-
-                        elif skip_alpha_textures and has_alpha:
-                            tex['has_alpha'] = False
-                            if 'alpha_name' in tex:
-                                del tex['alpha_name']
-                            log(f"  Alpha Action : Stripped (skip all active)")
+                                elif identical_to_rgb:
+                                    log(f"  Alpha Info   : greyscale, alpha matches RGB (normal for HUD / fonts)")
+                                else:
+                                    log(f"  Alpha Valid  : Channel validated successfully")
 
                         textures.append(tex)
                         log(f"  Result       : SUCCESS - Added to texture list")
@@ -3083,9 +2996,11 @@ class TXDLogicMixin: #vers 1
                 log(f"Alpha Warnings: {len(alpha_errors)}")
                 for tex_num, tex_name, error in alpha_errors:
                     log(f"  - Texture {tex_num} ({tex_name}): {error}")
-
-            if skip_alpha_textures:
-                log("Alpha channels were stripped from textures")
+                report_btn = QPushButton(f"Alpha report ({len(alpha_errors)})")
+                report_btn.setToolTip("List textures with suspect alpha; strip alpha from chosen ones")
+                report_btn.clicked.connect(lambda _c=False, errs=list(alpha_errors): self._alpha_load_report(errs))
+                button_layout.insertWidget(0, report_btn)
+                self._set_status(f"{len(alpha_errors)} texture(s) with suspect alpha - see Alpha report")
 
             update_progress(100)
 
@@ -4706,6 +4621,45 @@ class TXDLogicMixin: #vers 1
 
         # Call save function
         self._save_txd_file()
+
+    def _alpha_load_report(self, errors): #vers 1
+        """Suspect-alpha textures from loading: tick and strip alpha, or close."""
+        from PyQt6.QtWidgets import QDialog, QListWidget, QListWidgetItem, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Alpha report")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("Alpha channel looks like a copy of the colour data.\n"
+                             "Tick the textures to strip alpha from (undo-able by reloading):"))
+        lst = QListWidget()
+        for num, name, err in errors:
+            it = QListWidgetItem(f"{num}. {name} - {err}")
+            it.setData(Qt.ItemDataRole.UserRole, name)
+            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it.setCheckState(Qt.CheckState.Unchecked)
+            lst.addItem(it)
+        lay.addWidget(lst)
+        box = QDialogButtonBox()
+        strip_btn = box.addButton("Strip alpha from ticked", QDialogButtonBox.ButtonRole.AcceptRole)
+        box.addButton(QDialogButtonBox.StandardButton.Close)
+        box.rejected.connect(dlg.reject)
+        lay.addWidget(box)
+
+        def strip():  #vers 1
+            names = {lst.item(r).data(Qt.ItemDataRole.UserRole) for r in range(lst.count())
+                     if lst.item(r).checkState() == Qt.CheckState.Checked}
+            done = 0
+            for tex in self.texture_list:
+                if tex.get('name') in names and tex.get('has_alpha'):
+                    tex['has_alpha'] = False
+                    tex.pop('alpha_name', None)
+                    done += 1
+            if done:
+                self._reload_texture_table()
+                self._mark_as_modified()
+            self._set_status(f"Alpha stripped from {done} texture(s)")
+            dlg.accept()
+        strip_btn.clicked.connect(strip)
+        dlg.show()
 
     def _check_alpha_validity(self, texture): #vers 1
         """Check if normal and alpha channels contain the same image"""

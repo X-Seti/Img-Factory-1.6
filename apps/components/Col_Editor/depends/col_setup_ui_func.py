@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 17
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 20
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -23,7 +23,6 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 # _create_right_panel
 # _create_status_bar
 # _create_surface_tab
-# _create_toolbar
 # _enable_name_edit
 # _get_icon_color
 # get_menu_title
@@ -40,6 +39,10 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 # _show_collision_context_menu
 # _show_settings_context_menu
 # _show_sort_menu
+# _titlebar_actions
+# _titlebar_info
+# _titlebar_menu
+# _titlebar_title
 # _toolbar_context_menu
 # _update_status_indicators
 # _wrap_middle_panel_with_surface_tab
@@ -64,9 +67,12 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 from PyQt6.QtCore import QSize, QTimer, Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMainWindow, QMenu, QPushButton, QStyledItemDelegate, QTabWidget, QTableWidget, QVBoxLayout, QWidget
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.components.Col_Editor.depends.col_viewport import COL3DViewport
 from apps.methods.grip_splitter import GripSplitter
+from apps.methods.dock_panels import add_outer_dock, make_outer_mw
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 
 App_name = "Col Workshop"
@@ -236,7 +242,7 @@ class _SurfaceParser: #vers 3
 
 
 
-class COLSetupUIMixin: #vers 1
+class COLSetupUIMixin(TitlebarMixin): #vers 2
     """UI builders, ribbons, menus, hotkeys and theme for COLWorkshop."""
 
     def _get_ui_color(self, key): #vers 2
@@ -279,7 +285,7 @@ class COLSetupUIMixin: #vers 1
         parent_menu.addSeparator()
         parent_menu.addAction("Ribbon Manager…", self.open_ribbon_manager)
 
-    def setup_ui(self): #vers 12
+    def setup_ui(self): #vers 14
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -304,45 +310,31 @@ class COLSetupUIMixin: #vers 1
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
 
-        # Main splitter
-        self._main_splitter = GripSplitter(Qt.Orientation.Horizontal)
-
-        # Create all panels first
+        # Viewport + ribbons central; COL Files / Models as docks
         left_panel = self._create_left_panel()
         middle_panel = self._create_middle_panel()
         right_panel = self._create_right_panel()
-
-        # Add panels to splitter based on mode
+        outer_mw = make_outer_mw(right_panel)
+        self._outer_mw = outer_mw
+        self._outer_docks = []
         if left_panel is not None:  # IMG Factory mode
-            self._main_splitter.addWidget(left_panel)
-            self._main_splitter.addWidget(middle_panel)
-            self._main_splitter.addWidget(right_panel)
-            # Set proportions (2:3:5)
-            self._main_splitter.setStretchFactor(0, 2)
-            self._main_splitter.setStretchFactor(1, 3)
-            self._main_splitter.setStretchFactor(2, 5)
-        else:  # Standalone mode
-            self._main_splitter.addWidget(middle_panel)
-            self._main_splitter.addWidget(right_panel)
-            # Set proportions (1:1)
-            self._main_splitter.setStretchFactor(0, 1)
-            self._main_splitter.setStretchFactor(1, 1)
-
-        # Splitter goes straight into main_layout - no top-level tab wrapper.
-        # COL Models/Surface Data switching is now local to the middle
-        # panel only (see _wrap_middle_panel_with_surface_tab), so the left
-        # panel (file list) and right panel (ribbons + viewport) are never
-        # nested inside a QTabWidget's padded content pane.
-        main_layout.addWidget(self._main_splitter)
-        self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
-        QTimer.singleShot(0, self._restore_splitter_sizes)
+            self._outer_docks.append(add_outer_dock(self, outer_mw, "COL Files", left_panel, 150))
+        models_dock = add_outer_dock(self, outer_mw, "Col Controls", middle_panel, 250)
+        self._outer_docks.append(models_dock)
+        if left_panel is not None:
+            outer_mw.splitDockWidget(self._outer_docks[0], models_dock, Qt.Orientation.Horizontal)
+        def _models_resized(event, _p=middle_panel):  #vers 1
+            type(_p).resizeEvent(_p, event)
+            self._on_models_resized()
+        middle_panel.resizeEvent = _models_resized
+        main_layout.addWidget(outer_mw)
+        QTimer.singleShot(400, self._restore_outer_layout)
+        self.window_closed.connect(self._save_outer_layout)
 
         # Status indicators - hidden when embedded in main window tab
-        if hasattr(self, '_setup_status_indicators'):
-            status_frame = self._setup_status_indicators()
-            if not self.standalone_mode:
-                status_frame.setVisible(False)
-            main_layout.addWidget(status_frame)
+        status_frame = self._create_status_bar()
+        main_layout.addWidget(status_frame)
+        register_statusbar(self, status_frame, docked_hide=True)
 
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()
@@ -544,160 +536,32 @@ class COLSetupUIMixin: #vers 1
                 self.is_docked and not self.standalone_mode)
         self._apply_custom_icons()
 
-    def _create_toolbar(self): #vers 15
-        """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
-        # Read sizes from app_settings so they match Global App System Settings
-        try:
-            from apps.utils.app_settings_system import get_titlebar_sizes as _gts
-            _as = getattr(self, 'app_settings', None) or getattr(
-                  getattr(self, 'main_window', None), 'app_settings', None)
-            _sz = _gts(_as)
-            _TB_H    = _sz['tb_height']
-            _BTN_SZ  = _sz['btn_size']
-            _ICO_SZ  = _sz['icon_size']
-            _BTN_H   = _sz['btn_height']
-        except Exception:
-            _TB_H, _BTN_SZ, _ICO_SZ, _BTN_H = 32, 32, 20, 24
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
-
-        # Install event filter for drag detection
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
-        self.titlebar_layout = QHBoxLayout(self.titlebar)
-        self.titlebar_layout.setContentsMargins(5, 5, 5, 5)
-        self.titlebar_layout.setSpacing(5)
-
-        # Get icon color from theme
-        icon_color = self._get_icon_color()
-
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(_TB_H + 10)
-
-        layout = QHBoxLayout(self.toolbar)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-
-        # Menu drop-down: every workshop command, grouped like the ribbons
-        from PyQt6.QtWidgets import QToolButton, QMenu
-        self.menu_btn = QToolButton()
-        self.menu_btn.setFont(self.button_font)
-        self.menu_btn.setText("Menu")
-        self.menu_btn.setIcon(self.icon_factory.menu_m_icon(color=icon_color))
-        self.menu_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
-        self.menu_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.menu_btn.setMenu(QMenu(self.menu_btn))
-        self.menu_btn.menu().aboutToShow.connect(
-            lambda: (self.menu_btn.menu().clear(), self._build_full_menu(self.menu_btn.menu())))
-        self.menu_btn.setToolTip("All COL Workshop commands")
-        layout.addWidget(self.menu_btn)
-
-        # Settings button
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon(color=icon_color))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip("Workshop Settings")
-        layout.addWidget(self.settings_btn)
-
-        # Standalone file tabs drop-down (docked: IMG Factory tabs are used)
-        self._build_doc_tabs_btn(layout)
-
-        layout.addStretch()
-
-        # App title in center
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_label)
-
-        layout.addStretch()
-
-        # Only show "Open IMG" button if NOT standalone
+    def _titlebar_actions(self, layout): #vers 1
+        """COL titlebar: OpenIMG, From IMG, Open, Save, Extract, Undo."""
         if not self.standalone_mode:
-            self.open_img_btn = QPushButton("OpenIMG")
-            self.open_img_btn.setFont(self.button_font)
-            self.open_img_btn.setIcon(self.icon_factory.folder_icon(color=icon_color))
-            self.open_img_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
-            self.open_img_btn.clicked.connect(self.open_img_archive)
-            self.open_img_btn.setToolTip("Open an IMG archive and browse its COL entries")
+            self.open_img_btn = self._tb_button('folder_icon', "OpenIMG",
+                "Open an IMG archive and browse its COL entries", self.open_img_archive)
             layout.addWidget(self.open_img_btn)
-
-            # "From IMG" — pick a COL entry from the currently loaded IMG in IMG Factory
-            self.from_img_btn = QPushButton("From IMG")
-            self.from_img_btn.setFont(self.button_font)
-            self.from_img_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-            self.from_img_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
-            self.from_img_btn.clicked.connect(self._pick_col_from_current_img)
-            self.from_img_btn.setToolTip("Pick a COL entry from the currently loaded IMG")
+            self.from_img_btn = self._tb_button('open_icon', "From IMG",
+                "Pick a COL entry from the currently loaded IMG", self._pick_col_from_current_img)
             layout.addWidget(self.from_img_btn)
 
-        # Open button
-        self.open_btn = QPushButton()
-        self.open_btn.setFont(self.button_font)
-        self.open_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-        self.open_btn.setText("Open")
-        self.open_btn.setIconSize(QSize(20, 20))
+        self.open_btn = self._tb_button('open_icon', "Open", "Open COL file (Ctrl+O)", self._open_file)
         self.open_btn.setShortcut("Ctrl+O")
-        if self.button_display_mode == 'icons':
-            self.open_btn.setFixedSize(40, 40)
-        self.open_btn.setToolTip("Open COL file (Ctrl+O)")
-        self.open_btn.clicked.connect(self._open_file)
         layout.addWidget(self.open_btn)
 
-        # Save button
-        self.save_btn = QPushButton()
-        self.save_btn.setFont(self.button_font)
-        self.save_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
-        self.save_btn.setText("Save")
-        self.save_btn.setIconSize(QSize(20, 20))
+        self.save_btn = self._tb_button('save_icon', "Save", "Save COL file (Ctrl+S)", self._save_file)
         self.save_btn.setShortcut("Ctrl+S")
-        if self.button_display_mode == 'icons':
-            self.save_btn.setFixedSize(40, 40)
-        self.save_btn.setEnabled(True)
-        self.save_btn.setToolTip("Save COL file (Ctrl+S)")
-        self.save_btn.clicked.connect(self._save_file)
         layout.addWidget(self.save_btn)
 
-        # Save button
-        self.saveall_btn = QPushButton()
-        self.saveall_btn.setFont(self.button_font)
-        self.saveall_btn.setIcon(self.icon_factory.saveas_icon(color=icon_color))
-        self.saveall_btn.setText("Save All")
-        self.saveall_btn.setIconSize(QSize(20, 20))
-        self.saveall_btn.setShortcut("Ctrl+S")
-        if self.button_display_mode == 'icons':
-            self.saveall_btn.setFixedSize(40, 40)
-        self.saveall_btn.setEnabled(True)
-        self.saveall_btn.setToolTip("Save COL file (Ctrl+S)")
-        self.saveall_btn.clicked.connect(self._saveall_file)
-        #layout.addWidget(self.saveall_btn)
+        self.saveall_btn = self._tb_button('saveas_icon', "Save All", "Save COL file (Ctrl+S)",
+                                           self._saveall_file)   # not shown
 
-        self.export_all_btn = QPushButton("Extract")
-        self.export_all_btn.setFont(self.button_font)
-        self.export_all_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
-        self.export_all_btn.setIconSize(QSize(20, 20))
-        self.export_all_btn.setToolTip("Export all as col, cst or 3ds files")
-        self.export_all_btn.clicked.connect(self.export_all)
-        self.export_all_btn.setEnabled(True)
+        self.export_all_btn = self._tb_button('package_icon', "Extract",
+            "Export all as col, cst or 3ds files", self.export_all)
         layout.addWidget(self.export_all_btn)
 
-        self.undo_btn = QPushButton()
-        self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
-        self.undo_btn.setText("Undo")
-        self.undo_btn.setIconSize(QSize(20, 20))
-        self.undo_btn.clicked.connect(self._undo_last_action)
-        self.undo_btn.setEnabled(True)
-        self.undo_btn.setToolTip("Undo last change")
+        self.undo_btn = self._tb_button('undo_icon', "Undo", "Undo last change", self._undo_last_action)
         layout.addWidget(self.undo_btn)
 
         # Register compact-aware buttons (adaptive icon/text display)
@@ -710,8 +574,7 @@ class COLSetupUIMixin: #vers 1
             (getattr(self, 'open_img_btn',    None), "OpenIMG"),
             (getattr(self, 'from_img_btn',    None), "From IMG"),
         ]
-        # Restore saved mode
-        try:
+        try:                                                # restore saved mode
             if self.main_window and hasattr(self.main_window, 'img_settings'):
                 saved = self.main_window.img_settings.get('col_icon_display_mode', 'icons_and_text')
                 self.icon_display_mode = saved
@@ -719,86 +582,17 @@ class COLSetupUIMixin: #vers 1
         except Exception:
             pass
 
-        # Info button
-        self.info_btn = QPushButton("")
-        self.info_btn.setText("")  # CHANGED from "Info"
-        self.info_btn.setIcon(self.icon_factory.info_icon(color=icon_color))
-        self.info_btn.setMinimumWidth(40)
-        self.info_btn.setMaximumWidth(40)
-        self.info_btn.setMinimumHeight(30)
-        self.info_btn.setToolTip("Information")
+    def _titlebar_info(self): #vers 1
+        """Info button: COL file info."""
+        self._show_col_info()
 
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_col_info)
-        layout.addWidget(self.info_btn)
+    def _titlebar_menu(self, menu): #vers 1
+        """Menu drop-down: every COL command, grouped like the ribbons."""
+        self._build_full_menu(menu)
 
-        # Properties/Theme button
-        self.properties_btn = QPushButton()
-        self.properties_btn.setFont(self.button_font)
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
-        self.properties_btn.setToolTip("Theme")
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
-        layout.addWidget(self.properties_btn)
-
-        # Dock button [D]
-        self.dock_btn = QPushButton("D")
-        #self.dock_btn.setFont(self.button_font)
-        self.dock_btn.setMinimumWidth(40)
-        self.dock_btn.setMaximumWidth(40)
-        self.dock_btn.setMinimumHeight(30)
-        self.dock_btn.setToolTip("Dock")
-
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
-        layout.addWidget(self.dock_btn)
-
-        # Tear-off button [T] - only in IMG Factory mode
-        if not self.standalone_mode:
-            self.tearoff_btn = QPushButton("T")
-            #self.tearoff_btn.setFont(self.button_font)
-            self.tearoff_btn.setMinimumWidth(40)
-            self.tearoff_btn.setMaximumWidth(40)
-            self.tearoff_btn.setMinimumHeight(30)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("TXD Workshop - Tearoff window")
-
-            layout.addWidget(self.tearoff_btn)
-
-        # Window controls
-        self.minimize_btn = QPushButton()
-        self.minimize_btn.setIcon(self.icon_factory.minimize_icon(color=icon_color))
-        self.minimize_btn.setIconSize(QSize(20, 20))
-        self.minimize_btn.setMinimumWidth(40)
-        self.minimize_btn.setMaximumWidth(40)
-        self.minimize_btn.setMinimumHeight(30)
-        self.minimize_btn.clicked.connect(self.showMinimized)
-        self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
-        layout.addWidget(self.minimize_btn)
-
-        self.maximize_btn = QPushButton()
-        self.maximize_btn.setIcon(self.icon_factory.maximize_icon(color=icon_color))
-        self.maximize_btn.setIconSize(QSize(20, 20))
-        self.maximize_btn.setMinimumWidth(40)
-        self.maximize_btn.setMaximumWidth(40)
-        self.maximize_btn.setMinimumHeight(30)
-        self.maximize_btn.clicked.connect(self._toggle_maximize)
-        self.maximize_btn.setToolTip("Maximize/Restore Window")
-        layout.addWidget(self.maximize_btn)
-
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(self.icon_factory.close_icon(color=icon_color))
-        self.close_btn.setIconSize(QSize(20, 20))
-        self.close_btn.setMinimumWidth(40)
-        self.close_btn.setMaximumWidth(40)
-        self.close_btn.setMinimumHeight(30)
-        self.close_btn.clicked.connect(self.close)
-        self.close_btn.setToolTip("Close Window") # closes tab
-        layout.addWidget(self.close_btn)
-
-        return self.toolbar
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
 
     def _create_surface_tab(self): #vers 9
         """Build the Surface Data tab — parser + editor for surface.dat."""

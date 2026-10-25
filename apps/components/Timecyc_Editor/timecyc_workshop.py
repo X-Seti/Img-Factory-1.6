@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 6
+#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 7
 # X-Seti - May08 2026 - Img Factory 1.6 - Time Cycle Editor
 
 """
@@ -443,6 +443,7 @@ class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
     _ribbon_name = "timecyc_editor"
     # Bump when the set of ribbons changes (1 = File/Edit/Tools)
     _RIBBON_LAYOUT_VERSION = 1
+    DROP_EXTS = ('.dat',)          # timecyc.dat / timecycp.dat
 
     def __init__(self, main_window=None, parent=None): #vers 2
         self._defer_setup_ui = True
@@ -594,25 +595,12 @@ class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
         lay.addStretch()
         return w
 
-    def _create_centre_panel(self): #vers 3
-        self._tc_splitter = QSplitter(Qt.Orientation.Horizontal)
-        sp = self._tc_splitter
-        sp.addWidget(self._build_left_panel(self))    # grid + button bar
-        right = QSplitter(Qt.Orientation.Vertical)
-        right.addWidget(self._build_centre_panel(self))  # colour fields
-        right.addWidget(self._build_right_panel(self))   # sky preview
-        right.setSizes([600, 200])
-        sp.addWidget(right)
-        sp.setSizes([420, 730])
-        sp.splitterMoved.connect(self._on_splitter_moved)
-        return sp
-
-    def _on_splitter_moved(self, pos: int, index: int): #vers 1
-        """Collapse/expand button labels as grid panel resizes."""
-        if hasattr(self, '_btn_load'):
-            sizes = self._tc_splitter.sizes()
-            left_w = sizes[0] if sizes else 400
-            self._update_action_btns(left_w < 380)
+    def _create_centre_panel(self): #vers 4
+        """Grid central; colour fields and sky preview as docks."""
+        self._tc_grid = self._build_left_panel(self)     # grid + button bar
+        return self._dock_layout(self.ribbon_wrap(self._tc_grid), [
+            ("Colours", self._build_centre_panel(self), 300, Qt.DockWidgetArea.RightDockWidgetArea),
+            ("Sky Preview", self._build_right_panel(self), 200, Qt.DockWidgetArea.RightDockWidgetArea)])
 
     def _get_field_groups(self): #vers 2
         """Return (colour_groups, scalar_fields, colour_groups_2) for current game."""
@@ -1265,12 +1253,10 @@ class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
         for btn, (full, icon) in labels.items():
             btn.setText(icon if narrow else full)
 
-    def resizeEvent(self, ev): #vers 3
+    def resizeEvent(self, ev): #vers 4
         super().resizeEvent(ev)
-        if hasattr(self, '_btn_load') and hasattr(self, '_tc_splitter'):
-            sizes = self._tc_splitter.sizes()
-            left_w = sizes[0] if sizes else self.width()
-            self._update_action_btns(left_w < 380)
+        if hasattr(self, '_btn_load') and hasattr(self, '_tc_grid'):
+            self._update_action_btns(self._tc_grid.width() < 380)
 
     def _build_menus_into_qmenu(self, pm): #vers 1
         fm = pm.addMenu("File")

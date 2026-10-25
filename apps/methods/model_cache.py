@@ -1,0 +1,896 @@
+#this belongs in apps/methods/model_cache.py - Version: 16
+"""
+ModelCache - loads and caches DFF geometry + TXD textures for map
+instance rendering, resolving models by name from a set of IMG
+archives (GTAWorldLoader.get_img_paths()).
+
+Design: indexing (which IMG archive + entry holds "foo.dff") is done
+once, eagerly, when a world loads - that's just reading directory
+headers, fast even for large archives. Actually loading and parsing
+geometry/texture bytes is fully lazy - nothing is read/parsed until a
+specific model is requested (get_geometry/get_textures), and the
+result (success OR failure) is cached so a missing/broken model isn't
+retried on every subsequent instance that references it.
+"""
+
+##Methods list -
+# __init__
+# add_models
+# _index_wbd
+# _index_wdd
+# _is_wdd
+# LazyTexture
+# _limit_texture
+# _model_entries
+# _parse_dff_job
+# _parse_model
+# _parse_textures
+# _parse_txd_job
+# _read_entry
+# _apply_limit
+# _scan_col_model_names
+# _shrink_texture
+# _store_parsed
+# _tag
+# clear_indexes
+# collision_source
+# geometry_source
+# get_collision
+# get_dimensions
+# get_geometry
+# get_iv_collision
+# get_iv_static_bounds
+# get_raw_txd
+# get_textures
+# index_col_files
+# index_img_files
+# is_col_indexed
+# is_dff_indexed
+# is_txd_indexed
+# iv_static_bound_names
+# prefetch
+# set_texture_limit
+# stats
+
+import struct
+from typing import Dict, List, Optional, Tuple
+
+from apps.methods.txd_parser import parse_txd
+from apps.methods.dff_classes import DFFModel
+from apps.methods.col_workshop_classes import COLModel
+from apps.methods.col_workshop_loader import COLFile
+
+_WDD_VTABLE = 0x6953A4   # GTA IV drawable dictionary
+
+
+def _scan_col_model_names(data: bytes) -> List[str]: #vers 1
+    """Lightweight scan of a (possibly multi-model) COL blob's chunk
+    headers to discover every model name inside, without parsing any
+    geometry (Sep 5 2026  own real, uploaded VC gta3.img
+    evidence: vanilla VC embeds genuine multi-model REGIONAL COL
+    packages directly in gta3.img - airport.col alone holds 189
+    separately-named models, none of them named "airport" - not one
+    small COL entry per building the way SA's convention works).
+    Fast enough to run during index_img_files() for every .col entry
+    found there, unlike the full COLFile parse used later (in
+    get_collision) when a specific model's real collision data is
+    actually needed."""
+    names = []
+    pos, n = 0, len(data)
+    while pos + 8 <= n:
+        fourcc = data[pos:pos+4]
+        if fourcc not in (b'COLL', b'COL2', b'COL3', b'COL4'):
+            break
+        size = int.from_bytes(data[pos+4:pos+8], 'little')
+        name = data[pos+8:pos+30].split(b'\x00')[0].decode('ascii', errors='replace').strip()
+        if name:
+            names.append(name)
+        pos += 8 + size
+    return names
+
+
+def _is_wdd(data: bytes) -> bool: #vers 1
+    """True for a GTA IV .wdd drawable dictionary."""
+    import zlib
+    z = zlib.decompressobj().decompress(data[12:], 64)
+    return len(z) >= 4 and struct.unpack_from('<I', z, 0)[0] == _WDD_VTABLE
+
+
+def _parse_dff_job(model_name: str, blobs: List[bytes], limit=None, keep_dxt=False) -> Optional[DFFModel]: #vers 5
+    """Worker process: first blob that parses as a model; textures shrunk here."""
+    for data in blobs:
+        try:
+            result = _parse_model(model_name, data, keep_dxt)
+            if result is not None:
+                if limit:
+                    for t in getattr(result, 'embedded_textures', {}).values():
+                        _limit_texture(t, limit)
+                return result
+        except Exception:
+            continue
+    return None
+
+
+def _parse_model(model_name: str, data: bytes, keep_dxt: bool = False) -> Optional[DFFModel]: #vers 7
+    """IV .wdd by name hash, IV wdr/wft textures tagged; rest via parse_model_any."""
+    from apps.methods.wdr_model import is_iv_drawable, parse_wdr, parse_wdd, wdr_embedded_textures
+    from apps.methods.dff_parser import parse_model_any
+    if not data:
+        return None
+    if is_iv_drawable(data):
+        if _is_wdd(data):
+            from apps.methods.xtd_textures import iv_hash
+            return parse_wdd(data, iv_hash(model_name), model_name)
+        model = parse_wdr(data, model_name)
+        model.embedded_textures = {t['name'].lower(): t for t in _tag(wdr_embedded_textures(data, 'dxt' if keep_dxt else False), 'iv')}
+        return model
+    return parse_model_any(data, model_name)
+
+
+TEXTURE_GROUPS = ('rw', 'iv', 'stories', 'nif')   # per-format texture limits
+
+
+class LazyTexture(dict):
+    """Texture dict whose DXT levels decode to RGBA only when rgba_data is read."""
+
+    def _rgba(self): #vers 1
+        from apps.methods.txd_reader import decompress_dxt
+        w, h, data = dict.__getitem__(self, 'dxt_levels')[0]
+        return decompress_dxt(data, w, h, self.get('format', 'DXT1'))
+
+    def get(self, key, default=None): #vers 1
+        if key == 'rgba_data' and 'rgba_data' not in self and 'dxt_levels' in self:
+            return self._rgba()
+        return dict.get(self, key, default)
+
+    def __getitem__(self, key): #vers 1
+        if key == 'rgba_data' and 'rgba_data' not in self and 'dxt_levels' in self:
+            return self._rgba()
+        return dict.__getitem__(self, key)
+
+
+def _tag(textures: List[dict], group: str) -> List[dict]: #vers 2
+    """Format group tag for limits; DXT-kept textures become LazyTexture."""
+    out = []
+    for t in textures:
+        t['_group'] = group
+        if 'dxt_levels' in t:
+            t.pop('rgba_data', None)          # empty placeholder from the reader
+            t = LazyTexture(t)
+        out.append(t)
+    return out
+
+
+def _parse_textures(data: bytes, keep_dxt: bool = False) -> List[dict]: #vers 4
+    """TXD, IV .wtd, LCS/VCS .chk/.xtx or Bully .nft, tagged by group."""
+    if data[:4] == b'xet\x00':
+        from apps.methods.xtx_reader import parse_stories_textures
+        return _tag(parse_stories_textures(data), 'stories')
+    if data[:4] == b'RSC\x05':
+        import zlib
+        from apps.methods.xtd_textures import _iv_textures, _rsc5_sizes
+        vs, _ps = _rsc5_sizes(struct.unpack_from('<I', data, 8)[0])
+        return _tag(_iv_textures(zlib.decompress(data[12:]), vs, levels='dxt' if keep_dxt else False), 'iv')
+    from apps.methods.nif_textures import is_nif_textures, parse_nif_textures
+    if is_nif_textures(data):
+        return _tag(parse_nif_textures(data), 'nif')
+    return _tag(parse_txd(data, 'dxt' if keep_dxt else False) or [], 'rw')
+
+
+def _limit_texture(tex: dict, limits) -> dict: #vers 1
+    """Apply the limit for this texture's format group, if any."""
+    lim = (limits or {}).get(tex.get('_group', 'rw'))
+    return _shrink_texture(tex, *lim) if lim else tex
+
+
+def _shrink_texture(tex: dict, threshold: int, target: int) -> dict: #vers 2
+    """Texture over threshold reduced to fit target (mip level reused); mips dropped."""
+    w, h = tex.get('width', 0), tex.get('height', 0)
+    dxt = dict.get(tex, 'dxt_levels')
+    if dxt:                                   # stay compressed: drop larger levels
+        if max(w, h) <= threshold:
+            return tex
+        keep = [lv for lv in dxt if max(lv[0], lv[1]) <= target]
+        if keep:
+            tex.update(dxt_levels=keep, width=keep[0][0], height=keep[0][1], mipmaps=len(keep))
+            return tex
+        rgba = tex.get('rgba_data')           # no small mip: decode, resize below
+        del tex['dxt_levels']
+        tex['rgba_data'] = rgba
+    levels = tex.pop('mipmap_levels', None) or []
+    tex.pop('compressed_data', None)
+    if max(w, h) <= threshold or not tex.get('rgba_data'):
+        return tex
+    lv = next((l for l in levels if max(l.get('width', 0), l.get('height', 0)) <= target
+               and l.get('rgba_data')), None)
+    if lv is not None:
+        rgba, nw, nh = lv['rgba_data'], lv['width'], lv['height']
+    else:
+        from PIL import Image
+        f = target / max(w, h)
+        nw, nh = max(1, int(w * f)), max(1, int(h * f))
+        rgba = Image.frombytes('RGBA', (w, h), bytes(tex['rgba_data'])).resize(
+            (nw, nh), Image.BOX).tobytes()
+    tex.update(rgba_data=bytes(rgba), width=nw, height=nh, mipmaps=1)
+    return tex
+
+
+def _parse_txd_job(blobs: List[bytes], limit=None, keep_dxt=False) -> Optional[Dict[str, dict]]: #vers 5
+    """Worker process: merged textures from every blob, shrunk before return."""
+    merged = {}
+    for data in blobs:
+        try:
+            for t in _parse_textures(data, keep_dxt):
+                name = t.get('name')
+                if name and name.lower() not in merged:
+                    merged[name.lower()] = _limit_texture(t, limit) if limit else t
+        except Exception:
+            continue
+    return merged or None
+
+
+class ModelCache:
+    """See module docstring."""
+
+    def __init__(self): #vers 6
+        self._virtual_models = set()             # names registered by add_models
+        self._virtual_textures = {}              # txd sets registered by add_models
+        # lowercase entry name (no extension) -> [(img_path, IMGEntry), ...]
+        # A list, not a single tuple (Aug 1 2026) - if the same name is
+        # indexed more than once (e.g. my real game folder has
+        # both "Generic.txd" and "generic.txd" as genuinely different
+        # files), a single-tuple version would silently drop whichever
+        # got indexed first, with no way to recover its content. See
+        # get_geometry/get_textures for how duplicates get resolved.
+        self._dff_index: Dict[str, List[Tuple[str, object]]] = {}
+        self._txd_index: Dict[str, List[Tuple[str, object]]] = {}
+        # GTA IV .wdd model name hash -> [(img_path, IMGEntry), ...]
+        self._wdd_index: Dict[int, List[Tuple[str, object]]] = {}
+        # format group -> (threshold, target); groups missing = full size
+        self.texture_limit: Dict[str, Tuple[int, int]] = {}
+        # DXT textures kept compressed for GPU upload (Oct 12 2026)
+        self.keep_dxt: bool = False
+        # GTA IV .wbd model hash and .wbn stem -> [(img_path, IMGEntry), ...]
+        self._wbd_index: Dict[int, List[Tuple[str, object]]] = {}
+        self._wbn_index: Dict[str, List[Tuple[str, object]]] = {}
+        self._iv_bounds_cache: Dict[str, object] = {}
+        # lowercase entry stem -> [(img_path, IMGEntry), ...] for .col
+        # entries found directly inside the game's own IMG archives
+        # (Aug 14 2026,  "In SA it should be reading them
+        # from the gta3.img... In VC, they can also be found in the
+        # gta3.img file, just like the models") - same lightweight
+        # container-name indexing as _dff_index/_txd_index (SA/VC
+        # collision entries are named to match their model, one model
+        # per .col entry, unlike the multi-model standalone archives
+        # _col_index below is for). Checked first by get_collision.
+        self._col_img_index: Dict[str, List[Tuple[str, object]]] = {}
+        # lowercase model name -> [(col_file_path, model_index_in_file), ...]
+        # (Aug 14 2026) For standalone .col files reached via COLFILE
+        # directives in the .dat (GTAWorldLoader.get_col_paths) - per
+        #  : GTA3 collision is ONLY reachable this way (no COL in
+        # the IMG at all, paths point into data/maps/), VC also has a
+        # handful of shared collision this way (e.g. generic.col)
+        # alongside its IMG-embedded per-object collision, SA has none
+        # of these (zero COLFILE directives - see get_col_paths).
+        # Keyed differently to _col_img_index on purpose: these
+        # standalone files are genuinely multi-model (e.g. generic.col
+        # holds many separately-named collision models) - the
+        # container filename is meaningless for lookup, only each
+        # model's own header.name inside the file matches an
+        # instance's model_name, so this indexes by content, built by
+        # actually loading each file (see index_col_files).
+        self._col_index: Dict[str, List[Tuple[str, int]]] = {}
+        # lowercase model/txd name -> parsed result, or None if loading/
+        # parsing failed (cached as None so it's not retried every time)
+        self._geometry_cache: Dict[str, Optional[DFFModel]] = {}
+        self._dimensions_cache: Dict[str, Optional[Tuple[float, float, float]]] = {}
+        self._texture_cache: Dict[str, Optional[Dict[str, dict]]] = {}
+        self._collision_cache: Dict[str, Optional[COLModel]] = {}
+        # col_file_path -> loaded COLFile (Aug 14 2026) - same reasoning
+        # as _opened_img_files: a multi-model .col can be large, don't
+        # re-read/re-parse it from disk once per model name inside it.
+        self._opened_col_files: Dict[str, object] = {}
+        # (img_path, id(entry)) -> loaded COLFile (Sep 5 2026) - same
+        # reasoning as _opened_col_files above, but for IMG-embedded
+        # multi-model regional packages (vanilla VC's airport.col
+        # etc.) where many distinct model names all resolve to the
+        # same underlying entry - without this, every one of e.g.
+        # airport.col's 189 models would re-read and re-parse the
+        # whole ~324KB container on its own first lookup.
+        self._col_container_cache: Dict[Tuple[str, int], object] = {}
+        self.indexed_img_paths: List[str] = []
+        self.indexed_col_paths: List[str] = []
+        self.index_errors: List[str] = []
+        # Raw .col entries found while scanning IMG archives (Sep 5
+        # 2026,  "it only found 3 .col files, what we need
+        # is something to say found *.col in img as many times as it
+        # finds them") - counts each real .col IMG directory entry
+        # once (e.g. VC's airport.col/downtown.col/etc, ~19 of them),
+        # regardless of how many individual model names get
+        # discovered inside each one by _scan_col_model_names. Kept
+        # separate from GTAWorldLoader.stats.col_files, which only
+        # counts standalone COLFILE-directive files (e.g. VC's
+        # generic.col/vehicles.col/weapons.col) - that number alone
+        # was what "only found 3" was reporting.
+        self.col_entries_found_in_img = 0
+        # img_path -> already-opened IMGFile (Aug 1 2026 
+        # real crash trace: a Ctrl+C interrupt during "the app
+        # freezes, no indication of doing anything" landed inside
+        # IMGFile._open_version_2 -> entry.set_img_file, reached via
+        # _read_entry -> img.open()) - _read_entry previously opened
+        # the archive fresh on every single call, on the stated
+        # assumption that "re-reading raw bytes on a cache miss is
+        # cheap compared to re-parsing" - true for the *bytes* read
+        # (read_entry_data opens its own short-lived handle for that
+        # regardless, see its own docstring/implementation), false for
+        # opening itself: IMGFile.open() has to parse the archive's
+        # entire directory table (potentially thousands of entries for
+        # gta3.img), and _preload_generic_ide_textures (generalized
+        # earlier this session to cover every distinct TXD across a
+        # whole loaded world, not just generic.ide's own) can call
+        # _read_entry hundreds of times in one preload pass - hundreds
+        # of full directory re-parses of the same archive, one per
+        # distinct TXD, is exactly what a large SA map's worth of
+        # objects turns into a multi-minute hang with no progress
+        # shown. Caching the opened IMGFile here means the expensive
+        # directory parse happens once per archive per session, not
+        # once per texture lookup.
+        self._opened_img_files: Dict[str, 'object'] = {}
+
+    def index_img_files(self, img_paths: List[str]): #vers 8
+        """Scan a list of IMG archive paths, building name -> (path,
+        entry) indexes for .dff, .txd, and .col entries. Call once
+        after a world loads (or its IMG set changes) - reading
+        directory headers only for .dff/.txd, so those stay fast even
+        for large archives. Safe to call again to re-index (clears
+        previous indexes first).
+
+        .col entries (Sep 5 2026  own real, uploaded VC
+        gta3.img evidence) are NOT one-model-per-entry the way SA's
+        convention works - vanilla VC embeds genuine multi-model
+        REGIONAL collision packages directly in gta3.img (airport.col
+        alone holds 189 separately-named models, none named
+        "airport"). Indexing those by container filename stem (the
+        old Aug 14 2026 assumption) meant get_collision(<real building
+        name>) never found a match at all - every real building's
+        collision silently failed to resolve. Now reads each .col
+        entry's bytes immediately and does a lightweight header-only
+        scan (_scan_col_model_names - no geometry parsing, just chunk
+        headers) to discover and index every real model name inside
+        it, falling back to the container's own filename stem only if
+        that scan finds nothing (an unreadable/unexpected entry)."""
+        from apps.methods.img_core_classes import IMGFile
+
+        self._dff_index.clear()
+        self._txd_index.clear()
+        self._wdd_index.clear()
+        self._wbd_index.clear()
+        self._wbn_index.clear()
+        self._iv_bounds_cache.clear()
+        self._col_img_index.clear()
+        self._col_container_cache.clear()
+        self.indexed_img_paths = []
+        self.index_errors = []
+        self.col_entries_found_in_img = 0
+
+        for img_path in img_paths:
+            try:
+                img = IMGFile(img_path)
+                if not img.open():
+                    self.index_errors.append(f"Failed to open {img_path}")
+                    continue
+                self._opened_img_files[img_path] = img   # reuse in _read_entry
+                for entry in img.entries:
+                    name = entry.name
+                    if not name:
+                        continue
+                    stem, dot, ext = name.rpartition('.')
+                    if not dot:
+                        continue
+                    stem_lower = stem.lower()
+                    ext_lower = ext.lower()
+                    if ext_lower in ('dff', 'wdr', 'wft', 'mdl', 'nif'):   # mdl: LCS/VCS, nif: Bully
+                        self._dff_index.setdefault(stem_lower, []).append((img_path, entry))
+                    elif ext_lower in ('txd', 'wtd', 'chk', 'xtx', 'nft'):   # chk/xtx: LCS/VCS, nft: Bully
+                        self._txd_index.setdefault(stem_lower, []).append((img_path, entry))
+                    elif ext_lower == 'wdd':
+                        self._index_wdd(img_path, entry)
+                    elif ext_lower == 'wbd':
+                        self._index_wbd(img_path, entry)
+                    elif ext_lower == 'wbn':
+                        self._wbn_index.setdefault(stem_lower, []).append((img_path, entry))
+                    elif ext_lower == 'col':
+                        self.col_entries_found_in_img += 1
+                        data = self._read_entry(img_path, entry)
+                        model_names = _scan_col_model_names(data) if data else []
+                        for mname in (model_names or [stem_lower]):
+                            self._col_img_index.setdefault(mname.lower(), []).append((img_path, entry))
+                self.indexed_img_paths.append(img_path)
+            except Exception as e:
+                self.index_errors.append(f"{img_path}: {e}")
+
+    def _index_wdd(self, img_path: str, entry) -> None: #vers 1
+        """Index every model hash inside a GTA IV .wdd entry."""
+        from apps.methods.wdr_model import wdd_hashes
+        try:
+            data = self._read_entry(img_path, entry)
+            for h in wdd_hashes(data) if data else []:
+                self._wdd_index.setdefault(h, []).append((img_path, entry))
+        except Exception as e:
+            self.index_errors.append(f"{img_path}/{entry.name}: {e}")
+
+    def set_texture_limit(self, limits: Dict[str, Tuple[int, int]], keep_dxt: bool = False) -> None: #vers 4
+        """Per-format limits {group: (over, down_to)} and DXT keep; change drops cache."""
+        limits = {g: (int(a), int(b)) for g, (a, b) in (limits or {}).items()}
+        if limits != self.texture_limit or bool(keep_dxt) != self.keep_dxt:
+            self.texture_limit = limits
+            self.keep_dxt = bool(keep_dxt)
+            self._texture_cache.clear()
+            self._texture_cache.update(self._virtual_textures)   # prebuilt sets stay
+
+    def _apply_limit(self, textures): #vers 2
+        """Per-format texture limit applied to a {name: texture} dict (in place)."""
+        if textures and self.texture_limit:
+            for t in textures.values():
+                _limit_texture(t, self.texture_limit)
+        return textures
+
+    def _index_wbd(self, img_path: str, entry) -> None: #vers 1
+        """Index every model hash inside a GTA IV .wbd entry."""
+        from apps.methods.iv_bounds import wbd_hashes
+        try:
+            data = self._read_entry(img_path, entry)
+            for h in wbd_hashes(data) if data else []:
+                self._wbd_index.setdefault(h, []).append((img_path, entry))
+        except Exception as e:
+            self.index_errors.append(f"{img_path}/{entry.name}: {e}")
+
+    def get_iv_collision(self, model_name: str): #vers 1
+        """GTA IV model collision from .wbd: (vertices, triangles) or None."""
+        key = 'wbd:' + model_name.lower()
+        if key not in self._iv_bounds_cache:
+            from apps.methods.iv_bounds import parse_wbd
+            from apps.methods.xtd_textures import iv_hash
+            h, result = iv_hash(model_name), None
+            for img_path, entry in self._wbd_index.get(iv_hash(model_name), []) if self._wbd_index else []:
+                try:
+                    result = parse_wbd(self._read_entry(img_path, entry), h)
+                except Exception:
+                    result = None
+                if result:
+                    break
+            self._iv_bounds_cache[key] = result
+        return self._iv_bounds_cache[key]
+
+    def iv_static_bound_names(self, area: str) -> List[str]: #vers 1
+        """.wbn stems for a GTA IV map area (area_1, area_2, ...)."""
+        prefix = area.lower() + '_'
+        return sorted(n for n in self._wbn_index
+                      if n.startswith(prefix) and n[len(prefix):].isdigit())
+
+    def get_iv_static_bounds(self, stem: str): #vers 1
+        """World-space collision of one GTA IV .wbn: (vertices, triangles) or None."""
+        key = 'wbn:' + stem.lower()
+        if key not in self._iv_bounds_cache:
+            from apps.methods.iv_bounds import parse_wbn
+            result = None
+            for img_path, entry in self._wbn_index.get(stem.lower(), []):
+                try:
+                    result = parse_wbn(self._read_entry(img_path, entry))
+                except Exception:
+                    result = None
+                if result and result[1]:
+                    break
+            self._iv_bounds_cache[key] = result if result and result[1] else None
+        return self._iv_bounds_cache[key]
+
+    def _model_entries(self, key: str) -> List[Tuple[str, object]]: #vers 1
+        """IMG entries holding a model: .dff/.wdr by name, else .wdd by hash."""
+        if key in self._dff_index:
+            return self._dff_index[key]
+        if self._wdd_index:
+            from apps.methods.xtd_textures import iv_hash
+            return self._wdd_index.get(iv_hash(key), [])
+        return []
+
+    def index_col_files(self, col_paths: List[str]): #vers 1
+        """Scan a list of standalone .col file paths, building a
+        model-name -> (col_path, model_index) index across every
+        model in every file (Aug 14 2026, for the IPL Controls
+        collision render options - "load solid collision, load
+        semi-solid, wireframe cols, and solid with surface mapping").
+        Unlike index_img_files, this genuinely loads and parses each
+        file up front (a .col has no separate lightweight directory
+        header to scan the way an IMG does - COLParser has to walk
+        the whole file to find each model's boundaries), so callers
+        should only pass files actually worth indexing (e.g. found
+        under the game root), not call this speculatively. Safe to
+        call again to re-index (clears previous index first)."""
+        self._col_index.clear()
+        self._opened_col_files.clear()
+        self.indexed_col_paths = []
+
+        for col_path in col_paths:
+            try:
+                col_file = COLFile()
+                if not col_file.load_from_file(col_path):
+                    self.index_errors.append(f"Failed to open {col_path}: {col_file.load_error}")
+                    continue
+                self._opened_col_files[col_path] = col_file
+                for i, model in enumerate(col_file.models):
+                    name = getattr(model.header, 'name', None)
+                    if not name:
+                        continue
+                    self._col_index.setdefault(name.strip().lower(), []).append((col_path, i))
+                self.indexed_col_paths.append(col_path)
+            except Exception as e:
+                self.index_errors.append(f"{col_path}: {e}")
+
+    def clear_indexes(self): #vers 6
+        """Drop all indexes and cached geometry/textures/collision -
+        call before re-indexing for a newly loaded world, so stale
+        entries from a previous world can't leak through."""
+        self._dff_index.clear()
+        self._txd_index.clear()
+        self._wdd_index.clear()
+        self._wbd_index.clear()
+        self._wbn_index.clear()
+        self._iv_bounds_cache.clear()
+        self._col_img_index.clear()
+        self._col_index.clear()
+        self._geometry_cache.clear()
+        self._texture_cache.clear()
+        self._virtual_models.clear()
+        self._virtual_textures.clear()
+        self._dimensions_cache.clear()
+        self._collision_cache.clear()
+        self._opened_img_files.clear()
+        self._opened_col_files.clear()
+        self._col_container_cache.clear()
+        self.indexed_img_paths = []
+        self.indexed_col_paths = []
+        self.index_errors = []
+        self.col_entries_found_in_img = 0
+
+    def get_geometry(self, model_name: str) -> Optional[DFFModel]: #vers 3
+        """Get the parsed DFF geometry for a model name, loading and
+        parsing (and caching the result either way) on first request.
+        Returns None if the model isn't indexed, or its data failed to
+        parse as a valid DFF - callers should fall back to the simple
+        point/marker rendering in that case, not treat it as an error
+        to surface to the user (a mod's IMG set legitimately might not
+        contain every model referenced by its own map data).
+
+        Tries every entry indexed under this name in order until one
+        parses successfully (Aug 1 2026) - unlike textures, a model's
+        geometry is one coherent mesh, not a set of independently
+        useful named items, so duplicates can't be usefully merged the
+        same way; this just means a duplicate that fails to parse
+        doesn't block a working one indexed under the same name."""
+        key = model_name.lower()
+        if key in self._geometry_cache:
+            return self._geometry_cache[key]
+
+        result = None
+        for img_path, entry in self._model_entries(key):
+            try:
+                result = _parse_model(model_name, self._read_entry(img_path, entry), self.keep_dxt)
+                if result is not None:
+                    break
+            except Exception:
+                continue
+        if result is not None:
+            self._apply_limit(getattr(result, 'embedded_textures', None))
+        self._geometry_cache[key] = result
+        return result
+
+    def get_dimensions(self, model_name: str) -> Optional[Tuple[float, float, float]]:
+        """(width, depth, height) in GTA's native local-space axes -
+        width=X extent, depth=Y extent, height=Z extent - computed as a
+        real axis-aligned bounding box from the model's own vertex data
+        (not just the single bounding-sphere radius the parser already
+        extracts, which can't give separate per-axis values). Returns
+        None if geometry isn't available (same fallback contract as
+        get_geometry - not an error to surface, just nothing to show
+        yet). Result is cached alongside the geometry itself, so this
+        is cheap to call repeatedly once a model's been loaded once."""
+        key = model_name.lower()
+        if key in self._dimensions_cache:
+            return self._dimensions_cache[key]
+
+        model = self.get_geometry(model_name)
+        dims = None
+        if model is not None and model.geometries:
+            min_x = min_y = min_z = float('inf')
+            max_x = max_y = max_z = float('-inf')
+            found_any = False
+            for geom in model.geometries:
+                for v in geom.vertices:
+                    found_any = True
+                    min_x = min(min_x, v.x); max_x = max(max_x, v.x)
+                    min_y = min(min_y, v.y); max_y = max(max_y, v.y)
+                    min_z = min(min_z, v.z); max_z = max(max_z, v.z)
+            if found_any:
+                dims = (max_x - min_x, max_y - min_y, max_z - min_z)
+        self._dimensions_cache[key] = dims
+        return dims
+
+    def get_textures(self, txd_name: str) -> Optional[Dict[str, dict]]: #vers 3
+        """Get the parsed textures for a TXD name, as a dict keyed by
+        lowercase texture name (a TXD can hold multiple textures) -
+        loading/parsing/caching on first request, same fallback
+        contract as get_geometry: None means 'not available', not an
+        error to surface.
+
+        Merges across every entry indexed under this name (Aug 1
+        2026) rather than only ever reading one - if duplicate-named
+        TXDs genuinely differ (my real case: "Generic.txd" and
+        "generic.txd" are two different files with different sizes),
+        each contributes whichever texture names the others don't
+        already have, rather than one silently winning and the
+        other's content being unreachable."""
+        key = txd_name.lower()
+        if key in self._texture_cache:
+            return self._texture_cache[key]
+
+        result = None
+        entries = self._txd_index.get(key)
+        if entries:
+            merged = {}
+            for img_path, entry in entries:
+                try:
+                    data = self._read_entry(img_path, entry)
+                    if not data:
+                        continue
+                    textures = _parse_textures(data, self.keep_dxt)
+                    if not textures:
+                        continue
+                    for t in textures:
+                        name = t.get('name')
+                        if name and name.lower() not in merged:
+                            merged[name.lower()] = t
+                except Exception:
+                    continue
+            result = self._apply_limit(merged) or None
+        self._texture_cache[key] = result
+        return result
+
+    def get_collision(self, model_name: str) -> Optional[COLModel]: #vers 3
+        """Get the parsed COLModel for a model name. Tries the IMG-
+        embedded index first (Aug 14 2026,  "In SA it should
+        be reading them from the gta3.img... In VC, they can also be
+        found in the gta3.img file, just like the models") - lazily
+        reads+parses the entry's bytes on first request here (index
+        time only recorded which entry has this name, same as
+        get_geometry does for DFF), picking the model matching
+        model_name if the entry happens to contain more than one, else
+        its first model. Falls back to the standalone-.col index
+        (already fully parsed at index_col_files time) for GTA3's
+        map/-folder collision and VC's shared collision files, which
+        aren't in any IMG at all. Same fallback contract as
+        get_geometry throughout: a model legitimately might have no
+        collision data available from either source, that's not an
+        error to surface."""
+        key = model_name.lower()
+        if key in self._collision_cache:
+            return self._collision_cache[key]
+
+        result = None
+        for img_path, entry in self._col_img_index.get(key, []):
+            try:
+                container_key = (img_path, id(entry))
+                col_file = self._col_container_cache.get(container_key)
+                if col_file is None:
+                    data = self._read_entry(img_path, entry)
+                    if not data:
+                        continue
+                    col_file = COLFile()
+                    if not col_file.load_from_data(data, name=f"{model_name}.col"):
+                        continue
+                    self._col_container_cache[container_key] = col_file
+                if not col_file.models:
+                    continue
+                # Not col_file.get_model_by_name() (Aug 14 2026) - that
+                # method compares model.name, but COLModel has no such
+                # attribute (it's model.header.name) - would raise on
+                # every call. Match by header.name directly instead,
+                # falling back to the entry's first/only model when no
+                # name matches (the common case for these per-object
+                # IMG entries: exactly one model, whose header.name
+                # doesn't always exactly equal the DFF's model name).
+                result = next(
+                    (m for m in col_file.models
+                     if getattr(m.header, 'name', '').strip().lower() == key),
+                    col_file.models[0])
+                if result is not None:
+                    break
+            except Exception:
+                continue
+
+        if result is None:
+            for col_path, model_index in self._col_index.get(key, []):
+                col_file = self._opened_col_files.get(col_path)
+                if col_file is None:
+                    continue
+                try:
+                    if 0 <= model_index < len(col_file.models):
+                        result = col_file.models[model_index]
+                        break
+                except Exception:
+                    continue
+
+        self._collision_cache[key] = result
+        return result
+
+    def is_col_indexed(self, model_name: str) -> bool: #vers 2
+        """True if model_name has collision data available from
+        either indexed source (IMG-embedded or standalone) - see
+        is_dff_indexed for the same indexed-vs-parsed distinction."""
+        key = model_name.lower()
+        return key in self._col_img_index or key in self._col_index
+
+
+    def prefetch(self, model_names, txd_names, workers: int, on_done=None,
+                 is_cancelled=None, on_idle=None, on_stall=None,
+                 stall_seconds: float = 20.0) -> None: #vers 4
+        """Parse many DFFs/TXDs in parallel worker processes, filling the caches.
+        on_done(kind, name, result) runs in this thread per finished item.
+        Workers silent for stall_seconds are stopped; the rest parse here."""
+        from concurrent.futures import ProcessPoolExecutor
+        jobs = []
+        for name in dict.fromkeys(n.lower() for n in model_names):
+            if name in self._geometry_cache:
+                continue
+            blobs = [b for b in (self._read_entry(p, e) for p, e in self._model_entries(name)) if b]
+            jobs.append(('dff', name, blobs))
+        for name in dict.fromkeys(n.lower() for n in txd_names if n):
+            if name in self._texture_cache:
+                continue
+            blobs = [b for b in (self._read_entry(p, e) for p, e in self._txd_index.get(name, [])) if b]
+            jobs.append(('txd', name, blobs))
+        if not jobs:
+            return
+        import time
+        from concurrent.futures import wait, FIRST_COMPLETED
+        pool = ProcessPoolExecutor(max_workers=max(1, workers))
+        futs = {}
+        for kind, name, blobs in jobs:
+            f = (pool.submit(_parse_dff_job, name, blobs, self.texture_limit, self.keep_dxt)
+                 if kind == 'dff' else pool.submit(_parse_txd_job, blobs, self.texture_limit, self.keep_dxt))
+            futs[f] = (kind, name, blobs)
+        pending, last = set(futs), time.monotonic()
+        stalled = False
+        while pending:
+            done, pending = wait(pending, timeout=0.2, return_when=FIRST_COMPLETED)
+            for f in done:
+                kind, name, _b = futs[f]
+                try:
+                    result = f.result()
+                except Exception:
+                    result = None
+                self._store_parsed(kind, name, result, on_done)
+                last = time.monotonic()
+            if on_idle:
+                on_idle()
+            if is_cancelled and is_cancelled():
+                break
+            if pending and time.monotonic() - last > stall_seconds:
+                stalled = True
+                break
+        for proc in list(getattr(pool, '_processes', {}).values()):
+            if stalled:
+                proc.terminate()                  # stuck workers never finish
+        pool.shutdown(wait=not stalled, cancel_futures=True)
+        if stalled:                               # parse what is left here, in order
+            if on_stall:
+                on_stall(len(pending))
+            for f in pending:
+                if is_cancelled and is_cancelled():
+                    break
+                kind, name, blobs = futs[f]
+                result = (_parse_dff_job(name, blobs, self.texture_limit, self.keep_dxt) if kind == 'dff'
+                          else _parse_txd_job(blobs, self.texture_limit, self.keep_dxt))
+                self._store_parsed(kind, name, result, on_done)
+
+    def _store_parsed(self, kind, name, result, on_done=None) -> None: #vers 2
+        """Cache one parsed DFF/TXD result and report it."""
+        if result is not None:
+            self._apply_limit(result if kind != 'dff' else getattr(result, 'embedded_textures', None))
+        (self._geometry_cache if kind == 'dff' else self._texture_cache)[name] = result
+        if on_done:
+            on_done(kind, name, result)
+
+    def _read_entry(self, img_path: str, entry) -> Optional[bytes]:
+        """Read one entry's raw bytes from its IMG archive - reuses a
+        cached, already-opened IMGFile per archive path (Aug 1 2026,
+        see self._opened_img_files in __init__ for why: opening an
+        archive re-parses its entire directory table, which used to
+        happen on every single call here, turning a preload pass
+        across many distinct TXDs into a multi-minute hang). The
+        actual byte read (read_entry_data) still opens its own
+        short-lived file handle per call regardless of this cache -
+        only the expensive directory-parsing open() is what's being
+        avoided here."""
+        from apps.methods.img_core_classes import IMGFile
+        img = self._opened_img_files.get(img_path)
+        if img is None:
+            img = IMGFile(img_path)
+            if not img.open():
+                return None
+            self._opened_img_files[img_path] = img
+        return img.read_entry_data(entry)
+
+    def add_models(self, models, textures) -> None: #vers 1
+        """Register prebuilt models and texture sets (LCS/VCS level sectors)."""
+        for name, model in models.items():
+            self._geometry_cache[name.lower()] = model
+            self._virtual_models.add(name.lower())
+        for txd, texs in textures.items():
+            self._virtual_textures[txd.lower()] = {k.lower(): v for k, v in texs.items()}
+        self._texture_cache.update(self._virtual_textures)
+
+    def geometry_source(self, model_name: str) -> Optional[str]: #vers 1
+        """'x.img:name.dff' the cached model was read from; None for virtual / IV."""
+        key = model_name.lower()
+        model = self._geometry_cache.get(key)
+        raw = getattr(model, 'raw', None)
+        if model is None or key in self._virtual_models or not raw:
+            return None
+        for img_path, entry in self._model_entries(key):
+            if entry.name.lower().endswith('.dff') and self._read_entry(img_path, entry) == raw:
+                return f"{img_path}:{entry.name}"
+        return None
+
+    def collision_source(self, model_name: str): #vers 1
+        """(COLFile, 'x.img:entry' or .col path) holding the cached COL model, or None."""
+        key = model_name.lower()
+        model = self._collision_cache.get(key)
+        if model is None:
+            return None
+        for img_path, entry in self._col_img_index.get(key, []):
+            col_file = self._col_container_cache.get((img_path, id(entry)))
+            if col_file is not None and any(m is model for m in col_file.models):
+                return col_file, f"{img_path}:{entry.name}"
+        for col_path, col_file in self._opened_col_files.items():
+            if any(m is model for m in col_file.models):
+                return col_file, col_path
+        return None
+
+    def is_dff_indexed(self, model_name: str) -> bool: #vers 3
+        """True if model_name's .dff was found in one of the indexed
+        IMG archives at all - distinguishes "genuinely missing from
+        the archive" from "present but failed to parse" (get_geometry
+        returning None covers both cases; this is for callers that
+        need to tell them apart, e.g. my requested "road43.dff
+        missing from img file" reporting)."""
+        key = model_name.lower()
+        return key in self._virtual_models or bool(self._model_entries(key))
+
+    def get_raw_txd(self, txd_name: str) -> Optional[bytes]:
+        """Return the original, unmodified .txd container bytes for
+        txd_name straight from its IMG archive - no decoding, no
+        re-encoding, exactly as the game stores it (Sep 5 2026, per
+         : "we also need to extract the .txd file aswell, not
+        just the textures"). Unlike get_textures, this is never
+        cached - it's a one-shot export path, not something read on
+        every frame."""
+        key = txd_name.lower()
+        entries = self._txd_index.get(key)
+        if not entries:
+            return None
+        img_path, entry = entries[0]
+        return self._read_entry(img_path, entry)
+
+    def is_txd_indexed(self, txd_name: str) -> bool:
+        """Same as is_dff_indexed, for TXD files."""
+        return txd_name.lower() in self._txd_index
+
+    def stats(self) -> str: #vers 3
+        """One-line human-readable summary, for status bar/log use."""
+        return (f"{len(self._dff_index)} DFF, {len(self._txd_index)} TXD, "
+               f"{len(self._col_img_index)} COL indexed "
+               f"across {len(self.indexed_img_paths)} archive(s), "
+               f"{len(self._col_index)} more COL models indexed across "
+               f"{len(self.indexed_col_paths)} standalone file(s); "
+               f"{len(self._geometry_cache)} models, "
+               f"{len(self._texture_cache)} TXDs loaded so far")

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_win_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_win_func.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop window frame
 
 """
@@ -46,6 +46,7 @@ Window frame, mouse/resize events, dock mode, status bar for ModelWorkshop (Map)
 
 import base64
 
+from apps.methods.corner_handles import paint_corner_handles
 from PyQt6.QtCore import QByteArray, QTimer, Qt
 from PyQt6.QtWidgets import QPushButton
 
@@ -269,7 +270,7 @@ class MapWindowMixin: #vers 1
         self._sync_middle_btn_row_visibility()
         self._apply_custom_icons()
 
-    def _sync_middle_btn_row_visibility(self): #vers 2
+    def _sync_middle_btn_row_visibility(self): #vers 3
         """Show/hide the mini toolbar's action icons (Open/Save/Import/
         Export/Undo/3D View) based on dock state AND collapse state - the
         row itself and its view-toggle/collapse buttons always stay
@@ -284,12 +285,15 @@ class MapWindowMixin: #vers 1
             b = getattr(self, attr, None)
             if b:
                 b.setVisible(show)
+        if hasattr(self, 'mid_btn_collapse_btn'):           # nothing to collapse when not docked
+            self.mid_btn_collapse_btn.setVisible(docked_only)
 
-    def _toggle_mid_btn_row_collapsed(self): #vers 1
+    def _toggle_mid_btn_row_collapsed(self): #vers 2
         """Collapse/expand the mini toolbar's action icons via the -/+
         button, independent of the icon-only/icon+text adaptive display."""
         self._mid_btn_row_collapsed = not getattr(self, '_mid_btn_row_collapsed', False)
-        self.mid_btn_collapse_btn.setText("+" if self._mid_btn_row_collapsed else "−")
+        icon = SVGIconFactory.arrow_down_icon if self._mid_btn_row_collapsed else SVGIconFactory.arrow_up_icon
+        self.mid_btn_collapse_btn.setIcon(icon(16, self._get_icon_color()))
         self._sync_middle_btn_row_visibility()
 
     def _on_menu_btn_clicked(self): #vers 1
@@ -427,8 +431,8 @@ class MapWindowMixin: #vers 1
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 10
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 11
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -437,13 +441,9 @@ class MapWindowMixin: #vers 1
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True
@@ -572,68 +572,10 @@ class MapWindowMixin: #vers 1
         from apps.methods.button_mode import apply_button_mode_to_button
         apply_button_mode_to_button(button, text, self.button_display_mode)
 
-    def paintEvent(self, event): #vers 3
-        """Paint corner resize triangles — only in standalone/frameless mode."""
+    def paintEvent(self, event): #vers 4
+        """Corner handles, COL style (methods/corner_handles.py)."""
         super().paintEvent(event)
-        if not self.standalone_mode:
-            return
-
-        from PyQt6.QtGui import QPainter, QColor, QBrush, QPainterPath
-
-        painter = QPainter(self)
-        if not painter.isActive():
-            return
-
-        # Colors
-        normal_color = QColor(100, 100, 100, 150)
-        hover_color = QColor(150, 150, 255, 200)
-
-        w = self.width()
-        h = self.height()
-        grip_size = 8  # Make corners visible (8x8px)
-        size = self.corner_size
-
-        # Define corner triangles
-        corners = {
-            'top-left': [(0, 0), (size, 0), (0, size)],
-            'top-right': [(w, 0), (w-size, 0), (w, size)],
-            'bottom-left': [(0, h), (size, h), (0, h-size)],
-            'bottom-right': [(w, h), (w-size, h), (w, h-size)]
-        }
-        corners2 = {
-            "top-left": [(0, grip_size), (0, 0), (grip_size, 0)],
-            "top-right": [(w-grip_size, 0), (w, 0), (w, grip_size)],
-            "bottom-left": [(0, h-grip_size), (0, h), (grip_size, h)],
-            "bottom-right": [(w-grip_size, h), (w, h), (w, h-grip_size)]
-        }
-
-        # Get theme colors for corner indicators
-        if self.app_settings:
-            theme_colors = self.app_settings.get_theme_colors()
-            accent_color = QColor(theme_colors.get('accent_primary', '#1976d2'))
-            accent_color.setAlpha(180)
-        else:
-            accent_color = QColor(100, 150, 255, 180)
-
-        hover_color = QColor(accent_color)
-        hover_color.setAlpha(255)
-
-        # Draw all corners with hover effect
-        for corner_name, points in corners.items():
-            path = QPainterPath()
-            path.moveTo(points[0][0], points[0][1])
-            path.lineTo(points[1][0], points[1][1])
-            path.lineTo(points[2][0], points[2][1])
-            path.closeSubpath()
-
-            # Use hover color if mouse is over this corner
-            color = hover_color if self.hover_corner == corner_name else accent_color
-
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(color))
-            painter.drawPath(path)
-
-        painter.end()
+        paint_corner_handles(self)
 
 
     def _get_resize_corner(self, pos): #vers 4
@@ -801,6 +743,11 @@ class MapWindowMixin: #vers 1
         if not getattr(self, '_toolbar_layout_loaded', False):
             self._toolbar_layout_loaded = True
 
+    def hideEvent(self, event): #vers 1
+        """Save ribbon placement when hidden (tab switch, docked close, quit)."""
+        super().hideEvent(event)
+        self._save_toolbar_state()
+
     def resizeEvent(self, event): #vers 6
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
         super().resizeEvent(event)
@@ -844,12 +791,13 @@ class MapWindowMixin: #vers 1
         except Exception:
             pass
 
-    def _toggle_tex_btn_row_collapsed(self): #vers 1
+    def _toggle_tex_btn_row_collapsed(self): #vers 2
         """Collapse/expand the texture panel's Load/Texlist/WShop/Save
         buttons via the -/+ button, independent of the icon-only/icon+text
         adaptive display."""
         self._tex_btn_row_collapsed = not getattr(self, '_tex_btn_row_collapsed', False)
-        self.tex_btn_collapse_btn.setText("+" if self._tex_btn_row_collapsed else "−")
+        icon = SVGIconFactory.arrow_down_icon if self._tex_btn_row_collapsed else SVGIconFactory.arrow_up_icon
+        self.tex_btn_collapse_btn.setIcon(icon(16, self._get_icon_color()))
         show = not self._tex_btn_row_collapsed
         for attr, _label, _icon in getattr(self, '_tex_btns_meta', []):
             b = getattr(self, attr, None)
@@ -923,29 +871,36 @@ class MapWindowMixin: #vers 1
             pass
         event.accept()
 
-    def _save_dock_state(self): #vers 1
+    def _save_dock_state(self): #vers 2
         """Capture the current dock layout - every dock's own position,
         size, floating state, and tab grouping/order within a shared
         area - via Qt's own built-in QMainWindow.saveState(), rather
         than hand-tracking each dock's own geometry separately (Aug 19
         2026)"""
         inner_mw = getattr(self, '_inner_mw', None)
-        if inner_mw is None or not hasattr(self, 'map_settings'):
+        if inner_mw is None:
             return
+        import json
+        path = self._ribbon_config_path()                # own file per workshop (Terrain, Map)
         try:
-            state_bytes = bytes(inner_mw.saveState())
-            encoded = base64.b64encode(state_bytes).decode('ascii')
-            self.map_settings.set('workshop_dock_state', encoded)
-        except Exception:
-            pass
+            data = json.loads(path.read_text()) if path.exists() else {}
+            data['workshop_dock_state'] = base64.b64encode(bytes(inner_mw.saveState())).decode('ascii')
+            path.write_text(json.dumps(data, indent=2))
+        except (OSError, ValueError) as e:
+            print(f"[MapWorkshop] _save_dock_state: {e}")
 
-    def _restore_dock_state(self): #vers 1
+    def _restore_dock_state(self): #vers 2
         """Restore a previously-saved dock layout, if one exists (Aug
         19 2026)"""
         inner_mw = getattr(self, '_inner_mw', None)
-        if inner_mw is None or not hasattr(self, 'map_settings'):
+        if inner_mw is None:
             return
-        encoded = self.map_settings.get('workshop_dock_state')
+        import json
+        path = self._ribbon_config_path()
+        try:
+            encoded = json.loads(path.read_text()).get('workshop_dock_state') if path.exists() else None
+        except (OSError, ValueError):
+            encoded = None
         if not encoded:
             return
         try:

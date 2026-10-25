@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 220
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 224
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -40,6 +40,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint
 from PyQt6.QtGui import QFont, QIcon
 
 # Shared DFFViewport — import from methods/, fallback to local methods/
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.doc_tabs import DocTabsMixin
 from apps.methods.dock_panels import DockPanelsMixin
@@ -291,7 +292,7 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 16
+    def setup_ui(self): #vers 19
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -437,6 +438,20 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
                                (self._texture_dock, "Textures")):
             if _dock is not None:
                 self._make_dock_collapsible(_dock, _title)
+        from apps.methods.dock_panels import add_title_widget
+        from apps.methods.file_list_filter import make_type_filter
+        for _b in (self.col_view_toggle_btn, self._tex_view_btn):             # fit the slim title bar
+            _b.setFixedHeight(18)
+            _b.setStyleSheet("padding: 0px 4px;")
+        add_title_widget(self._middle_dock, self.col_view_toggle_btn)         # [=] next to [x]
+        self._texture_dock._title_label.setVisible(False)                     # count replaces "Textures"
+        add_title_widget(self._texture_dock, self._tex_count_lbl, 0)
+        add_title_widget(self._texture_dock, self._tex_view_btn)
+        if self._left_dock is not None:                                       # Files: counts, type, search
+            self._left_dock._title_label.setVisible(False)
+            add_title_widget(self._left_dock, self._left_panel_header, 0)
+            add_title_widget(self._left_dock, make_type_filter(self))
+            add_title_widget(self._left_dock, self._model_search_btn)
 
         self._outer_docks = [d for d in (self._left_dock, self._middle_dock,
                                          self._frame_hierarchy_dock, self._texture_dock) if d is not None]
@@ -449,11 +464,9 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         self.window_closed.connect(self._save_outer_layout)
 
         # Status indicators - hidden when embedded in main window tab
-        if hasattr(self, '_setup_status_indicators'):
-            status_frame = self._setup_status_indicators()
-            if not self.standalone_mode:
-                status_frame.setVisible(False)
-            main_layout.addWidget(status_frame)
+        status_frame = self._create_status_bar()
+        main_layout.addWidget(status_frame)
+        register_statusbar(self, status_frame, docked_hide=True)
 
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()
@@ -481,8 +494,8 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 10
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 11
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -491,13 +504,9 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True

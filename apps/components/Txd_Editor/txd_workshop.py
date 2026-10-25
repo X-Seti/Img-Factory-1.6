@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 45
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 48
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -27,6 +27,7 @@ from apps.debug.debug_functions import img_debugger
 from apps.gui.tool_menu_mixin import ToolMenuMixin
 from apps.gui.txd_context_menu import setup_txd_context_menu
 from apps.methods.img_factory_settings import get_user_config_dir
+from apps.methods.statusbar_func import add_statusbar_checkbox, set_statusbar_shown, statusbar_shown
 from apps.methods.doc_tabs import DocTabsMixin
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.ribbon_dialog import RibbonIconsMixin
@@ -230,7 +231,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
 
 # - Settings Reusable
 
-    def _show_workshop_settings(self): #vers 5
+    def _show_workshop_settings(self): #vers 7
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -397,6 +398,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
 
         table_group.setLayout(table_layout)
         display_layout.addWidget(table_group)
+        add_statusbar_checkbox(self, display_layout)
 
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
@@ -611,6 +613,8 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -726,8 +730,8 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 9
-        """Dock handled by overlay system in imgfactory - IMPROVED"""
+    def _dock_to_main(self): #vers 10
+        """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
                 self.show()
@@ -736,13 +740,9 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
 
             # For proper docking, we need to be called from imgfactory
             # This method should be handled by imgfactory's overlay system
-            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
-                # If available, use the main window's docking system
-                self.main_window.open_col_workshop_docked()
-            else:
-                # Fallback: just show the window
-                self.show()
-                self.raise_()
+            from apps.methods.dock_panels import redock_to_tab
+            if not redock_to_tab(self):      # no tab to return to
+                return
 
             # Update dock state
             self.is_docked = True
@@ -854,7 +854,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
             QMessageBox.warning(self, "Theme Error", f"Could not load theme system:\n{e}")
 
 
-    def _show_settings_dialog(self): #vers 6
+    def _show_settings_dialog(self): #vers 8
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -920,7 +920,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         status_layout = QVBoxLayout()
 
         show_status_bar_check = QCheckBox("Show " + App_name + " status bar")
-        show_status_bar_check.setChecked(getattr(self, 'show_status_bar', True))
+        show_status_bar_check.setChecked(statusbar_shown(self))
         show_status_bar_check.setToolTip(
             "The bottom row showing texture count, selection, and size")
         status_layout.addWidget(show_status_bar_check)
@@ -1326,6 +1326,8 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # Dialog buttons
@@ -1343,11 +1345,8 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
             self.table_row_height = row_height_spin.value()
             self.show_grid_lines = show_grid_check.isChecked()
 
-            self.show_status_bar = show_status_bar_check.isChecked()
+            set_statusbar_shown(self, show_status_bar_check.isChecked())
             self.relay_status_to_img_factory = relay_status_check.isChecked()
-            if hasattr(self, 'status_frame'):
-                self.status_frame.setVisible(
-                    self.show_status_bar and self.standalone_mode)
             self._push_status_to_img_factory()
 
             # Apply preview settings
@@ -1595,6 +1594,7 @@ def open_txd_workshop(main_window, img_path=None): #vers 7
             print(f"Failed to open {App_name}: {str(e)}")
         return None
 
+# Standalone entry point
 
 
 if __name__ == "__main__":

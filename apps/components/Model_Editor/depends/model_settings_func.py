@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 1
+#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 7
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Model Workshop settings
 
 """
@@ -12,6 +12,7 @@ Workshop settings, fonts, theme, hotkeys and About dialog for ModelWorkshop.
 # _apply_panel_font
 # _apply_theme
 # _apply_title_font
+# _extra_settings_tabs
 # _get_icon_color
 # _get_icon_set
 # _launch_theme_settings
@@ -28,6 +29,7 @@ import os
 
 from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton
 
+from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.components.Model_Editor.depends.model_setup_ui_func import App_name, App_build
 
@@ -35,7 +37,10 @@ from apps.components.Model_Editor.depends.model_setup_ui_func import App_name, A
 class ModelSettingsMixin: #vers 1
     """Settings, fonts, theme, hotkeys, About."""
 
-    def _show_workshop_settings(self): #vers 1
+    def _extra_settings_tabs(self, tabs): #vers 1
+        """Hook: workshops built on this one add their own settings tabs."""
+
+    def _show_workshop_settings(self): #vers 6
 
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -203,6 +208,7 @@ class ModelSettingsMixin: #vers 1
 
         table_group.setLayout(table_layout)
         display_layout.addWidget(table_group)
+        add_statusbar_checkbox(self, display_layout)
 
         display_layout.addStretch()
         tabs.addTab(display_tab, "Display")
@@ -359,6 +365,9 @@ class ModelSettingsMixin: #vers 1
         tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
+        self._extra_settings_tabs(tabs)                       # subclass tabs (Ped: Grid)
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # BUTTONS
@@ -382,7 +391,7 @@ class ModelSettingsMixin: #vers 1
             }
         """)
 
-        def apply_settings():  #vers 1
+        def apply_settings():  #vers 2
             # Adjusted for COL Wireframe, Mesh
             self.setFont(QFont(default_font_combo.currentFont().family(),
                             default_font_size.value()))
@@ -404,10 +413,7 @@ class ModelSettingsMixin: #vers 1
             mode_map = {0: 'both', 1: 'icons', 2: 'text'}
             self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
 
-            # EXPORT
-            self.default_export_format = self.format_combo.currentText()
-
-            # PREVIEW
+            # PREVIEW (export format is set in the full Settings dialog)
             self.zoom_level = zoom_spin.value() / 100.0
 
             bg_modes = ['solid', 'checkerboard', 'grid']
@@ -422,7 +428,7 @@ class ModelSettingsMixin: #vers 1
                     self.preview_widget.set_checkerboard_background()
                     self.preview_widget._checkerboard_size = self._checkerboard_size
                 else:
-                    self.preview_widget.set_background_color(self.preview_widget.bg_color)
+                    self.preview_widget.update()   # DFFViewport has no bg_color
 
             # Apply button display mode
             if hasattr(self, '_update_all_buttons'):
@@ -523,7 +529,7 @@ class ModelSettingsMixin: #vers 1
 
 
 
-    def _show_settings_dialog(self): #vers 5
+    def _show_settings_dialog(self): #vers 7
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -966,6 +972,9 @@ class ModelSettingsMixin: #vers 1
         tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
 
         # Add tabs widget to main layout
+        self._extra_settings_tabs(tabs)                       # subclass tabs (Ped: Grid)
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
         layout.addWidget(tabs)
 
         # Dialog buttons
@@ -1141,13 +1150,13 @@ class ModelSettingsMixin: #vers 1
                 pass
         return '#cccccc'
 
-    def _get_icon_set(self) -> str: #vers 2
+    def _get_icon_set(self) -> str: #vers 3
         """Return active icon set: 'default' or '3dsmax'.
         Read from model_workshop.json 'icon_set' key."""
         try:
             import json
             from pathlib import Path
-            path = get_user_config_dir() / 'model_workshop.json'
+            path = self._ribbon_config_path()
             if path.exists():
                 return json.loads(path.read_text()).get('icon_set', 'default')
         except Exception:

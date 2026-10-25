@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 7
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 8
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -1245,13 +1245,16 @@ class DirectoryTreeBrowser(QWidget):
                 w._dir_tree_selected_file = file_path
 
 
-    def on_item_double_clicked(self, item, column): #vers 2
+    def on_item_double_clicked(self, item, column): #vers 3
         """Handle item double-click — routes to smart editor for known data files."""
         file_path = item.data(0, Qt.ItemDataRole.UserRole)
         if os.path.isdir(file_path):
             self.browse_directory(file_path)
         elif os.path.isfile(file_path):
             ext = os.path.splitext(file_path)[1].lower()
+            if ext == '.dtz':                          # LCS / VCS world
+                self._open_dtz_in(file_path, 'map')
+                return
             if ext in ('.dat', '.cfg'):
                 try:
                     from apps.methods.smart_file_router import get_editor_label, open_smart_editor
@@ -1264,7 +1267,7 @@ class DirectoryTreeBrowser(QWidget):
             self.file_opened.emit(file_path)
 
 
-    def show_context_menu(self, position): #vers 5
+    def show_context_menu(self, position): #vers 6
         """Show context menu - tracks which tree triggered it"""
         # Identify which tree sent the signal
         sender = self.sender()
@@ -1397,6 +1400,11 @@ class DirectoryTreeBrowser(QWidget):
                     "container format, unlike streams/ (see sa_audio_\n"
                     "stream.py's own docstring for the full, real story).")
                 menu.addAction(sfx_action)
+            elif file_ext == '.dtz':                       # LCS / VCS world, paths, water
+                for text, tool in (("Open in Map Workshop", 'map'), ("Open in Path Workshop", 'path')):
+                    act = QAction(text, self)
+                    act.triggered.connect(lambda _=False, p=file_path, t=tool: self._open_dtz_in(p, t))
+                    menu.addAction(act)
             elif file_ext == '.img':
                 from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
                 asset_action = QAction("Asset Checker", self)
@@ -1767,6 +1775,25 @@ class DirectoryTreeBrowser(QWidget):
             f"Playing track 0 (preview only) from {os.path.basename(path)} - "
             f"use Map Workshop's own Settings > Render > Audio Streams > "
             f"Extract Tracks... to get every real track out as individual files.")
+
+    def _open_dtz_in(self, file_path: str, tool: str): #vers 1
+        """Open an LCS/VCS GAME.DTZ in Map Workshop (game root) or Path Workshop."""
+        mw = self.main_window
+        try:
+            if tool == 'map':
+                from apps.methods.stories_dtz import find_stories_root
+                root = find_stories_root(file_path)
+                if not root:
+                    raise ValueError("LCS/VCS game root (GAME.DTZ + IMG) not found above this file")
+                mw.open_map_workshop_docked(game_root=root)
+            else:
+                from apps.components.Path_Workshop.path_workshop import open_path_workshop
+                w = open_path_workshop(mw)
+                if w is not None:
+                    w._load_paths([file_path])
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"GAME.DTZ: {e}")
 
     def _open_col_in_workshop(self, file_path: str): #vers 1
         """Open a standalone .col file in COL Workshop (Sep 5 2026,

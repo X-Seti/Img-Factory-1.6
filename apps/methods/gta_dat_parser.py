@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 18
+#this belongs in apps/methods/gta_dat_parser.py - Version: 23
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -180,7 +180,7 @@ class IPLInstance:
     raw_line:    str  = ""
 
 @dataclass
-class PathNode: #vers 1
+class PathNode: #vers 3
     """One sub-node within a path group (Aug 1 2026)"""
     node_type:  int
     next_id:    int
@@ -192,7 +192,9 @@ class PathNode: #vers 1
     right:      int   = 0
     flag1:      int   = 0
     flag2:      int   = 0
-    flag3:      int   = 0
+    flag3:      float = 0.0   # VC: fractional (e.g. 0.5)
+    cross:      int   = 0     # 3rd field: crossroad (not always 0)
+    extra:      tuple = ()    # fields after 12 (SA IPLs have a 13th), kept as text
 
 
 @dataclass
@@ -1769,7 +1771,7 @@ class IPLParser: #vers 3
             self.stats.warnings.append(f"path group line {lineno}: {e}")
             return None
 
-    def _parse_path_node(self, line: str, lineno: int): #vers 1
+    def _parse_path_node(self, line: str, lineno: int): #vers 4
         """One sub-node line within a path group - twelve fields per
         Project Cerbera's VC path documentation: Type, Next, 0, X, Y,
         Z, Median, Left, Right, Flag1, Flag2, Flag3.
@@ -1782,7 +1784,7 @@ class IPLParser: #vers 3
                 return None
             node_type = int(float(parts[0]))
             next_id   = int(float(parts[1]))
-            # parts[2] is the documented-always-zero, unused field
+            cross = int(float(parts[2]))     # crossroad flag, real files use 1
             x = float(parts[3]) / 16.0
             y = float(parts[4]) / 16.0
             z = float(parts[5]) / 16.0
@@ -1791,10 +1793,11 @@ class IPLParser: #vers 3
             right  = int(float(parts[8])) if len(parts) > 8 else 0
             flag1  = int(float(parts[9]))  if len(parts) > 9  else 0
             flag2  = int(float(parts[10])) if len(parts) > 10 else 0
-            flag3  = int(float(parts[11])) if len(parts) > 11 else 0
+            flag3  = float(parts[11]) if len(parts) > 11 else 0.0
+            extra  = tuple(parts[12:])
             return PathNode(node_type=node_type, next_id=next_id, x=x, y=y, z=z,
                              median=median, left=left, right=right,
-                             flag1=flag1, flag2=flag2, flag3=flag3)
+                             flag1=flag1, flag2=flag2, flag3=flag3, cross=cross, extra=extra)
         except (ValueError, IndexError) as e:
             self.stats.warnings.append(f"path node line {lineno}: {e}")
             return None
@@ -2288,7 +2291,7 @@ class GTAWorldLoader: #vers 4
     Later IDE definitions override earlier ones (matches engine behaviour).
     """
 
-    def __init__(self, game: str = GTAGame.GTA3):
+    def __init__(self, game: str = GTAGame.GTA3): #vers 2
         self.game        = game
         self.default_dat = DATParser(game)
         self.main_dat    = DATParser(game)
@@ -2334,6 +2337,8 @@ class GTAWorldLoader: #vers 4
         self.waterpro: Optional[object] = None
         # GTA III chase-scene car paths (Aug 19 2026)
         self.chase_paths: Dict[str, List[object]] = {}
+        # SA car recordings, carrec.img .rrr (Oct 20 2026)
+        self.car_recordings: Dict[str, List[object]] = {}
         # (phase, type, abs_path, success)
         self.load_log:   List[Tuple[str, str, str, bool]] = []
         self.stats       = ParseStats()
@@ -2357,6 +2362,9 @@ class GTAWorldLoader: #vers 4
         # demand, exactly matching MooMapper's model.
         self.lazy_ipl_loading: bool = False
         self.stories = None   # (game, platform) when loaded from LCS/VCS GAME.DTZ
+        self.stories_dtz = None   # StoriesDTZ for Map / Path saves
+        self.bully = False        # Bully SE world (ide.img / World.img)
+        self.stories_models, self.stories_textures = {}, {}   # LCS/VCS level sectors
         self.available_ipls: Dict[str, DATEntry] = {}   # lowercase stem -> DATEntry
         self.loaded_ipls: set = set()   # lowercase stems already loaded on demand
         # IPL stems (lowercase, no extension) to parse using VC's own
@@ -2370,7 +2378,7 @@ class GTAWorldLoader: #vers 4
         self._iv_hash_names: Dict[int, Tuple[str, int]] = {}  # hash -> (name, id)
         self.iv_wpl_unresolved = 0
 
-    def load(self, game_root: str, progress_cb=None) -> bool: #vers 10
+    def load(self, game_root: str, progress_cb=None) -> bool: #vers 11
         """Full load from a game root directory.
         Always enforces models/gta3.img (called from game exe, not from any .dat)
         so TXD Workshop and the Dump TXDs feature can always find it.
@@ -2381,6 +2389,9 @@ class GTAWorldLoader: #vers 4
         from apps.methods.stories_dtz import dtz_paths
         if dtz_paths(game_root):                # LCS/VCS console: no .dat files
             return self.load_stories(game_root)
+        from apps.methods.bully_world import bully_paths
+        if bully_paths(game_root):              # Bully: ide.img + World.img, no .dat
+            return self.load_bully(game_root)
 
         #    Inject exe-loaded archives (not in any .dat)                   
         # gta3.img is always loaded by the game exe — enforce it here so
@@ -2417,22 +2428,98 @@ class GTAWorldLoader: #vers 4
         self.stats.instances      = len(self.instances)
         return True
 
-    def load_stories(self, game_root: str) -> bool: #vers 2
+    def load_bully(self, game_root: str) -> bool: #vers 1
+        """Bully SE: objects from Objects/ide.img (+ text IDE extras), placements from World.img."""
+        from apps.methods.bully_world import (bully_paths, parse_idb, parse_ipb,
+                                              parse_text_ide, read_img_entries)
+        ide_img, world_img = bully_paths(game_root)
+        self.bully = True
+        self._progress(0, 2, "Bully: objects (ide.img)")
+        for name, data in read_img_entries(ide_img, '.idb'):
+            for o in parse_idb(data):
+                extra = {'mesh_count': o['mesh_count'], 'draw_dist': o['dists'][0] if o['dists'] else 0.0,
+                         'flags': o['flags']}
+                if o['section'] == 'tobj':
+                    extra['time_on'], extra['time_off'] = o['time_on'], o['time_off']
+                self.objects[o['id']] = IDEObject(o['id'], o['name'], o['txd'], 'object',
+                                                  o['section'], extra, name, 0)
+        objects_dir = os.path.dirname(ide_img)
+        for fn in sorted(os.listdir(objects_dir)):      # weapons, items, animated props
+            if fn.lower().endswith('.ide'):
+                with open(os.path.join(objects_dir, fn), 'r', encoding='latin-1') as f:
+                    for o in parse_text_ide(f.read()):
+                        if o['id'] not in self.objects:
+                            self.objects[o['id']] = IDEObject(o['id'], o['name'], o['txd'], 'object',
+                                                              o['section'], {}, fn, 0)
+        self._progress(1, 2, "Bully: placements (World.img)")
+        for name, data in read_img_entries(world_img, '.ipb'):
+            for n, p in enumerate(parse_ipb(data)):
+                obj = self.objects.get(p['id'])
+                (x, y, z), (qx, qy, qz, qw), (sx, sy, sz) = p['pos'], p['rot'], p['scale']
+                self.instances.append(IPLInstance(p['id'], obj.model_name if obj else p['name'], 0,
+                                                  x, y, z, qx, qy, qz, qw, scale_x=sx, scale_y=sy,
+                                                  scale_z=sz, source_ipl=name, line_no=n))
+        self.load_log.append(("bully", "IMG", world_img, True))
+        self.load_log.append(("bully", "IDE", ide_img, True))
+        self.lazy_ipl_loading = False
+        self.stats.ipl_files = len({i.source_ipl for i in self.instances})
+        self.stats.objects_loaded = len(self.objects)
+        self.stats.instances = len(self.instances)
+        return True
+
+    def _load_stories_levels(self, game_root: str, game: str, plat: str): #vers 1
+        """LCS/VCS PS2 level sectors (.LVZ + .IMG): building pieces as instances + models."""
+        from apps.methods.stories_world import StoriesLevel, level_files, level_world
+        self.stories_models, self.stories_textures = {}, {}
+        if plat != 'ps2':
+            return
+        next_id = max(self.objects, default=0) + 1
+        seen = set()
+        levels = level_files(game_root, game)
+        for k, (name, lvz, img) in enumerate(levels):
+            self._progress(k, len(levels), f"{game.upper()} level {name}: sectors")
+            models, insts, textures = level_world(StoriesLevel(name, lvz, img, game))
+            txd = f"{name.lower()}_tex"
+            self.stories_textures[txd] = textures
+            self.stories_models.update(models)
+            ids = {}
+            for mname in models:
+                ids[mname] = next_id
+                self.objects[next_id] = IDEObject(next_id, mname, txd, 'object', 'objs', {},
+                                                  os.path.basename(lvz), 0)
+                next_id += 1
+            mine = set()
+            for n, (mname, pos, q, sc) in enumerate(insts):
+                key = tuple(round(v, 2) for v in pos + q + sc)      # border pieces repeat per level
+                mine.add(key)
+                if key in seen:
+                    continue
+                self.instances.append(IPLInstance(ids[mname], mname, 0, *pos, *q, scale_x=sc[0],
+                                                  scale_y=sc[1], scale_z=sc[2],
+                                                  source_ipl=f"sectors_{name.lower()}.ipl", line_no=n))
+            seen |= mine
+            self.load_log.append(("stories", "LVZ", lvz, True))
+
+    def load_stories(self, game_root: str) -> bool: #vers 5
         """LCS/VCS PS2/PSP: objects, placements, water and IMG from GAME.DTZ."""
         from apps.methods.stories_dtz import StoriesDTZ, dtz_paths
         game, plat, dtz_path, img_path = dtz_paths(game_root)
         self._progress(0, 1, f"GAME.DTZ: {game.upper()} {plat.upper()}")
         dtz = StoriesDTZ(dtz_path, game, plat)
         self.stories = (game, plat)
+        self.stories_dtz = dtz                      # Path Workshop edits / saves its paths
         kinds = {'objs': 'object', 'tobj': 'object', 'weap': 'weapon',
                  'hier': 'clump', 'cars': 'vehicle', 'peds': 'ped'}
         for o in dtz.objects():
             self.objects[o['id']] = IDEObject(o['id'], o['name'], o['txd'], kinds[o['section']],
                                               o['section'], o['extra'], dtz_path, 0)
+        self.stories_offsets = []                    # line_no -> pool entity offset (Map save)
         for n, e in enumerate(dtz.instances()):
             (x, y, z), (qx, qy, qz, qw) = e['pos'], e['rot']
-            self.instances.append(IPLInstance(e['id'], e['name'], 0, x, y, z, qx, qy, qz, qw,
+            self.instances.append(IPLInstance(e['id'], e['name'], e['area'], x, y, z, qx, qy, qz, qw,
                                               source_ipl=e['pool'] + '.ipl', line_no=n))
+            self.stories_offsets.append(e['offset'])
+        self._load_stories_levels(game_root, game, plat)
         for kind, a, b in dtz.path_links():          # compiled path graph, one link per group
             self.paths.append(PathGroup(0 if kind == 'car' else 1, 0, [
                 PathNode(1, 1, *a), PathNode(1, -1, *b)], source_ipl=f"paths_{kind}.dtz"))
@@ -2516,13 +2603,14 @@ class GTAWorldLoader: #vers 4
         self._load_dat_extras(game_root, data_dir)
         return True
 
-    def _load_dat_extras(self, game_root: str, data_dir: str): #vers 2
+    def _load_dat_extras(self, game_root: str, data_dir: str): #vers 3
         """Tracks, SA nodes/roadblox/water, III chase, waterpro (both load paths)."""
         self.load_tracks_dat(data_dir)
         if self.game == GTAGame.SA:
             # SA-only (Aug 19 2026)
             self.load_sa_nodes(game_root, data_dir)
             self.load_sa_roadblox(data_dir)
+            self.load_sa_carrec(data_dir)
             self.load_water_dat(data_dir)
         if self.game == GTAGame.GTA3:
             # GTA III-only (Aug 19 2026)
@@ -2684,6 +2772,18 @@ class GTAWorldLoader: #vers 4
                     self.waterpro = result
                     self.load_log.append(("water", "WATERPRO", fallback_path, True))
                     return
+
+    def load_sa_carrec(self, data_dir: str): #vers 1
+        """SA car recordings: data/Paths/carrec.img (.rrr frames)."""
+        paths = _resolve_ci(data_dir, 'paths/carrec.img') if data_dir else None
+        if not paths or not os.path.isfile(paths):
+            return
+        try:
+            from apps.methods.sa_path_parser import load_carrec_img
+            self.car_recordings = load_carrec_img(paths)
+            self.load_log.append(("carrec", "CARREC", paths, True))
+        except Exception as e:
+            self.stats.errors.append(f"Could not read car recordings from {paths}: {e}")
 
     def load_chase_dat(self, data_dir: str): #vers 1
         """Load every real GTA III CHASE*.DAT chase-scene car path
@@ -2984,8 +3084,11 @@ class GTAWorldLoader: #vers 4
         self.stats.errors   += parser.stats.errors
         self.stats.warnings += parser.stats.warnings
 
-    def _reset(self): #vers 9
+    def _reset(self): #vers 10
         self.stories = None                     # (game, platform) for LCS/VCS DTZ loads
+        self.stories_dtz = None
+        self.bully = False
+        self.stories_models, self.stories_textures = {}, {}   # LCS/VCS level sectors
         self.ipl_layouts.clear()
         self._iv_next_id = 1
         self._iv_name_ids.clear(); self._iv_hash_names.clear()
@@ -3221,7 +3324,7 @@ def _data_dir(game_root: str) -> str: #vers 1
     return os.path.join(game_root, hit) if hit else game_root
 
 
-def detect_game(game_root: str) -> Optional[str]: #vers 8
+def detect_game(game_root: str) -> Optional[str]: #vers 9
     """Detect which GTA game lives at game_root. Checks SA data/ and SOL sol/ subfolder."""
     game_root = resolve_game_root(game_root)
     if _find_iv_data(game_root, GTAGame.DAT_FILE[GTAGame.IV]):
@@ -3230,6 +3333,9 @@ def detect_game(game_root: str) -> Optional[str]: #vers 8
     stories = dtz_paths(game_root)
     if stories:                                 # LCS -> III map, VCS -> VC map
         return GTAGame.GTA3 if stories[0] == 'lcs' else GTAGame.VC
+    from apps.methods.bully_world import bully_paths
+    if bully_paths(game_root):                  # Bully: SA-style layout (scale, big IDs)
+        return GTAGame.SA
     data = _data_dir(game_root)
     # SOL: check sol/ or SOL/ for gta_sol.dat or gtasol.dat
     sol_dir = _find_sol_dir(game_root)

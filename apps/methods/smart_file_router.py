@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/smart_file_router.py - Version: 4
+#this belongs in apps/methods/smart_file_router.py - Version: 5
 # X-Seti - May08 2026 - Img Factory 1.6 - Smart File Router
 
 """
@@ -56,15 +56,17 @@ _ROUTE_MAP = {
     "surface.dat":   ("COL Workshop (Surface Data)",    "_launch_surface_in_col"),
     # Future — known files that will get editors later
     "weapon.dat":    ("Weapon Data Editor",             None),
-    "ped.dat":       ("Ped Data Workshop",              None),
-    "pedgrp.dat":    ("Ped Data Workshop",              None),
-    "pedstats.dat":  ("Ped Data Workshop",              None),
+    "ped.dat":       ("Ped Workshop",                  "_launch_ped_workshop"),
+    "pedgrp.dat":    ("Ped Workshop",                  "_launch_ped_workshop"),
+    "pedstats.dat":  ("Ped Workshop",                  "_launch_ped_workshop"),
     "cargrp.dat":    ("Vehicle Workshop",               "_launch_vehicle_workshop"),
     "particle.cfg":  ("Particle Editor",                None),
-    "shopping.dat":  ("Shop Data Editor",               None),
-    "popcycle.dat":  ("Population Cycle Editor",        None),
-    "clothes.dat":   ("Ped Data Workshop",              None),
-    "animgrp.dat":   ("Ped Data Workshop",              None),
+    "shopping.dat":  ("Ped Workshop",                  "_launch_ped_workshop"),
+    "popcycle.dat":  ("Ped Workshop",                  "_launch_ped_workshop"),
+    "peds.ide":      ("Ped Workshop",                  "_launch_ped_workshop"),
+    "ped.ifp":       ("Ped Workshop",                  "_launch_ped_workshop"),
+    "clothes.dat":   ("Ped Workshop",                  "_launch_ped_workshop"),
+    "animgrp.dat":   ("Ped Workshop",                  "_launch_ped_workshop"),
 }
 
 
@@ -75,7 +77,7 @@ def get_editor_label(file_path: str) -> str: #vers 1
     return entry[0] if entry else ""
 
 
-def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 2
+def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 3
     """
     Open file_path in the most appropriate editor.
     Returns True if a specialist editor was opened, False if fell back to text editor.
@@ -112,6 +114,13 @@ def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 2
                 from apps.components.Vehicle_Workshop.vehicle_workshop import open_vehicle_workshop
                 w = open_vehicle_workshop(main_window, path=file_path)
                 _log(main_window, f"Vehicle Workshop: {os.path.basename(file_path)}")
+                return True
+
+            elif launcher == "_launch_ped_workshop":
+                from apps.components.Ped_Workshop.ped_workshop import open_ped_workshop
+                root = os.path.dirname(os.path.dirname(os.path.abspath(file_path)))
+                open_ped_workshop(main_window, root, file_path)
+                _log(main_window, f"Ped Workshop: {os.path.basename(file_path)}")
                 return True
 
             elif launcher == "_launch_breakable_editor":
