@@ -158,17 +158,27 @@ class AudioSource:
         self.stream = None
         self.is_active = False
 
-    def open(self, device_index=None):
+    def open(self, device_index=4):
         if not HAS_PYAUDIO:
             return False
         try:
             self.p = pyaudio.PyAudio()
+            # Auto-detect supported sample rate
+            for rate in [48000, 44100, 32000, 16000]:
+                try:
+                    if self.p.is_format_supported(rate, input_device_index=device_index, input_channels=self.channels, input_format=pyaudio.paInt16):
+                        self.rate = rate
+                        break
+                except Exception:
+                    continue
+
             self.stream = self.p.open(
                 format=pyaudio.paInt16,
                 channels=self.channels,
                 rate=self.rate,
                 input=True,
-                output=True, # enables live playback monitoring if desired
+                input_device_index=device_index,
+                output=True,
                 frames_per_buffer=self.chunk
             )
             self.is_active = True

@@ -3353,6 +3353,15 @@ class SVGIconFactory: #vers 8
         </svg>''', size, color)
 
     @staticmethod
+    def sound_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Audio / sound indicator - speaker with waves"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 5 L6 9 H2 V15 H6 L11 19 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M15.5 8.5 C16.5 10 16.5 14 15.5 15.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M18.5 5.5 C20.5 8 20.5 16 18.5 18.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
     def delay_timer_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
         """Capture delay - stopwatch"""
         return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
