@@ -1,6 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 359
+#this belongs in root /ChangeLog.md - Version: 360
 
 
+- Oct 26 2026 - 20 standalone repos: buildscript.py + .github/workflows/build.yml (Windows, Linux, macOS; x64 + arm64), latest-build release. Old windows-build.yml / .spec moved to _to_delete.
 - Oct 26 2026 - Retro-GTA-Workshop: GitHub Actions windows-build.yml (Windows runner, own bootloader, exe committed, windows-build release), as Col Workshop. build/ dist/ ignored.
 - Oct 26 2026 - Retro GTA Workshop: audio player only played the first sample; picking a sound now loads it (MiniAudioPlayer.load).
 - Oct 24 2026 - Retro GTA Workshop panels: rows never stack; labels turn to icons (IconLabel), flags are icon toggles, Tiles buttons one row. FoldRow removed.
