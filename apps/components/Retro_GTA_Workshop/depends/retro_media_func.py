@@ -1,4 +1,4 @@
-#this belongs in apps/components/Retro_GTA_Workshop/depends/retro_media_func.py - Version: 5
+#this belongs in apps/components/Retro_GTA_Workshop/depends/retro_media_func.py - Version: 6
 # X-Seti - October 24 2026 - IMG Factory 1.6 - Retro GTA Workshop media tab
 
 """
@@ -234,10 +234,16 @@ class RetroMediaMixin: #vers 2
         if p['items']:
             p['list'].setCurrentRow(0)
 
-    def _media_item_picked(self, kind: str, row: int): #vers 2
+    def _media_item_picked(self, kind: str, row: int): #vers 3
+        """Image: preview. Sound: loaded into the player (its Play button plays this one)."""
         p = self._mp[kind]
         m = p['cur']
-        if m is None or not 0 <= row < len(p['items']) or m['kind'] != 'images':
+        if m is None or not 0 <= row < len(p['items']):
+            return
+        if kind == 'sounds':
+            self._media_play('sounds', False)
+            return
+        if m['kind'] != 'images':
             return
         a = np.ascontiguousarray(vsr_gfx_rgba(m['gfx'], row))
         pm = self._rgba_pixmap(a)
@@ -299,8 +305,8 @@ class RetroMediaMixin: #vers 2
         with open(m['path'], 'rb') as f:
             return os.path.basename(m['path']), f.read()
 
-    def _media_play(self, kind: str = 'sounds'): #vers 2
-        """Play the picked sound (or the .wav); a video is converted to MP4."""
+    def _media_play(self, kind: str = 'sounds', play: bool = True): #vers 3
+        """Play (or only load, play=False) the picked sound / .wav; a video is converted to MP4."""
         p = self._mp[kind]
         m, row = p['cur'], p['list'].currentRow()
         if m is None or row < 0:
@@ -317,7 +323,7 @@ class RetroMediaMixin: #vers 2
                 self._set_status(f"Video converted: {out}")
             return
         if m['kind'] == 'wav':
-            self._media_player.load_and_play(m['path'], m['name'])
+            (self._media_player.load_and_play if play else self._media_player.load)(m['path'], m['name'])
             return
         try:
             name, data = self._media_item_bytes(kind, row)
@@ -327,7 +333,7 @@ class RetroMediaMixin: #vers 2
         path = os.path.join(tempfile.gettempdir(), "retro_gta_" + name)
         with open(path, 'wb') as f:
             f.write(data)
-        self._media_player.load_and_play(path, name)
+        (self._media_player.load_and_play if play else self._media_player.load)(path, name)
 
     def _media_step(self, delta: int): #vers 1
         """Previous / next sound, played."""

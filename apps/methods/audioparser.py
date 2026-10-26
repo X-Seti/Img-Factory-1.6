@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/audioparser.py - Version: 2
+#this belongs in apps/methods/audioparser.py - Version: 3
 # X-Seti - Aug 2026 - IMG Factory 1.6 - Consolidated audio parsing/decoding/playback module
 
 """
@@ -546,12 +546,17 @@ class MiniAudioPlayer(QWidget): #vers 1
         self._player.durationChanged.connect(self._on_duration_changed)
         self._player.playbackStateChanged.connect(self._on_state_changed)
 
-    def load_and_play(self, path: str, display_name: str = None): #vers 1
+    def load(self, path: str, display_name: str = None): #vers 1
+        """Load a file without playing; Play button plays it."""
+        self._player.stop()
+        self._name_label.setText(display_name or os.path.basename(path))
+        self._player.setSource(QUrl.fromLocalFile(path))
+
+    def load_and_play(self, path: str, display_name: str = None): #vers 2
         """Load a real, standard-format audio file (already
         transcoded via transcode_to_wav if needed) and start playing
         it immediately (Aug 20 2026)."""
-        self._name_label.setText(display_name or os.path.basename(path))
-        self._player.setSource(QUrl.fromLocalFile(path))
+        self.load(path, display_name)
         self._player.play()
 
     def stop(self): #vers 1

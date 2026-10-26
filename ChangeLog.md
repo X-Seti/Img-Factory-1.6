@@ -1,6 +1,8 @@
-#this belongs in root /ChangeLog.md - Version: 357
+#this belongs in root /ChangeLog.md - Version: 359
 
 
+- Oct 26 2026 - Retro-GTA-Workshop: GitHub Actions windows-build.yml (Windows runner, own bootloader, exe committed, windows-build release), as Col Workshop. build/ dist/ ignored.
+- Oct 26 2026 - Retro GTA Workshop: audio player only played the first sample; picking a sound now loads it (MiniAudioPlayer.load).
 - Oct 24 2026 - Retro GTA Workshop panels: rows never stack; labels turn to icons (IconLabel), flags are icon toggles, Tiles buttons one row. FoldRow removed.
 - Oct 24 2026 - FoldRow wraps one part at a time (no all-or-nothing stack); Block Help is a 26 x 26 icon.
 - Oct 24 2026 - Retro-GTA-Workshop standalone: retro_gta_workshop.spec, build_retro_gta_workshop.bat, requirements.txt (PyInstaller, Windows exe). All imports present.
