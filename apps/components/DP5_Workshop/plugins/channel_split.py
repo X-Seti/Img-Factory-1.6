@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/plugins/channel_split.py - Version: 1
+#this belongs in apps/components/DP5_Workshop/plugins/channel_split.py - Version: 2
 # X-Seti - October 20 2026 - IMG Factory 1.6 - DP5 Channel Split Plugin.
 
 """
@@ -6,7 +6,7 @@ Channel Split - splits canvas into RGB/CMYK/YPbPr greyscale tabs; combines RGB.
 """
 
 ##Methods list -
-# _tab_image
+# _split
 # combine_rgb
 # run_combine
 # run_split_cmyk
@@ -38,54 +38,44 @@ def combine_rgb(r, g, b, w, h): #vers 1
     return bytearray(Image.merge('RGB', chans).convert('RGBA').tobytes())
 
 
-def _split(ws, mode): #vers 1
-    """Send each channel of active canvas to a new tab."""
-    c = ws.dp5_canvas
-    if not c:
+def _split(host, mode): #vers 2
+    """Each channel of the active canvas to a new tab named '<tab> <channel>'."""
+    img = host.image()
+    if not img:
         return
-    w, h = c.tex_w, c.tex_h
-    base = len(ws._canvas_tabs) or 1
-    for name, data in split_channels(c.rgba, w, h, mode):
-        ws._canvas_to_new_tab(data, w, h, f"{base}{name}")
-    ws._set_status(f"Split {mode} into new tabs")
+    rgba, w, h = img
+    label = host.active_label()
+    for name, data in split_channels(rgba, w, h, mode):
+        host.new_tab(data, w, h, f"{label} {name}")
+    host.status(f"Split {mode} into new tabs")
 
 
-def run_split_rgb(ws): #vers 1
-    _split(ws, 'RGB')
+def run_split_rgb(host): #vers 2
+    _split(host, 'RGB')
 
 
-def run_split_cmyk(ws): #vers 1
-    _split(ws, 'CMYK')
+def run_split_cmyk(host): #vers 2
+    _split(host, 'CMYK')
 
 
-def run_split_ypbpr(ws): #vers 1
-    _split(ws, 'YPbPr')
+def run_split_ypbpr(host): #vers 2
+    _split(host, 'YPbPr')
 
 
-def _tab_image(ws, idx): #vers 1
-    """Return (rgba, w, h) for tab idx, live canvas if active."""
-    if idx == ws._active_canvas_tab_idx:
-        c = ws.dp5_canvas
-        return c.rgba, c.tex_w, c.tex_h
-    st = ws._canvas_tabs[idx]['state']
-    return st['rgba'], st['tex_w'], st['tex_h']
-
-
-def run_combine(ws): #vers 1
+def run_combine(host): #vers 2
     """Pick R, G, B tabs and merge into a new colour tab."""
-    ws._save_current_canvas_tab()
-    tabs = ws._canvas_tabs
-    if len(tabs) < 3:
-        QMessageBox.information(ws, "Combine RGB", "Need at least 3 canvas tabs.")
+    labels = host.tabs()
+    if len(labels) < 3:
+        QMessageBox.information(host.widget, "Combine RGB", "Need at least 3 canvas tabs.")
         return
-    dlg = QDialog(ws)
+    dlg = QDialog(host.widget)
     dlg.setWindowTitle("Combine RGB")
     form = QFormLayout(dlg)
     combos = []
     for i, lbl in enumerate(("Red", "Green", "Blue")):
         cb = QComboBox()
-        cb.addItems([t['label'] for t in tabs])
-        cb.setCurrentIndex(min(i, len(tabs) - 1))
+        cb.addItems(labels)
+        cb.setCurrentIndex(min(i, len(labels) - 1))
         form.addRow(lbl, cb)
         combos.append(cb)
     bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -95,14 +85,13 @@ def run_combine(ws): #vers 1
     form.addRow(bb)
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return
-    imgs = [_tab_image(ws, cb.currentIndex()) for cb in combos]
+    imgs = [host.tab_image(cb.currentIndex()) for cb in combos]
     if len({(w, h) for _, w, h in imgs}) != 1:
-        QMessageBox.warning(ws, "Combine RGB", "Tabs must be the same size.")
+        QMessageBox.warning(host.widget, "Combine RGB", "Tabs must be the same size.")
         return
     w, h = imgs[0][1], imgs[0][2]
-    data = combine_rgb(imgs[0][0], imgs[1][0], imgs[2][0], w, h)
-    ws._canvas_to_new_tab(data, w, h, None)
-    ws._set_status("Combined RGB into new tab")
+    host.new_tab(combine_rgb(imgs[0][0], imgs[1][0], imgs[2][0], w, h), w, h, "RGB")
+    host.status("Combined RGB into new tab")
 
 
 PLUGIN_ACTIONS = [("Split RGB", run_split_rgb), ("Split CMYK", run_split_cmyk),

@@ -83,7 +83,7 @@ source .venv/bin/activate
 
 echo "[+] Installing Python dependencies..."
 pip install --upgrade pip
-pip install PyQt6 Pillow numpy
+pip install PyQt6 Pillow numpy cv2
 
 if [ -f requirements.txt ]; then
     echo "[+] Installing from requirements.txt..."

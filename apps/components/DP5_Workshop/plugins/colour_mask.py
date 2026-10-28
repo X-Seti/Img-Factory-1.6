@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/plugins/colour_mask.py - Version: 1
+#this belongs in apps/components/DP5_Workshop/plugins/colour_mask.py - Version: 2
 # X-Seti - October 20 2026 - IMG Factory 1.6 - DP5 Colour Mask Plugin.
 
 """
@@ -25,18 +25,17 @@ def colour_mask(rgba, w, h, rgb): #vers 1
     return bytearray(tinted.tobytes())
 
 
-def run(ws): #vers 1
-    """Ask colour, tint active canvas with undo."""
-    c = ws.dp5_canvas
-    if not c:
+def run(host): #vers 2
+    """Ask colour, tint the active canvas (undoable)."""
+    img = host.image()
+    if not img:
         return
-    col = QColorDialog.getColor(QColor(128, 0, 128), ws, "Colour Mask")
+    col = QColorDialog.getColor(QColor(128, 0, 128), host.widget, "Colour Mask")
     if not col.isValid():
         return
-    ws._push_undo()
-    c.rgba = colour_mask(c.rgba, c.tex_w, c.tex_h, (col.red(), col.green(), col.blue()))
-    c.update()
-    ws._set_status(f"Colour mask {col.name()} applied")
+    rgba, w, h = img
+    host.set_image(colour_mask(rgba, w, h, (col.red(), col.green(), col.blue())))
+    host.status(f"Colour mask {col.name()} applied")
 
 
 PLUGIN_ACTIONS = [("Colour Mask…", run)]

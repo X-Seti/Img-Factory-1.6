@@ -1,6 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 360
+#this belongs in root /ChangeLog.md - Version: 366
 
 
+- Oct 28 2026 - Standalone repos: buildscript v6 (Linux xvfb start test, errors on run page), build.yml v3. Map, MEL, Ped, AI start fixes. Icons v88 synced.
+- Oct 27 2026 - DP5-Workshop: missing methods/dock_panels.py added (startup crash). Radar menu check fixed. Dolphin Properties .info extractor (tools/kde_info_properties).
+- Oct 27 2026 - DP5: Tape Out dialog - plays Spectrum / C64 / CPC loading screen to an audio output for tape recording, or saves WAV / tape file.
+- Oct 27 2026 - DP5: cubic curve, pattern brush, rulers/guides, screen picker, History/Layers/Palette Editor docks, sprite editing, tile map, tapes (TAP/TZX/WAV/C64/CDT), NewIcon, ICONFACE, ANIM, KDE thumbnailer.
+- Oct 27 2026 - DP5: Magic wand (W, tolerance, Shift adds, fill / clear / invert / copy to tab), linear + radial gradient tools (J), clash viewer any grid, Sprite Sheet plugin.
+- Oct 26 2026 - DP5: Halftone plugin (mono / CMYK, fixed test version). Plugins: PluginHost API, user dp5_plugins folder, broken plugins listed not fatal, split tabs named.
 - Oct 26 2026 - 20 standalone repos: buildscript.py + .github/workflows/build.yml (Windows, Linux, macOS; x64 + arm64), latest-build release. Old windows-build.yml / .spec moved to _to_delete.
 - Oct 26 2026 - Retro-GTA-Workshop: GitHub Actions windows-build.yml (Windows runner, own bootloader, exe committed, windows-build release), as Col Workshop. build/ dist/ ignored.
 - Oct 26 2026 - Retro GTA Workshop: audio player only played the first sample; picking a sound now loads it (MiniAudioPlayer.load).
