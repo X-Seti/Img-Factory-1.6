@@ -1,0 +1,128 @@
+{
+  "keys": {
+    "hotkey_close": "Ctrl+W",
+    "hotkey_copy": "Ctrl+C",
+    "hotkey_delete": "Del",
+    "hotkey_drop_ground": "End",
+    "hotkey_duplicate": "Ctrl+D",
+    "hotkey_export": "Ctrl+E",
+    "hotkey_export_all": "Ctrl+Shift+E",
+    "hotkey_find": "Ctrl+F",
+    "hotkey_force_save": "Alt+Shift+S",
+    "hotkey_help": "F1",
+    "hotkey_invert": "Ctrl+I",
+    "hotkey_open": "Ctrl+O",
+    "hotkey_paste": "Ctrl+V",
+    "hotkey_properties": "Alt+Return",
+    "hotkey_redo": "Ctrl+Shift+Z",
+    "hotkey_refresh": "F5",
+    "hotkey_rename": "F2",
+    "hotkey_save": "Ctrl+S",
+    "hotkey_save_as": "Ctrl+Shift+S",
+    "hotkey_select_all": "Ctrl+A",
+    "hotkey_settings": "Ctrl+Shift+,",
+    "hotkey_undo": "Ctrl+Z",
+    "ribbon:Model IDE / TXD/Look up model in DAT Browser IDE entries": "",
+    "ribbon:Selection/Vertex Select": "",
+    "ribbon:Selection/Edge Select": "",
+    "ribbon:Selection/Face Select": "",
+    "ribbon:Selection/Polygon Select": "",
+    "ribbon:Selection/Backface Culling": "",
+    "ribbon:Selection/Front-only Paint": "",
+    "ribbon:Snap Targets/Snap moved objects side-to-side, on top of, or centre-to-centre\nwith nearby objects (model bounding boxes). Snapped neighbours\nlight up green; the controller rumbles on contact.": "",
+    "ribbon:Snap Targets/While dragging a whole IPL, snaps the clicked instance's\nposition to align exactly with the nearest other\ninstance's own position, once within a small distance.": "",
+    "ribbon:Snap Targets/Axis Constraints": "",
+    "ribbon:Snap Targets/Angle Snap": "",
+    "ribbon:Snap Targets/Percent Snap": "",
+    "ribbon:Edit Geometry/Mirror": "",
+    "ribbon:Edit Geometry/Align": "",
+    "ribbon:Edit Geometry/Closes gaps by moving nearby vertices to their shared\ncentroid. Acts on the current selection, or whole model.": "",
+    "ribbon:Navigation/Zoom In": "",
+    "ribbon:Navigation/Zoom Out": "",
+    "ribbon:Navigation/Reset View": "",
+    "ribbon:Navigation/Fit to Window": "",
+    "ribbon:Navigation/Snap to Centre": "",
+    "ribbon:Navigation/View XY": "",
+    "ribbon:Navigation/View XZ": "",
+    "ribbon:Navigation/View YZ": "",
+    "ribbon:Navigation/View Iso": "",
+    "ribbon:Navigation/4-Pane View is currently disabled - it only ever mirrors\nsingle-model geometry, not the loaded world/map, so it\nshowed blank panes rather than anything useful here.": "",
+    "ribbon:Render/Render Settings": "",
+    "ribbon:Render/Checked: show model mesh. Unchecked: show collision instead.": "",
+    "ribbon:Render/Toggle Backface": "",
+    "ribbon:Render/Cycle Render Style": "",
+    "ribbon:Render/Toggle Shading": "",
+    "ribbon:Render/Light Setup": "",
+    "ribbon:Render/Open GL Model Viewer (hardware 3D)": "",
+    "ribbon:Render/Live LOD switching test - draws a circle around the mouse\ncursor (radius set in Settings > Map Assets); models\ninside switch to one detail level, models outside switch\nto the other, updated in real time as the mouse moves.": "",
+    "ribbon:Overlays/Left-click: step to the next cull/zone box.\nRight-click: pick one directly from a list.\n\nTo resize a box: click and drag one of its corner\nspheres directly - no separate mode needed.": "",
+    "ribbon:Overlays/Undo (Shift+click to Redo)": "",
+    "ribbon:Overlays/Left-click: fix any instance whose scale is (0,0,0) back to (1,1,1).\nRight-click: choose a direction (also covers 1,1,1 -> 0,0,0).": "",
+    "ribbon:Overlays/Convert IPL INST sections between VC and SA/SOL format.\nClick for options: pick files from disk, or from the\ncurrently loaded world.": "",
+    "ribbon:Overlays/Reorder this world's own loaded .dat file's IDE/IPL/COLFILE/IMG\nlines to match Rockstar's own documented convention: grouped by\ndirectory, alphabetical within each - the same real pattern SOL's\nown files already use.": "",
+    "ribbon:Overlays/Search loaded instances by model name": "",
+    "ribbon:Overlays/Force baked vertex-colour (pre-lit) lighting on for every\nmodel, instead of each model's own auto-detected lighting -\nuse this if a model is rendering unexpectedly dark.\nRight-click: generate world prelighting with shadows.": "",
+    "ribbon:Overlays/Terrain tools": "",
+    "ribbon:Overlays/Show 2DFX lights in the world view - when off, no 2DFX\nlights show at all, regardless of the Time switch. When\non, the existing day/night time gating still applies.": "",
+    "ribbon:Overlays/Show TOBJ (timed) instances in the INST table, appended\nafter the regular rows - filtered to only the ones\ncurrently active for the simulated hour set by the Time\nswitch. Off by default, keeping TOBJ instances out of\nthis view entirely.": "",
+    "ribbon:Overlays/Left-click: play/stop the loaded timecyc file's own day/\nnight sky colour cycle in the 3D view.\nMiddle-click: pick a different timecyc.dat from this\napp's own depends/timecyc/ asset folder.": "",
+    "ribbon:Overlays/Left-click: show/hide Paths.\nRight-click: toggle edit mode for Paths.": "",
+    "ribbon:Overlays/Left-click: show/hide Tracks.": "",
+    "ribbon:Overlays/Left-click: show/hide Cull.\nRight-click: toggle edit mode for Cull.\nMiddle-click: add/delete/save/corner coords for Cull.": "",
+    "ribbon:Overlays/Left-click: show/hide Zon.\nRight-click: toggle edit mode for Zon.\nMiddle-click: add/delete/save/corner coords for Zon.": "",
+    "ribbon:Overlays/Left-click: show/hide Occlusion.\nMiddle-click: add/delete/save/corner coords for Occlusion.": "",
+    "ribbon:Overlays/Left-click: show/hide Grge.\nRight-click: toggle edit mode for Grge.\nMiddle-click: add/delete/save/corner coords for Grge.": "",
+    "ribbon:Overlays/Left-click: show/hide SA Nodes.": "",
+    "ribbon:Overlays/Left-click: show/hide Auzo.": "",
+    "ribbon:Overlays/Left-click: show/hide Water.": "",
+    "ribbon:Overlays/Left-click: show/hide the radar tex layer.\nMiddle-click: generate radar tiles.\nRight-click: alignment, water fix, send/export options.": "",
+    "ribbon:Overlays/Left-click: show all interiors / exterior only.\nRight-click: pick one interior to isolate.": ""
+  },
+  "mouse": {
+    "select": "left",
+    "orbit": "right",
+    "pan": "middle"
+  },
+  "camera": {
+    "pan_left": {
+      "key": 16777234,
+      "numpad": false
+    },
+    "pan_right": {
+      "key": 16777236,
+      "numpad": false
+    },
+    "pan_up": {
+      "key": 16777235,
+      "numpad": false
+    },
+    "pan_down": {
+      "key": 16777237,
+      "numpad": false
+    },
+    "rotate_yaw_left": {
+      "key": 52,
+      "numpad": true
+    },
+    "rotate_yaw_right": {
+      "key": 54,
+      "numpad": true
+    },
+    "rotate_pitch_up": {
+      "key": 56,
+      "numpad": true
+    },
+    "rotate_pitch_down": {
+      "key": 50,
+      "numpad": true
+    },
+    "zoom_in": {
+      "key": 43,
+      "numpad": true
+    },
+    "zoom_out": {
+      "key": 45,
+      "numpad": true
+    }
+  }
+}

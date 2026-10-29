@@ -3,7 +3,7 @@
   "debug_level": "INFO",
   "current_theme": "App_Factory",
   "theme": "manjaro2_dark",
-  "button_display_mode": "text",
+  "button_display_mode": "icons",
   "use_custom_gadgets": true,
   "enable_corner_resize": true,
   "use_svg_icons": true,
