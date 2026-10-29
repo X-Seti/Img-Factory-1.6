@@ -2,6 +2,8 @@
 **GTA modding toolkit** — Build 435.107
 PyQt6 · Python 3.11+ · Linux / Windows / macOS
 
+<a href="https://postimg.cc/3WVBwsmf" target="_blank"><img src="https://i.postimg.cc/288X0m6Y/img-factory1-6-1.png" alt="img-factory1-6-1">
+
 IMG Factory has come a long way since versions 1.2 and 1.5, and even the earlier stages of 1.6. What started as a GTA modding tool has grown into a much larger toolkit, bringing together archive management, model and texture editing, map tools, and a growing collection of specialised workshops.
 
 I'm getting close to completing the main body of the project, but there's still plenty of work ahead. At this stage, the focus is shifting towards testing, integration, fixing bugs, and making sure the different tools work together properly.
