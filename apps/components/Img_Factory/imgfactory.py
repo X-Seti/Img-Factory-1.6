@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 125
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 128
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -2197,11 +2197,6 @@ class IMGFactory(QMainWindow):
         self._debug_mode = not current
         self.log_message(f"Debug mode: {'ON' if self._debug_mode else 'OFF'}")
 
-    def show_about(self):
-        """Show about dialog"""
-        QMessageBox.about(self, f"About {App_name}", f"{App_name}\nAdvanced IMG Archive Management\nX-Seti 2026")
-
-
     def enable_col_debug(self): #vers 4
         """Enable COL debug output"""
         # Set debug flag on all loaded COL files
@@ -2399,7 +2394,7 @@ class IMGFactory(QMainWindow):
 
         # Create GUI layout system (single instance)
         self.gui_layout.create_status_bar()
-        self.gui_layout._place_status_bar()            # window bottom, under pane or dock
+        self.gui_layout._place_status_bar()            # window bottom, settings visibility
         self.gui_layout.apply_table_theme()
 
         # Apply saved tab settings
@@ -2432,7 +2427,7 @@ class IMGFactory(QMainWindow):
 
 
 
-    def _on_tab_changed(self, index): #vers 11
+    def _on_tab_changed(self, index): #vers 12
         """Handle tab switching - DIR Tree, IMG, COL, TXD tabs"""
         try:
             current_tab = self.main_tab_widget.widget(index)
@@ -2494,8 +2489,9 @@ class IMGFactory(QMainWindow):
                             self.selection_status_widget.update_selection(0, tex_count)
                     from PyQt6.QtCore import QTimer
                     QTimer.singleShot(0, _txd_status)
-                self._sync_taskbar_active("txd")
-                self.log_message(f"→ {tab_name} (TXD Workshop)")
+                is_txd = workshop.config_key == "txd_workshop"     # Asset Workshop is a TXDWorkshop too
+                self._sync_taskbar_active("txd" if is_txd else workshop.config_key)
+                self.log_message(f"→ {tab_name} ({workshop.App_name})")
                 return
 
             # Check if this tab contains an embedded COL Workshop
@@ -5255,26 +5251,28 @@ class IMGFactory(QMainWindow):
         """Show theme settings dialog"""
         self.show_settings()  # For now, use general settings
 
-    def show_about(self): #vers 2
-        """Show about dialog"""
-        about_text = """
-        <h2>{App_name} {App_build}</h2>
-        <p><b>Professional IMG Archive Manager</b></p>
-        <p>Version: 1.5.0 Python Edition</p>
-        <p>Author: X-Seti</p>
-        <p>Based on original IMG Factory by MexUK (2007)</p>
-        <br>
-        <p>Features:</p>
-        <ul>
-        <li>IMG file creation and editing</li>
-        <li>Multi-format support (DFF, TXD, COL, IFP)</li>
-        <li>Template system</li>
-        <li>Batch operations</li>
-        <li>Validation tools</li>
-        </ul>
-        """
+    def show_about(self): #vers 4
+        """About dialog (same as the titlebar info button), with the Legal button."""
+        self.gui_layout._show_imgfactory_info()
 
-        QMessageBox.about(self, "About IMG Factory", about_text)
+    def show_legal(self): #vers 1
+        """Legal page (Legal.md) with the scales icon."""
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        colors = self.app_settings.get_theme_colors() or {}
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"{App_name} - Legal")
+        dlg.setWindowIcon(SVGIconFactory.legal_icon(20, colors.get('text_primary', '#cccccc')))
+        dlg.resize(680, 560)
+        lay = QVBoxLayout(dlg)
+        view = QTextBrowser()
+        view.setOpenExternalLinks(True)
+        view.setMarkdown((Path(__file__).resolve().parents[3] / 'Legal.md').read_text(encoding='utf-8'))
+        lay.addWidget(view)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dlg.reject)
+        lay.addWidget(buttons)
+        dlg.exec()
 
 
 

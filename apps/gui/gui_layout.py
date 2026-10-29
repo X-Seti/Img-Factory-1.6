@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 50
+#this belongs in apps/gui/gui_layout.py - Version: 51
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -2076,48 +2076,15 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             self._centre_file_window()
         self._save_outer_layout()
 
-    def _statusbar_position(self) -> str: #vers 1
-        """'window' bottom, 'pane' under the file pane, or 'dock' (movable)."""
-        import json
-        try:
-            return json.loads(self._ribbon_config_path().read_text()).get('statusbar_position', 'window')
-        except (OSError, ValueError):
-            return 'window'
-
-    def _place_status_bar(self, where=None): #vers 1
-        """Put the status bar at the window bottom, under the file pane, or in a dock."""
+    def _place_status_bar(self): #vers 2
+        """Status bar fixed at window bottom; visibility from settings."""
         from PyQt6.QtWidgets import QMainWindow
         mw = self.main_window
         bar = getattr(mw, '_img_status_bar', None) or QMainWindow.statusBar(mw)
-        mw._img_status_bar = bar                         # statusBar() returns it wherever placed
-        where = where or self._statusbar_position()
-        dock = getattr(self, '_status_dock', None)
-        if dock is not None:                             # leave the dock
-            self._outer_mw.removeDockWidget(dock)
-            self._outer_docks.remove(dock)
-        bar.setParent(None)                              # leaves window / pane / dock
-        if dock is not None:
-            dock.deleteLater()
-            self._status_dock = None
-        if where == 'pane':
-            self.file_window.layout().addWidget(bar)
-        elif where == 'dock':
-            self._status_dock = add_outer_dock(self, self._outer_mw, "Status Bar", bar, 100,
-                                               Qt.DockWidgetArea.BottomDockWidgetArea)
-            self._outer_docks.append(self._status_dock)
-        else:
-            mw.setStatusBar(bar)
-        bar.show()
-        bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        if not getattr(bar, '_place_menu', False):
-            bar._place_menu = True
-            bar.customContextMenuRequested.connect(lambda pos: self._outer_dock_menu(bar.mapToGlobal(pos)))
-
-    def _set_statusbar_position(self, where: str): #vers 1
-        """Save and apply the status bar position."""
-        self._ribbon_config_set('statusbar_position', where)
-        self._place_status_bar(where)
-        self._save_outer_layout()
+        mw._img_status_bar = bar
+        mw.setStatusBar(bar)
+        settings = getattr(mw, 'img_settings', None)
+        bar.setVisible(settings.get("show_status_bar", True) if settings else True)
 
     def _ribbon_config_path(self): #vers 1
         """IMG Factory dock layout / button arrangement file."""

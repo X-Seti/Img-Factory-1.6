@@ -1,5 +1,5 @@
 # IMG Factory 1.6 — Development Progress Update
-**GTA modding toolkit** — Build 435.107
+**GTA modding toolkit** — Build 435.126
 PyQt6 · Python 3.11+ · Linux / Windows / macOS
 
 <a href="https://postimg.cc/3WVBwsmf" target="_blank"><img src="https://i.postimg.cc/288X0m6Y/img-factory1-6-1.png" alt="img-factory1-6-1">
@@ -38,174 +38,129 @@ For now, I'm continuing to build on what is already there, improve the overall e
 
 
 
-Older Information - kept for now.
-**GTA modding toolkit** — Build 370.80  
-PyQt6 · Python 3.11+ · Linux / Windows / macOS
-
----
-
-Information in this README is out of date. Will update soon.
-
-
-- Model Workshop bleed-through when docked in IMG Factory — fixed
-- TXD parser updated for GTA VC/III format (was only reading SA correctly)
-- All `Mdl_Editor` import references replaced with `Model_Editor`
-- Standalone repos (Col-Workshop, Txd-Workshop, Model-Workshop) now
-  self-contained with required methods included
-- DAT Browser bleed-through — fixed (wrong parent widget + missing paintEvent)
-- Compact toolbar buttons now respond to splitter drag, not just window resize
-
----
-
 ## What is it?
 
-IMG Factory is a multi-format modding suite for GTA3, Vice City, San Andreas and
-**GTASOL** (multi-city). It handles the full asset pipeline: open archives, browse
-the game world, edit textures, collision and models, then rebuild.
+IMG Factory is a multi-format modding suite for GTA III, Vice City, San Andreas,
+the Stories games and **GTASOL** (multi-city). It covers the asset pipeline: open
+archives, browse the game world, edit textures, collision, models and data files,
+then rebuild.
 
 ---
 
 ## Quick start
 
 ```bash
-# Launch (menu - pick a tool)
-python3 launch.py
-
-# Launch IMG Factory directly
-python3 launch.py 1
-
-# Or directly via module
-python -m apps.components.Img_Factory.imgfactory
+python3 launch.py                               # IMG Factory with startup progress bar
+python -m apps.components.Img_Factory.imgfactory  # direct
 ```
 
-| # | Tool |
-|---|---|
-| 1 | IMG Factory 1.6 |
-| 2 | TXD Workshop |
-| 3 | COL Workshop |
-| 4 | Model Workshop |
-| 5 | DP5 Workshop |
-| 6 | AI Workshop |
+Each workshop also has its own standalone repo (Txd-Workshop, Col-Workshop, ...).
+A workshop folder dropped into `apps/components` shows up on the Intro screen and
+the Editing Options buttons; a missing one is hidden.
 
 ---
 
-## Tools
+## Interface
 
-| Taskbar | Tool | What it does |
+- File window, Activity Log and button groups (IMG / Entries / Editing Options) are docks:
+  move, float, close; right-click any dock title to reopen panels.
+- Buttons as dock panels with a grid, or as ribbons (right-click > Buttons as Ribbons).
+- Ribbon Manager: reorder, hide, move buttons between groups, add groups.
+- Button text: icons only, text only, both, or auto (icons when the panel is narrow).
+- Status bar at the window bottom, under the file pane, or in its own dock.
+- App Settings: themes, per-colour transparency (on/off), panel image / gradient,
+  Panel Test tab, see-through windows.
+
+---
+
+## Workshops (apps/components)
+
+| Folder | Tool | What it does |
 |---|---|---|
-| DAT | DAT Browser | Load game world (all IDEs, IPLs, IMGs at once) |
-| TXD | TXD Workshop | Browse, preview, replace textures in .txd archives |
-| COL | COL Workshop | Edit collision meshes — spheres, boxes, mesh faces |
-| DFF | Model Workshop | View DFF geometry, frame hierarchy, linked textures |
-| Paint | DP5 Workshop | Amiga-style IFF/ILBM paint editor |
-| IDE | IDE Editor | Edit object definition files, ID map/analysis |
-| IPL | IPL Workshop | World map, instance placement, water/radar overlays |
-| SCM | SCM Workshop | Hex view + coordinate search in mission scripts |
+| Dat_Browser | DAT Browser | Load the game world: DAT, IDE, IPL, IMG load order, asset DB |
+| Txd_Editor | TXD Workshop | Textures: browse, replace, convert (PC, PS2, Xbox, mobile) |
+| Asset_Workshop | Asset Workshop | TXD Workshop branch for asset checks (rebuild in progress) |
+| Col_Editor | COL Workshop | Collision: spheres, boxes, mesh faces, surface materials |
+| Model_Editor | Model Workshop | DFF geometry, frames, mesh editing, textures |
+| Model_Viewer | Model Viewer | DFF viewer |
+| Map_Editor | Map Workshop | World map, IPL placement, map editing |
+| Terrain_Workshop | Terrain Workshop | Sculpt, paint, paths, water, nature; DFF / COL / TXD / IDE / IPL export |
+| Path_Workshop | Path Workshop | III / VC paths, SA nodes*.dat editing |
+| Radar_Editor | Radar Workshop | Radar tiles |
+| Water_Editor | Water Workshop | water.dat / waterpro.dat |
+| Vehicle_Workshop | Vehicle Workshop | Vehicles, handling, carcols, animation |
+| Handling_Editor | Handling Editor | handling.cfg |
+| Ped_Workshop | Ped Workshop | Peds, skeletons, IFP animation, keyframes |
+| Timecyc_Editor | Timecyc Workshop | timecyc.dat / timecycp.dat |
+| Ide_Editor | IDE Editor | Object definitions |
+| Ipl_Editor | IPL Editor | Item placement |
+| Breakable_Editor | Breakable Editor | object.dat breakables |
+| Scm_Workshop | SCM Workshop | main.scm / script.img |
+| Hex_Editor | Hex Workshop | Binary editor |
+| Disc_Workshop | Disc Workshop | CD / DVD images |
+| Retro_GTA_Workshop | Retro GTA Workshop | GTA1 / GTA2 maps, styles, sprites |
+| DP5_Workshop | DP5 Paint | Bitmap paint editor |
+| Capture_Workshop | Capture Workshop | Screen / device capture |
+| Ai_Workshop | AI Workshop | AI assistant |
+| Master_Ide | Master IDE | ID range map |
+| File_Editor, Img_Creator, Img_Browser, Project_Manager | Core | Dir tree, new IMG, IMG browser, projects |
 
 ---
 
-## Asset Database (Build 316+)
+## Asset Database
 
-Click **⬡ DB** in the DAT Browser toolbar to open the asset DB panel.
-
-1. Load a game via DAT Browser
-2. Click **⬡ Build DB** — indexes all IMG/IDE/.col files in the game folder
-3. Next time: click **↻ Update** — only re-indexes changed files
-
-The DB stores every IMG entry (name/offset/size), COL model names, TXD texture
-names and IDE objects in a SQLite file at:
+DAT Browser > DB: **Build DB** indexes all IMG / IDE / COL in the game folder;
+**Update** re-indexes changed files. Stored as SQLite:
 - Linux: `~/.local/share/imgfactory/<profile>.db`
 - Windows: `%APPDATA%\ImgFactory\<profile>.db`
-
-All workshops use the DB for instant asset lookup by model name.
-
----
-
-## Model Workshop — DFF editing
-
-### Toolbar (left panel)
-- **V / E / F / P** — Vertex / Edge / Face / Polygon select mode
-- **BF** — Backface culling (front faces only)
-- **FP** — Front-only paint (skip back-facing faces)
-- **+□** — Create primitive (Box/Sphere/Cylinder/Plane with subdivision counts)
-- **Paint** — Opens Material List for texture assignment
-- **COL** (Create COL from DFF) — Generates COL1/2/3 collision from DFF geometry
-
-### Bottom panel
-- **Prelight: [Apply] [Setup…]** — Vertex prelighting (coming soon: bake ambient +
-  directional light into vertex colour channel for GTA3/VC/SOL)
-
-### Textures
-- **Auto-find TXD** — searches open IMG tabs → texlist/ folder → file browser
-- **Scan texlist…** — scan `texlist/` folder for pre-exported PNG/IFF/TGA files
-- **Set texlist folder** in Settings → Export → Texture Sources
 
 ---
 
 ## GTASOL ID rules
 
-World objects must start at **ID 1987** or higher.
-
-IDs 0–1986 are reserved for base GTA3/VC engine assets:
-- 0–129: Peds
-- 130–239: Vehicles  
-- 240–299: Components/weapons/air train
-- 300–615: Special map objects
-- 616–1986: Generics
-
-Maximum safe ID for GTASOL (VC engine): **32767** (signed int16 in SCM bytecode).
+World objects start at **ID 1987** or higher. IDs 0-1986 are base GTA3/VC:
+0-129 peds, 130-239 vehicles, 240-299 components / weapons, 300-615 special map
+objects, 616-1986 generics. Maximum safe ID (VC engine): **32767**.
 
 ---
 
-## Settings persistence
+## Settings
 
-All per-tool settings are stored as JSON in `~/.config/imgfactory/`:
+User settings are JSON in `~/.config/imgfactory/`, for example:
 
 | File | Contents |
 |---|---|
+| `imgfactory_docks.json` | IMG Factory dock layout, button groups, ribbons, status bar place |
+| `imgfactory_layout.json` | Splitter sizes |
+| `<workshop>_ribbons.json` | Workshop ribbon layouts |
+| `workshop_ui.json` | Status bar shown per workshop |
 | `dat_browser.json` | Game path, auto-load, texlist folder |
-| `model_workshop.json` | Texlist folder path |
-| `model_toolbar_layout.json` | DFF/COL Workshop toolbar positions |
-| `txd_dump_paths.json` | TXD dump dialog folder paths |
-| `welcome_prefs.json` | Show intro on startup toggle |
-| `<profile>.db` (data dir) | Asset database |
+| `welcome_prefs.json` | Show Intro on startup |
 
 ---
 
 ## Requirements
 
-Python modules (installed via pip):
-
-```
-PyQt6 >= 6.4
-PyQt6-Qt6
-Pillow
-numpy
-send2trash
-```
-
 ```bash
 pip install -r requirements.txt
 ```
 
+Core: PyQt6, Pillow, numpy, send2trash, requests. Optional per tool: PyOpenGL (3D
+views), scipy / pycryptodome / python-lzo (TXD, IMG encryption, LZO), opencv-python /
+pyaudio / mss (Capture), cairosvg / imageio (DP5), pygame, psutil, AI Workshop web
+packages. See `requirements.txt`.
+
 ### Linux / WSL system libraries
 
-PyQt6 also needs system-level Qt6/XCB libraries that pip does not install.
-Without these, the app will fail to start, or on WSL specifically may hang
-with no error on launch.
-
-Run the setup script once after cloning — it detects your distro
-(Ubuntu/Debian, Arch, Fedora, openSUSE) and WSL, then installs the correct
-system packages and Python modules:
+PyQt6 needs system Qt6 / XCB libraries pip does not install. Run once after cloning:
 
 ```bash
 chmod +x setup_imgfactory.sh
 ./setup_imgfactory.sh
 ```
 
-WSL2 (Windows 11) needs WSLg, which ships by default. WSL2 (Windows 10)
-needs VcXsrv running separately with "Disable access control" checked.
-See `setup_imgfactory.sh` for details.
+WSL2 (Windows 11) needs WSLg; WSL2 (Windows 10) needs VcXsrv with "Disable access
+control" checked.
 
 ---
 
@@ -213,30 +168,19 @@ See `setup_imgfactory.sh` for details.
 
 ```
 apps/
-  components/         Workshop tools (one folder per tool)
-    Img_Factory/      Main window, welcome screen
-    Dat_Browser/      DAT/IDE/IPL load-order browser
-    Col_Editor/       COL Workshop
-    Txd_Editor/       TXD Workshop
-    Model_Editor/     Model Workshop (DFF)
-    Ide_Editor/       IDE Editor
-    Ipl_Editor/       IPL Workshop
-    Scm_Workshop/     SCM Workshop
-    DP5_Workshop/     DP5 paint editor
-    Map_Editor/       Map Workshop
-  methods/            Parsers, utilities, SVG icons
-    asset_db.py       SQLite asset catalogue
-    gta_dat_parser.py DAT/IDE/IPL parser + IDE database
-    img_core_classes.py IMG archive handler
-    imgfactory_svg_icons.py All SVG icon definitions
-  gui/                Main UI layout, taskbar, dockable toolbars
-  themes/             37 built-in colour themes (JSON)
+  components/   Workshops (one folder each; see table above)
+  methods/      Shared parsers, editors, SVG icons, dock / ribbon systems
+  gui/          Main window layout, button groups, taskbar, menus
+  utils/        App Settings system (themes, colours, panels)
+  themes/       46 colour themes (JSON)
+  images/       Panel background images
+docs/           AI rules, height rules, reference DB
+Legal.md        Legal notice (also Settings > Legal)
 ```
 
 ---
 
 ## Credits
 
-Built with PyQt6.  
-GTAMods wiki — format specifications.  
-GTASOL team — master IDE range map.
+See `Credits.md`. Built with PyQt6; GTAMods wiki for format specifications;
+GTASOL team for the master IDE range map.

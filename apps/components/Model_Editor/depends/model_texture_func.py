@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_texture_func.py - Version: 3
+#this belongs in apps/components/Model_Editor/depends/model_texture_func.py - Version: 4
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop textures
 
 """
@@ -6,6 +6,7 @@ Texture panel, TXD loading, texlist folders, texture export for ModelWorkshop.
 """
 
 ##class ModelTextureMixin: -
+# _add_embedded_textures
 # _add_textures_from_txd
 # _auto_load_from_texlist
 # _auto_load_txd_from_imgs
@@ -809,6 +810,30 @@ class ModelTextureMixin: #vers 1
         except Exception as e:
             print(f"_parse_txd_lightweight error: {e}")
             return []
+
+    def _add_embedded_textures(self, model): #vers 1
+        """Model's own textures (GTA IV .wdr / .wft) into the texture pane and viewport;
+        names already loaded from its TXD / WTD are kept."""
+        emb = list((getattr(model, 'embedded_textures', None) or {}).values())
+        if not emb:
+            return
+        from apps.methods.txd_splice import tag_loaded_texture
+        have = {t.get('name', '').lower() for t in (getattr(self, '_mod_textures', None) or [])}
+        new = [t for t in emb if t.get('name', '').lower() not in have]
+        for t in new:
+            t.setdefault('alpha_name', t.get('mask', '') or '')
+            tag_loaded_texture(t)
+        self._mod_textures = list(getattr(self, '_mod_textures', None) or []) + new
+        self._populate_texture_list()
+        self._tex_panel.setVisible(True)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._update_tex_btn_compact)
+        pw = getattr(self, 'preview_widget', None)
+        if pw is not None and hasattr(pw, '_upload_textures'):
+            pw._upload_textures(new, additive=True)
+            pw.set_render_mode('textured')
+            pw.update()
+        self._set_status(f"{len(new)} embedded texture(s) from the model")
 
     def _load_txd_file(self, path: str): #vers 4
         """Parse a TXD file, populate texture panel, and feed textures into viewport."""

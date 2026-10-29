@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_inst_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_inst_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop IPL inst panel
 
 """
@@ -802,7 +802,7 @@ class MapInstMixin: #vers 1
         dlg = _PathGroupEditDialog(group, self, parent=self)
         dlg.exec()
 
-    def _show_textures_for_instance(self, inst): #vers 2
+    def _show_textures_for_instance(self, inst): #vers 3
         """Load one instance's model's textures into the Textures
         dock - same lookup/population logic as
         _on_ipl_model_row_selected, just entered from the IPL Inst
@@ -823,35 +823,7 @@ class MapInstMixin: #vers 1
                 source_ide = getattr(obj, 'source_ide', '') or 'unknown.ide'
                 line_no = getattr(obj, 'line_no', 0)
                 ide_note = f" (TXD from {source_ide}, line {line_no})"
-        if not txd_name:
-            tex_list.setRowCount(0)
-            if hasattr(self, '_tex_count_lbl'):
-                self._tex_count_lbl.setText(
-                    f"No TXD name found for {inst.model_name} (check its IDE entry)")
-            return
-        textures, source, _status = self._get_txd_textures(txd_name) if model_cache else (None, None, 'missing')
-        textures = textures or {}
-        tex_list.setRowCount(len(textures))
-        for i, tex in enumerate(textures.values()):
-            thumb_item = QTableWidgetItem()
-            pixmap = self._create_texture_thumbnail(
-                tex.get('rgba_data'), tex.get('width', 0), tex.get('height', 0))
-            if pixmap is not None:
-                thumb_item.setData(Qt.ItemDataRole.DecorationRole, pixmap)
-            tex_list.setItem(i, 0, thumb_item)
-            tex_list.setItem(i, 1, QTableWidgetItem(tex.get('name', '')))
-            tex_list.setItem(i, 2, QTableWidgetItem(
-                f"{tex.get('width', '?')}x{tex.get('height', '?')}"))
-            tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
-        if hasattr(self, '_tex_count_lbl'):
-            if textures:
-                self._tex_count_lbl.setText(
-                    f"{len(textures)} texture{'s' if len(textures) != 1 else ''} "
-                    f"({txd_name}.txd, from {source}){ide_note}")
-            else:
-                self._tex_count_lbl.setText(
-                    f"{txd_name}.txd not found in any indexed IMG archive or as a "
-                    f"loose file{ide_note}")
+        self._fill_texture_pane(inst.model_name, txd_name, ide_note)
 
 
     def _on_ipl_inst_file_cell_clicked(self, row, col): #vers 1

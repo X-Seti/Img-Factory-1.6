@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 88
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 89
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -101,6 +101,7 @@ from PyQt6.QtCore import Qt
 # key_prev_icon
 # key_set_icon
 # launch_icon
+# legal_icon
 # light_view_icon
 # lighting_icon
 # loop_icon
@@ -614,6 +615,17 @@ class SVGIconFactory: #vers 8
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
+
+    @staticmethod
+    def legal_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Legal page: balance scales"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="3.5" r="1.2" fill="currentColor"/>
+            <path d="M12 4.5v15M4 6.5h16M8 20.5h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+            <path d="M5 6.5L2.5 13M5 6.5L7.5 13M19 6.5L16.5 13M19 6.5L21.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <path d="M2 13h6a3 3 0 0 1-6 0zM16 13h6a3 3 0 0 1-6 0z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
     def minimize_icon(size: int = 20, color: str = None) -> QIcon: #vers 7

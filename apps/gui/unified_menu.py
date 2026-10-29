@@ -1,4 +1,4 @@
-#this belongs in apps/gui/unified_menu.py - Version: 3
+#this belongs in apps/gui/unified_menu.py - Version: 4
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Unified Menu System
 """
 UnifiedMenuSystem — single menu source for all apps and UI modes.
@@ -248,12 +248,13 @@ class UnifiedMenuSystem: #vers 1
         self._add(m, "set_assets_folder", "Set Current Assets Folder…", None, "folder_icon")
         self._menus['project'] = m
 
-    def _build_settings_menu(self): #vers 1
+    def _build_settings_menu(self): #vers 2
         m = QMenu("Settings")
         self._add(m, "open_settings", "App Settings…",     "Ctrl+,", "settings_icon")
         self._add(m, "open_gui_set",  "GUI Settings…",     None,      "settings_icon")
         m.addSeparator()
         self._add(m, "about",         "About IMG Factory…",None,      "info_icon")
+        self._add(m, "legal",         "Legal…",            None,      "legal_icon")
         self._menus['settings'] = m
 
     #    Rendering                                                          
@@ -333,7 +334,7 @@ class UnifiedMenuSystem: #vers 1
                 pass
         return None
 
-    def wire_standard_callbacks(self): #vers 2
+    def wire_standard_callbacks(self): #vers 3
         """Wire standard imgfactory callbacks from the main window."""
         mw = self.mw
         standard = {
@@ -375,6 +376,7 @@ class UnifiedMenuSystem: #vers 1
             # Settings
             'open_settings': getattr(mw, 'show_gui_settings',     None),
             'about':         getattr(mw, 'show_about',            None),
+            'legal':         getattr(mw, 'show_legal',            None),
         }
         # Filter None values
         self.set_callbacks({k: v for k, v in standard.items() if v})

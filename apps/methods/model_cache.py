@@ -1,4 +1,4 @@
-#this belongs in apps/methods/model_cache.py - Version: 16
+#this belongs in apps/methods/model_cache.py - Version: 18
 """
 ModelCache - loads and caches DFF geometry + TXD textures for map
 instance rendering, resolving models by name from a set of IMG
@@ -48,9 +48,11 @@ retried on every subsequent instance that references it.
 # is_dff_indexed
 # is_txd_indexed
 # iv_static_bound_names
+# model_file_name
 # prefetch
 # set_texture_limit
 # stats
+# txd_file_name
 
 import struct
 from typing import Dict, List, Optional, Tuple
@@ -183,7 +185,7 @@ def _limit_texture(tex: dict, limits) -> dict: #vers 1
     return _shrink_texture(tex, *lim) if lim else tex
 
 
-def _shrink_texture(tex: dict, threshold: int, target: int) -> dict: #vers 2
+def _shrink_texture(tex: dict, threshold: int, target: int) -> dict: #vers 3
     """Texture over threshold reduced to fit target (mip level reused); mips dropped."""
     w, h = tex.get('width', 0), tex.get('height', 0)
     dxt = dict.get(tex, 'dxt_levels')
@@ -192,7 +194,8 @@ def _shrink_texture(tex: dict, threshold: int, target: int) -> dict: #vers 2
             return tex
         keep = [lv for lv in dxt if max(lv[0], lv[1]) <= target]
         if keep:
-            tex.update(dxt_levels=keep, width=keep[0][0], height=keep[0][1], mipmaps=len(keep))
+            tex.update(dxt_levels=keep, width=keep[0][0], height=keep[0][1], mipmaps=len(keep),
+                       compressed_size=sum(len(lv[2]) for lv in keep))   # info shows the kept size
             return tex
         rgba = tex.get('rgba_data')           # no small mip: decode, resize below
         del tex['dxt_levels']
@@ -232,7 +235,7 @@ def _parse_txd_job(blobs: List[bytes], limit=None, keep_dxt=False) -> Optional[D
 class ModelCache:
     """See module docstring."""
 
-    def __init__(self): #vers 6
+    def __init__(self): #vers 7
         self._virtual_models = set()             # names registered by add_models
         self._virtual_textures = {}              # txd sets registered by add_models
         # lowercase entry name (no extension) -> [(img_path, IMGEntry), ...]
@@ -248,6 +251,7 @@ class ModelCache:
         self._wdd_index: Dict[int, List[Tuple[str, object]]] = {}
         # format group -> (threshold, target); groups missing = full size
         self.texture_limit: Dict[str, Tuple[int, int]] = {}
+        self.model_ext, self.txd_ext = 'dff', 'txd'    # most common in the indexed IMGs
         # DXT textures kept compressed for GPU upload (Oct 12 2026)
         self.keep_dxt: bool = False
         # GTA IV .wbd model hash and .wbn stem -> [(img_path, IMGEntry), ...]
@@ -337,7 +341,7 @@ class ModelCache:
         # once per texture lookup.
         self._opened_img_files: Dict[str, 'object'] = {}
 
-    def index_img_files(self, img_paths: List[str]): #vers 8
+    def index_img_files(self, img_paths: List[str]): #vers 9
         """Scan a list of IMG archive paths, building name -> (path,
         entry) indexes for .dff, .txd, and .col entries. Call once
         after a world loads (or its IMG set changes) - reading
@@ -372,6 +376,8 @@ class ModelCache:
         self.indexed_img_paths = []
         self.index_errors = []
         self.col_entries_found_in_img = 0
+        from collections import Counter
+        ext_count = Counter()
 
         for img_path in img_paths:
             try:
@@ -389,6 +395,8 @@ class ModelCache:
                         continue
                     stem_lower = stem.lower()
                     ext_lower = ext.lower()
+                    if ext_lower in ('dff', 'wdr', 'wft', 'mdl', 'nif', 'wtd', 'txd', 'chk', 'xtx', 'nft'):
+                        ext_count[ext_lower] += 1
                     if ext_lower in ('dff', 'wdr', 'wft', 'mdl', 'nif'):   # mdl: LCS/VCS, nif: Bully
                         self._dff_index.setdefault(stem_lower, []).append((img_path, entry))
                     elif ext_lower in ('txd', 'wtd', 'chk', 'xtx', 'nft'):   # chk/xtx: LCS/VCS, nft: Bully
@@ -408,6 +416,10 @@ class ModelCache:
                 self.indexed_img_paths.append(img_path)
             except Exception as e:
                 self.index_errors.append(f"{img_path}: {e}")
+        for attr, exts in (('model_ext', ('dff', 'wdr', 'wft', 'mdl', 'nif')),
+                           ('txd_ext', ('txd', 'wtd', 'chk', 'xtx', 'nft'))):
+            best = max(exts, key=lambda e: ext_count[e])
+            setattr(self, attr, best if ext_count[best] else exts[0])
 
     def _index_wdd(self, img_path: str, entry) -> None: #vers 1
         """Index every model hash inside a GTA IV .wdd entry."""
@@ -419,14 +431,19 @@ class ModelCache:
         except Exception as e:
             self.index_errors.append(f"{img_path}/{entry.name}: {e}")
 
-    def set_texture_limit(self, limits: Dict[str, Tuple[int, int]], keep_dxt: bool = False) -> None: #vers 4
-        """Per-format limits {group: (over, down_to)} and DXT keep; change drops cache."""
+    def set_texture_limit(self, limits: Dict[str, Tuple[int, int]], keep_dxt: bool = False) -> bool: #vers 5
+        """Per-format limits {group: (over, down_to)} and DXT keep; change drops
+        cached textures and models with embedded textures (IV .wdr / .wft). True if changed."""
         limits = {g: (int(a), int(b)) for g, (a, b) in (limits or {}).items()}
-        if limits != self.texture_limit or bool(keep_dxt) != self.keep_dxt:
-            self.texture_limit = limits
-            self.keep_dxt = bool(keep_dxt)
-            self._texture_cache.clear()
-            self._texture_cache.update(self._virtual_textures)   # prebuilt sets stay
+        if limits == self.texture_limit and bool(keep_dxt) == self.keep_dxt:
+            return False
+        self.texture_limit = limits
+        self.keep_dxt = bool(keep_dxt)
+        self._texture_cache.clear()
+        self._texture_cache.update(self._virtual_textures)   # prebuilt sets stay
+        for key in [k for k, m in self._geometry_cache.items() if getattr(m, 'embedded_textures', None)]:
+            del self._geometry_cache[key]                     # re-parsed at the new limit
+        return True
 
     def _apply_limit(self, textures): #vers 2
         """Per-format texture limit applied to a {name: texture} dict (in place)."""
@@ -880,6 +897,16 @@ class ModelCache:
             return None
         img_path, entry = entries[0]
         return self._read_entry(img_path, entry)
+
+    def model_file_name(self, model_name: str) -> str: #vers 1
+        """Archive name of a model (x.dff, x.wdr, x.wft ...); x.<usual ext> when not indexed."""
+        entries = self._dff_index.get(model_name.lower())
+        return entries[0][1].name if entries else f"{model_name}.{self.model_ext}"
+
+    def txd_file_name(self, txd_name: str) -> str: #vers 1
+        """Archive name of a texture file (x.txd, x.wtd ...); x.<usual ext> when not indexed."""
+        entries = self._txd_index.get(txd_name.lower())
+        return entries[0][1].name if entries else f"{txd_name}.{self.txd_ext}"
 
     def is_txd_indexed(self, txd_name: str) -> bool:
         """Same as is_dff_indexed, for TXD files."""

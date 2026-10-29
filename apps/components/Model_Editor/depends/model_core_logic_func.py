@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 8
+#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 9
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop file logic
 
 """
@@ -1089,7 +1089,7 @@ class ModelCoreLogicMixin: #vers 1
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "DFF Error", f"Failed to open DFF:\n{e}")
 
-    def _show_dff(self, file_path, model): #vers 2
+    def _show_dff(self, file_path, model): #vers 3
         """Make model current and fill the viewport, tree, table and toolbars."""
         try:
             self._current_dff_path = file_path
@@ -1101,7 +1101,7 @@ class ModelCoreLogicMixin: #vers 1
             # Enable OBJ export toolbar button
             if hasattr(self, 'export_obj_btn'):
                 self.export_obj_btn.setEnabled(True)
-            self._set_status(f"Opened DFF: {name}  — "
+            self._set_status(f"Opened {name}  — "
                              f"{model.geometry_count} geometries, "
                              f"{model.frame_count} frames, "
                              f"{model.atomic_count} atomics")
@@ -1113,6 +1113,7 @@ class ModelCoreLogicMixin: #vers 1
             self._populate_dff_detail_table(model)
             # Look up IDE entry → populate TXD/IDE link row
             self._lookup_ide_for_dff(file_path)
+            self._add_embedded_textures(model)            # GTA IV .wdr / .wft carry their own
             # Enable DFF-mode toolbar buttons
             self._enable_dff_toolbar(True)
             # Restore saved viewport light settings

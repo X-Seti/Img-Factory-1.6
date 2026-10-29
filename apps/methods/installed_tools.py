@@ -1,20 +1,24 @@
-#this belongs in apps/methods/installed_tools.py - Version: 1
+#this belongs in apps/methods/installed_tools.py - Version: 2
 # X-Seti - October 29 2026 - IMG Factory 1.6 - Installed tools
 
 """
 Which workshops are present in apps/components. The Intro cards and the
 Editing Options buttons only show tools whose component folder is there,
 so a standalone tool dropped into components appears, a missing one hides.
+Built app (PyInstaller): .py files are in the archive, so buildscript.py
+writes apps/components/installed.txt listing the bundled components.
 """
 
 ##Methods list -
 # component_installed
 # option_available
 
+import sys
 from functools import lru_cache
 from pathlib import Path
 
 COMPONENTS = Path(__file__).resolve().parents[1] / 'components'
+MANIFEST = COMPONENTS / 'installed.txt'          # written by buildscript.py
 
 # Editing Options button method -> component folder (None: always shown)
 OPTION_COMPONENTS = {
@@ -30,10 +34,13 @@ OPTION_COMPONENTS = {
 
 
 @lru_cache(maxsize=None)
-def component_installed(folder: str) -> bool: #vers 1
-    """True when apps/components/<folder> holds a tool (any .py besides __init__)."""
+def component_installed(folder: str) -> bool: #vers 2
+    """True when apps/components/<folder> holds a tool (any .py besides __init__);
+    built app: listed in installed.txt."""
     if not folder:
         return False
+    if getattr(sys, 'frozen', False):
+        return folder in MANIFEST.read_text(encoding='utf-8').split()
     d = COMPONENTS / folder
     return d.is_dir() and any(p.name != '__init__.py' for p in d.glob('*.py'))
 

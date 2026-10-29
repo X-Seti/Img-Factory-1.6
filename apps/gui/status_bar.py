@@ -1,4 +1,4 @@
-#this belongs in gui/status_bar.py - Version: 15
+#this belongs in gui/status_bar.py - Version: 16
 # X-Seti - Aug06 2025 - IMG Factory 1.5 - Universal Theme Status Bar
 # UPDATED: Removed StatusBarTheme class, now uses AppSettings universal theme system
 # PRESERVES: 100% of existing functionality - all widgets, methods, and features
@@ -37,7 +37,8 @@ def create_status_bar(main_window):
     # Create status bar
     status_bar = QStatusBar()
     main_window.setStatusBar(status_bar)
-    
+    status_bar.setContentsMargins(0, 0, 0, 0)
+
     # Create status manager
     main_window.status_manager = StatusBarManager(status_bar)
     
@@ -97,22 +98,21 @@ def apply_universal_status_theme(status_bar, app_settings):
                 background-color: {colors.get('bg_secondary', 'palette(base)')};
                 border-top: 1px solid {colors.get('border', '#dee2e6')};
                 color: {colors.get('text_secondary', 'palette(windowText)')};
-                font-size: 9pt;
             }}
             
             QStatusBar::item {{
                 border: none;
-                margin: 2px;
+                margin: 0px;
             }}
             
             QLabel {{
                 color: {colors.get('text_secondary', 'palette(windowText)')};
-                padding: 2px 4px;
+                padding: 0px 4px;
             }}
             
             QProgressBar {{
                 border: 1px solid {colors.get('border', 'palette(mid)')};
-                border-radius: 2px;
+                border-radius: 1px;
                 background-color: {colors.get('bg_tertiary', 'palette(alternateBase)')};
                 text-align: center;
                 min-width: 100px;
@@ -127,10 +127,9 @@ def apply_universal_status_theme(status_bar, app_settings):
             QPushButton {{
                 background-color: {colors.get('button_normal', 'palette(mid)')};
                 border: 1px solid {colors.get('border', 'palette(mid)')};
-                border-radius: 2px;
-                padding: 2px 6px;
+                border-radius: 1px;
+                padding: 1px 6px;
                 color: {colors.get('text_primary', 'palette(windowText)')};
-                font-size: 8pt;
             }}
             
             QPushButton:hover {{
@@ -253,12 +252,14 @@ class ProgressWidget(QWidget):
     def _create_ui(self):
         """Create progress UI"""
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(5)
         
         # Progress label
         self.progress_label = QLabel("Working...")
         self.progress_label.setMinimumWidth(100)
+        self.progress_label.setMaximumHeight(16)
         layout.addWidget(self.progress_label)
         
         # Progress bar
@@ -306,7 +307,8 @@ class SelectionStatusWidget(QWidget):
     def _create_ui(self):
         """Create selection status UI"""
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(5)
         
         # Selection icon
@@ -332,7 +334,8 @@ class OperationStatusWidget(QWidget):
     def _create_ui(self):
         """Create operation status UI"""
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(5)
 
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -387,7 +390,8 @@ class IMGStatusWidget(QWidget):
     def _create_ui(self):
         """Create IMG status UI"""
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        layout.setContentsMargins(5, 0, 5, 0)
         layout.setSpacing(8)
 
         # File icon (SVG)
@@ -575,18 +579,18 @@ def create_status_context_menu(main_window):
         menu = QMenu(main_window)
         
         # Copy status action
-        copy_action = menu.addAction("📋 Copy Status")
+        copy_action = menu.addAction("Copy Status")
         copy_action.triggered.connect(lambda: copy_status_to_clipboard(main_window))
         
         menu.addSeparator()
         
         # Clear status action
-        clear_action = menu.addAction("🗑️ Clear Status")
+        clear_action = menu.addAction("Clear Status")
         clear_action.triggered.connect(lambda: main_window.show_permanent_status("Ready"))
 
         # Show log action
         if hasattr(main_window, 'log_widget'):
-            log_action = menu.addAction("📜 Show Log")
+            log_action = menu.addAction("Show Log")
         
         menu.exec(main_window.statusBar().mapToGlobal(position))
     

@@ -1,5 +1,31 @@
-#this belongs in root /ChangeLog.md - Version: 398
+#this belongs in root /ChangeLog.md - Version: 410
 
+
+- Oct 29 2026 - Status bar: removed 22pt fonts and fixed 24px cap; zero margins, 16px icons, contents vertically centred and fully visible.
+
+- Oct 29 2026 - Status bar fixed at window bottom again; Settings "Show status bar" toggles it. Removed pane/dock status bar placement. Activity Log stays a dock.
+
+- Oct 29 2026 - About dialog: Legal button (scales icon) with description opens Legal.md; About menu and titlebar info open the same dialog; text updated.
+
+- Oct 29 2026 - Map Textures pane: one shared fill for model list and instance right-click; shows real .wtd / .txd name and model-embedded textures.
+
+- Oct 29 2026 - GTA IV: model textures embedded in .wdr / .wft show in Map's texture pane, Model Workshop and TXD Workshop (read-only). Load lists show .wdr / .wtd, not .dff / .txd.
+
+- Oct 29 2026 - buildscript.py: --variant core (Img_Factory) or full (Img_Factory_Full); built apps list their bundled components in installed.txt.
+
+- Oct 29 2026 - GTA IV IMG opening 5x faster: v3 header AES decrypt uses one cipher over the whole table (37 s to 6 s indexing 136 IV IMGs).
+
+- Oct 29 2026 - Map texture limits (IV etc.) apply as soon as settings change: cached textures, IV embedded model textures and GL textures reloaded at the new size.
+
+- Oct 29 2026 - Asset Workshop cleanup: 16 unused methods and the old depends check removed, unused imports pruned (3,100 lines). XTX / CHK readers kept for Bully.
+
+- Oct 29 2026 - Asset Workshop rebuilt on TXD Workshop (11k to 3.4k lines), split into depends/ asset_win, asset_ui, asset_logic. TXD Workshop name/config hooks for subclasses. Asset tab taskbar fixed.
+
+- Oct 29 2026 - README updated (interface, workshops table, settings files, requirements, structure). RW Reference: SA Paths tab. app_info imgfactory version 126. Open items updated.
+
+- Oct 29 2026 - Legal page (Settings > Legal, scales icon) from Legal.md, now proper markdown. About dialog updated; duplicate show_about removed.
+
+- Oct 29 2026 - App Settings: Apply saves transparency on/off, colour alpha and panel effects into the theme, so ticks are remembered.
 
 - Oct 29 2026 - IMG Factory: Settings button display mode applies on Apply/OK; right-click Button Text menu: icons only, text only, both, auto.
 

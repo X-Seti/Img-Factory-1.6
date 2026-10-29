@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 22
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 23
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -193,7 +193,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             main_layout.addWidget(status_frame)
             register_statusbar(self, status_frame, docked_hide=True)
 
-    def _initialize_features(self): #vers 3
+    def _initialize_features(self): #vers 4
         """Initialize all features after UI setup"""
         try:
             self._apply_theme()
@@ -209,7 +209,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             self._clear_texture_search()
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("TXD Workshop features initialized")
+                self.main_window.log_message(f"{self.App_name} features initialized")
 
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -311,9 +311,9 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         """Info button: TXD file info."""
         self._show_txd_info()
 
-    def _titlebar_title(self): #vers 1
+    def _titlebar_title(self): #vers 2
         """Centre title."""
-        return App_name
+        return self.App_name
 
     def _create_left_panel(self): #vers 8
         """Create left panel - TXD file list (only in IMG Factory mode)"""
@@ -502,7 +502,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         else:
             print(f"[TXD] {msg}")
 
-    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 20
+    def _build_toolbars(self, mw: 'QMainWindow', icon_color: str): #vers 21
         """Build all QToolBar instances using QAction (Model/COL Workshop
         pattern). Replaces the old DockableToolbar-based
         _create_transform_icon_panel/_create_transform_text_panel/
@@ -519,7 +519,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             import json
             from pathlib import Path
             _saved_px = json.loads(
-                (get_user_config_dir()/'txd_workshop.json').read_text()
+                self._ribbon_config_path().read_text()
             ).get('icon_scale', 20)
         except Exception:
             pass
@@ -762,19 +762,19 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         # Apply current icons-vs-text display mode
         self._update_transform_text_panel_visibility()
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 4
+    def _toolbar_context_menu(self, toolbar, pos): #vers 5
         """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
         from PyQt6.QtWidgets import QToolBar
         from apps.methods.toolbar_menu import standard_toolbar_menu
         try:
             import json
-            scale = json.loads((get_user_config_dir() / 'txd_workshop.json').read_text()).get('icon_scale', 20)
+            scale = json.loads(self._ribbon_config_path().read_text()).get('icon_scale', 20)
         except Exception:
             scale = 20
         menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
         menu.exec(toolbar.mapToGlobal(pos))
 
-    def _apply_icon_scale(self, px: int): #vers 2
+    def _apply_icon_scale(self, px: int): #vers 3
         """Apply icon size to all toolbars live and persist it."""
         mw = getattr(self, '_inner_mw', None)
         if mw:
@@ -785,7 +785,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         try:
             import json
             from pathlib import Path
-            path = get_user_config_dir() / 'txd_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -795,7 +795,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         except Exception:
             pass
 
-    def _save_toolbar_state(self): #vers 3
+    def _save_toolbar_state(self): #vers 4
         """Save QMainWindow toolbar state to txd_workshop.json."""
         mw = getattr(self, '_inner_mw', None)
         if mw is None:
@@ -803,7 +803,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         try:
             import json
             from pathlib import Path
-            path = get_user_config_dir() / 'txd_workshop.json'
+            path = self._ribbon_config_path()
             try:
                 data = json.loads(path.read_text())
             except Exception:
@@ -813,11 +813,11 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             path.write_text(json.dumps(data, indent=2))
             self._set_status("Ribbon config saved")
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("TXD Workshop: Ribbon config saved")
+                self.main_window.log_message(f"{self.App_name}: Ribbon config saved")
         except Exception as _e:
-            print(f"[TXDWorkshop] _save_toolbar_state error: {_e}")
+            print(f"[{self.App_name}] _save_toolbar_state error: {_e}")
 
-    def _restore_toolbar_state(self): #vers 4
+    def _restore_toolbar_state(self): #vers 5
         """Restore QMainWindow toolbar state from txd_workshop.json.
         Uses an explicit layout version - bumped whenever ribbons are
         added/removed/renamed - so a stale save from an older ribbon
@@ -831,7 +831,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             import json
             from pathlib import Path
             from PyQt6.QtCore import QByteArray
-            path = get_user_config_dir() / 'txd_workshop.json'
+            path = self._ribbon_config_path()
             if not path.exists():
                 return
             data = json.loads(path.read_text())
@@ -843,15 +843,15 @@ class TXDUIMixin(TitlebarMixin): #vers 2
                 if ok:
                     self._set_status("Ribbon config loaded")
                     if self.main_window and hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message("TXD Workshop: Ribbon config loaded")
+                        self.main_window.log_message(f"{self.App_name}: Ribbon config loaded")
                 else:
-                    print("[TXDWorkshop] _restore_toolbar_state: restoreState() returned False")
+                    print(f"[{self.App_name}] _restore_toolbar_state: restoreState() returned False")
             elif state_hex:
-                print(f"[TXDWorkshop] Saved ribbon layout is from an older version "
+                print(f"[{self.App_name}] Saved ribbon layout is from an older version "
                       f"({saved_version} != {self._RIBBON_LAYOUT_VERSION}) - skipping, "
                       f"will save fresh on next change.")
         except Exception as _e:
-            print(f"[TXDWorkshop] _restore_toolbar_state error: {_e}")
+            print(f"[{self.App_name}] _restore_toolbar_state error: {_e}")
         finally:
             # Safety net: restoreState() can leave a ribbon fully hidden
             # (e.g. if it was saved mid-drag, floating off-screen, or
@@ -1135,7 +1135,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
 
         self._push_status_to_img_factory()
 
-    def _push_status_to_img_factory(self): #vers 1
+    def _push_status_to_img_factory(self): #vers 2
         """Relay this workshop's status bar text to IMG Factory's own status
         bar when docked. Controlled by the 'Relay status to IMG Factory'
         setting - useful on its own, and doubly so when 'Show status bar'
@@ -1154,7 +1154,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
                 parts.append(lbl.text())
         if parts:
             try:
-                mw.show_status("TXD Workshop - " + "  |  ".join(parts))
+                mw.show_status(self.App_name + " - " + "  |  ".join(parts))
             except Exception:
                 pass
 

@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 31
+#this belongs in apps/gui/gui_layout_custom.py - Version: 33
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -1587,7 +1587,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             except Exception:
                 pass
 
-    def _show_rw_reference(self): #vers 4
+    def _show_rw_reference(self): #vers 5
         """Show comprehensive GTA/RenderWare format reference — all researched binary layouts."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QTextEdit, QLabel, QSplitter)
@@ -2392,6 +2392,53 @@ fix auto         # on / off / auto (VC grid fix)</pre>
         tabs.addTab(make_tab(matrix_html), "Platform Matrix")
         tabs.addTab(make_tab(radar_html),  "Radar Formats")
         tabs.addTab(make_tab(new_html),    "MDL / WDR / Water")
+        paths_html = css + """
+<h2>SA paths - nodes0.dat .. nodes63.dat</h2>
+<p>64 areas of 750 x 750 units from -3000: <code>area = floor((y+3000)/750)*8 + floor((x+3000)/750)</code>.
+Coordinates are int16 / 8. Links between areas use (area, node) pairs.</p>
+<h3>Header (20 bytes)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>nodes</td><td>Vehicle + ped nodes</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>vehicle_nodes</td><td>Listed first</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>ped_nodes</td><td>After vehicle nodes</td></tr>
+<tr><td class="hex">+0C</td><td>4</td><td>navi_nodes</td><td>One per vehicle link pair</td></tr>
+<tr><td class="hex">+10</td><td>4</td><td>links</td><td>Total link entries</td></tr>
+</table>
+<h3>Path node (28 bytes)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>mem_addr</td><td>Runtime pointer, kept as read</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>unused</td><td>0</td></tr>
+<tr><td class="hex">+08</td><td>6</td><td>x, y, z</td><td>int16 / 8</td></tr>
+<tr><td class="hex">+0E</td><td>2</td><td>heuristic</td><td>Always 0x7FFE</td></tr>
+<tr><td class="hex">+10</td><td>2</td><td>link_id</td><td>First entry in the link list</td></tr>
+<tr><td class="hex">+12</td><td>2</td><td>area_id</td><td>This file's area</td></tr>
+<tr><td class="hex">+14</td><td>2</td><td>node_id</td><td>Index in this file</td></tr>
+<tr><td class="hex">+16</td><td>1</td><td>path_width</td><td>/ 8</td></tr>
+<tr><td class="hex">+17</td><td>1</td><td>flood_fill</td><td>Connected-group id</td></tr>
+<tr><td class="hex">+18</td><td>4</td><td>flags</td><td>Bits 0-3 = link count</td></tr>
+</table>
+<h3>Navi node (14 bytes)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>x, y</td><td>int16 / 8; midpoint of the link</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>target area, node</td><td>Node the direction points at</td></tr>
+<tr><td class="hex">+08</td><td>2</td><td>dir x, y</td><td>int8 x 100; unit vector to the target</td></tr>
+<tr><td class="hex">+0A</td><td>4</td><td>flags</td><td>Path width, lanes each way, traffic</td></tr>
+</table>
+<h3>After the nodes</h3>
+<table>
+<tr><th>Block</th><th>Size each</th><th>Notes</th></tr>
+<tr><td>Links</td><td>4</td><td>area uint16, node uint16</td></tr>
+<tr><td>Filler</td><td>768 total</td><td>Kept as read</td></tr>
+<tr><td>Navi links</td><td>2</td><td><code>area &lt;&lt; 10 | navi node</code> (10 bits), 0 for ped links</td></tr>
+<tr><td>Link lengths</td><td>1</td><td>floor of 2D distance</td></tr>
+<tr><td>Intersections</td><td>1</td><td>Bit 0 road cross, bit 1 ped traffic light</td></tr>
+</table>
+<p>Both directions of a vehicle link share one navi node. Rebuild is byte-exact when nothing changed.</p>
+"""
+        tabs.addTab(make_tab(paths_html),  "SA Paths")
         tabs.addTab(make_tab(notes_html),  "Troubleshooting")
 
         close_btn = QPushButton("Close")
@@ -2404,7 +2451,7 @@ fix auto         # on / off / auto (VC grid fix)</pre>
 
         dialog.exec()
 
-    def _show_imgfactory_info(self): #vers 1
+    def _show_imgfactory_info(self): #vers 2
         """Show IMG Factory application information dialog"""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit
         from PyQt6.QtCore import Qt
@@ -2446,27 +2493,33 @@ fix auto         # on / off / auto (VC grid fix)</pre>
         description.setReadOnly(True)
         description.setMaximumHeight(200)
         description.setHtml("""
-            <h3>Professional IMG Archive Manager</h3>
-            <p><b>IMG Factory</b> is a comprehensive tool for managing Grand Theft Auto game archives.</p>
-
-            <p><b>Features:</b></p>
-            <ul>
-                <li>IMG, COL, TXD, DFF file support</li>
-                <li>Import, export, and batch operations</li>
-                <li>Built-in editors for collision and texture files</li>
-                <li>IDE integration for proper file ordering</li>
-                <li>Template system for quick project setup</li>
-                <li>Undo/Redo system</li>
-                <li>Custom UI modes</li>
-            </ul>
-
-            <p><b>Based on:</b> Original IMG Factory by MexUK (2007)</p>
-            <p><b>Python Edition:</b> Complete rewrite in Python/PyQt6</p>
+            <h3>GTA modding suite</h3>
+            <p><b>IMG Factory</b> manages GTA archives (IMG, COL, TXD) and opens docked
+            workshops for textures, collision, models, maps, terrain, paths, water,
+            radar, vehicles, peds, timecyc, SCM, hex and disc images.</p>
+            <p>Docks, ribbons and themes from App Settings; each workshop also runs standalone.</p>
+            <p><b>Based on:</b> Original IMG Factory by MexUK (2007). Python / PyQt6 rewrite.</p>
         """)
         layout.addWidget(description)
 
+        # Legal: scales button and a one-line description (Legal.md)
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        legal_row = QHBoxLayout()
+        legal_btn = QPushButton("Legal")
+        tc = self.main_window.app_settings.get_theme_colors() or {}
+        legal_btn.setIcon(SVGIconFactory.legal_icon(20, tc.get('text_primary', '#cccccc')))
+        legal_btn.setToolTip("Legal notice (Legal.md)")
+        legal_btn.clicked.connect(self.main_window.show_legal)
+        legal_lbl = QLabel("Not affiliated with Rockstar Games. Intended use, ownership "
+                           "of game assets, no warranty.")
+        legal_lbl.setWordWrap(True)
+        legal_row.addWidget(legal_btn)
+        legal_row.addWidget(legal_lbl, 1)
+        layout.addLayout(legal_row)
+
         # Version info
-        version_info = QLabel(f"Version: {App_build} | Python Edition")
+        from apps.app_info import get_full_build
+        version_info = QLabel(f"{get_full_build()} | {App_build}")
         version_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_info.setStyleSheet("color: palette(placeholder-text); font-size: 10px;")
         layout.addWidget(version_info)

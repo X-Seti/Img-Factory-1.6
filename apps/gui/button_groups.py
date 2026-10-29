@@ -1,4 +1,4 @@
-#this belongs in apps/gui/button_groups.py - Version: 5
+#this belongs in apps/gui/button_groups.py - Version: 6
 # X-Seti - October 29 2026 - IMG Factory 1.6 - Button groups
 
 """
@@ -278,7 +278,7 @@ class ButtonGroupsMixin(RibbonIconsMixin): #vers 1
                 r, c = r + 1, 0
         grid.setRowStretch(r + 1, 1)
 
-    def _outer_dock_menu(self, global_pos, menu=None): #vers 4
+    def _outer_dock_menu(self, global_pos, menu=None): #vers 5
         """Panel / ribbon toggles, panels / ribbons switch, status bar place, Ribbon Manager."""
         own = menu is None
         if own:
@@ -306,13 +306,6 @@ class ButtonGroupsMixin(RibbonIconsMixin): #vers 1
         fw.setCheckable(True)
         fw.setChecked(self._files_dock is not None)
         fw.toggled.connect(self._set_file_window_docked)
-        sub = menu.addMenu("Status Bar")
-        where = self._statusbar_position()
-        for key, label in (('window', "Window bottom"), ('pane', "Under file pane"), ('dock', "Dock (place anywhere)")):
-            s = sub.addAction(label)
-            s.setCheckable(True)
-            s.setChecked(where == key)
-            s.triggered.connect(lambda _c, k=key: self._set_statusbar_position(k))
         if own:
             menu.exec(global_pos)
 

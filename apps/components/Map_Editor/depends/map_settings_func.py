@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_settings_func.py - Version: 7
+#this belongs in apps/components/Map_Editor/depends/map_settings_func.py - Version: 8
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop settings
 
 """
@@ -56,7 +56,7 @@ class MapSettingsMixin: #vers 1
                 limits[g] = (ms.get(f'tex_limit_{g}_over'), ms.get(f'tex_limit_{g}_to'))
         return limits
 
-    def _build_workshop_settings_tabs(self): #vers 14
+    def _build_workshop_settings_tabs(self): #vers 15
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -1569,9 +1569,10 @@ class MapSettingsMixin: #vers 1
                     downscale_chk.isChecked(),
                     downscale_threshold_spin.value(),
                     downscale_target_spin.value())
-            if getattr(self, '_model_cache', None) is not None:   # all formats, on load
-                self._model_cache.set_texture_limit(self._texture_limits(),
-                                                    self.map_settings.get('tex_keep_dxt'))
+            if getattr(self, '_model_cache', None) is not None:   # all formats
+                if self._model_cache.set_texture_limit(self._texture_limits(),
+                                                       self.map_settings.get('tex_keep_dxt')):
+                    self._reload_world_textures()             # new limit applies now, not next load
 
             # Render tab (Aug 16 2026)
             if vp is not None:

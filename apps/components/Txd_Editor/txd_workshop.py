@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 50
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 51
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -41,8 +41,10 @@ from apps.methods.dock_panels import DockPanelsMixin
 # closeEvent
 # _dock_to_main
 # __init__
+# _init_extra_state
 # _launch_theme_settings
 # _ribbon_config_path
+# _setup_context_menu
 # _show_settings_dialog
 # _show_shaders_dialog
 # _show_workshop_settings
@@ -66,6 +68,9 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
     """TXD Workshop - Main texture editing window"""
 
     _OUTER_LAYOUT_VERSION = 1      # TXD Files / Textures docks
+    App_name = "TXD Workshop"      # titles / logs (Asset Workshop overrides)
+    config_key = "txd_workshop"    # <config>.json, <config>_settings.json
+    App_icon = "txd_workshop_icon" # SVGIconFactory window icon
 
     workshop_closed = pyqtSignal()
     window_closed = pyqtSignal()
@@ -79,15 +84,15 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
     _SPLITTER_LIST_PX = 250     # texture list minimum width
 
 
-    def __init__(self, parent=None, main_window=None): #vers 12
+    def __init__(self, parent=None, main_window=None): #vers 13
         """Initialize TXD Workshop"""
         if DEBUG_STANDALONE and main_window is None:
-            print(App_name + " Initializing ...")
+            print(self.App_name + " Initializing ...")
 
         super().__init__(parent)
         self.main_window = main_window
-        self.setWindowTitle(App_name)
-        self.setWindowIcon(SVGIconFactory.txd_workshop_icon())
+        self.setWindowTitle(self.App_name)
+        self.setWindowIcon(getattr(SVGIconFactory, self.App_icon)())
         self.icon_factory = SVGIconFactory()
 
         # Initialize app_settings for theme support
@@ -184,7 +189,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         self.overlay_table = None
         self.overlay_tab_index = -1
 
-        self.setWindowTitle(App_name +": No File")
+        self.setWindowTitle(self.App_name +": No File")
         self.resize(1400, 800)
         self.use_system_titlebar = False
         self.window_always_on_top = False
@@ -208,13 +213,14 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
 
         self.txd_tabs = []
         self.current_tab_index = 0
+        self._init_extra_state()        # subclass state needed by its setup_ui
 
         # Setup UI FIRST
         self.setup_ui()
         self.setAcceptDrops(True)       # .txd / .img / images dropped here
 
         # THEN setup context menu
-        setup_txd_context_menu(self)
+        self._setup_context_menu()
 
         # Setup hotkeys
         self._setup_hotkeys()
@@ -226,12 +232,19 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         self.setMouseTracking(True)
 
         if DEBUG_STANDALONE and self.standalone_mode:
-            print(App_name + " initialized")
+            print(self.App_name + " initialized")
 
+
+    def _init_extra_state(self): #vers 1
+        """Hook: subclass state before setup_ui (TXD Workshop has none)."""
+
+    def _setup_context_menu(self): #vers 1
+        """Texture table right-click menu (apps/gui/txd_context_menu.py)."""
+        setup_txd_context_menu(self)
 
 # - Settings Reusable
 
-    def _show_workshop_settings(self): #vers 7
+    def _show_workshop_settings(self): #vers 8
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -241,7 +254,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         from PyQt6.QtGui import QFont
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(App_name +" Settings")
+        dialog.setWindowTitle(self.App_name +" Settings")
         dialog.setMinimumWidth(650)
         dialog.setMinimumHeight(550)
 
@@ -730,7 +743,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         self._update_dock_button_visibility()
 
 
-    def _dock_to_main(self): #vers 10
+    def _dock_to_main(self): #vers 11
         """Return a torn-off workshop to its IMG Factory tab."""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
@@ -751,7 +764,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
                 self._middle_btn_row.setVisible(True)
 
             if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{App_name} docked to main window")
+                self.main_window.log_message(f"{self.App_name} docked to main window")
 
 
         except Exception as e:
@@ -759,7 +772,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
             self.show()
 
 
-    def _undock_from_main(self): #vers 4
+    def _undock_from_main(self): #vers 5
         """Undock from overlay mode to standalone window - IMPROVED"""
         try:
             if hasattr(self, 'is_overlay') and self.is_overlay:
@@ -786,7 +799,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
             self.raise_()
 
             if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{App_name} undocked to standalone")
+                self.main_window.log_message(f"{self.App_name} undocked to standalone")
 
         except Exception as e:
             img_debugger.error(f"Error undocking: {str(e)}")
@@ -795,24 +808,24 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
             self.show()
 
 
-    def _ribbon_config_path(self): #vers 1
+    def _ribbon_config_path(self): #vers 2
         """Ribbon layout, presets and custom icons file."""
-        return get_user_config_dir() / 'txd_workshop.json'
+        return get_user_config_dir() / f'{self.config_key}.json'
 
 
-    def _toggle_tearoff(self): #vers 2
+    def _toggle_tearoff(self): #vers 3
         """Toggle tear-off state (merge back to IMG Factory) - IMPROVED"""
         try:
             if self.is_docked:
                 # Undock from main window
                 self._undock_from_main()
                 if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"{App_name} torn off from main window")
+                    self.main_window.log_message(f"{self.App_name} torn off from main window")
             else:
                 # Dock back to main window
                 self._dock_to_main()
                 if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"{App_name} docked back to main window")
+                    self.main_window.log_message(f"{self.App_name} docked back to main window")
 
         except Exception as e:
             img_debugger.error(f"Error toggling tear-off: {str(e)}")
@@ -854,7 +867,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
             QMessageBox.warning(self, "Theme Error", f"Could not load theme system:\n{e}")
 
 
-    def _show_settings_dialog(self): #vers 9
+    def _show_settings_dialog(self): #vers 10
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -864,7 +877,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         from PyQt6.QtGui import QKeySequence
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(App_name + " Settings")
+        dialog.setWindowTitle(self.App_name + " Settings")
         dialog.setMinimumWidth(700)
         dialog.setMinimumHeight(600)
 
@@ -919,7 +932,7 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
         status_group = QGroupBox("Status Bar")
         status_layout = QVBoxLayout()
 
-        show_status_bar_check = QCheckBox("Show " + App_name + " status bar")
+        show_status_bar_check = QCheckBox("Show " + self.App_name + " status bar")
         show_status_bar_check.setChecked(statusbar_shown(self))
         show_status_bar_check.setToolTip(
             "The bottom row showing texture count, selection, and size")
