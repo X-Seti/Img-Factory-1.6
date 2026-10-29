@@ -1,5 +1,42 @@
-# IMG Factory 1.6
+# IMG Factory 1.6 — Development Progress Update
+**GTA modding toolkit** — Build 435.107
+PyQt6 · Python 3.11+ · Linux / Windows / macOS
 
+IMG Factory has come a long way since versions 1.2 and 1.5, and even the earlier stages of 1.6. What started as a GTA modding tool has grown into a much larger toolkit, bringing together archive management, model and texture editing, map tools, and a growing collection of specialised workshops.
+
+I'm getting close to completing the main body of the project, but there's still plenty of work ahead. At this stage, the focus is shifting towards testing, integration, fixing bugs, and making sure the different tools work together properly.
+
+# What's been done so far?
+
+A lot has changed over recent weeks, so here's a summary of the main progress.
+
+- IMG Factory interface: The main window is being brought into line with the other workshops, with dockable panels, movable button groups, configurable ribbons, a startup progress bar, improved status bars, and more control over themes, colours, transparency and button layouts.
+
+- Core modding tools: The IMG archive handling, DAT Browser, TXD Workshop, COL Workshop, Model Workshop, Map Workshop and other tools have seen extensive development, including format support, editing features, save functions and bug fixes.
+
+- Map and terrain editing: The Map Workshop has gained more world-editing features, while the new Terrain Workshop can create and sculpt terrain, paint materials, add game assets, create paths and water, and export game-compatible files.
+
+- Models and characters: Model editing has gained mesh selection and editing, vertex and face manipulation, texture workflows and additional format support. The Ped Workshop now includes skeletons, animation controls, keyframes and pose editing.
+
+- Specialised workshops: Path, Radar, Water, Vehicle, Asset, AI, Capture and other workshops have been developed or expanded. The new Retro GTA Workshop also brings tools for working with maps, tiles, sprites, missions and media from older GTA games.
+
+- Shared interface and code: A lot of work has gone into consolidating common functions, removing duplicate code, fixing crashes and making the workshops more consistent. Build scripts and packaging support for Linux, Windows and macOS are also being developed.
+
+# What happens next?
+
+The next stage is to keep testing the existing features, find and fix problems, check that edited files save correctly, and verify compatibility with the different supported game formats. Some features already have specific checks behind them, but others still need more testing, including verification in the actual games.
+
+There are also more components to add, including the Cutscene Editor, SCM tools and other planned workshops. The idea is that when a compatible component is added to the apps/components directory, IMG Factory can detect it and display the appropriate tool on the introduction screen, rather than requiring every tool to be permanently built into the main interface.
+
+So, while the main framework is coming together, this isn't the finished product yet. There is still a considerable amount of testing, refinement and development to do, and I don't want to give the impression that everything is complete or fully verified.
+
+For now, I'm continuing to build on what is already there, improve the overall experience and work towards a more complete, integrated modding suite. The changelog is the best place to follow the individual changes as development continues.
+
+- Thanks to everyone following the project. There's a lot more to come!
+
+
+
+Older Information - kept for now.
 **GTA modding toolkit** — Build 370.80  
 PyQt6 · Python 3.11+ · Linux / Windows / macOS
 
@@ -7,13 +44,6 @@ PyQt6 · Python 3.11+ · Linux / Windows / macOS
 
 Information in this README is out of date. Will update soon.
 
-## Recent fixes (Augest 2026)
-
-## Recent fixes (July 2026)
-
-## Recent fixes (June 2026)
-
-## Recent fixes (May 2026)
 
 - Model Workshop bleed-through when docked in IMG Factory — fixed
 - TXD parser updated for GTA VC/III format (was only reading SA correctly)
