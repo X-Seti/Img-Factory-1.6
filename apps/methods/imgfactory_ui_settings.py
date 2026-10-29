@@ -72,7 +72,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         tabs.addTab(self._create_ui_tab(), "UI")
         tabs.addTab(self._create_file_window_tab(), "File Window")
         tabs.addTab(self._create_advanced_tab(), "Advanced")
-        tabs.addTab(self._create_right_panel_tab(), "Right Panel")
+        tabs.addTab(self._create_buttonpanel_tab(), "Panel")
         tabs.addTab(self._create_debug_log_tab(), "Debug Log")
 
         main_layout.addWidget(tabs)
@@ -640,7 +640,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
 
         return button_layout
 
-    def _create_right_panel_tab(self): #vers 1
+    def _create_buttonpanel_tab(self): #vers 1
         """Right Panel — button height, spacing, display mode for the IMG/Entries/Options sections."""
         from PyQt6.QtWidgets import QSlider
         widget = QWidget()
