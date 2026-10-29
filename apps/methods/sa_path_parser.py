@@ -1,4 +1,4 @@
-#this belongs in apps/methods/sa_path_parser.py - Version: 3
+#this belongs in apps/methods/sa_path_parser.py - Version: 4
 # X-Seti - Aug 14 2026 - IMG Factory 1.6 - SA Path Node Parser (nodesXX.dat)
 
 """
@@ -21,11 +21,11 @@ from typing import Dict, List, Optional
 # load_all_nodes_dat_from_dir #vers 1
 # load_nodes_dat #vers 1
 # load_nodes_dat_from_img_entry #vers 1
-# parse_nodes_dat #vers 1
+# parse_nodes_dat #vers 2
 
 
 @dataclass
-class SAPathNode: #vers 1
+class SAPathNode: #vers 2
     """One Section-1 path node (28 bytes on disk) - a vehicle or ped
     path anchor point. Position already converted from the file's
     int16 eighth-unit precision to standard world units (divide by
@@ -45,6 +45,7 @@ class SAPathNode: #vers 1
     flood_fill: int      # 1=normal vehicle traffic, 2=boats, higher=disconnected/mission areas
     flags:      int      # raw 32-bit flags - see the property helpers below
     is_ped:     bool = False   # which half of Section 1 this came from
+    mem_addr:   int = 0        # raw first field, kept so a rebuild is byte-exact
 
     @property
     def traffic_level(self) -> int:
@@ -138,7 +139,7 @@ class SAPathLink: #vers 2
 
 
 @dataclass
-class SAPathFile: #vers 1
+class SAPathFile: #vers 2
     """One fully-parsed nodesN.dat file - all 7 sections. area_id is
     the N from the filename (nodes12.dat -> 12) or the value passed
     to parse_nodes_dat directly, not re-derived from Section 1 (which
@@ -155,6 +156,8 @@ class SAPathFile: #vers 1
     ped_traffic_light: List[bool] = field(default_factory=list)
     source_path:   str = ""
     parse_errors:  List[str] = field(default_factory=list)
+    filler:        bytes = b""     # Section 4 raw bytes (kept for rebuild)
+    trailing:      bytes = b""     # bytes after Section 7 (kept for rebuild)
 
     @property
     def all_nodes(self) -> List[SAPathNode]:
@@ -164,7 +167,7 @@ class SAPathFile: #vers 1
         return self.vehicle_nodes + self.ped_nodes
 
 
-def parse_nodes_dat(data: bytes, area_id: int, source_path: str = "") -> Optional[SAPathFile]: #vers 1
+def parse_nodes_dat(data: bytes, area_id: int, source_path: str = "") -> Optional[SAPathFile]: #vers 2
     """Parse one nodesN.dat file's raw bytes into a SAPathFile.
     Returns None only if the header itself (fixed 20 bytes) doesn't
     fit - anything short of that, a truncated/malformed section is
@@ -210,7 +213,7 @@ def parse_nodes_dat(data: bytes, area_id: int, source_path: str = "") -> Optiona
             link_id=link_id, link_count=flags & 0xF,
             area_id=node_area_id, node_id=node_id,
             path_width=width / 8.0, flood_fill=flood_fill,
-            flags=flags, is_ped=(i >= num_vehicle_nodes))
+            flags=flags, is_ped=(i >= num_vehicle_nodes), mem_addr=_mem_addr)
         (ped_nodes if node.is_ped else vehicle_nodes).append(node)
 
     # Section 2 - navi nodes, 14 bytes each: x/y(2 each), area_id(2),
@@ -247,7 +250,9 @@ def parse_nodes_dat(data: bytes, area_id: int, source_path: str = "") -> Optiona
     # Section 4 - filler, fixed 768 bytes, contents documented as not
     # mattering ("this can be filled with zeros as well") - skipped
     # rather than read/stored.
+    filler = b""
     if offset + 768 <= len(data):
+        filler = bytes(data[offset:offset + 768])
         offset += 768
     else:
         errors.append("filler section (768 bytes) truncated or missing")
@@ -306,7 +311,8 @@ def parse_nodes_dat(data: bytes, area_id: int, source_path: str = "") -> Optiona
         area_id=area_id, vehicle_nodes=vehicle_nodes, ped_nodes=ped_nodes,
         navi_nodes=navi_nodes, links=links,
         road_cross=road_cross, ped_traffic_light=ped_traffic_light,
-        source_path=source_path, parse_errors=errors)
+        source_path=source_path, parse_errors=errors,
+        filler=filler, trailing=bytes(data[offset:]))
 
 
 _NODES_DAT_RE = re.compile(r'nodes(\d+)\.dat$', re.IGNORECASE)

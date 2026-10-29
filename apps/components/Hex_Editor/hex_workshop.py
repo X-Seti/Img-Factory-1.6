@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 11
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 13
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -43,7 +43,9 @@ from PyQt6.QtWidgets import (
     QInputDialog, QLabel, QLineEdit, QMessageBox, QSizePolicy, QSpinBox, QSplitter, QTabWidget, QVBoxLayout,
     QWidget)
 
+from apps.methods.statusbar_func import register_statusbar
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.components.Hex_Editor.depends.diffcode import GUIWorkshop
 from apps.components.Hex_Editor.hex_canvas import HexDoc, HexCanvas
 from apps.components.Hex_Editor.hex_panels import (
@@ -57,7 +59,7 @@ config_key = "hex_workshop"
 _BIG = 48 * 1024 * 1024            # above this the structure tree is not rebuilt on every edit
 
 
-class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
+class HexWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop):  #vers 5
     App_name   = App_name
     App_build  = App_build
     App_auth   = "X-Seti"
@@ -90,7 +92,7 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
                 b.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 5
+    def setup_ui(self): #vers 7
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
@@ -135,8 +137,10 @@ class HexWorkshop(RibbonMixin, GUIWorkshop):  #vers 4
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        self._apply_ribbon_layout()
 
         # wiring
         self.canvas.cursor_changed.connect(self._on_cursor)

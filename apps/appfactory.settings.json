@@ -3,7 +3,7 @@
   "debug_level": "INFO",
   "current_theme": "App_Factory",
   "theme": "manjaro2_dark",
-  "button_display_mode": "both",
+  "button_display_mode": "text",
   "use_custom_gadgets": true,
   "enable_corner_resize": true,
   "use_svg_icons": true,
@@ -72,7 +72,7 @@
   "panel_pattern_dark": "#141428",
   "copper_light": "#b87333",
   "copper_dark": "#7a4a1a",
-  "panel_bg_image": "images/Blue-hills.jpg",
+  "panel_bg_image": "images/blanktile.png",
   "panel_bg_image_mode": 5,
   "panel_bg_image_opacity": 80,
   "panel_bg_image_all": true,
@@ -144,7 +144,8 @@
     "titlebar_bg": 80,
     "splitter_color_background": 80,
     "scrollbar_background": 80,
-    "dialog_bg": 80
+    "dialog_bg": 80,
+    "viewport_bg": 90
   },
   "tabs_opacity": 80,
   "splitter_opacity": 80

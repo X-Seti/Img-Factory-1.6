@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 7
+#this belongs in apps/components/Timecyc_Editor/timecyc_workshop.py - Version: 9
 # X-Seti - May08 2026 - Img Factory 1.6 - Time Cycle Editor
 
 """
@@ -53,8 +53,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QRect, QSize
 from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QLinearGradient
 
+from apps.methods.statusbar_func import register_statusbar
 from apps.components.Timecyc_Editor.depends.diffcode import GUIWorkshop
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
 
 
 # Field definitions
@@ -434,7 +436,7 @@ class _RotatedHeaderView(QHeaderView): #vers 1
         painter.restore()
 
 
-class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
+class TimecycWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
     App_name   = "Time Cycle Workshop"
     App_icon   = "timecyc_app_icon"
     App_build  = "Build 2"
@@ -445,7 +447,7 @@ class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
     _RIBBON_LAYOUT_VERSION = 1
     DROP_EXTS = ('.dat',)          # timecyc.dat / timecycp.dat
 
-    def __init__(self, main_window=None, parent=None): #vers 2
+    def __init__(self, main_window=None, parent=None): #vers 3
         self._defer_setup_ui = True
         super().__init__(parent, main_window=main_window)   # docked: no corner handles
         self.main_window    = main_window
@@ -461,6 +463,8 @@ class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
         self._clip = None
         self.setup_ui()
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        self._apply_ribbon_layout()
         if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
         self._set_status("Open a timecyc.dat file to begin")
 
@@ -1129,7 +1133,7 @@ class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
 
         return list(v)  # same game, no change
 
-    def setup_ui(self): #vers 8
+    def setup_ui(self): #vers 9
         """Titlebar / [grid | fields + sky preview] inside the ribbon host / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -1139,7 +1143,7 @@ class TimecycWorkshop(RibbonMixin, GUIWorkshop): #vers 2
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
         self._set_action_btns_visible(False)      # the ribbons replace the old button bar
 
     def _create_toolbar(self): #vers 2

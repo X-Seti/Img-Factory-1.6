@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 9
+#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 10
 # X-Seti - March 2026 - AI Workshop: Ollama chat interface
 # Based on COL Workshop template (col_workshop.py)
 
@@ -43,6 +43,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QThread, pyqtSlot, QTime
 from PyQt6.QtGui import QFont, QIcon, QColor, QPainter, QPen, QBrush, QPainterPath, QKeySequence, QShortcut, QDesktopServices, QTextCursor, QTextDocument
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.titlebar_func import TitlebarMixin
+from apps.methods.dock_panels import DockPanelsMixin
 
 App_name = "AI Workshop"
 DEBUG_STANDALONE = False
@@ -161,7 +162,8 @@ def _ollama_running(base_url: str = OLLAMA_BASE_URL) -> bool:
 # Main window class
 # ---------------------------------------------------------------------------
 
-class AIWorkshop(TitlebarMixin, QWidget): #vers 2
+class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
+    _OUTER_LAYOUT_VERSION = 1     # Sessions + Settings docks
     """AI Workshop – Ollama chat UI built from COL Workshop skeleton."""
 
     workshop_closed = pyqtSignal()
@@ -171,7 +173,7 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
     # Init
     # -----------------------------------------------------------------------
 
-    def __init__(self, parent=None, main_window=None):
+    def __init__(self, parent=None, main_window=None): #vers 2
         super().__init__(parent)
         from PyQt6.QtCore import QTimer
 
@@ -244,6 +246,7 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
         self.panel_font   = QFont("Arial", 10)
         self.button_font  = QFont("Arial", 10)
         self.chat_font    = QFont("Courier New", 10)
+        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)   # dock titles
         self.button_display_mode = 'both'
 
         # Window chrome
@@ -309,7 +312,11 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
         from apps.methods.ui_color import get_ui_color
         return get_ui_color(self, key)
 
-    def setup_ui(self):
+    def _ribbon_config_path(self): #vers 1
+        """Dock layout file."""
+        return Path(get_user_config_dir()) / "ai_workshop_docks.json"
+
+    def setup_ui(self): #vers 2
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
@@ -319,20 +326,9 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
         toolbar.setVisible(self.standalone_mode)   # shown standalone, hidden docked
         main_layout.addWidget(toolbar)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        left   = self._create_left_panel()
-        centre = self._create_centre_panel()
-        right  = self._create_right_panel()
-
-        splitter.addWidget(left)
-        splitter.addWidget(centre)
-        splitter.addWidget(right)
-        splitter.setStretchFactor(0, 1)   # sessions
-        splitter.setStretchFactor(1, 4)   # chat
-        splitter.setStretchFactor(2, 1)   # settings
-
-        main_layout.addWidget(splitter)
+        main_layout.addWidget(self._dock_layout(self._create_centre_panel(), [
+            ("Sessions", self._create_left_panel(), 180, Qt.DockWidgetArea.LeftDockWidgetArea),
+            ("Settings", self._create_right_panel(), 180, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
 
     # --- Toolbar -----------------------------------------------------------
 
@@ -370,7 +366,7 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
 
     # --- Left panel: session list ------------------------------------------
 
-    def _create_left_panel(self):
+    def _create_left_panel(self): #vers 2
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(180)
@@ -382,9 +378,6 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
 
         # Header row
         hdr = QHBoxLayout()
-        header = QLabel("Sessions")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr.addWidget(header)
         hdr.addStretch()
 
         new_btn = QPushButton("+")
@@ -527,7 +520,7 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
 
     # --- Right panel: settings ---------------------------------------------
 
-    def _create_right_panel(self):
+    def _create_right_panel(self): #vers 2
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(180)
@@ -536,10 +529,6 @@ class AIWorkshop(TitlebarMixin, QWidget): #vers 2
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(10)
-
-        header = QLabel("Settings")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
 
         # Model selector
         model_group = QGroupBox("Model")

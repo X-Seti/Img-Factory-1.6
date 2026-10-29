@@ -1,10 +1,11 @@
-#this belongs in apps/methods/dock_panels.py - Version: 11
-# X-Seti - October 14 2026 - IMG Factory 1.6 - Workshop dock panels
+#this belongs in apps/methods/dock_panels.py - Version: 14
+# X-Seti - October 29 2026 - IMG Factory 1.6 - Workshop dock panels
 
 """
 Dock panels around a workshop's central view (Model, TXD, Map).
 Workshop provides _outer_mw, _outer_docks, _OUTER_LAYOUT_VERSION,
-_ribbon_config_path and section_title_font.
+_ribbon_config_path and section_title_font. Owner may be a non-widget
+layout object with main_window (IMG Factory).
 """
 
 ##Methods list -
@@ -18,6 +19,8 @@ _ribbon_config_path and section_title_font.
 # eventFilter
 #
 ##class DockPanelsMixin: -
+# _dock_host
+# _dock_layout
 # _make_dock_collapsible
 # _outer_dock_menu
 # _restore_outer_layout
@@ -45,9 +48,9 @@ def make_outer_mw(central): #vers 1
     return mw
 
 
-def add_outer_dock(owner, mw, title, widget, min_width, area=Qt.DockWidgetArea.LeftDockWidgetArea): #vers 1
+def add_outer_dock(owner, mw, title, widget, min_width, area=Qt.DockWidgetArea.LeftDockWidgetArea): #vers 2
     """Movable/floatable dock with collapsible title; added to mw."""
-    dock = QDockWidget(title, owner)
+    dock = QDockWidget(title, mw)
     dock.setObjectName(title)
     dock.setWidget(widget)
     dock.setMinimumWidth(min_width)
@@ -124,8 +127,28 @@ def redock_to_tab(ws): #vers 1
     return True
 
 
-class DockPanelsMixin: #vers 1
+class DockPanelsMixin: #vers 2
     """Collapsible dock titles and saved outer dock layout."""
+
+    def _dock_host(self): #vers 1
+        """Widget owning the docks: the workshop, or IMG Factory's window."""
+        return self if isinstance(self, QWidget) else self.main_window
+
+    def _dock_layout(self, centre, docks): #vers 2
+        """Centre widget with side panels as docks: [(title, widget, min_w, area)].
+        Layout saved on window_closed, else whenever a dock is moved or floated."""
+        from PyQt6.QtCore import QTimer
+        mw = make_outer_mw(centre)
+        self._outer_mw = mw
+        self._outer_docks = [add_outer_dock(self, mw, t, w, mn, area) for t, w, mn, area in docks]
+        QTimer.singleShot(400, self._restore_outer_layout)
+        if hasattr(self, 'window_closed'):
+            self.window_closed.connect(self._save_outer_layout)
+        else:                                            # panels embedded in IMG Factory
+            for d in self._outer_docks:
+                d.dockLocationChanged.connect(lambda _a: self._save_outer_layout())
+                d.topLevelChanged.connect(lambda _f: self._save_outer_layout())
+        return mw
 
     def _make_dock_collapsible(self, dock, title): #vers 14
         """Title bar: double-click collapses, or re-docks when floating; close."""
@@ -172,11 +195,11 @@ class DockPanelsMixin: #vers 1
             mw.customContextMenuRequested.connect(lambda pos, m=mw: self._outer_dock_menu(m.mapToGlobal(pos)))
         dock.setTitleBarWidget(bar)
 
-    def _outer_dock_menu(self, global_pos, menu=None): #vers 1
+    def _outer_dock_menu(self, global_pos, menu=None): #vers 3
         """Panel show / hide toggles (+ Ribbon Manager); added to menu, else shown at global_pos."""
         own = menu is None
         if own:
-            menu = QMenu(self)
+            menu = QMenu(self._dock_host())
         for d in getattr(self, '_outer_docks', []):
             a = menu.addAction(d.windowTitle())
             a.setCheckable(True)
@@ -185,6 +208,8 @@ class DockPanelsMixin: #vers 1
         if hasattr(self, 'open_ribbon_manager'):
             menu.addSeparator()
             menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
+        if hasattr(self, 'open_bindings_editor'):
+            menu.addAction("Key && Mouse Bindings...", self.open_bindings_editor)
         if own:
             menu.exec(global_pos)
 
@@ -200,7 +225,7 @@ class DockPanelsMixin: #vers 1
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2))
 
-    def _restore_outer_layout(self): #vers 3
+    def _restore_outer_layout(self): #vers 4
         """Restore saved dock layout; docks forced visible; width clamped to screen."""
         mw = getattr(self, '_outer_mw', None)
         if mw is None:
@@ -215,7 +240,7 @@ class DockPanelsMixin: #vers 1
             dock.setVisible(True)
             dock.toggleViewAction().setChecked(True)
         # saved layout from a wider screen can push the window past this one
-        top = self.window()
+        top = self._dock_host().window()
         screen = top.screen()
         if screen is not None and top.width() > screen.availableGeometry().width():
             top.resize(screen.availableGeometry().width(), top.height())

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 15
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 18
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -35,6 +35,8 @@ from PyQt6.QtWidgets import (
 )
 
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.img_factory_settings import get_user_config_dir
 from PyQt6.QtCore import Qt, QPoint, QSize, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QAction, QBrush, QColor, QFont, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QPolygon, QShortcut
 
@@ -59,7 +61,12 @@ except Exception:
 from apps.methods.dff_viewport import VehicleViewport, DFFViewport
 from apps.methods.dff_parser import load_dff, DFFParser
 from apps.methods.txd_parser import parse_txd
-from apps.components.Vehicle_Workshop.depends.vehicle_win_func import GUIWorkshop
+from apps.methods.gui_workshop import GUIWorkshop
+from apps.methods.statusbar_func import register_statusbar
+from apps.components.Vehicle_Workshop.depends.vehicle_layout_func import VehicleLayoutMixin
+from apps.components.Vehicle_Workshop.depends.vehicle_logic_func import VehicleLogicMixin
+from apps.components.Vehicle_Workshop.depends.vehicle_toolbar_func import VehicleToolbarMixin
+from apps.components.Vehicle_Workshop.depends.vehicle_win_func import VehicleWinMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_tabs_func import (
     CarColoursTab, CarModsTab, HandlingTab)
 
@@ -95,6 +102,7 @@ DEBUG_STANDALONE = False
 # _light_setup_dialog
 # _open_file
 # _open_specific
+# _ribbon_config_path
 # _save_as
 # _save_file
 # _show_progress
@@ -109,15 +117,18 @@ DEBUG_STANDALONE = False
 # setup_ui
 
 ##Mixins (depends/) -
-# GUIWorkshop, WorkshopSettings, _CornerOverlay - vehicle_win_func.py
-# _ToolbarMixin - vehicle_toolbar_func.py
-# _LayoutMixin - vehicle_layout_func.py
-# _LogicStubsMixin - vehicle_logic_func.py
+# GUIWorkshop (window chrome, settings) - methods/gui_workshop.py
+# VehicleWinMixin - vehicle_win_func.py
+# VehicleToolbarMixin - vehicle_toolbar_func.py
+# VehicleLayoutMixin - vehicle_layout_func.py
+# VehicleLogicMixin - vehicle_logic_func.py
 # HandlingTab, CarColoursTab, CarModsTab - vehicle_tabs_func.py
 # Shared imports and flags - vehicle_common_func.py
 
-class VehicleWorkshop(RibbonMixin, GLViewportMixin, GUIWorkshop): #vers 4
+class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWinMixin,
+                      VehicleToolbarMixin, VehicleLayoutMixin, VehicleLogicMixin, GUIWorkshop): #vers 7
     _ribbon_name = "vehicle_workshop"
+    _OUTER_LAYOUT_VERSION = 1      # Assets + Tools docks
     # Bump when the set of ribbons changes (1 = File ribbon)
     _RIBBON_LAYOUT_VERSION = 1
 
@@ -151,8 +162,8 @@ class VehicleWorkshop(RibbonMixin, GLViewportMixin, GUIWorkshop): #vers 4
         lay.addWidget(self._tabs)
         return panel
 
-    def setup_ui(self): #vers 4
-        """Titlebar / [left | tabs | right] inside the ribbon host / status bar."""
+    def setup_ui(self): #vers 7
+        """Titlebar / Assets + Tools docks around ribbons and tabs / status bar."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -164,18 +175,17 @@ class VehicleWorkshop(RibbonMixin, GLViewportMixin, GUIWorkshop): #vers 4
             b = getattr(self, name, None)
             if b:
                 b.setVisible(False)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self._create_left_panel())
-        splitter.addWidget(self._create_centre_panel())
-        splitter.addWidget(self._create_right_panel())
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 5)
-        splitter.setStretchFactor(2, 0)
-        splitter.setSizes([200, 800, 180])
-        main_layout.addWidget(self.ribbon_wrap(splitter), 1)
+        left, right = self._create_left_panel(), self._create_right_panel()
+        main_layout.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()), [
+            ("Assets", left, 180, Qt.DockWidgetArea.LeftDockWidgetArea),
+            ("Tools", right, 155, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
         self._build_ribbons()
-        main_layout.addWidget(self._create_status_bar())
+        self._status_widget = self._create_status_bar()
+        main_layout.addWidget(self._status_widget)
+        register_statusbar(self, self._status_widget)
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        self._apply_ribbon_layout()
 
     def _build_ribbons(self): #vers 1
         B = self.ribbon_button
@@ -589,7 +599,11 @@ class VehicleWorkshop(RibbonMixin, GLViewportMixin, GUIWorkshop): #vers 4
             setattr(self, attr, path)
             self._set_status(f"Saved {os.path.basename(path)}")
 
-    def closeEvent(self, event): #vers 2
+    def _ribbon_config_path(self): #vers 1
+        """Dock and ribbon-layout file."""
+        return get_user_config_dir() / "vehicle_workshop_docks.json"
+
+    def closeEvent(self, event): #vers 3
         if self.standalone_mode and self.has_unsaved():
             r = QMessageBox.question(
                 self, "Vehicle Workshop", "Save changed data files before closing?",
@@ -604,6 +618,7 @@ class VehicleWorkshop(RibbonMixin, GLViewportMixin, GUIWorkshop): #vers 4
                     event.ignore()
                     return
         self.ribbon_save_state()
+        self._save_outer_layout()
         super().closeEvent(event)
 
     def _open_specific(self, kind: str): #vers 1

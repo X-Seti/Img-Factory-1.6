@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 8
+#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 12
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Capture Workshop
 # Built on GUIWorkshop base (same as Water Workshop)
 
 """
-Capture Workshop - HDMI/USB capture devices, screen and window capture.
+Capture Workshop - HDMI/USB capture devices, screen and window capture,
+network streams (RTSP cameras, IPTV playlists).
 Stills (PNG/JPG) and video (MP4, WebM on Linux screen recording).
 Bugs tab: bug tracker on the TODO_bugs folder (capture_bugs_func.py).
 """
@@ -15,6 +16,7 @@ Bugs tab: bug tracker on the TODO_bugs folder (capture_bugs_func.py).
 ##class CaptureWorkshop: -
 # __init__
 # _after_capture
+# _audio_changed
 # _build_menus_into_qmenu
 # _build_ribbons
 # _capture_menu
@@ -25,9 +27,14 @@ Bugs tab: bug tracker on the TODO_bugs folder (capture_bugs_func.py).
 # _create_toolbar
 # _delayed
 # _device_snapshot
+# _edit_stream
+# _fill_audio_combo
 # _fill_source_combo
+# _frame_source
+# _import_playlist
 # _list_menu
 # _load_captures
+# _open_audio
 # _open_in_dp5
 # _output_dir
 # _portal_cast_failed
@@ -35,17 +42,20 @@ Bugs tab: bug tracker on the TODO_bugs folder (capture_bugs_func.py).
 # _portal_cast_stopped
 # _portal_shot_done
 # _record_started
+# _remove_stream
 # _refresh_sources
 # _rename
 # _save_image
 # _screen_snapshot
 # _set_mode
 # _show_image
+# _stream_entry
 # _source_changed
 # _start_recording
 # _stop_recording
 # _tick
 # _tick_cast
+# _toggle_audio
 # _trash
 # _toggle_recording
 # closeEvent
@@ -73,14 +83,18 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QMenu, QMessageBox, QSizePolicy, QSpinBox, QSplitter,
     QStackedWidget, QTabWidget, QVBoxLayout)
 
+from apps.methods.statusbar_func import register_statusbar
 from apps.methods.gui_workshop import GUIWorkshop
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.components.Capture_Workshop.depends.capture_bugs_func import CaptureBugsMixin
 from apps.components.Capture_Workshop.depends.capture_sources_func import (
     DeviceSource, FrameRecorder, AudioSource, AudioRecorder, HAS_PYAUDIO,
-    grab_screen, grab_window_area, is_linux, list_devices, list_windows)
+    grab_screen, grab_window_area, is_linux, list_audio_inputs, list_devices, list_windows)
+from apps.components.Capture_Workshop.depends.capture_stream_func import (
+    StreamDialog, StreamRecorder, StreamSource, mask_url, parse_m3u, stream_url)
 
 App_name  = "Capture Workshop"
 Build     = "Build 8"
@@ -88,7 +102,7 @@ IMAGE_EXT = ('.png', '.jpg', '.jpeg')
 VIDEO_EXT = ('.mp4', '.webm')
 
 
-class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
+class CaptureWorkshop(CaptureBugsMixin, RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
 
     App_name        = App_name
     App_build       = Build
@@ -99,13 +113,17 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
     config_key      = "capture_workshop"
     WS_DEFAULTS     = {"source_mode": "device", "delay": 0, "hide_on_capture": True,
                        "image_format": "PNG", "video_format": "MP4", "output_folder": "",
-                       "bugs_folder": "", "changelog_file": ""}
+                       "bugs_folder": "", "changelog_file": "",
+                       "audio_enabled": True, "audio_device": "",
+                       "streams": [], "stream_index": 0}      # streams: user settings only
     _ribbon_name    = "capture_workshop"
     _RIBBON_LAYOUT_VERSION = 2          # Source / Capture / Output / Bugs ribbons
 
-    def __init__(self, parent=None, main_window=None): #vers 2
+    def __init__(self, parent=None, main_window=None): #vers 5
         self._device = DeviceSource()
-        self._mode = 'device'           # device / screen / window
+        self._stream = StreamSource()   # RTSP / IPTV (reader thread)
+        self._stream_rec = None         # StreamRecorder (ffmpeg)
+        self._mode = 'device'           # device / screen / window / stream
         self._recorder = None           # FrameRecorder (device, Windows screen)
         self._portal_shot = None
         self._portal_cast = None
@@ -114,8 +132,11 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         super().__init__(parent, main_window)
         self.setWindowIcon(SVGIconFactory.capture_workshop_icon(64))
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        self._apply_ribbon_layout()
         self._audio_source = AudioSource()
         self._audio_recorder = None
+        self._fill_audio_combo()
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._set_mode(self.WS.get("source_mode", 'device'))
@@ -131,7 +152,7 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 btn.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 2
+    def setup_ui(self): #vers 3
         """Titlebar / Captures dock | ribbon-wrapped preview / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -143,10 +164,10 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
 
 
-    def _build_ribbons(self): #vers 2
+    def _build_ribbons(self): #vers 4
         """Source / Capture / Output / Bugs ribbons."""
         B = self.ribbon_button
         tb = self.ribbon_toolbar("Source")
@@ -157,13 +178,25 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             'screen': B(tb, "desktop_capture_icon", "Whole screen",
                         lambda checked=False: self._set_mode('screen'), checkable=True),
             'window': B(tb, "window_capture_icon", "Chosen window",
-                        lambda checked=False: self._set_mode('window'), checkable=True)}
+                        lambda checked=False: self._set_mode('window'), checkable=True),
+            'stream': B(tb, "globe_icon", "Network stream: RTSP camera / IPTV",
+                        lambda checked=False: self._set_mode('stream'), checkable=True)}
         self._source_combo = QComboBox()
         self._source_combo.setMinimumWidth(220)
         self._source_combo.setToolTip("Device / screen / window to capture")
         self._source_combo.currentIndexChanged.connect(self._source_changed)
         tb.addWidget(self._source_combo)
-        B(tb, "get_refresh_icon", "Rescan devices / windows", self._refresh_sources)
+        self._audio_combo = QComboBox()
+        self._audio_combo.setMinimumWidth(200)
+        self._audio_combo.setToolTip("Audio input: pick the capture card / HDMI input that carries the sound")
+        self._audio_combo.currentIndexChanged.connect(self._audio_changed)
+        tb.addWidget(self._audio_combo)
+        B(tb, "get_refresh_icon", "Rescan devices / windows / audio inputs", self._refresh_sources)
+        self._stream_btns = [
+            B(tb, "add_icon", "Add network stream (RTSP / IPTV URL)", lambda: self._edit_stream(new=True)),
+            B(tb, "edit_icon", "Edit the selected stream", lambda: self._edit_stream(new=False)),
+            B(tb, "delete_icon", "Remove the selected stream", self._remove_stream),
+            B(tb, "import_icon", "Import an IPTV playlist (.m3u / .m3u8)", self._import_playlist)]
 
         tb = self.ribbon_toolbar("Capture")
         B(tb, "screenshot_icon", "Snapshot  (F9)", self.snapshot)
@@ -210,7 +243,7 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         QShortcut(Qt.Key.Key_F9, self, self.snapshot)
         QShortcut(Qt.Key.Key_F10, self, lambda: self._rec_btn.click())
 
-    def _build_menus_into_qmenu(self, pm): #vers 1
+    def _build_menus_into_qmenu(self, pm): #vers 2
         fm = pm.addMenu("File")
         fm.addAction("Open Capture Folder", lambda: QDesktopServices.openUrl(
             QUrl.fromLocalFile(str(self._output_dir()))))
@@ -220,7 +253,7 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         cm.addAction("Record / Stop  F10", lambda: self._rec_btn.click())
         cm.addSeparator()
         for label, mode in (("HDMI / USB Device", 'device'), ("Whole Screen", 'screen'),
-                            ("Chosen Window", 'window')):
+                            ("Chosen Window", 'window'), ("Network Stream", 'stream')):
             act = cm.addAction(label, lambda m=mode: self._set_mode(m))
             act.setCheckable(True)
             act.setChecked(self._mode == mode)
@@ -272,9 +305,9 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
 
     # Sources
 
-    def _set_mode(self, mode): #vers 1
-        """Switch source type; device feed runs only in device mode."""
-        if self._recorder or self._portal_cast:
+    def _set_mode(self, mode): #vers 2
+        """Switch source type; device / stream feed runs only in its mode."""
+        if self._recorder or self._portal_cast or self._stream_rec:
             self._set_status("Stop recording before changing source")
             return
         self._mode = mode
@@ -283,13 +316,17 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             b.setChecked(m == mode)
         self._timer.stop()
         self._device.close()
+        self._stream.close()
+        for b in self._stream_btns:
+            b.setEnabled(mode == 'stream')
         self._fill_source_combo()
 
-    def _refresh_sources(self): #vers 1
+    def _refresh_sources(self): #vers 2
+        self._fill_audio_combo()
         self._fill_source_combo()
         self._set_status(f"{self._source_combo.count()} source(s) found")
 
-    def _fill_source_combo(self): #vers 1
+    def _fill_source_combo(self): #vers 2
         """Devices, screens or windows for the current mode."""
         c = self._source_combo
         c.blockSignals(True)
@@ -299,6 +336,10 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             for idx, label in list_devices():
                 c.addItem(label, idx)
             QApplication.restoreOverrideCursor()
+        elif self._mode == 'stream':
+            for i, e in enumerate(self.WS.get("streams", [])):
+                c.addItem(e['name'], i)
+            c.setCurrentIndex(min(int(self.WS.get("stream_index", 0)), c.count() - 1))
         elif is_linux():
             c.addItem("Chosen when capturing (system picker)", None)
         elif self._mode == 'screen':
@@ -311,11 +352,23 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         c.blockSignals(False)
         self._source_changed(c.currentIndex())
 
-    def _source_changed(self, _idx): #vers 1
+    def _source_changed(self, _idx): #vers 3
         """Start the device feed, or a live screen preview on Windows."""
         self._timer.stop()
         self._device.close()
+        self._stream.close()
         data = self._source_combo.currentData()
+        if self._mode == 'stream':
+            if data is None:
+                self._preview.setText("Add a stream: RTSP camera URL or IPTV playlist (+ / import)")
+                return
+            self.WS.set("stream_index", data)
+            e = self._stream_entry()
+            self._stream.open(stream_url(e), e.get('tcp', True))
+            self._preview.setText(f"Connecting to {mask_url(e['url'])}...")
+            self._set_status(f"Stream: {e['name']}")
+            self._timer.start(40)
+            return
         if self._mode == 'device':
             if data is None:
                 self._preview.setText("No HDMI / USB capture device found")
@@ -323,8 +376,7 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             if not self._device.open(data):
                 self._preview.setText(f"Could not open device {data}")
                 return
-            if self.WS.get("audio_enabled", True):
-                self._audio_source.open()
+            self._open_audio()
             #self._timer.start(30)
             w, h = self._device.size()
             self._set_status(f"Device {data}: {w}x{h}")
@@ -335,9 +387,18 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._preview.setText("Snapshot or Record opens the system picker\n"
                                   + ("(choose a window)" if self._mode == 'window' else "(choose a screen)"))
 
-    def _tick(self): #vers 1
-        """Next device frame / screen grab: preview and recording."""
-        if self._mode == 'device':
+    def _tick(self): #vers 3
+        """Next device / stream frame or screen grab: preview and recording."""
+        if self._mode == 'stream':
+            _frame, img = self._stream.read()
+            if img is None:
+                if self._stream.error:
+                    self._preview.setText(self._stream.error)
+                return
+            if self._stream_rec and not self._stream_rec.is_open():
+                self._stop_recording()
+                self._set_status("Stream recording stopped: ffmpeg ended (stream lost?)")
+        elif self._mode == 'device':
             frame, img = self._device.read()
             if img is None:
                 return
@@ -353,15 +414,6 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         if self._rec_start:
             secs = int((datetime.now() - self._rec_start).total_seconds())
             self._set_status(f"Recording  {secs // 60:02d}:{secs % 60:02d}")
-        if self._mode == 'device':
-            frame, img = self._device.read()
-            if img is None:
-                return
-            audio_data = self._audio_source.read_and_play() if self._audio_btn.isChecked() else None
-            if self._recorder:
-                self._recorder.add(frame=frame)
-                if self._audio_recorder and audio_data:
-                    self._audio_recorder.add(audio_data)
 
 
     def _show_image(self, img): #vers 1
@@ -480,20 +532,119 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             menu.addAction("Copy Image", lambda: QGuiApplication.clipboard().setImage(self._last_image))
         menu.exec(self._preview.mapToGlobal(pos))
 
+    # Network streams (RTSP / IPTV) - saved in the user's settings, not the repo
+    def _frame_source(self): #vers 1
+        return self._stream if self._mode == 'stream' else self._device
+
+    def _stream_entry(self): #vers 1
+        """Saved stream for the selected source, or None."""
+        i = self._source_combo.currentData()
+        streams = self.WS.get("streams", [])
+        return streams[i] if i is not None and i < len(streams) else None
+
+    def _edit_stream(self, new=True): #vers 1
+        """Add / edit a stream (name, URL, login, RTSP over TCP)."""
+        streams = list(self.WS.get("streams", []))
+        cur = None if new else self._stream_entry()
+        if not new and cur is None:
+            return
+        dlg = StreamDialog(self, cur)
+        if dlg.exec() != StreamDialog.DialogCode.Accepted or not dlg.entry()['url']:
+            return
+        if new:
+            streams.append(dlg.entry())
+            index = len(streams) - 1
+        else:
+            index = self._source_combo.currentData()
+            streams[index] = dlg.entry()
+        self.WS.set("streams", streams)
+        self.WS.set("stream_index", index)
+        self.WS.save()
+        self._fill_source_combo()
+
+    def _remove_stream(self): #vers 1
+        i = self._source_combo.currentData()
+        streams = list(self.WS.get("streams", []))
+        if i is None or i >= len(streams):
+            return
+        if QMessageBox.question(self, "Remove stream", f"Remove {streams[i]['name']}?") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        del streams[i]
+        self.WS.set("streams", streams)
+        self.WS.set("stream_index", 0)
+        self.WS.save()
+        self._fill_source_combo()
+
+    def _import_playlist(self): #vers 1
+        """Add every channel of an IPTV .m3u / .m3u8 playlist (file or URL)."""
+        path, _ = QFileDialog.getOpenFileName(self, "IPTV playlist", "", "Playlists (*.m3u *.m3u8);;All files (*)")
+        if not path:
+            return
+        with open(path, encoding='utf-8', errors='replace') as f:
+            chans = parse_m3u(f.read())
+        streams = list(self.WS.get("streams", []))
+        known = {e['url'] for e in streams}
+        add = [{'name': n, 'url': u, 'user': '', 'password': '', 'tcp': True} for n, u in chans if u not in known]
+        self.WS.set("streams", streams + add)
+        self.WS.save()
+        self._fill_source_combo()
+        self._set_status(f"Playlist: {len(add)} channel(s) added")
+
     # Audio
-    def _toggle_audio(self):
+    def _fill_audio_combo(self): #vers 1
+        """Audio inputs; saved choice first, else the first capture / HDMI / USB input."""
+        import re
+        c = self._audio_combo
+        c.blockSignals(True)
+        c.clear()
+        inputs = list_audio_inputs()
+        for idx, name in inputs:
+            c.addItem(name, idx)
+        if not inputs:
+            c.addItem("No audio input (install pyaudio)" if not HAS_PYAUDIO else "No audio input found", None)
+        saved = self.WS.get("audio_device", "")
+        pick = c.findText(saved) if saved else -1
+        if pick < 0:
+            pick = next((i for i, (_x, n) in enumerate(inputs)
+                         if re.search(r'hdmi|capture|usb|video|cam link|elgato', n, re.I)), 0)
+        c.setCurrentIndex(pick)
+        c.blockSignals(False)
+
+    def _audio_changed(self, _idx): #vers 1
+        """Remember the input by name (indices change) and reopen it."""
+        if self._audio_combo.currentData() is not None:
+            self.WS.set("audio_device", self._audio_combo.currentText())
+        if self._mode == 'device':
+            self._open_audio()
+
+    def _open_audio(self): #vers 1
+        """Open the chosen input when audio is on; status says if it failed."""
+        self._audio_source.close()
+        if not self._audio_btn.isChecked():
+            return
+        dev = self._audio_combo.currentData()
+        if dev is None:
+            return
+        if self._audio_source.open(dev):
+            self._set_status(f"Audio: {self._audio_combo.currentText()} "
+                             f"({self._audio_source.rate} Hz, {self._audio_source.channels} ch)")
+        else:
+            self._set_status(f"Audio: can't open {self._audio_combo.currentText()} - pick another input")
+
+    def _toggle_audio(self): #vers 2
         enabled = self._audio_btn.isChecked()
         self.WS.set("audio_enabled", enabled)
-        if enabled:
-            self._set_status("Audio enabled")
-        else:
+        if self._mode == 'device':
+            self._open_audio()
+        if not enabled:
             self._set_status("Audio muted")
 
     # Capture
 
-    def _delayed(self, fn, screen=True): #vers 1
+    def _delayed(self, fn, screen=True): #vers 2
         """Run fn after the delay; hide this window first for screen captures."""
-        hide = screen and self._mode != 'device' and self._hide_chk.isChecked()
+        hide = screen and self._mode in ('screen', 'window') and self._hide_chk.isChecked()
         if hide:
             self.window().hide()
         ms = self._delay_spin.value() * 1000 + (400 if hide else 0)
@@ -507,17 +658,17 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self.window().show()
             self.window().raise_()
 
-    def snapshot(self): #vers 1
+    def snapshot(self): #vers 2
         """Still image from the current source."""
-        if self._mode == 'device':
+        if self._mode in ('device', 'stream'):
             self._delayed(self._device_snapshot, screen=False)
         else:
             self._delayed(self._screen_snapshot)
 
-    def _device_snapshot(self): #vers 1
-        _frame, img = self._device.read()
+    def _device_snapshot(self): #vers 2
+        _frame, img = self._frame_source().read()
         if img is None:
-            self._set_status("No frame from the capture device")
+            self._set_status("No frame from the capture device / stream")
             return
         self._save_image(img, 'snapshot')
 
@@ -552,16 +703,28 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._save_image(img, self._mode)
             os.remove(path)
 
-    def _toggle_recording(self): #vers 1
+    def _toggle_recording(self): #vers 2
         if self._rec_btn.isChecked():
             self._rec_btn.setChecked(False)          # set again once really recording
-            self._delayed(self._start_recording, screen=self._mode != 'device')
+            self._delayed(self._start_recording, screen=self._mode in ('screen', 'window'))
         else:
             self._stop_recording()
 
-    def _start_recording(self): #vers 2
+    def _start_recording(self): #vers 4
         """Device / Windows screen: frame recorder. Linux screen: portal ScreenCast."""
         fmt = self._vid_fmt.currentText().lower()
+        if self._mode == 'stream':                              # ffmpeg copies the stream (with sound)
+            e = self._stream_entry()
+            if e is None:
+                return
+            path = self._capture_name("stream_rec", 'mp4')
+            rec = StreamRecorder(stream_url(e), path, e.get('tcp', True))
+            if not rec.is_open():
+                QMessageBox.warning(self, "Record", "Stream recording needs ffmpeg (not found).")
+                return
+            self._stream_rec, self._rec_path = rec, path
+            self._record_started()
+            return
         if self._mode != 'device' and is_linux():
             from apps.components.Capture_Workshop.depends.capture_portal_func import PortalScreenCast
             self._portal_cast = PortalScreenCast(self)
@@ -570,10 +733,6 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._portal_cast.stopped.connect(self._portal_cast_stopped)
             path = self._capture_name(f"{self._mode}_rec", fmt)
             self._portal_cast.start(self._mode == 'window', path, fmt)
-            audio_path = os.path.splitext(path)[0] + '_audio.wav'   # mp4 or webm
-            if self._audio_btn.isChecked() and HAS_PYAUDIO:
-                self._audio_recorder = AudioRecorder(audio_path)
-            self._rec_audio_path = audio_path
             return
         self._after_capture()
         if self._mode == 'device':
@@ -594,6 +753,11 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
             return
 
         self._rec_path = path
+        if self._audio_source.is_active:                        # sound from the chosen input
+            self._rec_audio_path = os.path.splitext(path)[0] + '_audio.wav'
+            self._audio_recorder = AudioRecorder(self._rec_audio_path, self._audio_source.rate,
+                                                 self._audio_source.channels)
+            self._audio_source.recorder = self._audio_recorder
         self._record_started()
 
     def _record_started(self): #vers 1
@@ -601,38 +765,37 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._rec_btn.setChecked(True)
         self._rec_btn.setIcon(SVGIconFactory.stop_icon(self._RIBBON_ICON, self._get_icon_color()))
 
-    def _stop_recording(self): #vers 1
-        """Finish the file and list it."""
+    def _stop_recording(self): #vers 3
+        """Finish the video, mux the audio in with ffmpeg, list it."""
         if self._portal_cast:
             self._portal_cast.stop()
             return
-        if self._recorder:
-            self._recorder.close()
-            self._recorder = None
+        if self._stream_rec:
+            self._stream_rec.close()
+            self._stream_rec = None
             self._load_captures(select=self._rec_path)
             self._set_status(f"Saved {Path(self._rec_path).name}")
         if self._recorder:
             self._recorder.close()
             self._recorder = None
-            if hasattr(self, '_audio_recorder') and self._audio_recorder:
+            note = ""
+            if self._audio_recorder:
+                self._audio_source.recorder = None
                 self._audio_recorder.close()
                 self._audio_recorder = None
-                # Optional: Mux video and audio together using ffmpeg if available
-                if shutil.which('ffmpeg') and hasattr(self, '_rec_audio_path') and Path(self._rec_path).exists():
-                    muxed_path = self._rec_path.replace('.mp4', '_muxed.mp4')
-                    subprocess.run([
-                        'ffmpeg', '-y', '-i', self._rec_path, '-i', self._rec_audio_path,
-                        '-c:v', 'copy', '-c:a', 'aac', muxed_path
-                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    if Path(muxed_path).exists():
-                        shutil.move(muxed_path, self._rec_path)
-                        try:
-                            os.remove(self._rec_audio_path)
-                        except Exception:
-                            pass
-
+                if shutil.which('ffmpeg'):
+                    muxed = self._rec_path.replace('.mp4', '_muxed.mp4')
+                    subprocess.run(['ffmpeg', '-y', '-i', self._rec_path, '-i', self._rec_audio_path,
+                                    '-c:v', 'copy', '-c:a', 'aac', '-shortest', muxed],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if Path(muxed).exists():
+                        shutil.move(muxed, self._rec_path)
+                        os.remove(self._rec_audio_path)
+                        note = " with audio"
+                else:
+                    note = f" (audio: {Path(self._rec_audio_path).name}, no ffmpeg to join)"
             self._load_captures(select=self._rec_path)
-            self._set_status(f"Saved {Path(self._rec_path).name} with audio")
+            self._set_status(f"Saved {Path(self._rec_path).name}{note}")
 
         self._rec_start = None
         self._rec_btn.setChecked(False)
@@ -664,12 +827,14 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._load_captures(select=path)
         self._set_status(f"Saved {Path(path).name}")
 
-    def closeEvent(self, ev): #vers 1
+    def closeEvent(self, ev): #vers 3
         """Finish any recording and release the device."""
         if self._rec_btn.isChecked():
             self._stop_recording()
         self._timer.stop()
         self._device.close()
+        self._stream.close()
+        self._audio_source.close()
         super().closeEvent(ev)
 
 

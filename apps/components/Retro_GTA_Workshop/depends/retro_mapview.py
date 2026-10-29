@@ -1,4 +1,4 @@
-#this belongs in apps/components/Retro_GTA_Workshop/depends/retro_mapview.py - Version: 9
+#this belongs in apps/components/Retro_GTA_Workshop/depends/retro_mapview.py - Version: 10
 # X-Seti - October 23 2026 - IMG Factory 1.6 - Retro GTA Workshop top-down map view
 
 """
@@ -271,11 +271,13 @@ class MapView(QWidget): #vers 1
         y = int((pos.y() - self.oy) // self.scale)
         return (x, y) if 0 <= x < SIZE and 0 <= y < SIZE else (None, None)
 
-    def paintEvent(self, _ev): #vers 6
+    def paintEvent(self, _ev): #vers 7
+        from apps.methods.ui_color import get_ui_color
         p = QPainter(self)
-        p.fillRect(self.rect(), QColor(20, 20, 26))
+        owner = self.window()                              # workshop / IMG Factory: has app_settings
+        p.fillRect(self.rect(), get_ui_color(owner, 'viewport_bg'))
         if self.map is None or self.style is None:
-            p.setPen(QColor(150, 150, 160))
+            p.setPen(get_ui_color(owner, 'viewport_text'))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Open a GTA1 / GTA2 game folder or a map")
             return
         s = self.scale

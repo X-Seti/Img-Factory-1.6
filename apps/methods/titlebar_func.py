@@ -1,4 +1,4 @@
-#this belongs in apps/methods/titlebar_func.py - Version: 7
+#this belongs in apps/methods/titlebar_func.py - Version: 8
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Workshop Titlebar
 
 """
@@ -7,9 +7,10 @@ Workshops add their own parts through the _titlebar_* hooks.
 """
 
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QToolButton
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QTimer
 
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.input_bindings import InputBindingsMixin
 
 ##Methods list -
 # _create_toolbar
@@ -29,13 +30,13 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 ##class TitlebarMixin: -
 
 
-class TitlebarMixin: #vers 1
+class TitlebarMixin(InputBindingsMixin): #vers 2
     """Shared titlebar: Menu, Settings, extras, title, actions, info, theme,
     D / T, window controls. Frame is named 'titlebar' for drag and panel image."""
 
     TITLEBAR_DOCKED_VISIBLE = True                    # False: hidden when docked
 
-    def _create_toolbar(self): #vers 5
+    def _create_toolbar(self): #vers 6
         """Build the titlebar frame; returns it (also self.titlebar)."""
         ic = self._get_icon_color()
         isz = self._titlebar_icon_size()
@@ -128,6 +129,7 @@ class TitlebarMixin: #vers 1
 
         if not self.TITLEBAR_DOCKED_VISIBLE:
             self.toolbar.setVisible(self.standalone_mode)
+        QTimer.singleShot(0, self._bindings_apply)     # buttons/<tool>.json once built
         return self.toolbar
 
     def _menu_btn_popup(self): #vers 1

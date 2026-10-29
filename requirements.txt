@@ -1,8 +1,30 @@
-send2trash
+# IMG Factory 1.6 - Python packages (pip install -r requirements.txt)
+# Core
 PyQt6
 Pillow
 numpy
-pygame
+send2trash
 requests
+# 3D views (Model / Map / Vehicle / Terrain / Ped / COL)
+PyOpenGL
+# Formats: TXD tools, IMG encryption, LZO-packed IMG
 scipy
 pycryptodome
+python-lzo
+# Capture Workshop: device video, audio input
+opencv-python
+pyaudio
+mss
+# DP5 Workshop: SVG and GIF / video import / export
+cairosvg
+imageio
+# Gamepad, system info
+pygame
+psutil
+# AI Workshop: SSH files, web front end
+paramiko
+fastapi
+httpx
+uvicorn
+websockets
+wsproto

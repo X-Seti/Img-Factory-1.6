@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_3d_viewport.py - Version: 9
+#this belongs in apps/methods/col_3d_viewport.py - Version: 10
 # X-Seti - December13 2025 - IMG Factory 1.5 - COL 3D Viewport Pure OpenGL
 
 """
@@ -175,22 +175,10 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     
     
 
-    def _get_ui_color(self, key): #vers 1
-        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
-        from PyQt6.QtGui import QColor
-        try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            if app_settings and hasattr(app_settings, 'get_ui_color'):
-                return app_settings.get_ui_color(key)
-        except Exception:
-            pass
-        pal = self.palette()
-        if key == 'viewport_bg':
-            return pal.color(pal.ColorRole.Base)
-        if key == 'viewport_text':
-            return pal.color(pal.ColorRole.PlaceholderText)
-        return pal.color(pal.ColorRole.WindowText)
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
 
     def setup_lighting(self): #vers 1
         """Setup professional 3-point lighting system"""

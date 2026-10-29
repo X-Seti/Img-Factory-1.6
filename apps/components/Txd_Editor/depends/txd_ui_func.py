@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 20
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 22
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -762,38 +762,16 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         # Apply current icons-vs-text display mode
         self._update_transform_text_panel_visibility()
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 2
-        """Right-click context menu on any toolbar."""
-        from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self)
-
-        size_menu = menu.addMenu("Icon Size")
-        from PyQt6.QtWidgets import QSlider, QWidgetAction
-        slider = QSlider(Qt.Orientation.Horizontal)
-        slider.setRange(14, 40)
-        slider.setSingleStep(2)
+    def _toolbar_context_menu(self, toolbar, pos): #vers 4
+        """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
+        from PyQt6.QtWidgets import QToolBar
+        from apps.methods.toolbar_menu import standard_toolbar_menu
         try:
             import json
-            from pathlib import Path
-            data = json.loads((get_user_config_dir()/'txd_workshop.json').read_text())
-            slider.setValue(data.get('icon_scale', 20))
+            scale = json.loads((get_user_config_dir() / 'txd_workshop.json').read_text()).get('icon_scale', 20)
         except Exception:
-            slider.setValue(20)
-        slider.valueChanged.connect(self._apply_icon_scale)
-        wa = QWidgetAction(menu)
-        wa.setDefaultWidget(slider)
-        size_menu.addAction(wa)
-
-        menu.addSeparator()
-        menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
-        menu.addSeparator()
-        from PyQt6.QtWidgets import QToolBar as _QTB
-        menu.addAction("Lock All Toolbars",
-            lambda: [tb.setMovable(False)
-                     for tb in self._inner_mw.findChildren(_QTB)])
-        menu.addAction("Unlock All Toolbars",
-            lambda: [tb.setMovable(True)
-                     for tb in self._inner_mw.findChildren(_QTB)])
+            scale = 20
+        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _apply_icon_scale(self, px: int): #vers 2

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 19
+#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 21
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop UI setup
 
 """
@@ -1382,49 +1382,16 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         self._sel_face_btn   = None
         self._sel_poly_btn   = None
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 4
-        """Right-click context menu on any toolbar."""
-        from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self)
-
-        # Icon Set submenu
-        icon_set_menu = menu.addMenu("Icon Set")
-        current = self._get_icon_set()
-        for label, key in [("Default (theme-aware)", 'default'),
-                            ("3ds Max style",         '3dsmax')]:
-            act = icon_set_menu.addAction(label)
-            act.setCheckable(True)
-            act.setChecked(current == key)
-            act.triggered.connect(lambda _, k=key: self._switch_icon_set(k))
-
-        # Icon Size submenu
-        size_menu = menu.addMenu("Icon Size")
-        from PyQt6.QtWidgets import QSlider, QWidgetAction
-        slider = QSlider(Qt.Orientation.Horizontal)
-        slider.setRange(14, 40)
-        slider.setSingleStep(2)
+    def _toolbar_context_menu(self, toolbar, pos): #vers 6
+        """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
+        from PyQt6.QtWidgets import QToolBar
+        from apps.methods.toolbar_menu import standard_toolbar_menu
         try:
             import json
-            from pathlib import Path
-            data = json.loads((self._ribbon_config_path()).read_text())
-            slider.setValue(data.get('icon_scale', 20))
+            scale = json.loads((self._ribbon_config_path()).read_text()).get('icon_scale', 20)
         except Exception:
-            slider.setValue(20)
-        slider.valueChanged.connect(self._apply_icon_scale)
-        wa = QWidgetAction(menu)
-        wa.setDefaultWidget(slider)
-        size_menu.addAction(wa)
-
-        menu.addSeparator()
-        menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
-        menu.addSeparator()
-        from PyQt6.QtWidgets import QToolBar as _QTB
-        menu.addAction("Lock All Toolbars",
-            lambda: [tb.setMovable(False)
-                     for tb in self._inner_mw.findChildren(_QTB)])
-        menu.addAction("Unlock All Toolbars",
-            lambda: [tb.setMovable(True)
-                     for tb in self._inner_mw.findChildren(_QTB)])
+            scale = 20
+        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _switch_icon_set(self, key: str): #vers 3

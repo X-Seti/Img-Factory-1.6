@@ -1,4 +1,4 @@
-#this belongs in apps/components/Terrain_Workshop/depends/terrain_image_func.py - Version: 4
+#this belongs in apps/components/Terrain_Workshop/depends/terrain_image_func.py - Version: 5
 # X-Seti - October 22 2026 - IMG Factory 1.6 - Terrain Workshop image / radar base
 
 """
@@ -13,6 +13,8 @@ colours can pre-paint materials; sculpt it with the Brush tools after.
 # _tw_guide_textures
 # _tw_load_guide
 # _tw_pick_guide_file
+# _tw_game_changed
+# _tw_radar_available
 # _tw_radar_layer
 # _tw_toggle_guide
 
@@ -218,17 +220,37 @@ class TerrainImageMixin: #vers 1
             self._tw_refresh_tiles(None)
             self._tw_status()
 
-    def _tw_radar_layer(self, on: bool): #vers 1
-        """Game radar map under the terrain (move / rotate / scale with Align)."""
-        tiles = getattr(self, '_tw_radar_tiles', None)
-        game = getattr(self, '_tw_radar_game', None) or getattr(getattr(self, '_world_loader', None), 'game', 'sa')
+    def _tw_radar_available(self, game: str) -> bool: #vers 1
+        """Radar tiles for game: from From image / radar, or the loaded game is that game."""
+        if getattr(self, '_tw_radar_game', None) == game and getattr(self, '_tw_radar_tiles', None):
+            return True
+        loaded = getattr(getattr(self, '_world_loader', None), 'game', None)
+        return getattr(self, '_model_cache', None) is not None and loaded == game
+
+    def _tw_game_changed(self, *_a): #vers 1
+        """Export game picked: the radar layer follows it, or turns off when that game's radar
+        isn't available (button disabled until it is)."""
+        game = self._tw_game.currentData()
+        ok = self._tw_radar_available(game)
+        btn = self._tw_radar_btn
+        btn.setEnabled(ok)
+        btn.setToolTip(f"Show the {self._tw_game.currentText()} radar map under the ground" if ok else
+                       f"No {self._tw_game.currentText()} radar: load that game, or use From image / radar")
+        if btn.isChecked():
+            self._tw_radar_layer(ok)
+
+    def _tw_radar_layer(self, on: bool): #vers 2
+        """Radar map of the export game under the terrain (move / rotate / scale with Align)."""
+        game = self._tw_game.currentData()
+        tiles = getattr(self, '_tw_radar_tiles', None) if getattr(self, '_tw_radar_game', None) == game else None
         if on and not tiles:
-            if getattr(self, '_model_cache', None) is None:
-                QMessageBox.information(self, "Radar layer", "Use From image / radar with a game radar, "
-                                        "or load a game in this workshop first.")
+            if not self._tw_radar_available(game):
+                QMessageBox.information(self, "Radar layer", f"No {self._tw_game.currentText()} radar: "
+                                        "use From image / radar, or load that game in this workshop first.")
                 on = False
             else:
                 tiles = self._load_radar_tex_tiles(game)
+                self._tw_radar_tiles, self._tw_radar_game = tiles, game
         self.preview_widget.set_radar_tex_layer(on, tiles if on else None, game)
         self._apply_radar_settings()
         btn = getattr(self, '_tw_radar_btn', None)

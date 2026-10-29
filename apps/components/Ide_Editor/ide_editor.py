@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ide_Editor/ide_editor.py - Version: 2
+#this belongs in apps/components/Ide_Editor/ide_editor.py - Version: 3
 from apps.app_info import App_name, App_build, App_auth
 # X-Seti - September 2026 - IMG Factory 1.6 - IDE Editor
 
@@ -39,6 +39,8 @@ from PyQt6.QtWidgets import (
 
 from apps.methods.ide_file import IDEFile, IDERow, ID_SECTIONS, NAMED_SECTIONS, column_headers
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.dock_panels import DockPanelsMixin
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 class IDEHelpWidget(QWidget): #vers 1
@@ -130,7 +132,7 @@ class IDEHelpWidget(QWidget): #vers 1
         """
 
 
-class IDEPanel(QWidget): #vers 3
+class IDEPanel(DockPanelsMixin, QWidget): #vers 4
     """Structured IDE editor as an embeddable widget (used by the IPL Workshop's
     IDE tab and by the IDEEditor window). It has no ribbons of its own: the
     host calls its methods (open_ide_file, save_ide_file, _undo, ...)."""
@@ -142,6 +144,7 @@ class IDEPanel(QWidget): #vers 3
     status_message = pyqtSignal(str)
     cascade_handler = None                       # host hook: (id_map, renames) -> status text
     usage_provider = None                        # host hook: () -> {model id: placements in loaded IPLs}
+    _OUTER_LAYOUT_VERSION = 1                    # IDE Files dock
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -153,17 +156,21 @@ class IDEPanel(QWidget): #vers 3
         self._ipl_paths: List[str] = []
         self._dat_path = None
         self._building = False
+        self.section_title_font = QFont("Arial", 10, QFont.Weight.Bold)   # dock titles
         self._setup_ui()
 
     # -- UI
-    def _setup_ui(self):
+    def _ribbon_config_path(self): #vers 1
+        """Dock layout file."""
+        return Path(get_user_config_dir()) / "ide_panel_docks.json"
+
+    def _setup_ui(self): #vers 2
+        """IDE Files dock (files, sections) beside the table / help tabs."""
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        split = QSplitter(Qt.Orientation.Horizontal)
         left = QWidget()
         ll = QVBoxLayout(left)
         ll.setContentsMargins(4, 4, 4, 4)
-        ll.addWidget(QLabel("IDE files"))
         self._file_list = QListWidget()
         self._file_list.currentRowChanged.connect(self._on_file_changed)
         ll.addWidget(self._file_list, 1)
@@ -174,7 +181,6 @@ class IDEPanel(QWidget): #vers 3
         self._info = QLabel("No file loaded")
         self._info.setWordWrap(True)
         ll.addWidget(self._info)
-        split.addWidget(left)
 
         tabs = QTabWidget()
         page = QWidget()
@@ -194,8 +200,7 @@ class IDEPanel(QWidget): #vers 3
         pl.addWidget(self._table, 1)
         tabs.addTab(page, "Table")
         tabs.addTab(IDEHelpWidget(), "Help")
-        split.addWidget(tabs)
-        split.setSizes([230, 970])
+        split = self._dock_layout(tabs, [("IDE Files", left, 200, Qt.DockWidgetArea.LeftDockWidgetArea)])
 
         self._status = QLabel("")
         self._status.setStyleSheet("padding: 2px 6px;")

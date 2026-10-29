@@ -15,8 +15,7 @@ They are not intended to facilitate:
 
 Redistribution of copyrighted assets
 Use of game assets outside their original context
-Cross-engine asset conversion or migration
-Intellectual Property
+Cross-engine asset conversion or migration Intellectual Property
 
 All game assets (including but not limited to textures, models, maps, audio, and code) remain the property of their respective copyright holders.
 

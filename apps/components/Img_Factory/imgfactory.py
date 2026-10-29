@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 121
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 125
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -48,6 +48,7 @@ except ImportError:
 # App utilities
 from apps.utils.app_settings_system import AppSettings, apply_theme_to_app, SettingsDialog
 from apps.methods.corner_handles import paint_corner_handles
+from apps.methods.startup_splash import startup_finish, startup_step
 
 # Components
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
@@ -223,11 +224,12 @@ class IMGLoadThread(QThread):
 
 class IMGFactory(QMainWindow):
     """Main IMG Factory application window"""
-    def __init__(self, settings): #vers 63
+    def __init__(self, settings): #vers 64
         """Initialize IMG Factory with optimized loading order"""
         super().__init__()
 
         # === PHASE 1: CORE SETUP (Fast) ===
+        startup_step("Core setup", 25)
         self.settings  = settings
         self.ide_db    = None   # set by DAT Browser on world load
         self.asset_db  = None   # set by DAT Browser after DB build
@@ -324,6 +326,7 @@ class IMGFactory(QMainWindow):
         self.setMouseTracking(True)
 
         # === PHASE 2: ESSENTIAL COMPONENTS (Fast) ===
+        startup_step("Essential components", 32)
 
         # Template manager (with better error handling)
         try:
@@ -339,6 +342,7 @@ class IMGFactory(QMainWindow):
             self.template_manager = DummyTemplateManager()
 
         # === PHASE 3: GUI CREATION (Medium) ===
+        startup_step("Building the window", 40)
 
         # Integrate functionality that menu system depends on
         integrate_sort_via_ide(self)
@@ -499,6 +503,7 @@ class IMGFactory(QMainWindow):
         integrate_update_ui_for_loaded_img(self)
 
         # === PHASE 5: CORE FUNCTIONALITY (Medium) ===
+        startup_step("Core functions", 60)
         self.export_selected = lambda: export_selected_function(self)
         self.export_all = lambda: export_all_function(self)
         self.dump_all = lambda: dump_all_function(self)
@@ -534,6 +539,7 @@ class IMGFactory(QMainWindow):
         integrate_file_filtering(self)
 
         # === PHASE 6: GUI BACKEND & SHORTCUTS (Medium) ===
+        startup_step("Shortcuts and backend", 70)
 
         # GUI backend
         self.gui_backend = GUIBackend(self)
@@ -545,6 +551,7 @@ class IMGFactory(QMainWindow):
         setup_table_context_menu(self)
 
         # === PHASE 7: OPTIONAL FEATURES (Heavy - Can be delayed) ===
+        startup_step("Optional features", 78)
 
         # Auto-save menu
         integrate_autosave_menu(self)
@@ -581,8 +588,11 @@ class IMGFactory(QMainWindow):
         enable_import_highlighting(self)
 
         # Restore settings
+        startup_step("Restoring last session", 86)
         self._restore_settings()
+        startup_step("Loading game folder", 92)
         self.autoload_game_root()
+        startup_step("Final setup", 97)
 
         # Attach unified debug system
         set_debug_main_window(self)
@@ -605,6 +615,7 @@ class IMGFactory(QMainWindow):
 
         # Show window (non-blocking)
         self.show()
+        startup_finish()
 
 
 
@@ -917,13 +928,15 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error applying button settings: {str(e)}")
 
 
-    def _apply_button_display_mode_from_settings(self): #vers 2
-        """Apply button display mode at startup - always text_only, icons handled by splitter"""
-        try:
-            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'set_button_display_mode'):
-                self.gui_layout.set_button_display_mode('text_only')
-        except Exception as e:
-            self.log_message(f"Error applying button display mode: {str(e)}")
+    def _apply_button_display_mode_from_settings(self): #vers 3
+        """Button display mode from Settings: icons, text, both or auto by width."""
+        self.gui_layout.set_button_display_mode('text_only')
+        self.gui_layout._apply_button_text_mode()
+
+    def statusBar(self): #vers 1
+        """IMG Factory status bar wherever it is placed (window, pane or dock)."""
+        bar = getattr(self, '_img_status_bar', None)        # set once placed
+        return bar if bar is not None else super().statusBar()
 
 
 
@@ -2096,7 +2109,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Validation error: {str(e)}")
 
 
-    def show_gui_settings(self): #vers 5
+    def show_gui_settings(self): #vers 6
         """Show GUI settings dialog"""
         self.log_message("GUI settings requested")
         try:
@@ -2123,6 +2136,7 @@ class IMGFactory(QMainWindow):
 
             dialog.themeChanged.connect(_live_theme)
             dialog.exec()
+            self._apply_button_display_mode_from_settings()
         except Exception as e:
             self.log_message(f"Settings dialog error: {str(e)}")
 
@@ -2224,7 +2238,7 @@ class IMGFactory(QMainWindow):
 
 
 
-    def _create_ui(self): #vers 15
+    def _create_ui(self): #vers 16
         """Create the main user interface - WITH TABS FIXED"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -2385,6 +2399,7 @@ class IMGFactory(QMainWindow):
 
         # Create GUI layout system (single instance)
         self.gui_layout.create_status_bar()
+        self.gui_layout._place_status_bar()            # window bottom, under pane or dock
         self.gui_layout.apply_table_theme()
 
         # Apply saved tab settings
@@ -2600,7 +2615,7 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()
 
 
-    def _sync_img_taskbar_buttons(self, active_index: int = -1): #vers 2
+    def _sync_img_taskbar_buttons(self, active_index: int = -1): #vers 3
         """Register one taskbar button per open IMG tab; highlight the active one.
         Keys: 'img_0', 'img_1', ... matching main_tab_widget indices.
         Home tab (index 0) is skipped — it has no file.
@@ -2623,6 +2638,8 @@ class IMGFactory(QMainWindow):
             registered = list(getattr(self.tool_taskbar, '_tools', {}).keys())
             existing_img_keys = {k for k in registered if k.startswith('img_')}
             valid_keys = set()
+            tool_targets = {id(v.get('target')) for k, v in self.tool_taskbar._tools.items()
+                            if not k.startswith('img_')}
 
             for i in range(tw.count()):
                 tab = tw.widget(i)
@@ -2650,6 +2667,9 @@ class IMGFactory(QMainWindow):
 
                 # Skip IMG/COL tabs with no file loaded
                 if file_type in ('IMG', 'COL') and file_obj is None:
+                    continue
+                # Workshop tab with its own tool button: no second button
+                if file_type == 'WORKSHOP' and id(tab) in tool_targets:
                     continue
 
                 key = f'img_{i}'
@@ -4930,7 +4950,7 @@ class IMGFactory(QMainWindow):
             'BreakableEditor', None,
             'Breakable', file_path or None)
 
-    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 3
+    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 4
         """Generic: import module, instantiate class, dock in tab. Reuses existing tab if open."""
         try:
             import importlib
@@ -4958,7 +4978,6 @@ class IMGFactory(QMainWindow):
             workshop.setWindowFlags(Qt.WindowType.Widget)
             tl.addWidget(workshop)
             if file_path and hasattr(workshop, '_open_file'):
-                from PyQt6.QtCore import QTimer
                 QTimer.singleShot(100, lambda: workshop._open_file(file_path))
             icon = workshop.windowIcon()                 # workshop app icon
             idx = self.main_tab_widget.addTab(tab_container, icon, tab_label)
@@ -4966,6 +4985,7 @@ class IMGFactory(QMainWindow):
             self._ensure_tab_area_visible()
             self.register_tool(class_name.lower(), tab_label.replace(' Workshop', ''), icon,
                                tab_container, workshop.windowTitle())
+            self._sync_img_taskbar_buttons(idx)          # drop the tab's generic button
             QTimer.singleShot(0, self._apply_panel_effects_now)
             self.log_message(f"{tab_label} opened")
             return workshop
@@ -5322,7 +5342,7 @@ class IMGFactory(QMainWindow):
 
     # SETTINGS PERSISTENCE - KEEP 100% OF FUNCTIONALITY
 
-    def _restore_settings(self): #vers 2
+    def _restore_settings(self): #vers 3
         """Restore application settings"""
         try:
             # Aug 20 2026 - now the one, shared, app-folder-relative
@@ -5351,17 +5371,12 @@ class IMGFactory(QMainWindow):
                     new_y = max(avail.y(), min(geo.y(), avail.bottom() - new_h))
                     self.setGeometry(new_x, new_y, new_w, new_h)
 
-            # Restore splitter state
-            splitter_state = settings.value("splitter_state")
-            if splitter_state and hasattr(self.gui_layout, 'main_splitter'):
-                self.gui_layout.main_splitter.restoreState(splitter_state)
-
             self.log_message("Settings restored")
 
         except Exception as e:
             self.log_message(f"Failed to restore settings: {str(e)}")
 
-    def _save_settings(self): #vers 1
+    def _save_settings(self): #vers 2
         """Save application settings"""
         try:
             from apps.methods.img_factory_settings import get_img_factory_qsettings
@@ -5370,9 +5385,8 @@ class IMGFactory(QMainWindow):
             # Save window geometry
             settings.setValue("geometry", self.saveGeometry())
 
-            # Save splitter state
-            if hasattr(self.gui_layout, 'main_splitter'):
-                settings.setValue("splitter_state", self.gui_layout.main_splitter.saveState())
+            # Save dock layout (sizes too)
+            self.gui_layout._save_outer_layout()
 
             self.log_message("Settings saved")
 
@@ -5658,10 +5672,10 @@ class IMGFactory(QMainWindow):
         QApplication.quit()
 
 
-def main():
+def main(): #vers 2
    """Main application entry point"""
    try:
-       app = QApplication(sys.argv)
+       app = QApplication.instance() or QApplication(sys.argv)   # launch.py may have made it (splash)
        app.setApplicationName("IMG Factory")
        app.setApplicationVersion("1.5")
        app.setOrganizationName("X-Seti")
@@ -5682,6 +5696,7 @@ def main():
            except ImportError:
                from app_settings_system import AppSettings
 
+           startup_step("Loading settings and theme", 15)
            settings = AppSettings()
            if hasattr(settings, 'load_settings'):
                settings.load_settings()

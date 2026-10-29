@@ -1,4 +1,4 @@
-#this belongs in apps/methods/path_nodes.py - Version: 6
+#this belongs in apps/methods/path_nodes.py - Version: 7
 # X-Seti - October 19 2026 - IMG Factory 1.6 - Path node writers
 
 """
@@ -10,7 +10,6 @@ Write edited path nodes back to IPL/IDE 'path' sections, SA nodesN.dat, tracks .
 # ipl_path_section_lines
 # replace_text_section
 # rotate_vector_by_quaternion
-# sa_node_offset
 # write_back
 # write_rrr
 # write_sa_nodes
@@ -18,11 +17,7 @@ Write edited path nodes back to IPL/IDE 'path' sections, SA nodesN.dat, tracks .
 # write_tracks_file
 
 import os
-import struct
 from datetime import datetime
-
-SA_HEADER = 20          # five uint32 counts
-SA_NODE_SIZE = 28       # Section 1 record size
 
 
 def _num(v): #vers 2
@@ -91,22 +86,6 @@ def rotate_vector_by_quaternion(vx, vy, vz, x, y, z, w): #vers 1
             2 * (xz - wy) * vx + 2 * (yz + wx) * vy + (1 - 2 * (xx + yy)) * vz)
 
 
-def sa_node_offset(path_file, node): #vers 1
-    """Byte offset of an SA node's Section 1 record."""
-    return SA_HEADER + SA_NODE_SIZE * path_file.all_nodes.index(node)
-
-
-def _patch_sa_bytes(data, path_file, nodes): #vers 1
-    """Patch x/y/z, width, flood fill, flags of changed nodes."""
-    buf = bytearray(data)
-    for n in nodes:
-        o = sa_node_offset(path_file, n)
-        struct.pack_into('<hhh', buf, o + 8, *(int(round(v * 8)) for v in (n.x, n.y, n.z)))
-        struct.pack_into('<BBI', buf, o + 22, int(round(n.path_width * 8)) & 0xFF,
-                         n.flood_fill & 0xFF, n.flags & 0xFFFFFFFF)
-    return bytes(buf)
-
-
 def write_back(src, make_bytes): #vers 3
     """Rewrite a loose file or an 'x.img:entry' in place (backup first).
     make_bytes(old) -> new; an IMG entry is padded in place, or rewritten when it grows."""
@@ -142,9 +121,10 @@ def write_rrr(frames): #vers 1
     write_back(frames[0].source_path, lambda _old: build_rrr(frames))
 
 
-def write_sa_nodes(path_file, nodes): #vers 2
-    """Save changed SA nodes to a loose nodesN.dat or its IMG entry."""
-    write_back(path_file.source_path, lambda data: _patch_sa_bytes(data, path_file, nodes))
+def write_sa_nodes(path_file): #vers 3
+    """Save an SA area (rebuilt whole: nodes, navi, links) to its nodesN.dat or IMG entry."""
+    from apps.methods.sa_path_edit import build_nodes_dat
+    write_back(path_file.source_path, lambda _data: build_nodes_dat(path_file))
 
 
 def write_tracks_file(file_path, points): #vers 1

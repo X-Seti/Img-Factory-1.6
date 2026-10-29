@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Retro_GTA_Workshop/retro_gta_workshop.py - Version: 22
+#this belongs in apps/components/Retro_GTA_Workshop/retro_gta_workshop.py - Version: 23
 # X-Seti - October 23 2026 - IMG Factory 1.6 - Retro GTA Workshop
 # Built on GUIWorkshop base (same as Capture / Water Workshop)
 
@@ -69,6 +69,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
                              QMessageBox, QPushButton, QTabWidget, QVBoxLayout, QWidget)
 
+from apps.methods.statusbar_func import register_statusbar
 from apps.methods.gta1_map import GTA1Map
 from apps.methods.gta1_psx import GTA1PSXMap, GTA1PSXStyle
 from apps.methods.gta1_style import GTA1Style
@@ -124,7 +125,7 @@ class RetroGTAWorkshop(RetroBlockMixin, RetroMapDataMixin, RetroMapImageMixin, R
         if folder and os.path.isdir(folder):
             self._open_game_folder(folder)
 
-    def setup_ui(self): #vers 6
+    def setup_ui(self): #vers 7
         """Titlebar / Files dock | ribbons + Map, Sprites, Text, Media, Data tabs | Block and Tiles docks."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -154,7 +155,7 @@ class RetroGTAWorkshop(RetroBlockMixin, RetroMapDataMixin, RetroMapImageMixin, R
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
 
     def _build_ribbons(self): #vers 10
         """File / View / Edit ribbons."""

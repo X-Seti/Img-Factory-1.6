@@ -1,4 +1,4 @@
-#this belongs in gui/file_menu_integration.py - Version: 5
+#this belongs in gui/file_menu_integration.py - Version: 6
 # X-Seti - August10 2025 - IMG Factory 1.5 - File Menu Integration for Project System
 
 """
@@ -15,7 +15,6 @@ except ImportError:
     from PyQt6.QtWidgets import QAction
 from PyQt6.QtCore import QSettings, Qt
 import os
-from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
 
 ##Methods list -
 # add_project_menu_items

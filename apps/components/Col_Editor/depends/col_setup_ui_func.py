@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 20
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 23
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -7,7 +7,6 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 
 ##class COLSetupUIMixin: -
 # _apply_button_font
-# _apply_hotkey_settings
 # _apply_icon_scale
 # _apply_infobar_font
 # _apply_panel_font
@@ -29,7 +28,6 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 # _get_ui_color
 # _on_theme_changed
 # _refresh_icons
-# _reset_hotkeys_to_defaults
 # _restore_toolbar_state
 # _save_toolbar_state
 # _set_col_buttons_enabled
@@ -1260,39 +1258,16 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
         self._col_icon_buttons = []
         self._col_ctrl_buttons = []
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 2
-        """Right-click context menu on any toolbar."""
-        from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self)
-
-        # Icon Size submenu
-        size_menu = menu.addMenu("Icon Size")
-        from PyQt6.QtWidgets import QSlider, QWidgetAction
-        slider = QSlider(Qt.Orientation.Horizontal)
-        slider.setRange(14, 40)
-        slider.setSingleStep(2)
+    def _toolbar_context_menu(self, toolbar, pos): #vers 4
+        """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
+        from PyQt6.QtWidgets import QToolBar
+        from apps.methods.toolbar_menu import standard_toolbar_menu
         try:
             import json
-            from pathlib import Path
-            data = json.loads((get_user_config_dir()/'col_workshop.json').read_text())
-            slider.setValue(data.get('icon_scale', 20))
+            scale = json.loads((get_user_config_dir() / 'col_workshop.json').read_text()).get('icon_scale', 20)
         except Exception:
-            slider.setValue(20)
-        slider.valueChanged.connect(self._apply_icon_scale)
-        wa = QWidgetAction(menu)
-        wa.setDefaultWidget(slider)
-        size_menu.addAction(wa)
-
-        menu.addSeparator()
-        menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
-        menu.addSeparator()
-        from PyQt6.QtWidgets import QToolBar as _QTB
-        menu.addAction("Lock All Toolbars",
-            lambda: [tb.setMovable(False)
-                     for tb in self._inner_mw.findChildren(_QTB)])
-        menu.addAction("Unlock All Toolbars",
-            lambda: [tb.setMovable(True)
-                     for tb in self._inner_mw.findChildren(_QTB)])
+            scale = 20
+        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _apply_icon_scale(self, px: int): #vers 2
@@ -1762,76 +1737,6 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message("Hotkeys initialized (Plasma6 standard)")
-
-    def _reset_hotkeys_to_defaults(self, parent_dialog): #vers 1
-        """Reset all hotkeys to Plasma6 defaults"""
-        from PyQt6.QtWidgets import QMessageBox
-        from PyQt6.QtGui import QKeySequence
-
-        reply = QMessageBox.question(parent_dialog, "Reset Hotkeys",
-            "Reset all keyboard shortcuts to Plasma6 defaults?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-        if reply == QMessageBox.StandardButton.Yes:
-            # Reset to defaults
-            self.hotkey_edit_open.setKeySequence(QKeySequence.StandardKey.Open)
-            self.hotkey_edit_save.setKeySequence(QKeySequence.StandardKey.Save)
-            self.hotkey_edit_force_save.setKeySequence(QKeySequence("Alt+Shift+S"))
-            self.hotkey_edit_save_as.setKeySequence(QKeySequence.StandardKey.SaveAs)
-            self.hotkey_edit_close.setKeySequence(QKeySequence.StandardKey.Close)
-            self.hotkey_edit_undo.setKeySequence(QKeySequence.StandardKey.Undo)
-            self.hotkey_edit_copy.setKeySequence(QKeySequence.StandardKey.Copy)
-            self.hotkey_edit_paste.setKeySequence(QKeySequence.StandardKey.Paste)
-            self.hotkey_edit_delete.setKeySequence(QKeySequence.StandardKey.Delete)
-            self.hotkey_edit_duplicate.setKeySequence(QKeySequence("Ctrl+D"))
-            self.hotkey_edit_rename.setKeySequence(QKeySequence("F2"))
-            self.hotkey_edit_import.setKeySequence(QKeySequence("Ctrl+I"))
-            self.hotkey_edit_export.setKeySequence(QKeySequence("Ctrl+E"))
-            self.hotkey_edit_export_all.setKeySequence(QKeySequence("Ctrl+Shift+E"))
-            self.hotkey_edit_refresh.setKeySequence(QKeySequence.StandardKey.Refresh)
-            self.hotkey_edit_properties.setKeySequence(QKeySequence("Alt+Return"))
-            self.hotkey_edit_find.setKeySequence(QKeySequence.StandardKey.Find)
-            self.hotkey_edit_help.setKeySequence(QKeySequence.StandardKey.HelpContents)
-
-    def _apply_hotkey_settings(self, dialog, close=False): #vers 1
-        """Apply hotkey changes"""
-        # Update all hotkeys with new sequences
-        self.hotkey_open.setKey(self.hotkey_edit_open.keySequence())
-        self.hotkey_save.setKey(self.hotkey_edit_save.keySequence())
-        self.hotkey_force_save.setKey(self.hotkey_edit_force_save.keySequence())
-        self.hotkey_save_as.setKey(self.hotkey_edit_save_as.keySequence())
-        self.hotkey_close.setKey(self.hotkey_edit_close.keySequence())
-        self.hotkey_undo.setKey(self.hotkey_edit_undo.keySequence())
-        self.hotkey_copy.setKey(self.hotkey_edit_copy.keySequence())
-        self.hotkey_paste.setKey(self.hotkey_edit_paste.keySequence())
-        self.hotkey_delete.setKey(self.hotkey_edit_delete.keySequence())
-        self.hotkey_duplicate.setKey(self.hotkey_edit_duplicate.keySequence())
-        self.hotkey_rename.setKey(self.hotkey_edit_rename.keySequence())
-        self.hotkey_import.setKey(self.hotkey_edit_import.keySequence())
-        self.hotkey_export.setKey(self.hotkey_edit_export.keySequence())
-        self.hotkey_export_all.setKey(self.hotkey_edit_export_all.keySequence())
-        self.hotkey_refresh.setKey(self.hotkey_edit_refresh.keySequence())
-        self.hotkey_properties.setKey(self.hotkey_edit_properties.keySequence())
-        self.hotkey_find.setKey(self.hotkey_edit_find.keySequence())
-        self.hotkey_help.setKey(self.hotkey_edit_help.keySequence())
-
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message("Hotkeys updated")
-
-        # Save hotkeys to img_settings JSON
-        try:
-            mw = getattr(self, 'main_window', None)
-            settings = getattr(mw, 'img_settings', None)
-            if settings:
-                settings.set('col_hotkeys', {
-                    'find':    self.hotkey_edit_find.keySequence().toString(),
-                    'help':    self.hotkey_edit_help.keySequence().toString(),
-                })
-        except Exception:
-            pass
-
-        if close:
-            dialog.accept()
 
     def _set_status(self, msg: str): #vers 1
         """Write msg to the status label (whichever one exists)."""

@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 5
+#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 8
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog UI
 
 """
@@ -51,7 +51,7 @@ from PyQt6.QtWidgets import (
 class AppsysUIMixin: #vers 1
     """Settings dialog tab and widget builders."""
 
-    def _create_ui(self): #vers 10
+    def _create_ui(self): #vers 11
         """Create the settings dialog UI — restructured tabs"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)   # corner handles show, COL style
@@ -105,6 +105,10 @@ class AppsysUIMixin: #vers 1
 
         self.panels_tab = self._create_panels_tab()
         self.tabs.addTab(self.panels_tab, "Panels")
+
+        self.panel_test_tab = self._create_panel_test_tab()
+        self.tabs.addTab(self.panel_test_tab, "Panel Test")
+        self.tabs.currentChanged.connect(lambda _i: self._panel_test_view.update())   # Colors tab edits
 
         self.gadgets_tab = self._create_gadgets_tab()
         self.tabs.addTab(self.gadgets_tab, "Gadgets")
@@ -161,7 +165,7 @@ class AppsysUIMixin: #vers 1
         layout.addWidget(content_widget)
 
 
-    def _create_color_picker_tab(self): #vers 10
+    def _create_color_picker_tab(self): #vers 11
         """Create color picker and theme editor tab - Final layout with logical flow"""
         from apps.utils.app_settings_system import ALPHA_COLOR_KEYS, ColorPickerWidget, PanelControlRow, PanelSectionHeader, ThemeColorEditor
         tab = QWidget()
@@ -526,6 +530,7 @@ class AppsysUIMixin: #vers 1
             "panel_entries": "Panel - Entries",
             "panel_filter": "Panel - Filter",
             "toolbar_bg": "Toolbar Background",
+            "ribbon_bg": "Ribbon Background",
             "gadgetbar_bg": "Gadget Bar Background",
             "gadgetbar_text": "Gadget Bar Text",
             "titlebar_bg": "Title Bar Background",
@@ -701,11 +706,16 @@ class AppsysUIMixin: #vers 1
             current_value = current_colors.get(color_key, "#ffffff")
             if color_key == "menu_bg" and color_key not in current_colors:
                 current_value = current_colors.get("bg_secondary", current_value)
-            alpha = (self.app_settings.current_settings.get("color_alpha", {}).get(color_key, 100)
+            if color_key == "ribbon_bg" and color_key not in current_colors:     # ribbons use toolbar colour
+                current_value = current_colors.get("toolbar_bg", current_value)
+            cs = self.app_settings.current_settings
+            alpha = (cs.get("color_alpha", {}).get(color_key, 100)
                      if color_key in ALPHA_COLOR_KEYS else None)
-            editor = ThemeColorEditor(color_key, color_name, current_value, self, alpha)
+            editor = ThemeColorEditor(color_key, color_name, current_value, self, alpha,
+                                      color_key not in cs.get("color_alpha_off", []))
             editor.colorChanged.connect(self._on_theme_color_changed)
             editor.alphaChanged.connect(self._on_color_alpha_changed)
+            editor.alphaToggled.connect(self._on_color_alpha_toggled)
             editor.lockChanged.connect(lambda key, locked: None)
             self.color_editors[color_key] = editor
             scroll_layout.addWidget(editor)
@@ -2024,7 +2034,7 @@ Ready for operations..."""
         return group
 
 
-    def _create_interface_tab(self): #vers 4
+    def _create_interface_tab(self): #vers 5
         """Create interface settings tab - UI display options"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -2035,11 +2045,11 @@ Ready for operations..."""
         button_display_layout = QVBoxLayout(button_display_group)
 
         self.button_display_combo = QComboBox()
-        self.button_display_combo.addItems(["Icons + Text", "Icons Only", "Text Only"])
+        self.button_display_combo.addItems(["Icons + Text", "Icons Only", "Text Only", "Auto (icons when narrow)"])
 
         # Load current setting
         current_mode = self.app_settings.current_settings.get("button_display_mode", "both")
-        mode_map = {"both": 0, "icons": 1, "text": 2}
+        mode_map = {"both": 0, "icons": 1, "text": 2, "auto": 3}
         self.button_display_combo.setCurrentIndex(mode_map.get(current_mode, 0))
 
         # Tab content mode
@@ -2149,7 +2159,7 @@ Ready for operations..."""
         return widget
 
 
-    def _create_panels_tab(self): #vers 4
+    def _create_panels_tab(self): #vers 5
         """Panels tab: four live previews stacked on the left; background image,
         transparency and gadgets settings on the right.
         Fill / Gradient / Pattern colours are in the Colors tab."""
@@ -2207,7 +2217,7 @@ Ready for operations..."""
         self._panel_img_mode = QComboBox()
         self._panel_img_mode.addItems([
             "Tiled", "Stretched", "Centred", "Scaled fit", "Scaled fill", "Across window"])
-        self._panel_img_mode.setCurrentIndex(cs.get("panel_bg_image_mode", 0))
+        self._panel_img_mode.setCurrentIndex(cs.get("panel_bg_image_mode", 5))
         igl.addWidget(QLabel("Display:"), 1, 0)
         igl.addWidget(self._panel_img_mode, 1, 1)
 

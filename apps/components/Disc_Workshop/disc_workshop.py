@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Disc_Workshop/disc_workshop.py - Version: 2
+#this belongs in apps/components/Disc_Workshop/disc_workshop.py - Version: 4
 # X-Seti - October 23 2026 - IMG Factory 1.6 - Disc Workshop
 # Built on GUIWorkshop base (same as Capture / Retro GTA Workshop)
 
@@ -42,10 +42,12 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QLabel, QMessageBox, QTreeWidget, QTreeWidgetItem,
                              QVBoxLayout, QWidget)
 
+from apps.methods.statusbar_func import register_statusbar
 from apps.methods.cd_image import CDImage, is_cd_image
 from apps.methods.gui_workshop import GUIWorkshop
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
 
 App_name = "Disc Workshop"
 Build = "Build 1"
@@ -53,7 +55,7 @@ KIND_LABEL = {'data': 'Data', 'form2': 'Video / XA (raw 2336)', 'audio': 'CD aud
 RETRO_EXTS = ('.gmp', '.sty', '.cmp', '.g24')
 
 
-class DiscWorkshop(RibbonMixin, GUIWorkshop): #vers 1
+class DiscWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
 
     App_name        = App_name
     App_build       = Build
@@ -68,12 +70,14 @@ class DiscWorkshop(RibbonMixin, GUIWorkshop): #vers 1
     _ribbon_name    = "disc_workshop"
     _RIBBON_LAYOUT_VERSION = 1
 
-    def __init__(self, parent=None, main_window=None): #vers 1
+    def __init__(self, parent=None, main_window=None): #vers 2
         self._disc = None
         super().__init__(parent, main_window)
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        self._apply_ribbon_layout()
 
-    def setup_ui(self): #vers 1
+    def setup_ui(self): #vers 2
         """Titlebar / ribbons + file tree / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -93,7 +97,7 @@ class DiscWorkshop(RibbonMixin, GUIWorkshop): #vers 1
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
 
     def _build_ribbons(self): #vers 2
         B = self.ribbon_button

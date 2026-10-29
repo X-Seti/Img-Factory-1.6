@@ -1,45 +1,34 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 4
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop toolbar
 
 """
 Toolbar, file loading, paint, animation and overlay actions.
 """
 
-##class _ToolbarMixin: -
-# _apply_theme
+##class VehicleToolbarMixin: -
 # _auto_load_shared_txds
 # _collect_needed_textures
 # _cycle_carcol
 # _export_dff
 # _find_game_root
-# _get_accent_color
 # _get_game_root
-# _get_icon_color
 # _get_ide_db
-# _launch_theme_settings
 # _load_carcols
 # load_dff
 # load_img
 # load_txd
 # _load_vehicle_meta
 # _lookup_txd_for_stem
-# _menu_btn_popup
 # _on_img_entry_dclicked
-# _on_menu_btn_clicked
 # _on_shared_txds_found
 # _open_app_settings
 # _open_dff
 # _open_txd
 # _parse_sa_vehicles_ide
-# _refresh_icons
 # _set_anim_speed
 # _set_mode
 # _set_paint_pair
 # _set_wheel_steer
-# _show_about
-# _show_dropdown_menu
-# _show_popup_menu
-# _show_workshop_settings
 # _strip_tex_suffix
 # _titlebar_actions
 # _toggle_animation
@@ -58,31 +47,19 @@ Toolbar, file loading, paint, animation and overlay actions.
 
 import os, re
 
-from apps.methods.titlebar_func import TitlebarMixin
 from PyQt6.QtCore import QSize, QThread, QTimer, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
-    QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox,
-    QFileDialog, QFontComboBox, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel,
-    QLineEdit, QListWidgetItem, QMenu, QMessageBox, QPushButton, QSpinBox, QTabWidget,
-    QTextEdit, QVBoxLayout, QWidget)
+    QApplication, QColorDialog, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QListWidgetItem, QPushButton, QWidget)
 
 from apps.methods.dff_parser import load_dff
 from apps.methods.txd_parser import parse_txd
-from apps.components.Vehicle_Workshop.depends.vehicle_common_func import (
-    APPSETTINGS_AVAILABLE, AppSettings, SVGIconFactory, SettingsDialog)
+from apps.components.Vehicle_Workshop.depends.vehicle_common_func import SVGIconFactory
 
-
-class _ToolbarMixin(TitlebarMixin):
-    """Toolbar + Settings dialog + theme methods.
-    Mixed into GUIWorkshop — not used standalone.
-    """
+class VehicleToolbarMixin: #vers 1
+    """Vehicle titlebar buttons, loaders and viewport toggles (chrome from GUIWorkshop)."""
 
     #    Toolbar creation
-
-    def _menu_btn_popup(self): #vers 1
-        """Menu button calls _on_menu_btn_clicked (top bar or drop-down)."""
-        return False
 
     def _titlebar_actions(self, layout): #vers 1
         """Vehicle titlebar: Open, Save, Export, Import, Undo."""
@@ -1206,39 +1183,7 @@ class _ToolbarMixin(TitlebarMixin):
 
 
     #    Menu button handler
-    def _on_menu_btn_clicked(self): #vers 2
-        pm = QMenu(self)
-        self._build_menus_into_qmenu(pm)
-        btn = getattr(self, 'menu_btn', None)
-        if btn:
-            pm.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-        else:
-            pm.exec(self.cursor().pos())
-
-
-    def _show_dropdown_menu(self): #vers 1
-        """Pop up the workshop menus as a QMenu below the [Menu] button."""
-        menu = QMenu(self)
-        self._build_menus_into_qmenu(menu)
-        btn = getattr(self, "menu_btn", None)
-        pos = btn.mapToGlobal(btn.rect().bottomLeft()) if btn else self.cursor().pos()
-        menu.exec(pos)
-
-    def _show_popup_menu(self): #vers 1
-        self._show_dropdown_menu()
-
     #    [ℹ] Info — About dialog
-
-    def _show_about(self): #vers 1
-        """[ℹ] button — show About / Info for this workshop."""
-        author = getattr(self, "App_author",      "X-Seti")
-        year   = getattr(self, "App_year",        "2026")
-        desc   = getattr(self, "App_description", "")
-        QMessageBox.information(self, f"About {self.App_name}",
-            f"{self.App_name}   {self.App_build}\n\n"
-            + (f"{desc}\n\n" if desc else "")
-            + f"Copyright \u00a9 {year}  {author}\n"
-              f"Part of IMG Factory 1.6 — a GTA modding toolkit.")
 
     def _open_app_settings(self): #vers 1
         try:
@@ -1257,252 +1202,9 @@ class _ToolbarMixin(TitlebarMixin):
 
     #    [⚙] Cog — Global AppSettings theme dialog
 
-    def _launch_theme_settings(self): #vers 1
-        """[⚙] Cog — opens the global AppSettings / SettingsDialog.
-        Identical pattern to radar_workshop._launch_theme_settings.
-        """
-        try:
-            if not APPSETTINGS_AVAILABLE:
-                QMessageBox.information(self, "Theme",
-                    "AppSettings not available in this environment.")
-                return
-            if not self.app_settings:
-                self.app_settings = AppSettings()
-            dialog = SettingsDialog(self.app_settings, self)
-            dialog.themeChanged.connect(lambda _: self._apply_theme())
-            if dialog.exec():
-                self._apply_theme()
-                self._refresh_icons()
-        except Exception as e:
-            QMessageBox.warning(self, "Theme Error",
-                f"Could not open theme settings:\n{e}")
-
     #    [Settings] — Workshop-local settings dialog
 
-    def _show_workshop_settings(self): #vers 2
-        """[Settings] button — workshop-local settings.
-        Tabs: Fonts / Display / Menu / About
-        Reads/writes WorkshopSettings (per-app JSON).
-        """
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"{self.App_name} — Settings")
-        dlg.setMinimumSize(520, 460)
-        try:
-            from apps.core.theme_utils import apply_dialog_theme
-            apply_dialog_theme(dlg, self.main_window)
-        except Exception:
-            pass
-
-        showws  = QVBoxLayout(dlg)
-        tabs = QTabWidget()
-        ws  = self.WS
-
-        #    Tab 1: Fonts
-        ft  = QWidget(); fl = QVBoxLayout(ft)
-
-        def _font_row(label, fam_key, sz_key, def_fam, def_sz, mn=7, mx=32):  #vers 1
-            grp = QGroupBox(label); row = QHBoxLayout(grp)
-            fc = QFontComboBox()
-            fc.setCurrentFont(__import__("PyQt6.QtGui", fromlist=["QFont"])
-                              .QFont(ws.get(fam_key, def_fam)))
-            sc = QSpinBox(); sc.setRange(mn, mx)
-            sc.setValue(ws.get(sz_key, def_sz))
-            sc.setSuffix(" pt"); sc.setFixedWidth(75)
-            row.addWidget(fc); row.addWidget(sc)
-            fl.addWidget(grp)
-            return fc, sc
-
-        fc_tit, sc_tit = _font_row("Title Font",
-            "font_title_family",  "font_title_size",  "Arial",       14, 10, 32)
-        fc_pan, sc_pan = _font_row("Panel / Header Font",
-            "font_panel_family",  "font_panel_size",  "Arial",       10)
-        fc_btn, sc_btn = _font_row("Button Font",
-            "font_button_family", "font_button_size", "Arial",       10)
-        fc_inf, sc_inf = _font_row("Info Bar Font",
-            "font_info_family",   "font_info_size",   "Courier New",  9)
-        fl.addStretch()
-        tabs.addTab(ft, "Fonts")
-
-        #    Tab 2: Display
-        dt = QWidget(); dl = QVBoxLayout(dt)
-
-        bm_grp = QGroupBox("Button Display Mode"); bm_lo = QVBoxLayout(bm_grp)
-        bm_cb  = QComboBox()
-        bm_cb.addItems(["Icons + Text", "Icons Only", "Text Only"])
-        bm_cb.setCurrentIndex(
-            {"both":0,"icons":1,"text":2}.get(ws.get("button_display_mode","both"),0))
-        bm_lo.addWidget(bm_cb)
-        bm_lo.addWidget(QLabel("Restart required to change button mode.",
-                               styleSheet="color:#888;font-style:italic;"))
-        dl.addWidget(bm_grp)
-
-        sb_grp = QGroupBox("Status Bar"); sb_lo = QVBoxLayout(sb_grp)
-        sb_chk = QCheckBox("Show status bar at bottom")
-        sb_chk.setChecked(bool(ws.get("show_statusbar", True)))
-        sb_lo.addWidget(sb_chk)
-        dl.addWidget(sb_grp)
-
-        sw_grp = QGroupBox("Sidebar"); sw_lo = QVBoxLayout(sw_grp)
-        from PyQt6.QtWidgets import QFormLayout
-        sw_form = QFormLayout()
-        sw_spin = QSpinBox(); sw_spin.setRange(60,200)
-        sw_spin.setValue(ws.get("sidebar_width", 82)); sw_spin.setSuffix(" px")
-        sw_form.addRow("Sidebar width:", sw_spin)
-        sw_lo.addLayout(sw_form)
-        dl.addWidget(sw_grp)
-
-        dl.addStretch()
-        tabs.addTab(dt, "Display")
-
-        #    Tab 3: Menu
-        mt = QWidget(); ml = QVBoxLayout(mt)
-
-        ms_grp = QGroupBox("Menu Style"); ms_lo = QVBoxLayout(ms_grp)
-        ms_cb  = QComboBox()
-        ms_cb.addItems(["Dropdown  ☰  (default)", "Top menu bar"])
-        ms_cb.setCurrentIndex(
-            0 if ws.get("menu_style","dropdown") == "dropdown" else 1)
-        ms_lo.addWidget(ms_cb)
-        ms_lo.addWidget(QLabel("Restart required to switch menu style.",
-                               styleSheet="color:#888;font-style:italic;"))
-        ml.addWidget(ms_grp)
-
-        mf_grp = QGroupBox("Menu Font Size"); mf_lo = QFormLayout(mf_grp)
-        mf_dd  = QSpinBox(); mf_dd.setRange(7,16)
-        mf_dd.setValue(ws.get("menu_dropdown_font_size",9)); mf_dd.setSuffix(" pt")
-        mf_lo.addRow("Dropdown font:", mf_dd)
-        mf_bh  = QSpinBox(); mf_bh.setRange(18,40)
-        mf_bh.setValue(ws.get("menu_bar_height",22)); mf_bh.setSuffix(" px")
-        mf_lo.addRow("Bar height:", mf_bh)
-        ml.addWidget(mf_grp)
-        ml.addStretch()
-        tabs.addTab(mt, "Menu")
-
-        #    Tab 4: About
-        at  = QWidget(); al = QVBoxLayout(at)
-        atx = QTextEdit(); atx.setReadOnly(True)
-        author = getattr(self, "App_author",      "X-Seti")
-        year   = getattr(self, "App_year",        "2026")
-        desc   = getattr(self, "App_description", "GUIWorkshop — IMG Factory 1.6")
-        atx.setHtml(
-            f"<h2>{self.App_name}</h2>"
-            f"<p><b>Build:</b> {self.App_build}</p>"
-            f"<p>{desc}</p>"
-            f"<hr>"
-            f"<p>Copyright &copy; {year} <b>{author}</b></p>"
-            f"<p>Part of <b>IMG Factory 1.6</b> — a GTA modding toolkit.</p>"
-            f"<p style='color:#888;'>Not affiliated with Rockstar Games "
-            f"or Take-Two Interactive.</p>")
-        al.addWidget(atx)
-        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
-        add_sizes_tab(self, tabs)
-        tabs.addTab(at, "About")
-
-        #    Tab: Vehicle (game path, viewport settings)
-        vt = QWidget(); vl = QVBoxLayout(vt)
-
-        game_grp = QGroupBox("GTA Game Root"); gl = QHBoxLayout(game_grp)
-        game_edit = QLineEdit(ws.get("game_root", ""))
-        game_edit.setPlaceholderText("e.g. /home/user/GTASA-PC")
-        browse_btn = QPushButton("Browse…")
-        def _browse_game():  #vers 1
-            from PyQt6.QtWidgets import QFileDialog
-            d = QFileDialog.getExistingDirectory(dlg, "Select GTA Game Root", game_edit.text())
-            if d: game_edit.setText(d)
-        browse_btn.clicked.connect(_browse_game)
-        gl.addWidget(game_edit, 1); gl.addWidget(browse_btn)
-        vl.addWidget(game_grp)
-
-        vp_grp = QGroupBox("3D Viewport"); vpl = QVBoxLayout(vp_grp)
-        grid_cb = QCheckBox("Show grid on startup")
-        grid_cb.setChecked(ws.get("viewport_grid", True))
-        cull_cb = QCheckBox("Backface culling on startup")
-        cull_cb.setChecked(ws.get("viewport_cull", True))
-        vpl.addWidget(grid_cb); vpl.addWidget(cull_cb)
-        vl.addWidget(vp_grp)
-        vl.addStretch()
-        tabs.addTab(vt, "Vehicle")
-
-        #    Dialog buttons
-        showws.addWidget(tabs)
-        btns = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok |
-            QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept)
-        btns.rejected.connect(dlg.reject)
-        showws.addWidget(btns)
-
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        #    Save
-        ws.set("font_title_family",        fc_tit.currentFont().family())
-        ws.set("font_title_size",          sc_tit.value())
-        ws.set("font_panel_family",        fc_pan.currentFont().family())
-        ws.set("font_panel_size",          sc_pan.value())
-        ws.set("font_button_family",       fc_btn.currentFont().family())
-        ws.set("font_button_size",         sc_btn.value())
-        ws.set("font_info_family",         fc_inf.currentFont().family())
-        ws.set("font_info_size",           sc_inf.value())
-        ws.set("button_display_mode",      ["both","icons","text"][bm_cb.currentIndex()])
-        ws.set("show_statusbar",           sb_chk.isChecked())
-        ws.set("sidebar_width",            sw_spin.value())
-        ws.set("menu_style",               "dropdown" if ms_cb.currentIndex()==0 else "topbar")
-        ws.set("menu_dropdown_font_size",  mf_dd.value())
-        ws.set("menu_bar_height",          mf_bh.value())
-        ws.set("game_root",                game_edit.text())
-        ws.set("viewport_grid",            grid_cb.isChecked())
-        ws.set("viewport_cull",            cull_cb.isChecked())
-        ws.save()
-
-        # Live-apply without restart where possible
-        self._load_fonts_from_settings()
-        if hasattr(self, "title_label"):
-            self.title_label.setFont(self.title_font)
-        if hasattr(self, "_status_widget"):
-            self._status_widget.setVisible(ws.get("show_statusbar", True))
-        if hasattr(self, "_sidebar_frame"):
-            self._sidebar_frame.setFixedWidth(ws.get("sidebar_width", 82))
-        self._set_status("Settings saved.")
-
     #    Theme helpers
-
-    def _get_icon_color(self) -> str: #vers 1
-        """Returns text_primary from current theme."""
-        if APPSETTINGS_AVAILABLE and self.app_settings:
-            try:
-                return self.app_settings.get_theme_colors().get(
-                    "text_primary", "#e0e0e0")
-            except Exception:
-                pass
-        bg = self.palette().window().color()
-        return "#e0e0e0" if bg.lightness() < 128 else "#202020"
-
-    def _get_accent_color(self) -> str: #vers 1
-        """Returns accent_primary from current theme."""
-        if APPSETTINGS_AVAILABLE and self.app_settings:
-            try:
-                return self.app_settings.get_theme_colors().get(
-                    "accent_primary", "#4682FF")
-            except Exception:
-                pass
-        return "#4682FF"
-
-    def _apply_theme(self): #vers 1
-        """Apply QSS from AppSettings."""
-        if self.app_settings:
-            try:
-                qss = self.app_settings.get_stylesheet()
-                if qss: self.setStyleSheet(qss)
-            except Exception:
-                pass
-
-    def _refresh_icons(self): #vers 3
-        """Called on theme change — re-apply theme and recolour titlebar icons."""
-        self._apply_theme()
-        self.update()                                   # corner handle colour
-        self._refresh_titlebar_icons()
-
 
 #
 # SECTION 3 — Layout: setup_ui, left panel, centre panel, right panel, status

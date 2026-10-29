@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 41
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 43
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -22,6 +22,8 @@ if str(project_root) not in sys.path:
 from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.methods.corner_handles import paint_corner_handles
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.dock_panels import DockPanelsMixin, add_outer_dock, make_outer_mw
 from apps.methods.titlebar_func import TitlebarMixin
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox,
@@ -1518,8 +1520,9 @@ _GAME_WORLD_BOUNDS = {
 }
 
 
-class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
+class RadarWorkshop(TitlebarMixin, RibbonIconsMixin, RibbonMixin, DockPanelsMixin, ToolMenuMixin, QWidget): #vers 4
     _ribbon_name = "radar_workshop"
+    _OUTER_LAYOUT_VERSION = 1      # Tiles dock
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
     _RIBBON_LAYOUT_VERSION = 4
 
@@ -1688,7 +1691,9 @@ class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
 
     #    setup_ui
 
-    def setup_ui_old(self): #vers 2
+    def setup_ui(self): #vers 3
+        """Titlebar / Tiles dock | ribbons + viewport / status bar."""
+        from PyQt6.QtCore import QTimer
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -1696,44 +1701,6 @@ class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
         toolbar = self._create_toolbar()
         main_layout.addWidget(toolbar)
 
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        # Left panel — hidden (same pattern as template: None in standalone)
-        left = self._create_left_panel()
-        centre = self._create_centre_panel()
-        right  = self._create_right_panel()
-
-        if left is not None:
-            main_splitter.addWidget(left)
-            main_splitter.addWidget(centre)
-            main_splitter.addWidget(right)
-            main_splitter.setStretchFactor(0,1)
-            main_splitter.setStretchFactor(1,2)
-            main_splitter.setStretchFactor(2,5)
-        else:
-            main_splitter.addWidget(centre)
-            main_splitter.addWidget(right)
-            main_splitter.setStretchFactor(0,1)
-            main_splitter.setStretchFactor(1,4)
-
-        self._draw_btns = {}
-        main_layout.addWidget(self.ribbon_wrap(main_splitter), 1)
-        self._build_ribbons()
-        self.ribbon_restore_state()
-
-        self._status_bar = self._create_status_bar()
-        main_layout.addWidget(self._status_bar)
-        register_statusbar(self, self._status_bar)
-
-    def setup_ui(self): #vers 2
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(*self.get_content_margins())
-        main_layout.setSpacing(self.setspacing)
-
-        toolbar = self._create_toolbar()
-        main_layout.addWidget(toolbar)
-
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Left panel — hidden (same pattern as template: None in standalone)
         left = self._create_left_panel()
@@ -1742,26 +1709,26 @@ class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
 
         self._draw_btns = {}
 
+        # Ribbons over the viewport; tile list (and left panel if any) are docks
+        if not hasattr(self, 'section_title_font'):
+            self.section_title_font = QFont(self.panel_font.family(), 11, QFont.Weight.Bold)
+        mw = make_outer_mw(self.ribbon_wrap(right))
+        self._outer_mw = mw
+        self._outer_docks = []
         if left is not None:
-            main_splitter.addWidget(left)
-            main_splitter.addWidget(centre)
-            # Wrap only the right viewpoint panel with ribbons
-            main_splitter.addWidget(self.ribbon_wrap(right))
-            main_splitter.setStretchFactor(0, 1)
-            main_splitter.setStretchFactor(1, 2)
-            main_splitter.setStretchFactor(2, 5)
-        else:
-            main_splitter.addWidget(centre)
-            # Wrap only the right viewpoint panel with ribbons, leaving centre (tile list) free
-            main_splitter.addWidget(self.ribbon_wrap(right))
-            main_splitter.setStretchFactor(0, 1)
-            main_splitter.setStretchFactor(1, 4)
-
-        # Add the splitter directly to main_layout without wrapping the whole thing
-        main_layout.addWidget(main_splitter, 1)
+            self._outer_docks.append(add_outer_dock(self, mw, "Files", left, 180,
+                                                    Qt.DockWidgetArea.LeftDockWidgetArea))
+        self._outer_docks.append(add_outer_dock(self, mw, "Tiles", centre, 220,
+                                                Qt.DockWidgetArea.LeftDockWidgetArea))
+        if left is not None:
+            mw.splitDockWidget(self._outer_docks[0], self._outer_docks[1], Qt.Orientation.Horizontal)
+        main_layout.addWidget(mw, 1)
 
         self._build_ribbons()
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw                 # Ribbon Manager target
+        self._apply_ribbon_layout()
+        QTimer.singleShot(400, self._restore_outer_layout)
 
         self._status_bar = self._create_status_bar()
         main_layout.addWidget(self._status_bar)
@@ -4800,7 +4767,11 @@ class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
         self.ribbon_save_state()
         super().hideEvent(event)
 
-    def closeEvent(self, event): #Vers 3
+    def _ribbon_config_path(self): #vers 1
+        """Dock and ribbon-layout file."""
+        return get_user_config_dir() / "radar_workshop_docks.json"
+
+    def closeEvent(self, event): #vers 4
         if self.standalone_mode and self._dirty_tiles:
             r = QMessageBox.question(
                 self, App_name, "Save modified tiles before closing?",
@@ -4815,6 +4786,7 @@ class RadarWorkshop(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget): #vers 3
                     event.ignore()
                     return
         self.ribbon_save_state()
+        self._save_outer_layout()
         # Save window geometry
         if self.standalone_mode:
             g = self.geometry()

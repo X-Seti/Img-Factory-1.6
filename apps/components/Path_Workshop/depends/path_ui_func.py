@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 11
+#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 12
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Path Workshop UI
 
 """
@@ -424,7 +424,7 @@ class PathUIMixin(TitlebarMixin): #vers 2
 
         # Corner resize overlay set up in showEvent
 
-    def setup_ui(self): #vers 3
+    def setup_ui(self): #vers 4
         """Titlebar / radar view with ribbons / node docks / status bar."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
@@ -444,6 +444,8 @@ class PathUIMixin(TitlebarMixin): #vers 2
 
         self._build_ribbons()
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw                 # Ribbon Manager target
+        self._apply_ribbon_layout()
         QTimer.singleShot(400, self._restore_outer_layout)
         self.window_closed.connect(self._save_outer_layout)
 

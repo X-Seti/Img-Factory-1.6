@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_logic_func.py - Version: 6
+#this belongs in apps/utils/depends/appsys_logic_func.py - Version: 11
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog Logic
 
 """
@@ -35,11 +35,13 @@ Mixin for SettingsDialog in apps/utils/app_settings_system.py.
 # _on_button_color_changed
 # _on_button_theme_type_changed
 # _on_color_alpha_changed
+# _on_color_alpha_toggled
 # _on_font_changed
 # _on_global_bri_changed
 # _on_global_hue_changed
 # _on_global_sat_changed
 # _on_size_changed
+# _apply_theme_change
 # _on_theme_changed
 # _on_theme_color_changed
 # _pick_button_color
@@ -1085,17 +1087,24 @@ class AppsysLogicMixin: #vers 1
             alpha[key] = int(value)
         self.app_settings.current_settings["color_alpha"] = alpha
 
+    def _on_color_alpha_toggled(self, key, on): #vers 1
+        """Transparency on / off for a colour; the value is kept."""
+        off = set(self.app_settings.current_settings.get("color_alpha_off", []))
+        (off.discard if on else off.add)(key)
+        self.app_settings.current_settings["color_alpha_off"] = sorted(off)
 
-    def _load_panel_controls(self): #vers 5
+
+    def _load_panel_controls(self): #vers 7
         """Show current panel image, transparency and colour alpha settings."""
         from apps.utils.app_settings_system import ALPHA_COLOR_KEYS
         cs = self.app_settings.current_settings
         for key, ed in getattr(self, 'color_editors', {}).items():
             if key in ALPHA_COLOR_KEYS:
                 ed.set_alpha(cs.get("color_alpha", {}).get(key, 100))
+                ed.set_alpha_on(key not in cs.get("color_alpha_off", []))
         if hasattr(self, '_panel_img_path'):
             self._panel_img_path.setText(cs.get("panel_bg_image", ""))
-            self._panel_img_mode.setCurrentIndex(int(cs.get("panel_bg_image_mode", 0)))
+            self._panel_img_mode.setCurrentIndex(int(cs.get("panel_bg_image_mode", 5)))
             self._panel_img_opacity.setValue(int(cs.get("panel_bg_image_opacity", 100)))
             self._panel_img_all.setChecked(bool(cs.get("panel_bg_image_all", False)))
             self._panel_img_titlebar.setCurrentIndex(int(cs.get("image_titlebar", 0)))
@@ -1325,71 +1334,59 @@ class AppsysLogicMixin: #vers 1
                 editor.set_locked(False)
 
 
-    def _on_theme_changed(self, theme_name): #vers 4
-        """Handle theme selection change — applies live to entire app when checked."""
+    def _on_theme_changed(self, theme_name): #vers 5
+        """Theme picked: colour editors now, restyle once the selection settles (150 ms)."""
         theme_key = None
         for key, data in self.app_settings.themes.items():
             if data.get("name", key) == theme_name:
                 theme_key = key
                 break
-
         if not theme_key:
             return
-
         self._load_theme_colors(theme_key)
+        self._pending_theme = theme_key
+        timer = getattr(self, '_theme_timer', None)
+        if timer is None:
+            from PyQt6.QtCore import QTimer
+            timer = self._theme_timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(self._apply_theme_change)
+        timer.start(150)                                 # scrolling the list: only the last one restyles
+
+    def _apply_theme_change(self): #vers 1
+        """One restyle: whole app when live apply is on, else this dialog only."""
+        from PyQt6.QtWidgets import QApplication
+        theme_key = self._pending_theme
         self.app_settings.apply_theme_effects(theme_key)
         self._load_panel_controls()
-
-        # Re-apply stylesheet so dialog colours update immediately
-        try:
-            self.setStyleSheet(self.app_settings.get_stylesheet())
-        except Exception:
-            pass
-
-        if hasattr(self, 'instant_apply_check') and self.instant_apply_check.isChecked():
-            # Persist the choice
+        live = hasattr(self, 'instant_apply_check') and self.instant_apply_check.isChecked()
+        if live:
             self.app_settings.current_settings["theme"] = theme_key
-
-            # Apply full stylesheet to the app
-            try:
-                from PyQt6.QtWidgets import QApplication
-                stylesheet = self.app_settings.get_stylesheet()
-                QApplication.instance().setStyleSheet(stylesheet)
-            except Exception:
-                pass
-
-            # Apply to this dialog too
-            try:
-                stylesheet = self.app_settings.get_stylesheet()
-                self.setStyleSheet(stylesheet)
-            except Exception:
-                pass
-
-            # Refresh IMG Factory-specific widgets (taskbar, table, icons)
-            try:
-                mw = self.parent()
-                if mw is None:
-                    # Non-modal — find main window via QApplication
-                    from PyQt6.QtWidgets import QApplication
-                    for w in QApplication.topLevelWidgets():
-                        if hasattr(w, 'app_settings') and hasattr(w, 'gui_layout'):
-                            mw = w
-                            break
-                if mw and hasattr(mw, 'app_settings'):
-                    colors = mw.app_settings.get_theme_colors() or {}
-                    icon_color = colors.get('text_primary', '#cccccc')
-                    if hasattr(mw, 'gui_layout'):
-                        if hasattr(mw.gui_layout, 'refresh_icons'):
-                            mw.gui_layout.refresh_icons(icon_color)
-                        if hasattr(mw.gui_layout, 'apply_table_theme'):
-                            mw.gui_layout.apply_table_theme()
-                    if hasattr(mw, 'tool_taskbar'):
-                        mw.tool_taskbar.apply_theme(colors)
-            except Exception:
-                pass
-
-            # Emit signal
-            self.themeChanged.emit(theme_key)
+        stylesheet = self.app_settings.get_stylesheet()
+        if live:
+            self.setStyleSheet("")                       # inherits the app stylesheet
+            QApplication.instance().setStyleSheet(stylesheet)
+        else:
+            self.setStyleSheet(stylesheet)               # preview in this dialog only
+            return
+        # Refresh IMG Factory-specific widgets (taskbar, table, icons)
+        mw = self.parent()
+        if mw is None:                                   # non-modal: find the main window
+            for w in QApplication.topLevelWidgets():
+                if hasattr(w, 'app_settings') and hasattr(w, 'gui_layout'):
+                    mw = w
+                    break
+        if mw and hasattr(mw, 'app_settings'):
+            colors = mw.app_settings.get_theme_colors() or {}
+            icon_color = colors.get('text_primary', '#cccccc')
+            if hasattr(mw, 'gui_layout'):
+                if hasattr(mw.gui_layout, 'refresh_icons'):
+                    mw.gui_layout.refresh_icons(icon_color)
+                if hasattr(mw.gui_layout, 'apply_table_theme'):
+                    mw.gui_layout.apply_table_theme()
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar.apply_theme(colors)
+        self.themeChanged.emit(theme_key)
 
 
     def _load_theme_colors(self, theme_key): #vers 3
@@ -1469,7 +1466,7 @@ class AppsysLogicMixin: #vers 1
                 self.demo_log.append(f"Refreshed: {len(self.app_settings.themes)} themes")
 
 
-    def _load_current_settings(self): #vers 5
+    def _load_current_settings(self): #vers 6
         """Load current settings into UI"""
         # Set theme
         if hasattr(self, 'theme_selector_combo'):
@@ -1518,7 +1515,7 @@ class AppsysLogicMixin: #vers 1
             # Button display mode
         if hasattr(self, 'button_display_combo'):
             current_mode = self.app_settings.current_settings.get("button_display_mode", "both")
-            mode_map = {"both": 0, "icons": 1, "text": 2}
+            mode_map = {"both": 0, "icons": 1, "text": 2, "auto": 3}
             self.button_display_combo.setCurrentIndex(mode_map.get(current_mode, 0))
 
         # Window controls
@@ -1546,7 +1543,7 @@ class AppsysLogicMixin: #vers 1
             )
 
 
-    def _get_dialog_settings(self): #vers 2
+    def _get_dialog_settings(self): #vers 3
         """Collect all settings from dialog controls"""
         settings = {}
 
@@ -1577,7 +1574,7 @@ class AppsysLogicMixin: #vers 1
         # Button display mode
         if hasattr(self, 'button_display_combo'):
             mode_index = self.button_display_combo.currentIndex()
-            mode_map = {0: "both", 1: "icons", 2: "text"}
+            mode_map = {0: "both", 1: "icons", 2: "text", 3: "auto"}
             settings["button_display_mode"] = mode_map.get(mode_index, "both")
 
         # Tab content mode
@@ -1674,7 +1671,7 @@ class AppsysLogicMixin: #vers 1
         return contributions
 
 
-    def _apply_settings(self): #vers 7
+    def _apply_settings(self): #vers 8
         """Apply settings permanently and save to appfactory.settings.json AND theme files"""
         from apps.utils.app_settings_system import apply_panel_effects
         new_settings = self._get_dialog_settings()
@@ -1745,6 +1742,9 @@ class AppsysLogicMixin: #vers 1
             pass
 
         self.settingsChanged.emit()
+        owner = self.parent()                            # IMG Factory: button display mode now
+        if hasattr(owner, '_apply_button_display_mode_from_settings'):
+            owner._apply_button_display_mode_from_settings()
 
         # Apply panel effects and button/progressbar styles to main window,
         # then every other open top-level window (standalone / torn-off workshops)

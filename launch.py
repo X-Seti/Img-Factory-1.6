@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in root /launch.py - Version: 2
+#this belongs in root /launch.py - Version: 3
 # X-Seti - June28 2026 - IMG Factory 1.6 - Launcher
 
 """
@@ -53,10 +53,16 @@ def configure_display(): #vers 2
         os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
 
-def launch_imgfactory(): #vers 1
+def launch_imgfactory(): #vers 2
+    """Dependency check, splash with progress, then IMG Factory."""
     from apps.core.dependency_check import run_startup_check
     if not run_startup_check():
         return 1
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication(sys.argv)   # alive while main() runs; main() reuses it
+    from apps.methods.startup_splash import show_startup_splash, startup_step
+    show_startup_splash()
+    startup_step("Loading modules", 5)
     from apps.components.Img_Factory import imgfactory
     return imgfactory.main()
 

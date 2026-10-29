@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 28
+#this belongs in apps/gui/gui_layout_custom.py - Version: 31
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -979,7 +979,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             traceback.print_exc()
 
 
-    def _create_toolbar(self): #vers 7
+    def _create_toolbar(self): #vers 8
         """Create toolbar - ALL BUTTONS CONNECTED"""
         # Read sizes from app_settings so they match Global App System Settings
         try:
@@ -1085,6 +1085,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.title_label = QLabel(_title_text)
         self.title_label.setFont(self.title_font)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_label.setMinimumWidth(1)             # shrinks first, never widens the window
         layout.addWidget(self.title_label)
 
         layout.addStretch()
@@ -1142,6 +1143,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # ToolTaskbar is defined earlier in this file — instantiate directly.
         self._inline_taskbar = ToolTaskbar(self.main_window, self.titlebar)
         self._inline_taskbar.setVisible(False)
+        self._inline_taskbar.setMinimumWidth(1)         # many tools: clipped, window stays on screen
         layout.addWidget(self._inline_taskbar)
         # Expose on main_window so register_tool finds it immediately
         self.main_window.tool_taskbar = self._inline_taskbar
@@ -1294,7 +1296,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
 
 
-    def _switch_to_directory_tree(self): #vers 12
+    def _switch_to_directory_tree(self): #vers 13
         """Switch to Directory Tree - setup once, then block button"""
         try:
             # If already setup, block second press
@@ -1324,14 +1326,9 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     return
 
             # Place in file window
-            if hasattr(self.main_window.gui_layout, 'middle_vertical_splitter'):
-                splitter = self.main_window.gui_layout.middle_vertical_splitter
-                if splitter and splitter.count() > 0:
-                    file_window = splitter.widget(0)
-                    layout = file_window.layout()
-                    if layout:
-                        layout.addWidget(self.main_window.directory_tree)
-                        self.main_window.log_message("✓ Directory tree setup complete")
+            layout = self.main_window.gui_layout.file_window.layout()
+            layout.addWidget(self.main_window.directory_tree)
+            self.main_window.log_message("Directory tree setup complete")
 
             # Browse to game root
             if hasattr(self.main_window.directory_tree, 'browse_directory'):
@@ -2534,7 +2531,7 @@ fix auto         # on / off / auto (VC grid fix)</pre>
 
 
 
-    def _launch_theme_settings(self): #vers 1
+    def _launch_theme_settings(self): #vers 2
         """Launch theme settings dialog with live theme apply."""
         try:
             if hasattr(self.main_window, 'app_settings'):
@@ -2558,6 +2555,7 @@ fix auto         # on / off / auto (VC grid fix)</pre>
 
                 dialog.themeChanged.connect(_live)
                 dialog.exec()
+                self.main_window._apply_button_display_mode_from_settings()
             else:
                 from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.information(

@@ -1,6 +1,55 @@
-#this belongs in root /ChangeLog.md - Version: 366
+#this belongs in root /ChangeLog.md - Version: 398
 
 
+- Oct 29 2026 - IMG Factory: Settings button display mode applies on Apply/OK; right-click Button Text menu: icons only, text only, both, auto.
+
+- Oct 29 2026 - IMG Factory: button docks shrink to one icon column (Icons + Text and Auto switch to icons when narrow). File window can move to its own dock (right-click menu).
+
+- Oct 29 2026 - IMG Factory docks: Activity Log sits under the file pane only (side docks full height); button docks can shrink below label width.
+
+- Oct 29 2026 - IMG Factory: button text mode follows Settings (icons, text, both, auto by width); ribbons icon-only on auto. Log icons in dock title. Status bar: window, under pane or dock.
+
+- Oct 29 2026 - App Settings v101: Panel Test tab (click mock window areas to edit colour, transparency, panel effect). Transparency for viewport, hero, window, base, button hover/pressed text. Image default Across window.
+
+- Oct 29 2026 - App Settings v100: colour transparency on/off per colour, ribbon_bg colour, more transparent keys. See-through without a compositor uses images/blanktile.png. Button panels take the panel image.
+
+- Oct 29 2026 - Workshop tabs: QTimer error fixed (Breakable opened twice); no duplicate taskbar button. Window no longer widens past the screen from wide tabs, title or taskbar.
+
+- Oct 29 2026 - IMG Factory: button groups and Activity Log are docks (move, float, close, right-click reopen). Buttons as panels or ribbons; Ribbon Manager reorders, hides, moves, adds groups (gui/button_groups.py).
+
+- Oct 29 2026 - Intro cards and Editing Options buttons only show tools present in apps/components (methods/installed_tools.py); unused File_Editor / Ide_Editor top imports removed.
+
+- Oct 29 2026 - Startup splash with progress bar (methods/startup_splash.py); each startup step time printed as [startup] to find slow steps.
+
+- Oct 29 2026 - DAT Browser: DB panel icon timer now owned by the panel - no crash when the panel is gone before it fires.
+
+- Oct 29 2026 - Path Workshop: SA nodes add / link-unlink / delete (navi nodes made, removed and follow moves); nodesN.dat rebuilt whole, byte-exact. New methods/sa_path_edit.py.
+
+- Oct 28 2026 - Vehicle Workshop on shared GUIWorkshop (old copy removed); Radar setup_ui_old removed; Map/Model Ctrl+I clash fixed. Docks: AI, DAT Browser, IDE panel. Status bar option shared (statusbar_func) in all workshops.
+
+- Oct 28 2026 - Terrain: Nature page - land types paint ground and scatter game plants, single plant scatter, density, obstructions. Export: LOD tiles (SA index, III/VC name), tile vertex limit check.
+
+- Oct 28 2026 - Terrain: Paths drawn as strips - click points (curve), double-click / Enter finishes, Esc cancels; paints material, levels across, smooths along with max slope, blended edges.
+
+- Oct 28 2026 - Terrain: Water page - add / remove water brush at a level, shown as a plane, saved in project. Write button updates SA water.dat or III/VC waterpro.dat (backup).
+
+- Oct 28 2026 - Terrain: Assets browser - game objects by category with thumbnails and search; click to place (random rotation, align, angle snap); saved in project, exported to IPL.
+
+- Oct 28 2026 - Terrain: radar follows the export game (off / disabled when unavailable). Paths: Roads, Rail, Footpaths groups; new lined road, rail track, pavement, cobbles, bricks, gravel, boardwalk.
+- Oct 28 2026 - Terrain Workshop: one Environment panel (icon rail: Sculpt, Water, Painting, Nature, Paths, Assets, Setup), tile grids, segment sliders. New methods/env_panel.py.
+- Oct 28 2026 - Shared ribbon right-click menu moved to methods/toolbar_menu.py; DP5 and MEL now use it too. Same menu in every tool.
+- Oct 28 2026 - Capture streams: one camera session at a time, retry back-off, "needs a password" option in the stream dialog.
+- Oct 28 2026 - Capture: network stream source (RTSP cameras, IPTV URLs / .m3u import), recording via ffmpeg with sound. Logins kept in user settings only.
+- Oct 28 2026 - App palette now follows the theme (palette(mid) etc. in all tools). Retro: map view and tile popup use theme colours.
+- Oct 28 2026 - Settings theme dropdown: one restyle instead of three, applied 150 ms after the last pick. Menu text contrast fix for rgba colours. ui_sizes filter lighter.
+- Oct 28 2026 - manjaro2_dark theme: white menu_bg set to bg_secondary in 7 repos (TXD menus showed white).
+- Oct 28 2026 - TXD: dock / splitter and ribbon layout now saved on close (window_closed never emitted). ribbon_system copied to Txd, Model, Ped repos.
+- Oct 28 2026 - buildscript v7 + build.yml v4 in 21 repos: Windows Setup.exe (Inno), macOS .dmg, Linux install.sh. Per-repo requirements.txt from imports. Capture-Workshop build added.
+- Oct 28 2026 - setup_imgfactory.sh v2: portaudio, lzo, cairo, ffmpeg, GStreamer per distro; bogus cv2 pip removed. requirements.txt lists every package the tools import.
+- Oct 28 2026 - One right-click ribbon menu for all tools (Map layout). Menus readable on any theme; manjaro_dark menu_bg fixed. Capture: audio input picker, sound recorded; launcher, README.
+- Oct 28 2026 - New methods/input_bindings(.py, _dialog.py): Key & Mouse Bindings per tool in buttons/<tool>.json. Settings tab + right-click. Old hotkey tabs replaced. Vehicle orbit now right button.
+- Oct 28 2026 - dff_viewport v47: right-click no longer opens panel menu while orbiting (Terrain, Map, Model, Ped, Vehicle). Synced to 8 repos.
+- Oct 28 2026 - Model Viewer, MEL: GUIWorkshop-style titlebar, docks, Ribbon Manager; MEL per-corner system resize. Ribbon Manager added to 14 workshops; Vehicle, Radar get docks.
 - Oct 28 2026 - Standalone repos: buildscript v6 (Linux xvfb start test, errors on run page), build.yml v3. Map, MEL, Ped, AI start fixes. Icons v88 synced.
 - Oct 27 2026 - DP5-Workshop: missing methods/dock_panels.py added (startup crash). Radar menu check fixed. Dolphin Properties .info extractor (tools/kde_info_properties).
 - Oct 27 2026 - DP5: Tape Out dialog - plays Spectrum / C64 / CPC loading screen to an audio output for tape recording, or saves WAV / tape file.

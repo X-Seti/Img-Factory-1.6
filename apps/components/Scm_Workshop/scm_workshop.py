@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Scm_Workshop/scm_workshop.py - Version: 5
+#this belongs in apps/components/Scm_Workshop/scm_workshop.py - Version: 6
 # X-Seti - September24 2026 - IMG Factory 1.6 - SCM Script Workshop
 # GTA III / VC / SA main.scm browser, coord searcher and patcher.
 
@@ -26,6 +26,8 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.img_factory_settings import get_user_config_dir
 
 
 class SCMCoordHit:
@@ -108,7 +110,7 @@ class SCMSearchThread(QThread):
         self.finished_s.emit(hits)
 
 
-class SCMWorkshop(RibbonMixin, QWidget):
+class SCMWorkshop(RibbonIconsMixin, RibbonMixin, QWidget): #vers 2
     App_name="SCM Workshop"
     _ribbon_name="scm_workshop"
     # Bump when the set of ribbons changes (1 = File ribbon)
@@ -131,7 +133,11 @@ class SCMWorkshop(RibbonMixin, QWidget):
         s=QDoubleSpinBox(); s.setRange(lo,hi); s.setValue(val)
         s.setDecimals(3); s.setMinimumWidth(100); s.setMinimumHeight(28); s.setToolTip(tip); return s
 
-    def _build_ui(self):
+    def _ribbon_config_path(self): #vers 1
+        """Ribbon-layout file for the Ribbon Manager."""
+        return get_user_config_dir() / "scm_workshop_docks.json"
+
+    def _build_ui(self): #vers 2
         root=QVBoxLayout(self); root.setContentsMargins(4,4,4,4); root.setSpacing(4)
 
         self._progress=QProgressBar(); self._progress.setVisible(False); self._progress.setFixedHeight(10)
@@ -154,6 +160,8 @@ class SCMWorkshop(RibbonMixin, QWidget):
         bar.addWidget(self._game_lbl)
         root.addLayout(bar)
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw                 # Ribbon Manager target
+        self._apply_ribbon_layout()
 
         self._tabs.addTab(self._build_search_tab(),"Coord Search")
         self._tabs.addTab(self._build_patch_tab(), "Region Patch")

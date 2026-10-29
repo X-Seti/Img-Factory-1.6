@@ -11,9 +11,9 @@ Build numbering:  Build <release>.<imgfactory_file_version>
 """
 
 App_name  = "Img Factory 1.6"
-App_build = "October 14 2026"
-App_build_num = "Build 434"          # increment manually with each release
-App_imgfactory_version = 106          # mirrors Version: N in imgfactory.py — increment on every change
+App_build = "October 29 2026"
+App_build_num = "Build 435"          # increment manually with each release
+App_imgfactory_version = 107          # mirrors Version: N in imgfactory.py — increment on every change
 App_auth  = "X-Seti"
 
 def get_full_build() -> str:

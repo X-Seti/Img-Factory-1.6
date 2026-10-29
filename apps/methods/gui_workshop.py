@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 16
+#this belongs in apps/methods/gui_workshop.py - Version: 18
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -38,7 +38,8 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 from apps.methods.img_factory_settings import get_user_config_dir
-from apps.methods.dock_panels import DockPanelsMixin, add_outer_dock, make_outer_mw
+from apps.methods.dock_panels import DockPanelsMixin
+from apps.methods.statusbar_func import register_statusbar, set_statusbar_shown, statusbar_shown
 from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.corner_handles import paint_corner_handles
 
@@ -98,7 +99,6 @@ class WorkshopSettings:
         "menu_bar_height":         22,
         "menu_dropdown_font_size": 9,
         # Status bar
-        "show_statusbar":          True,
         # Fonts
         "font_title_family":  "Arial",        "font_title_size":   14,
         "font_panel_family":  "Arial",        "font_panel_size":   10,
@@ -265,9 +265,9 @@ class _ToolbarMixin(TitlebarMixin):
         """Override: add a workshop's own tab to Settings; return a callable run on OK (or None)."""
         return None
 
-    def _show_workshop_settings(self): #vers 2
+    def _show_workshop_settings(self): #vers 4
         """[Settings] button — workshop-local settings.
-        Tabs: Fonts / Display / Menu / About
+        Tabs: Fonts / Display / Menu / About / Keys & Mouse
         Reads/writes WorkshopSettings (per-app JSON).
         """
         dlg = QDialog(self)
@@ -324,7 +324,7 @@ class _ToolbarMixin(TitlebarMixin):
 
         sb_grp = QGroupBox("Status Bar"); sb_lo = QVBoxLayout(sb_grp)
         sb_chk = QCheckBox("Show status bar at bottom")
-        sb_chk.setChecked(bool(ws.get("show_statusbar", True)))
+        sb_chk.setChecked(statusbar_shown(self))               # workshop_ui.json (statusbar_func)
         sb_lo.addWidget(sb_chk)
         dl.addWidget(sb_grp)
 
@@ -385,6 +385,8 @@ class _ToolbarMixin(TitlebarMixin):
         #  Dialog buttons
         from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
         add_sizes_tab(self, tabs)
+        from apps.methods.input_bindings_dialog import add_bindings_tab
+        bindings_save = add_bindings_tab(self, tabs)          # buttons/<tool>.json
         extra_apply = self._extra_settings_tab(tabs)          # subclass tab, applied on OK
         lo.addWidget(tabs)
         btns = QDialogButtonBox(
@@ -407,21 +409,20 @@ class _ToolbarMixin(TitlebarMixin):
         ws.set("font_info_family",         fc_inf.currentFont().family())
         ws.set("font_info_size",           sc_inf.value())
         ws.set("button_display_mode",      ["both","icons","text"][bm_cb.currentIndex()])
-        ws.set("show_statusbar",           sb_chk.isChecked())
         ws.set("sidebar_width",            sw_spin.value())
         ws.set("menu_style",               "dropdown" if ms_cb.currentIndex()==0 else "topbar")
         ws.set("menu_dropdown_font_size",  mf_dd.value())
         ws.set("menu_bar_height",          mf_bh.value())
         if extra_apply is not None:
             extra_apply()
+        bindings_save()
         ws.save()
 
         # Live-apply without restart where possible
         self._load_fonts_from_settings()
         if hasattr(self, "title_label"):
             self.title_label.setFont(self.title_font)
-        if hasattr(self, "_status_widget"):
-            self._status_widget.setVisible(ws.get("show_statusbar", True))
+        set_statusbar_shown(self, sb_chk.isChecked())
         if hasattr(self, "_sidebar_frame"):
             self._sidebar_frame.setFixedWidth(ws.get("sidebar_width", 82))
         self._set_status("Settings saved.")
@@ -478,7 +479,7 @@ class _LayoutMixin:
     Override any _create_* method in your subclass to replace that panel.
     """
 
-    def setup_ui(self):
+    def setup_ui(self): #vers 2
         """Main layout: toolbar / three-panel splitter / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -507,7 +508,7 @@ class _LayoutMixin:
 
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
 
     def _create_left_panel(self):
         """Left panel — list + Add/Remove + info label.
@@ -887,18 +888,20 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         return (self.panelmergina, self.panelmerginb,
                 self.panelmerginc, self.panelmergind)
 
-    def _setup_shortcuts(self):
-        for key, fn in [("Ctrl+O", self._open_file), ("Ctrl+S", self._save_file),
-                        ("Ctrl+Z", self._undo), ("Ctrl+Y", self._redo),
-                        ("Ctrl+Shift+Z", self._redo), ("Ctrl+0", self._fit),
-                        ("Ctrl+C", self._copy_item), ("Ctrl+V", self._paste_item)]:
-            QShortcut(QKeySequence(key), self).activated.connect(fn)
+    def _setup_shortcuts(self): #vers 2
+        """Named hotkey_* shortcuts, rebindable in buttons/<tool>.json."""
+        for name, key, fn in [("open", "Ctrl+O", self._open_file), ("save", "Ctrl+S", self._save_file),
+                              ("undo", "Ctrl+Z", self._undo), ("redo", "Ctrl+Y", self._redo),
+                              ("redo2", "Ctrl+Shift+Z", self._redo), ("fit", "Ctrl+0", self._fit),
+                              ("copy", "Ctrl+C", self._copy_item), ("paste", "Ctrl+V", self._paste_item)]:
+            sc = QShortcut(QKeySequence(key), self)
+            sc.activated.connect(fn)
+            setattr(self, f"hotkey_{name}", sc)
         for key, tool in [("P","pencil"),("F","fill"),("L","line"),("R","rect"),
-                          ("K","picker"),("Z","zoom"),("X","cut"),("V","paste")]:
-            QShortcut(QKeySequence(key), self).activated.connect(
-                lambda t=tool: self._set_active_tool(t))
-        QShortcut(QKeySequence("Shift+R"), self).activated.connect(
-            lambda: self._set_active_tool("rect_fill"))
+                          ("K","picker"),("Z","zoom"),("X","cut"),("V","paste"),("Shift+R","rect_fill")]:
+            sc = QShortcut(QKeySequence(key), self)
+            sc.activated.connect(lambda t=tool: self._set_active_tool(t))
+            setattr(self, f"hotkey_tool_{tool}", sc)
 
     #  Window chrome
     def showEvent(self, ev): #vers 3
@@ -995,16 +998,6 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     def _ribbon_config_path(self): #vers 1
         """Dock layout file (ribbons keep their own file)."""
         return get_user_config_dir() / f"{self.config_key}_docks.json"
-
-    def _dock_layout(self, centre, docks): #vers 1
-        """Centre widget with side panels as docks: [(title, widget, min_w, area)]."""
-        from PyQt6.QtCore import QTimer
-        mw = make_outer_mw(centre)
-        self._outer_mw = mw
-        self._outer_docks = [add_outer_dock(self, mw, t, w, mn, area) for t, w, mn, area in docks]
-        QTimer.singleShot(400, self._restore_outer_layout)
-        self.window_closed.connect(self._save_outer_layout)
-        return mw
 
     def toggle_dock_mode(self): #vers 2
         """Tear off to a window, or return to the IMG Factory tab."""

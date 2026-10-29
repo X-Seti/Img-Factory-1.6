@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 25
+#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 28
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -15,6 +15,7 @@
 # __init__
 # load
 # save
+# to_bytes
 #
 ##class WaterDatParser: -
 # __init__
@@ -202,9 +203,11 @@ from pathlib import Path
 _root = Path(__file__).resolve().parents[3]  # apps/components/Water_Editor -> project root
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
+from apps.methods.statusbar_func import register_statusbar
 from apps.methods.gui_workshop import GUIWorkshop
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
 
 App_name  = "Water Workshop"
 App_build = "Apr 2026"
@@ -276,7 +279,11 @@ class WaterproParser:
         self.phys_grid          = bytearray(data[964+gw*gw : 964+gw*gw+(2*gw)*(2*gw)])
         self.path               = path
 
-    def save(self, path: str): #vers 2
+    def save(self, path: str): #vers 3
+        _atomic_write(path, self.to_bytes())
+
+    def to_bytes(self) -> bytes: #vers 1
+        """The whole waterpro.dat as bytes."""
         gw  = self.grid_w
         out = bytearray(self.HEADER_SIZE + gw*gw + (2*gw)*(2*gw))
         out[0] = self.water_levels_count & 0xFF
@@ -284,7 +291,7 @@ class WaterproParser:
         out[196:964]       = self.unk_block
         out[964:964+gw*gw] = self.vis_grid
         out[964+gw*gw:]    = self.phys_grid
-        _atomic_write(path, bytes(out))
+        return bytes(out)
 
 
 class WaterDatParser:
@@ -1359,7 +1366,7 @@ class WaterZGauge(QWidget):
 # SECTION 3 - WaterWorkshop: GUIWorkshop subclass
 # =============================================================================
 
-class WaterWorkshop(RibbonMixin, GUIWorkshop):
+class WaterWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
 
     App_name        = "Water Workshop"
     App_build       = Build
@@ -1375,7 +1382,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
     DROP_EXTS = ('.dat',)          # waterpro.dat / water.dat
 
 
-    def __init__(self, parent=None, main_window=None): #vers 2
+    def __init__(self, parent=None, main_window=None): #vers 3
         self._waterpro    = None
         self._waterdat    = None
         self._sa_water    = None
@@ -1401,6 +1408,8 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         except Exception:
             pass
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        self._apply_ribbon_layout()
 
 
     def _create_toolbar(self): #vers 2
@@ -1414,7 +1423,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
         return tb
 
 
-    def setup_ui(self): #vers 4
+    def setup_ui(self): #vers 5
         """Titlebar / Water dock | ribbon-wrapped canvas tabs / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -1429,7 +1438,7 @@ class WaterWorkshop(RibbonMixin, GUIWorkshop):
 
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
 
 
     def _build_ribbons(self): #vers 3

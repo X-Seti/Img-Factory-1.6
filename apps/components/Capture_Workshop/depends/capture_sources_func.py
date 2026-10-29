@@ -1,4 +1,4 @@
-#this belongs in apps/components/Capture_Workshop/depends/capture_sources_func.py - Version: 1
+#this belongs in apps/components/Capture_Workshop/depends/capture_sources_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Capture sources
 
 """
@@ -10,6 +10,7 @@ Linux screens/windows go through capture_portal_func.py.
 # grab_screen
 # grab_window_area
 # is_linux
+# list_audio_inputs
 # list_devices
 # list_windows
 # missing_gst_elements
@@ -20,6 +21,17 @@ Linux screens/windows go through capture_portal_func.py.
 # open
 # read
 # size
+
+##class AudioSource: -
+# __init__
+# _callback
+# close
+# open
+
+##class AudioRecorder: -
+# __init__
+# add
+# close
 
 ##class FrameRecorder: -
 # __init__
@@ -148,39 +160,50 @@ class DeviceSource: #vers 1
             self.cap = None
 
 
+def list_audio_inputs(): #vers 1
+    """[(index, name)] for every audio input (capture cards, HDMI, mics)."""
+    if not HAS_PYAUDIO:
+        return []
+    p = pyaudio.PyAudio()
+    try:
+        return [(i, p.get_device_info_by_index(i)['name']) for i in range(p.get_device_count())
+                if p.get_device_info_by_index(i).get('maxInputChannels', 0) > 0]
+    finally:
+        p.terminate()
+
+
 class AudioSource:
-    """PyAudio live stream for monitoring capture device audio."""
-    def __init__(self, rate=44100, channels=2, chunk=1024):
-        self.rate = rate
-        self.channels = channels
+    """Input stream from the chosen device; plays it (monitor) and feeds a recorder."""
+    def __init__(self, chunk=1024): #vers 2
+        self.rate = 48000
+        self.channels = 2
         self.chunk = chunk
         self.p = None
         self.stream = None
         self.is_active = False
+        self.monitor = True
+        self.recorder = None
 
-    def open(self, device_index=4):
-        if not HAS_PYAUDIO:
+    def open(self, device_index): #vers 2
+        """Open device_index (callback stream, own thread). False if it can't."""
+        self.close()
+        if not HAS_PYAUDIO or device_index is None:
             return False
         try:
             self.p = pyaudio.PyAudio()
-            # Auto-detect supported sample rate
-            for rate in [48000, 44100, 32000, 16000]:
+            info = self.p.get_device_info_by_index(device_index)
+            self.channels = max(1, min(2, int(info.get('maxInputChannels', 2))))
+            for rate in (48000, 44100, int(info.get('defaultSampleRate', 48000)), 32000, 16000):
                 try:
-                    if self.p.is_format_supported(rate, input_device_index=device_index, input_channels=self.channels, input_format=pyaudio.paInt16):
+                    if self.p.is_format_supported(rate, input_device_index=device_index,
+                                                  input_channels=self.channels, input_format=pyaudio.paInt16):
                         self.rate = rate
                         break
-                except Exception:
+                except ValueError:
                     continue
-
-            self.stream = self.p.open(
-                format=pyaudio.paInt16,
-                channels=self.channels,
-                rate=self.rate,
-                input=True,
-                input_device_index=device_index,
-                output=True,
-                frames_per_buffer=self.chunk
-            )
+            self.stream = self.p.open(format=pyaudio.paInt16, channels=self.channels, rate=self.rate,
+                                      input=True, input_device_index=device_index, output=True,
+                                      frames_per_buffer=self.chunk, stream_callback=self._callback)
             self.is_active = True
             return True
         except Exception as e:
@@ -188,55 +211,44 @@ class AudioSource:
             self.close()
             return False
 
-    def read_and_play(self):
-        """Read audio chunk and return data for recording."""
-        if not self.is_active or not self.stream:
-            return None
-        try:
-            data = self.stream.read(self.chunk, exception_on_overflow=False)
-            # Write to output stream for live monitoring/speakers if needed
-            self.stream.write(data)
-            return data
-        except Exception:
-            return None
+    def _callback(self, in_data, frame_count, time_info, status): #vers 1
+        """Audio thread: record, then play through (silence when not monitoring)."""
+        rec = self.recorder
+        if rec is not None:
+            rec.add(in_data)
+        out = in_data if self.monitor else bytes(len(in_data))
+        return out, pyaudio.paContinue
 
-    def close(self):
+    def close(self): #vers 2
         self.is_active = False
+        self.recorder = None
         if self.stream:
             try:
                 self.stream.stop_stream()
                 self.stream.close()
-            except Exception:
+            except OSError:
                 pass
             self.stream = None
         if self.p:
-            try:
-                self.p.terminate()
-            except Exception:
-                pass
+            self.p.terminate()
             self.p = None
 
 
 class AudioRecorder:
-    """Records audio chunks to a temporary WAV file during video capture."""
-    def __init__(self, path, rate=44100, channels=2):
-        if not HAS_PYAUDIO:
-            return
+    """WAV file for the audio of a recording (muxed into the video afterwards)."""
+    def __init__(self, path, rate, channels): #vers 2
         self.path = path
-        self.rate = rate
-        self.channels = channels
         self.wf = wave.open(path, 'wb')
         self.wf.setnchannels(channels)
-        self.wf.setsampwidth(pyaudio.PyAudio().get_sample_size(pyaudio.paInt16))
+        self.wf.setsampwidth(2)                         # paInt16
         self.wf.setframerate(rate)
 
-    def add(self, data):
-        if data and hasattr(self, 'wf'):
+    def add(self, data): #vers 2
+        if data:
             self.wf.writeframes(data)
 
-    def close(self):
-        if hasattr(self, 'wf'):
-            self.wf.close()
+    def close(self): #vers 2
+        self.wf.close()
 
 
 class FrameRecorder: #vers 1

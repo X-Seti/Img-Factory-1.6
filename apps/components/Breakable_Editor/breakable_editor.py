@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 7
+#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 9
 # X-Seti - May08 2026 - Img Factory 1.6 - Breakable Objects Editor
 
 """
@@ -53,8 +53,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 
+from apps.methods.statusbar_func import register_statusbar
 from apps.components.Breakable_Editor.depends.diffcode import GUIWorkshop
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
 
 
 #                                                                              
@@ -316,7 +318,7 @@ class BreakableParser: #vers 2
 # Editor
 #                                                                              
 
-class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
+class BreakableEditor(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
     App_name   = "Breakable Objects Editor"
     App_icon   = "breakable_app_icon"
     App_build  = "Build 1"
@@ -327,7 +329,7 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
     _RIBBON_LAYOUT_VERSION = 1
     DROP_EXTS = ('.dat',)          # object.dat
 
-    def __init__(self, main_window=None, parent=None): #vers 2
+    def __init__(self, main_window=None, parent=None): #vers 3
         self._defer_setup_ui = True
         super().__init__(parent, main_window=main_window)   # docked: no corner handles
         self.main_window   = main_window
@@ -343,6 +345,8 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
         self._last_undo_key = None
         self.setup_ui()
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        self._apply_ribbon_layout()
         #  double-call bug found and fixed (Aug 20 2026) - setup_ui()
         # was called twice in a row here, needlessly rebuilding every
         # widget a second time. The old self.toolbar.hide() that used
@@ -485,7 +489,7 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
         lay.addWidget(self._info_box)
         return w
 
-    def setup_ui(self): #vers 4
+    def setup_ui(self): #vers 5
         """Titlebar / Objects dock | ribbon-wrapped fields | Reference dock / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -495,7 +499,7 @@ class BreakableEditor(RibbonMixin, GUIWorkshop): #vers 2
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
 
     def _create_toolbar(self): #vers 2
         tb = super()._create_toolbar()

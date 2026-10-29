@@ -1,4 +1,4 @@
-#this belongs in apps/components/Retro_GTA_Workshop/depends/retro_tiles_func.py - Version: 10
+#this belongs in apps/components/Retro_GTA_Workshop/depends/retro_tiles_func.py - Version: 11
 # X-Seti - October 23 2026 - IMG Factory 1.6 - Retro GTA Workshop tiles and sprites
 
 """
@@ -111,12 +111,12 @@ class RetroTilesMixin: #vers 1
         lay.addWidget(ButtonRow(btns))
         return page
 
-    def _hover_enlarge(self, lst, rgba_of): #vers 1
+    def _hover_enlarge(self, lst, rgba_of): #vers 2
         """Hovering an icon of lst shows it 4x larger beside the cursor (hidden on leave)."""
         from PyQt6.QtCore import QEvent, QObject
         from PyQt6.QtGui import QCursor
         pop = QLabel(self, Qt.WindowType.ToolTip)
-        pop.setStyleSheet("border: 1px solid #888; background: #202020;")
+        pop.setStyleSheet("border: 1px solid palette(mid); background: palette(base);")   # theme
 
         def show(it):
             if self._style is None or it is None:

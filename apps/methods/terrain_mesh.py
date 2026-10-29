@@ -1,4 +1,4 @@
-#this belongs in apps/methods/terrain_mesh.py - Version: 2
+#this belongs in apps/methods/terrain_mesh.py - Version: 5
 # X-Seti - October 22 2026 - IMG Factory 1.6 - Terrain grid and tiles
 
 """
@@ -11,6 +11,7 @@ Saved as a .terrain.json project (heights / materials base64).
 # cell_centres
 # grid_normals
 # load_terrain
+# lod_terrain
 # new_terrain
 # save_terrain
 # tile_mesh
@@ -29,18 +30,20 @@ from typing import List, Tuple
 import numpy as np
 
 
-class Terrain: #vers 1
-    """Height grid (ny+1, nx+1) and cell materials (ny, nx) at a world origin."""
+class Terrain: #vers 3
+    """Height grid (ny+1, nx+1), cell materials and water levels (ny, nx) at a world origin."""
 
     def __init__(self, nx: int, ny: int, cell: float, origin=(0.0, 0.0, 0.0),
-                 tile_cells: int = 32, name: str = "terrain"): #vers 2
+                 tile_cells: int = 32, name: str = "terrain"): #vers 3
         self.nx, self.ny, self.cell = int(nx), int(ny), float(cell)
         self.origin = tuple(float(v) for v in origin)
         self.tile_cells = int(tile_cells)
         self.name = name
         self.heights = np.zeros((self.ny + 1, self.nx + 1), dtype=np.float64)
         self.mats = np.zeros((self.ny, self.nx), dtype=np.uint8)
+        self.water = np.full((self.ny, self.nx), np.nan, dtype=np.float32)   # world water Z per cell, nan = dry
         self.guide = {}                  # picture source: {'image': path} or {'radar': game, 'img': path}
+        self.assets = []                 # placed game objects: {'id', 'name', 'pos', 'rot'} (IPL quaternion)
 
     def size(self) -> Tuple[float, float]: #vers 1
         return self.nx * self.cell, self.ny * self.cell
@@ -124,17 +127,33 @@ def tile_mesh(t: Terrain, i0: int, j0: int, uv_scale, pts=None, nrm=None) -> dic
             'triangles': tris, 'used': sorted({tr[3] for tr in tris}), 'cells': (i0, j0, i1, j1)}
 
 
-def save_terrain(t: Terrain, path: str, library: list) -> None: #vers 2
-    """Project file: grid settings, heights, materials and the material library."""
+def lod_terrain(t: Terrain, f: int) -> Terrain: #vers 1
+    """Coarse copy (every f-th grid point, same tiles) for LOD models."""
+    while f > 1 and t.tile_cells % f:
+        f //= 2                                     # LOD tiles must line up with the tiles
+    nx, ny = -(-t.nx // f), -(-t.ny // f)
+    lod = Terrain(nx, ny, t.cell * f, t.origin, max(1, t.tile_cells // f), t.name)
+    ii = np.minimum(np.arange(nx + 1) * f, t.nx)
+    jj = np.minimum(np.arange(ny + 1) * f, t.ny)
+    lod.heights = t.heights[np.ix_(jj, ii)].copy()
+    ci = np.minimum(np.arange(nx) * f + f // 2, t.nx - 1)
+    cj = np.minimum(np.arange(ny) * f + f // 2, t.ny - 1)
+    lod.mats = t.mats[np.ix_(cj, ci)].copy()
+    return lod
+
+
+def save_terrain(t: Terrain, path: str, library: list) -> None: #vers 4
+    """Project file: grid, heights, materials, water, library and placed assets."""
     data = {'name': t.name, 'nx': t.nx, 'ny': t.ny, 'cell': t.cell, 'origin': t.origin,
-            'tile_cells': t.tile_cells, 'library': library, 'guide': t.guide,
+            'tile_cells': t.tile_cells, 'library': library, 'guide': t.guide, 'assets': t.assets,
             'heights': base64.b64encode(t.heights.astype('<f4').tobytes()).decode(),
-            'mats': base64.b64encode(t.mats.tobytes()).decode()}
+            'mats': base64.b64encode(t.mats.tobytes()).decode(),
+            'water': base64.b64encode(t.water.astype('<f4').tobytes()).decode()}
     with open(path, 'w') as f:
         json.dump(data, f, indent=1)
 
 
-def load_terrain(path: str) -> Tuple[Terrain, list]: #vers 2
+def load_terrain(path: str) -> Tuple[Terrain, list]: #vers 4
     """(Terrain, library) from a project file."""
     with open(path) as f:
         d = json.load(f)
@@ -142,4 +161,7 @@ def load_terrain(path: str) -> Tuple[Terrain, list]: #vers 2
     t.heights = np.frombuffer(base64.b64decode(d['heights']), dtype='<f4').astype(np.float64).reshape(t.ny + 1, t.nx + 1)
     t.mats = np.frombuffer(base64.b64decode(d['mats']), dtype=np.uint8).reshape(t.ny, t.nx).copy()
     t.guide = d.get('guide', {})
+    t.assets = d.get('assets', [])
+    if 'water' in d:
+        t.water = np.frombuffer(base64.b64decode(d['water']), dtype='<f4').reshape(t.ny, t.nx).copy()
     return t, d.get('library', [])

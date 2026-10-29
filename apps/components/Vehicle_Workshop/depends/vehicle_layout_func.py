@@ -1,16 +1,14 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_layout_func.py - Version: 1
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_layout_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop layout
 
 """
 Panels, sidebar, viewport and list layout.
 """
 
-##class _LayoutMixin: -
+##class VehicleLayoutMixin: -
 # _create_centre_panel
 # _create_left_panel
-# _create_left_panel_old
 # _create_right_panel
-# _create_right_panel_old
 # _create_status_bar
 # _filter_img_list
 # _light_setup_dialog
@@ -22,8 +20,6 @@ Panels, sidebar, viewport and list layout.
 # _populate_geom_list
 # _populate_sidebar
 # _set_status
-# get_content_margins
-# get_panel_margins
 # get_tab_margins
 # setup_ui
 
@@ -41,17 +37,11 @@ from apps.components.Vehicle_Workshop.depends.vehicle_common_func import (
     ICONS_AVAILABLE, SVGIconFactory)
 
 
-class _LayoutMixin:
+class VehicleLayoutMixin:
     """Panel creation and layout.
     Mixed into GUIWorkshop — not used standalone.
     Override any _create_* method in your subclass to replace that panel.
     """
-
-    def get_content_margins(self): #vers 1
-        return (self.contmergina, self.contmerginb, self.contmerginc, self.contmergind)
-
-    def get_panel_margins(self): #vers 1
-        return (self.panelmergina, self.panelmerginb, self.panelmerginc, self.panelmergind)
 
     def get_tab_margins(self): #vers 1
         return (self.tabmerginsa, self.tabmerginsb, self.tabmerginsc, self.tabmerginsd)
@@ -159,45 +149,6 @@ class _LayoutMixin:
 
         return panel
 
-    def _create_left_panel_old(self): #vers 1
-        """Left panel — list + Add/Remove + info label.
-        Override to replace with your own content.
-        """
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        ll = QVBoxLayout(panel)
-        ll.setContentsMargins(*self.get_panel_margins())
-
-        hdr = QLabel("Models")
-        hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hdr.setFont(self.panel_font)
-        hdr.setStyleSheet("font-weight:bold; padding:2px;")
-        ll.addWidget(hdr)
-
-        self._item_list = QListWidget()
-        self._item_list.setAlternatingRowColors(True)
-        self._item_list.currentRowChanged.connect(
-            self._on_list_selection_changed)
-        ll.addWidget(self._item_list)
-
-        br = QHBoxLayout()
-        self._add_item_btn = QPushButton("+ Add")
-        self._del_item_btn = QPushButton("− Remove")
-        self._add_item_btn.clicked.connect(self._on_add_item)
-        self._del_item_btn.clicked.connect(self._on_remove_item)
-        br.addWidget(self._add_item_btn)
-        br.addWidget(self._del_item_btn)
-        ll.addLayout(br)
-
-        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        ll.addWidget(sep)
-
-        self._info_lbl = QLabel("No file loaded")
-        self._info_lbl.setFont(self.infobar_font)
-        ll.addWidget(self._info_lbl)
-
-        return panel
-
     def _create_centre_panel(self): #Vers 1  #vers 1
         """Centre panel — tab view with placeholder tabs.
         Override to replace with your own canvas/tabs.
@@ -222,26 +173,6 @@ class _LayoutMixin:
 
         cl.addWidget(self._view_tabs)
         return panel
-
-    def _create_right_panel_old(self): #Vers 1  #vers 1
-        """Right panel — sidebar with 2-col tool button grid.
-        Override _populate_sidebar() to change tool buttons.
-        """
-        sidebar = QFrame()
-        sidebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        sidebar.setFixedWidth(self.WS.get("sidebar_width", 82))
-        sl = QVBoxLayout(sidebar)
-        sl.setContentsMargins(2, 4, 2, 4)
-        sl.setSpacing(2)
-        self._sidebar_layout = sl
-        self._sidebar_frame  = sidebar
-        self._draw_btns      = {}
-
-        self._populate_sidebar()
-
-        sl.addStretch(0)
-        return sidebar
-
 
         # - right panel — model info
     def _create_right_panel(self): #vers 4

@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 30
+# apps/components/Img_Factory/welcome_screen.py — Version 31
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -193,7 +193,7 @@ class WelcomeScreen(QWidget):
         # screen from stretching the host window taller than the screen.
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-    def _build_ui(self): #vers 7
+    def _build_ui(self): #vers 8
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -244,8 +244,11 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
+        from apps.utils.app_settings_system import color_css
+        _hero_css = color_css(getattr(getattr(self.main_window, 'app_settings', None), 'current_settings', {}),
+                              'hero_bg', _hero_bg)          # Colors tab transparency
         hero.setStyleSheet(
-            f"QFrame {{ background: {_hero_bg}; border-bottom: 2px solid {_hero_sub}; }}")
+            f"QFrame {{ background: {_hero_css}; border-bottom: 2px solid {_hero_sub}; }}")
         hl = QHBoxLayout(hero); hl.setContentsMargins(24, 0, 24, 0)
         AppBuildLabel = (f"{App_name} - Build {App_build}")
         title_lbl = QLabel(" " + AppBuildLabel)
@@ -387,7 +390,7 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 12
+    def _build_quickstart_tab(self): #vers 13
         from PyQt6.QtCore import Qt as _Qt
         # Scroll area — vertical scrollbar always visible (ready for future cards)
         scroll = QScrollArea()
@@ -412,17 +415,19 @@ class WelcomeScreen(QWidget):
             (_SVG.open_icon(36, _ic), "Open IMG File",
              "File → Open IMG, or drag a .img/.cd file onto the window. "
              "Entries appear in the table — double-click to view.",
-             self.open_img_requested),
+             self.open_img_requested, ''),
             (_TI.get_dat_browser_icon(36, _ic), "DAT Browser",
              "Load a GTA gta.dat / gta3.dat / gta_vc.dat to index every IMG, "
              "IDE and IPL in the game. Explore 13 000+ objects by name or type.",
-             self.open_dat_browser),
+             self.open_dat_browser, 'Dat_Browser'),
             (_SVG.folder_icon(36, _ic), "File Browser",
              "Navigate your disk, preview textures, and drag files into an open IMG "
              "or export entries to a folder.",
-             self.open_dir_tree),
+             self.open_dir_tree, 'File_Editor'),
         ]
-        for i, (ico, ttl, dsc, sig) in enumerate(qs):
+        from apps.methods.installed_tools import component_installed
+        qs = [q for q in qs if not q[4] or component_installed(q[4])]        # tools present in components
+        for i, (ico, ttl, dsc, sig, _comp) in enumerate(qs):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
             g1.addWidget(c, 0, i)
         lay.addLayout(g1)
@@ -434,61 +439,62 @@ class WelcomeScreen(QWidget):
             (_SVG.txd_workshop_icon(36), "TXD Workshop",
              "Open any .txd inside an IMG or standalone. Preview, replace, export "
              "and convert textures for PC, PS2, Xbox and mobile.",
-             self.open_txd_workshop),
+             self.open_txd_workshop, 'Txd_Editor'),
             (_SVG.col_workshop_icon(36), "COL Workshop",
              "Inspect and edit collision data — spheres, boxes and mesh faces. "
              "Paint surface materials, export as OBJ or COL.",
-             self.open_col_workshop),
+             self.open_col_workshop, 'Col_Editor'),
             (_SVG.mesh_icon(36, '#4a9fd4'), "Model Workshop",
              "View DFF geometry and frame hierarchy. Load the linked TXD automatically "
              "via the DAT Browser IDE entry. Textured 3D preview.",
-             self.open_model_workshop),
+             self.open_model_workshop, 'Model_Editor'),
             (_TI.get_dp5_workshop_icon(36, _ic), "DP5 Paint",
              "Deluxe Paint-style bitmap editor. Draw, spray, clone and edit textures "
              "directly — works on any IMG entry or standalone image.",
-             self.open_dp5_workshop),
+             self.open_dp5_workshop, 'DP5_Workshop'),
             (_SVG.water_workshop_icon(36), "Water Workshop",
              "Edit GTA water planes — adjust water zones, opacity and flow "
              "for SA, VC and III water.dat files.",
-             self.open_water_workshop),
+             self.open_water_workshop, 'Water_Editor'),
             (_SVG.radar_workshop_icon(36), "Radar Workshop",
              "Browse, export and replace GTA radar tile textures. "
              "Supports SA 12×12 radar grid and VC/III formats.",
-             self.open_radar_workshop),
+             self.open_radar_workshop, 'Radar_Editor'),
             (_SVG.timecyc_app_icon(36), "Timecyc Workshop",
              "Edit GTA time-of-day colour cycles. Supports GTA III, VC and SA "
              "timecyc.dat / timecycp.dat with sky preview and game conversion.",
-             self.open_timecyc_workshop),
+             self.open_timecyc_workshop, 'Timecyc_Editor'),
             (_SVG.vehicle_app_icon(36), "Vehicle Workshop",
              "Preview vehicle DFFs with steering, wheels and door animation. "
              "VC/SA dummy detection, frame hierarchy tree.",
-             self.open_vehicle_workshop),
+             self.open_vehicle_workshop, 'Vehicle_Workshop'),
             (_SVG.ped_app_icon(36), "Ped Workshop",
              "Peds list and ped data files for III, VC and SA. IFP animation "
              "playback, stick-man bones and stop-motion keyframes.",
-             self.open_ped_workshop),
+             self.open_ped_workshop, 'Ped_Workshop'),
             (_SVG.terrain_app_icon(36), "Terrain Workshop",
              "Create ground, sculpt hills, paint grass, sand, rock and roads "
              "with UV tiling. Exports DFF / COL / TXD / IDE / IPL.",
-             self.open_terrain_workshop),
+             self.open_terrain_workshop, 'Terrain_Workshop'),
             (_SVG.retro_gta_app_icon(36), "Retro GTA Workshop",
              "Top-down GTA editor. GTA2 maps (.gmp) and styles (.sty): map view, "
              "block faces, lid painting, tiles and sprites.",
-             self.open_retro_gta_workshop),
+             self.open_retro_gta_workshop, 'Retro_GTA_Workshop'),
             (_SVG.disc_app_icon(36), "Disc Workshop",
              "CD / DVD images (CloneCD .img, .bin, .iso): browse, extract the "
              "whole disc, replace files in place. PS1 GTA discs too.",
-             self.open_disc_workshop),
+             self.open_disc_workshop, 'Disc_Workshop'),
             (_SVG.asset_app_icon(36), "Asset Checker",
              "Cross-reference model names across an IMG archive, a COL file "
              "and an IDE file sharing the same base name.",
-             self.open_asset_checker),
+             self.open_asset_checker, 'Asset_Workshop'),
             (_SVG.capture_workshop_icon(36), "Capture Workshop",
              "Snapshots and video from HDMI / USB capture devices, the whole "
              "screen or a chosen window.",
-             self.open_capture_workshop),
+             self.open_capture_workshop, 'Capture_Workshop'),
         ]
-        for i, (ico, ttl, dsc, sig) in enumerate(eds):
+        eds = [e for e in eds if component_installed(e[4])]
+        for i, (ico, ttl, dsc, sig, _comp) in enumerate(eds):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
             g2.addWidget(c, i // 3, i % 3)
         lay.addLayout(g2)
@@ -500,29 +506,30 @@ class WelcomeScreen(QWidget):
             (_TI.get_ide_editor_icon(36, _ic), "IDE Editor",
              "Edit object definitions — model names, collision flags, draw "
              "distances and 2dfx data for GTA III, VC and SA.",
-             self.open_ide_editor),
+             self.open_ide_editor, 'Ide_Editor'),
             (_TI.get_ipl_editor_icon(36), "IPL Editor",
              "Edit item placement — object positions, rotations and interior "
              "links placed in the game world.",
-             self.open_ipl_editor),
+             self.open_ipl_editor, 'Ipl_Editor'),
             (_SVG.handling_app_icon(36), "Handling Editor",
              "Edit vehicle physics — handling.cfg mass, drag, suspension, "
              "traction and gear ratios.",
-             self.open_handling_editor),
+             self.open_handling_editor, 'Handling_Editor'),
             (_SVG.breakable_app_icon(36), "Breakable Editor",
              "Edit breakable object data — collision break models and "
              "object.dat / objects.ide breakable flags.",
-             self.open_breakable_editor),
+             self.open_breakable_editor, 'Breakable_Editor'),
             (_SVG.scm_app_icon(36), "SCM Workshop",
              "Edit compiled GTA mission scripts — decompile, browse opcodes "
              "and patch main.scm / script.img.",
-             self.open_scm_workshop),
+             self.open_scm_workshop, 'Scm_Workshop'),
             (_SVG.hex_app_icon(36), "Hex Workshop",
              "Raw hex/binary editor for any file — inspect and patch bytes "
              "directly with offset and ASCII views.",
-             self.open_hex_workshop),
+             self.open_hex_workshop, 'Hex_Editor'),
         ]
-        for i, (ico, ttl, dsc, sig) in enumerate(tools):
+        tools = [t for t in tools if component_installed(t[4])]
+        for i, (ico, ttl, dsc, sig, _comp) in enumerate(tools):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
             g3.addWidget(c, i // 3, i % 3)
         lay.addLayout(g3)

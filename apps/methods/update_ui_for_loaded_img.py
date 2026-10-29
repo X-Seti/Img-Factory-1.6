@@ -1,4 +1,4 @@
-#belongs in methods/update_ui_for_loaded_img.py -Version:7
+#belongs in methods/update_ui_for_loaded_img.py -Version:8
 from apps.app_info import App_name, App_build
 # X-Seti - August13 2025 - IMG Factory 1.5 - UI Update for Loaded IMG - VISIBILITY FIXED
 
@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import QTableWidgetItem
 # update_ui_for_loaded_img
 # integrate_update_ui_for_loaded_img
 
-def update_ui_for_loaded_img(main_window): #vers 7
+def update_ui_for_loaded_img(main_window): #vers 8
     """Update UI when IMG file is loaded - FIXED VERSION WITH VISIBILITY"""
     try:
         if not hasattr(main_window, 'current_img') or not main_window.current_img:
@@ -64,9 +64,9 @@ def update_ui_for_loaded_img(main_window): #vers 7
         # VISIBILITY FIXES - Force all GUI components to be visible after loading
         if hasattr(main_window, 'gui_layout'):
             # Force main splitter visibility
-            if hasattr(main_window.gui_layout, 'main_splitter') and main_window.gui_layout.main_splitter is not None:
-                main_window.gui_layout.main_splitter.setVisible(True)
-                main_window.gui_layout.main_splitter.show()
+            if getattr(main_window.gui_layout, '_outer_mw', None) is not None:
+                main_window.gui_layout._outer_mw.setVisible(True)
+                main_window.gui_layout._outer_mw.show()
             
             # Force left vertical splitter visibility  
             if hasattr(main_window.gui_layout, 'left_vertical_splitter') and main_window.gui_layout.left_vertical_splitter is not None:
@@ -115,8 +115,8 @@ def update_ui_for_loaded_img(main_window): #vers 7
         
         # Force repaint everything
         main_window.repaint()
-        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'main_splitter'):
-            main_window.gui_layout.main_splitter.repaint()
+        if getattr(getattr(main_window, 'gui_layout', None), '_outer_mw', None) is not None:
+            main_window.gui_layout._outer_mw.repaint()
 
         if hasattr(main_window, 'log_message'):
             main_window.log_message("IMG UI updated successfully with visibility fix")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/utils/app_settings_system.py - Version: 95
+#this belongs in apps/utils/app_settings_system.py - Version: 101
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -36,6 +36,7 @@ from PyQt6.QtGui import QFont, QColor, QPixmap, QPainter, QCursor
 from apps.utils.depends.appsys_logic_func import AppsysLogicMixin
 from apps.utils.depends.appsys_ui_func import AppsysUIMixin
 from apps.utils.depends.appsys_win_func import AppsysWinMixin
+from apps.utils.depends.appsys_panel_test_func import AppsysPanelTestMixin
 from apps.utils.depends.App_System_Setting_Svg_icons import IconProvider
 from apps.methods.dock_panels import DockPanelsMixin
 
@@ -87,6 +88,28 @@ def get_titlebar_sizes(app_settings=None) -> dict: #vers 1
 App_build = "23.69" #32 is from version 32 up top.
 App_auth = "X-Seti"
 
+
+
+def _readable_text(bg: str, fg: str) -> str: #vers 2
+    """fg if it reads on bg (contrast 3:1), else black or white."""
+    def lum(c):
+        import re
+        m = re.match(r'#?([0-9a-fA-F]{6})', c.strip())
+        if m:
+            ch = [int(m.group(1)[k:k + 2], 16) / 255 for k in (0, 2, 4)]
+        else:                                            # rgba(r, g, b, a) from colour transparency
+            nums = re.findall(r'[\d.]+', c)
+            if not c.strip().startswith('rgb') or len(nums) < 3:
+                return None
+            ch = [float(v) / 255 for v in nums[:3]]
+        ch = [v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4 for v in ch]
+        return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+    lb, lf = lum(bg), lum(fg)
+    if lb is None or lf is None:
+        return fg
+    if (max(lb, lf) + 0.05) / (min(lb, lf) + 0.05) >= 3:
+        return fg
+    return '#000000' if lb > 0.4 else '#ffffff'
 
 class ThemeSaveDialog(QDialog):
     """Dialog for saving themes with complete metadata"""
@@ -978,6 +1001,7 @@ class XPColorPicker(QWidget): #vers 2
             'panel_entries': {'name': 'Entries Panel BG', 'h': 120, 's': 20, 'b': 97},
             'panel_filter': {'name': 'Filter Panel BG', 'h': 50, 's': 20, 'b': 98},
             'toolbar_bg': {'name': 'Toolbar Background', 'h': 0, 's': 0, 'b': 98},
+            'ribbon_bg':  {'name': 'Ribbon Background',  'h': 0, 's': 0, 'b': 98},
             'dialog_bg':  {'name': 'Dialog Background',  'h': 0, 's': 0, 'b': 99},
             'dialog_text':{'name': 'Dialog Text', 'h': 0, 's': 0, 'b': 20},
             'hero_bg': {'name': 'Hero_Background', 'h': 0, 's': 0, 'b': 20},
@@ -1326,19 +1350,21 @@ class _DraggableSwatch(QLabel): #vers 1
         drag.exec(Qt.DropAction.CopyAction)
         self._drag_start = None
 
-class ThemeColorEditor(QWidget): #vers 6
+class ThemeColorEditor(QWidget): #vers 7
     """Widget for editing individual theme colors.
     Swatch supports drag-and-drop: drag from swatch to copy colour to another row."""
     colorChanged = pyqtSignal(str, str)  # color_key, hex_color
     lockChanged = pyqtSignal(str, bool)  # color_key, is_locked
     alphaChanged = pyqtSignal(str, int)  # color_key, 0-100
+    alphaToggled = pyqtSignal(str, bool)  # color_key, transparency on
 
-    def __init__(self, color_key, color_name, current_value, parent=None, alpha=None): #vers 5
+    def __init__(self, color_key, color_name, current_value, parent=None, alpha=None, alpha_on=True): #vers 6
         super().__init__(parent)
         self.color_key = color_key
         self.color_name = color_name
         self.current_value = current_value
         self.alpha = alpha            # None = colour has no transparency
+        self.alpha_on = alpha_on      # False: value kept, colour drawn solid
         self.is_locked = False
         self.setAcceptDrops(True)
         self._setup_ui()
@@ -1399,8 +1425,8 @@ class ThemeColorEditor(QWidget): #vers 6
         layout.addWidget(dialog_btn)
         # NO addStretch() — name_label expansion handles alignment
 
-    def _show_alpha(self): #vers 1
-        """Alpha button: colour over a checkerboard at the set opacity, and the value."""
+    def _show_alpha(self): #vers 2
+        """Alpha button: colour over a checkerboard at the set opacity, and the value (or off)."""
         from PyQt6.QtGui import QPixmap, QPainter, QIcon
         pm = QPixmap(16, 16)
         p = QPainter(pm)
@@ -1408,11 +1434,11 @@ class ThemeColorEditor(QWidget): #vers 6
             for x in range(0, 16, 4):
                 p.fillRect(x, y, 4, 4, QColor("#bbbbbb") if (x + y) // 4 % 2 else QColor("#ffffff"))
         c = QColor(self.current_value if QColor(self.current_value).isValid() else "#000000")
-        c.setAlphaF(self.alpha / 100.0)
+        c.setAlphaF(self.alpha / 100.0 if self.alpha_on else 1.0)
         p.fillRect(0, 0, 16, 16, c)
         p.end()
         self.alpha_btn.setIcon(QIcon(pm))
-        self.alpha_btn.setText(f"{self.alpha}")
+        self.alpha_btn.setText(f"{self.alpha}" if self.alpha_on else "off")
 
     def set_alpha(self, value): #vers 1
         """Set transparency 0-100 without emitting."""
@@ -1420,11 +1446,27 @@ class ThemeColorEditor(QWidget): #vers 6
             self.alpha = int(value)
             self._show_alpha()
 
-    def _pick_alpha(self): #vers 1
-        """Pop-up slider 0-100 under the button; live update."""
+    def set_alpha_on(self, on): #vers 1
+        """Transparency on / off without emitting."""
+        if self.alpha is not None:
+            self.alpha_on = bool(on)
+            self._show_alpha()
+
+    def _pick_alpha(self): #vers 2
+        """Pop-up on/off and slider 0-100 under the button; live update."""
         from PyQt6.QtWidgets import QMenu, QWidgetAction, QSlider
         menu = QMenu(self)
         box = QWidget(); bl = QHBoxLayout(box); bl.setContentsMargins(8, 4, 8, 4)
+        on = QCheckBox("On"); on.setChecked(self.alpha_on)
+        on.setToolTip("Off keeps the value, colour drawn solid")
+        bl.addWidget(on)
+
+        def _toggle(v):  #vers 1
+            self.alpha_on = v
+            sl.setEnabled(v)
+            self._show_alpha()
+            self.alphaToggled.emit(self.color_key, v)
+        on.toggled.connect(_toggle)
         sl = QSlider(Qt.Orientation.Horizontal); sl.setRange(0, 100); sl.setValue(self.alpha)
         sl.setFixedWidth(160)
         lbl = QLabel(f"{self.alpha}%"); lbl.setFixedWidth(40)
@@ -1436,6 +1478,7 @@ class ThemeColorEditor(QWidget): #vers 6
             self._show_alpha()
             self.alphaChanged.emit(self.color_key, v)
         sl.valueChanged.connect(_set)
+        sl.setEnabled(self.alpha_on)
         wa = QWidgetAction(menu); wa.setDefaultWidget(box); menu.addAction(wa)
         menu.exec(self.alpha_btn.mapToGlobal(self.alpha_btn.rect().bottomLeft()))
 
@@ -1717,7 +1760,7 @@ class DebugSettings:
         return self.debug_enabled
 
 # Panel effect, image and transparency keys kept in theme and settings JSON
-THEME_EFFECT_KEYS = ("color_alpha", "panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
+THEME_EFFECT_KEYS = ("color_alpha", "color_alpha_off", "panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
                      "panel_pattern_scale", "panel_effect_type",
                      "panel_bg_image", "panel_bg_image_mode", "panel_bg_image_opacity",
                      "panel_bg_image_all", "titlebar_opacity", "panel_opacity",
@@ -1728,17 +1771,96 @@ _IMAGE_DIRS = []      # folders searched for relative panel image paths
 
 # Background colours that take a transparency value (Colors tab, 0-100)
 ALPHA_COLOR_KEYS = ("bg_primary", "bg_secondary", "bg_tertiary", "panel_bg", "toolbar_bg",
-                    "button_normal", "titlebar_bg", "gadgetbar_bg", "menu_bg",
-                    "selection_background", "table_row_odd", "table_row_even", "panel_entries",
-                    "splitter_color_background", "scrollbar_background", "dialog_bg")
+                    "ribbon_bg", "button_normal", "button_text_color", "titlebar_bg", "gadgetbar_bg",
+                    "menu_bg", "selection_background", "table_row_odd", "table_row_even",
+                    "alternate_row", "panel_entries", "splitter_color_background",
+                    "scrollbar_background", "dialog_bg", "viewport_bg", "hero_bg", "window_bg",
+                    "base", "alternate_base", "panel_primary", "button_text_hover",
+                    "button_text_pressed")
+# Drawn in code (palette, painters), not only the stylesheet
+CODE_ALPHA_KEYS = ("viewport_bg", "hero_bg", "window_bg", "base", "alternate_base",
+                   "panel_primary", "button_text_hover", "button_text_pressed")
+
+BLANK_TILE = str(Path(__file__).resolve().parents[1] / 'images' / 'blanktile.png')
+_compositor = None
 
 
-def apply_color_alpha(colors, alpha): #vers 1
-    """Copy of colors with transparent keys as rgba(); alpha = {key: 0-100}."""
+def compositor_running() -> bool: #vers 1
+    """Desktop compositor present, so translucent windows show the desktop."""
+    global _compositor
+    if _compositor is None:
+        from PyQt6.QtGui import QGuiApplication
+        if QGuiApplication.platformName() != 'xcb':      # Wayland, Windows, macOS always composite
+            _compositor = True
+        else:                                           # X11: _NET_WM_CM_Sn selection has an owner
+            import ctypes
+            import ctypes.util
+            x11 = ctypes.cdll.LoadLibrary(ctypes.util.find_library('X11') or 'libX11.so.6')
+            x11.XOpenDisplay.restype = ctypes.c_void_p
+            x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+            x11.XDefaultScreen.argtypes = [ctypes.c_void_p]
+            x11.XInternAtom.restype = ctypes.c_ulong
+            x11.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+            x11.XGetSelectionOwner.restype = ctypes.c_ulong
+            x11.XGetSelectionOwner.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+            x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+            dpy = x11.XOpenDisplay(None)
+            atom = x11.XInternAtom(dpy, f"_NET_WM_CM_S{x11.XDefaultScreen(dpy)}".encode(), 0)
+            _compositor = bool(x11.XGetSelectionOwner(dpy, atom))
+            x11.XCloseDisplay(dpy)
+    return _compositor
+
+
+def panel_image(cs) -> str: #vers 1
+    """Panel image; see-through without a compositor uses the blank tile."""
+    img = cs.get('panel_bg_image', '')
+    if not img and cs.get('see_through') and not compositor_running():
+        return BLANK_TILE
+    return img
+
+
+def see_through_on(cs) -> bool: #vers 1
+    """Desktop shows through (see-through on, no image, compositor running)."""
+    return bool(cs.get('see_through')) and not panel_image(cs)
+
+
+def image_all_on(cs) -> bool: #vers 1
+    """Image behind lists, ribbons and tabs too (always for the blank tile)."""
+    return bool(panel_image(cs) and (cs.get('panel_bg_image_all') or not cs.get('panel_bg_image')))
+
+
+def parse_color(value): #vers 1
+    """QColor from '#rrggbb', a name or 'rgba(r, g, b, a)'."""
+    from PyQt6.QtGui import QColor
+    if isinstance(value, str) and value.startswith('rgba('):
+        r, g, b, a = (int(float(v)) for v in value[5:-1].split(','))
+        return QColor(r, g, b, a)
+    return QColor(value)
+
+
+def color_alpha(cs, key): #vers 1
+    """Transparency 0-100 set and switched on for key, else None."""
+    a = (cs.get('color_alpha') or {}).get(key)
+    if a is None or a >= 100 or key not in ALPHA_COLOR_KEYS or key in cs.get('color_alpha_off', []):
+        return None
+    return max(0, int(a))
+
+
+def color_css(cs, key, value: str) -> str: #vers 1
+    """'#rrggbb' as rgba() when key has transparency on."""
+    a = color_alpha(cs, key)
+    if a is None or not (isinstance(value, str) and value.startswith('#') and len(value) == 7):
+        return value
+    r, g, b = (int(value[i:i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({r}, {g}, {b}, {round(a * 2.55)})"
+
+
+def apply_color_alpha(colors, alpha, off=()): #vers 2
+    """Copy of colors with transparent keys as rgba(); alpha = {key: 0-100}; off keys stay solid."""
     out = dict(colors)
     for key, a in (alpha or {}).items():
         val = out.get(key)
-        if key in ALPHA_COLOR_KEYS and a < 100 and isinstance(val, str) \
+        if key in ALPHA_COLOR_KEYS and key not in off and a < 100 and isinstance(val, str) \
                 and val.startswith('#') and len(val) == 7:
             r, g, b = (int(val[i:i + 2], 16) for i in (1, 3, 5))
             out[key] = f"rgba({r}, {g}, {b}, {round(max(0, a) * 2.55)})"
@@ -1771,7 +1893,7 @@ def store_panel_image(path, folder): #vers 1
 
 
 class AppSettings:
-    def __init__(self, settings_file="appfactory.settings.json"): #vers 6
+    def __init__(self, settings_file="appfactory.settings.json"): #vers 7
         """Initialize application settings with Windows compatibility"""
         current_file_dir = Path(__file__).parent
 
@@ -1891,7 +2013,7 @@ class AppSettings:
             'copper_light':              '#b87333',
             'copper_dark':               '#7a4a1a',
             'panel_bg_image':            '',
-            'panel_bg_image_mode':       0,
+            'panel_bg_image_mode':       5,           # across window: one even image
             'panel_bg_image_opacity':    100,
             'panel_bg_image_all':        False,
             'see_through':               False,       # no image: desktop shows through
@@ -1934,7 +2056,7 @@ class AppSettings:
         self.weapons_folder = self.current_settings.get('weapons_folder', self.default_settings['weapons_folder'])
 
 
-    def _generate_stylesheet(self, colors): #vers 4
+    def _generate_stylesheet(self, colors): #vers 7
         """Generate stylesheet from colors dict - shared by both classes.
         Colour transparency (current_settings color_alpha) becomes rgba()."""
         if not colors:
@@ -1946,14 +2068,16 @@ class AppSettings:
         colors['scrollbar_background'] = colors.get('scrollbar_background') or _bg2
         colors['dialog_bg'] = colors.get('dialog_bg') or colors.get('bg_primary', '#ffffff')
         colors['toolbar_bg'] = colors.get('toolbar_bg') or _bg2
+        colors['ribbon_bg'] = colors.get('ribbon_bg') or colors['toolbar_bg']
         colors['gadgetbar_bg'] = colors.get('gadgetbar_bg') or colors['toolbar_bg']
         _alpha = dict(getattr(self, 'current_settings', {}).get('color_alpha', {}))
+        _off = set(getattr(self, 'current_settings', {}).get('color_alpha_off', []))
         if 'titlebar_bg' in _alpha:                       # title bar is drawn in gadgetbar_bg
             _alpha['gadgetbar_bg'] = _alpha['titlebar_bg']
         if 'splitter_color_background' in _alpha and colors.get('handle_color'):
             colors['splitter_color_background'] = colors['handle_color']
             colors.pop('handle_color')
-        colors = apply_color_alpha(colors, _alpha)
+        colors = apply_color_alpha(colors, _alpha, _off)
 
         # Extract all colors
         bg_primary = colors.get('bg_primary', '#ffffff')
@@ -2000,8 +2124,8 @@ class AppSettings:
         button_hover = colors.get('button_hover', '#d0d0d0')
         button_pressed = colors.get('button_pressed', '#b0b0b0')
         button_text   = colors.get('button_text_color',   text_primary)
-        button_text_h = colors.get('button_text_hover',   text_primary)
-        button_text_p = colors.get('button_text_pressed', text_primary)
+        button_text_h = colors.get('button_text_hover',   button_text)
+        button_text_p = colors.get('button_text_pressed', button_text)
         selection_bg   = colors.get('selection_background', '#0078d4')
         selection_text = colors.get('selection_text', '#ffffff')
         menu_hl_bg     = colors.get('menu_highlight_bg',   selection_bg)
@@ -2010,7 +2134,7 @@ class AppSettings:
 
         # System ui - overrides
         # Derive sensible defaults from bg_primary so light themes stay light
-        from PyQt6.QtGui import QColor as _QC
+        _QC = parse_color                               # rgba() from colour transparency
         _is_light = _QC(bg_primary).lightness() > 128
         window_bg = colors.get('window_bg') or bg_primary
         # If saved window_bg is dark but theme is light, override with bg_primary
@@ -2033,6 +2157,7 @@ class AppSettings:
         warning = colors.get('warning', '#ff9800')
         error = colors.get('error', '#f44336')
         toolbar_bg = colors.get('toolbar_bg', bg_secondary)
+        ribbon_bg = colors.get('ribbon_bg', toolbar_bg)
         gadgetbar_bg   = colors.get('gadgetbar_bg',   toolbar_bg)
         gadgetbar_text = colors.get('gadgetbar_text',  text_primary)
         panel_entries = colors.get('panel_entries', bg_tertiary)
@@ -2122,10 +2247,12 @@ class AppSettings:
 
         QPushButton:hover {{
             background-color: {button_hover};
+            color: {button_text_h};
         }}
 
         QPushButton:pressed {{
             background-color: {button_pressed};
+            color: {button_text_p};
         }}
 
         /* QTableWidget and QTableView styling */
@@ -2330,7 +2457,7 @@ class AppSettings:
 
         QMenu {{
             background-color: {colors.get('menu_bg', bg_secondary)};
-            color: {text_primary};
+            color: {_readable_text(colors.get('menu_bg', bg_secondary), text_primary)};
             border: 1px solid {border};
         }}
         QMenu::item {{
@@ -2347,7 +2474,7 @@ class AppSettings:
         }}
 
         QToolBar {{
-            background-color: {toolbar_bg};
+            background-color: {ribbon_bg};
             border: 1px solid {border};
             spacing: 3px;
         }}
@@ -2949,13 +3076,14 @@ class AppSettings:
             print(f"Error saving theme {theme_name}: {e}")
             return False
 
-    def apply_theme_effects(self, theme_key): #vers 2
+    def apply_theme_effects(self, theme_key): #vers 3
         """Copy a theme's panel effect, image and transparency keys into current settings."""
         theme = self.themes.get(theme_key, {})
         for key in THEME_EFFECT_KEYS:
             if key in theme:
                 self.current_settings[key] = theme[key]
         self.current_settings["color_alpha"] = dict(theme.get("color_alpha", {}))
+        self.current_settings["color_alpha_off"] = list(theme.get("color_alpha_off", []))
 
     def save_theme(self, theme_name, theme_data): #vers 2
         """Save theme data to JSON file in themes directory"""
@@ -3163,7 +3291,7 @@ class AppSettings:
         }
 
 
-    def get_ui_color(self, key: str): #vers 1
+    def get_ui_color(self, key: str): #vers 2
         """Return a QColor for a theme key. Use this instead of hardcoding QColor values.
         Keys: viewport_bg, viewport_text, bg_primary, bg_secondary, text_primary,
               text_secondary, accent_primary, border, error, success, warning, etc.
@@ -3173,7 +3301,11 @@ class AppSettings:
             colors = self.get_theme_colors()
             hex_val = colors.get(key)
             if hex_val:
-                return QColor(hex_val)
+                col = QColor(hex_val)
+                a = color_alpha(self.current_settings, key) if key in CODE_ALPHA_KEYS else None
+                if a is not None:                       # Colors tab transparency
+                    col.setAlphaF(a / 100.0)
+                return col
         except Exception:
             pass
         # Safe fallbacks for the most critical keys
@@ -3198,10 +3330,56 @@ class AppSettings:
         return fallbacks.get(key, QColor(128, 128, 128))
 
 
-    def get_stylesheet(self): #vers 4
-        """Generate complete stylesheet for current theme"""
+    def get_stylesheet(self): #vers 5
+        """Generate complete stylesheet for current theme; app palette follows it."""
         colors = self.get_theme_colors()
+        self._apply_app_palette(colors)
         return self._generate_stylesheet(colors)
+
+    def _apply_app_palette(self, colors): #vers 2
+        """App QPalette from the theme, so palette(mid) / palette(base) ... in
+        widget stylesheets and painters match it. Only set when it changes."""
+        from PyQt6.QtGui import QColor, QPalette
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is None or not colors:
+            return
+        cs = getattr(self, 'current_settings', {})
+        def c(*keys):
+            for k in keys:
+                v = colors.get(k)
+                if isinstance(v, str) and v.startswith('#'):
+                    col = QColor(v)
+                    a = color_alpha(cs, k) if k in CODE_ALPHA_KEYS else None
+                    if a is not None:                   # window / base transparency
+                        col.setAlphaF(a / 100.0)
+                    return col
+            return None
+        R = QPalette.ColorRole
+        roles = {R.Window: c('window_bg', 'bg_primary'), R.WindowText: c('window_text', 'text_primary'),
+                 R.Base: c('base', 'bg_secondary'), R.AlternateBase: c('alternate_base', 'bg_tertiary'),
+                 R.Text: c('text_primary'), R.Button: c('button_normal', 'bg_secondary'),
+                 R.ButtonText: c('button_text_color', 'text_primary'),
+                 R.Highlight: c('selection_background', 'accent_primary'),
+                 R.HighlightedText: c('selection_text', 'text_primary'),
+                 R.Mid: c('border'), R.Dark: c('border'), R.Light: c('bg_tertiary', 'bg_secondary'),
+                 R.Midlight: c('bg_tertiary', 'bg_secondary'), R.Shadow: c('border'),
+                 R.PlaceholderText: c('placeholder_text', 'text_secondary'),
+                 R.ToolTipBase: c('tooltip_bg', 'bg_secondary'), R.ToolTipText: c('tooltip_text', 'text_primary'),
+                 R.Link: c('accent_primary'), R.BrightText: c('text_accent', 'text_primary')}
+        key = tuple((r.value, q.name(QColor.NameFormat.HexArgb)) for r, q in roles.items() if q is not None)
+        if key == getattr(self, '_palette_key', None):
+            return
+        self._palette_key = key
+        pal = app.palette()
+        for role, col in roles.items():
+            if col is not None:
+                pal.setColor(role, col)
+        disabled = c('disabled_text')
+        if disabled is not None:
+            for role in (R.WindowText, R.Text, R.ButtonText):
+                pal.setColor(QPalette.ColorGroup.Disabled, role, disabled)
+        app.setPalette(pal)
 
 
     def _darken_color(self, hex_color, factor=0.8): #keep
@@ -3300,7 +3478,7 @@ class AppPanelEffect: #vers 2
         widget._panel_effect_installed = True
 
     @staticmethod
-    def install_under(widget, styled, app_settings): #vers 2
+    def install_under(widget, styled, app_settings): #vers 3
         """Image behind a list/toolbar/tab page: widget made transparent, its own
         colour laid over the image as a tint. styled = widget carrying the stylesheet."""
         from PyQt6.QtGui import QColor
@@ -3310,8 +3488,10 @@ class AppPanelEffect: #vers 2
             widget._panel_under_styled = styled
             styled._panel_under_ss = styled.styleSheet()
             styled.setProperty('panelUnder', True)          # selector hits this widget only
-            styled.setStyleSheet(styled._panel_under_ss
-                                 + '\n*[panelUnder="true"] { background: transparent; }')
+            own = styled._panel_under_ss
+            if own.strip() and '{' not in own:              # bare declarations: give them a selector
+                own = '*[panelUnder="true"] { ' + own + ' }'
+            styled.setStyleSheet(own + '\n*[panelUnder="true"] { background: transparent; }')
             widget.setAutoFillBackground(False)
             AppPanelEffect.install(widget, app_settings)
             widget._panel_effect_installed = False      # under mode only
@@ -3329,7 +3509,7 @@ class AppPanelEffect: #vers 2
         widget.update()
 
     @staticmethod
-    def _draw_under(widget): #vers 4
+    def _draw_under(widget): #vers 5
         """Image then the widget's colour as a tint at Transparency opacity;
         see-through (no image): the tint alone, desktop shows behind."""
         from PyQt6.QtGui import QPainter, QColor
@@ -3351,7 +3531,7 @@ class AppPanelEffect: #vers 2
                    'tabs_opacity' if isinstance(widget, (QTabBar, QStackedWidget)) else
                    'panel_opacity')
             alpha = max(0, min(100, cs.get(key, 100))) / 100.0
-            if cs.get('panel_bg_image'):
+            if panel_image(cs):
                 p.fillRect(r, tint)
                 if AppPanelEffect._paint_image(p, r, cs, widget):
                     tint.setAlphaF(alpha)
@@ -3363,7 +3543,7 @@ class AppPanelEffect: #vers 2
             p.end()
 
     @staticmethod
-    def _draw_effect(widget, event): #vers 2
+    def _draw_effect(widget, event): #vers 3
         """Draw the panel effect on top of the widget background."""
         from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPen
         from PyQt6.QtCore import QPointF, Qt
@@ -3375,7 +3555,7 @@ class AppPanelEffect: #vers 2
             cs = getattr(cs, 'current_settings', {})
 
         effect = cs.get('panel_effect_type', 'none')
-        image = cs.get('panel_bg_image', '')
+        image = panel_image(cs)
         if (effect == 'none' or not effect) and not image:
             return
 
@@ -3503,12 +3683,12 @@ class AppPanelEffect: #vers 2
     _pixmap_cache = {}
 
     @staticmethod
-    def _paint_image(p, r, cs, widget=None): #vers 3
+    def _paint_image(p, r, cs, widget=None): #vers 5
         """Panel background image (tiled/stretched/centred/fit/fill, or one image
         across the whole window) at blend opacity; True if drawn."""
         from PyQt6.QtGui import QPixmap
         from PyQt6.QtCore import Qt, QPoint
-        path = resolve_panel_image(cs.get('panel_bg_image', ''))
+        path = resolve_panel_image(panel_image(cs))
         if not path:
             return False
         px = AppPanelEffect._pixmap_cache.get(path)
@@ -3517,7 +3697,7 @@ class AppPanelEffect: #vers 2
             AppPanelEffect._pixmap_cache[path] = px
         if px.isNull():
             return False
-        mode = cs.get('panel_bg_image_mode', 0)
+        mode = cs.get('panel_bg_image_mode', 5) if cs.get('panel_bg_image') else 0   # blank tile: tiled
         p.save()
         p.setOpacity(cs.get('panel_bg_image_opacity', 100) / 100.0)
         if mode == 5 and widget is not None:   # Across window: one image, panels show their part
@@ -3590,7 +3770,7 @@ class AppPanelEffect: #vers 2
                 p.drawRect(r.left(), r.top()+row*scale, r.width(), scale)
 
 
-def apply_panel_effects(window, app_settings): #vers 8
+def apply_panel_effects(window, app_settings): #vers 9
     """Walk a window's panels and apply the current panel effect to each.
     Also: translucent buttons and see-through windows. Skips the settings dialog.
     """
@@ -3604,10 +3784,10 @@ def apply_panel_effects(window, app_settings): #vers 8
         return                                          # apply once it sits in the main window
     cs = app_settings.current_settings
     effect = cs.get('panel_effect_type', 'none')
-    image_all = bool(cs.get('panel_bg_image') and cs.get('panel_bg_image_all'))
+    image_all = image_all_on(cs)
     tb_mode = cs.get('image_titlebar', 0)
     bars = _titlebars(window)
-    see = bool(cs.get('see_through')) and not cs.get('panel_bg_image')
+    see = see_through_on(cs)
     if 'Settings' not in type(window).__name__ and 'Dialog' not in type(window).__name__:
         if see:
             _apply_image_under(window, cs, True)        # tints captured before containers clear
@@ -3616,7 +3796,7 @@ def apply_panel_effects(window, app_settings): #vers 8
         if see:
             return
 
-    if effect == 'none' and not cs.get('panel_bg_image', ''):
+    if effect == 'none' and not panel_image(cs):
         from PyQt6.QtWidgets import QWidget
         _apply_image_under(window, cs, False)
         for w in window.findChildren(QWidget):          # repaint panels that had an effect
@@ -3677,7 +3857,7 @@ def apply_panel_effects(window, app_settings): #vers 8
             AppPanelEffect.install(widget, cs)
             widget.update()
 
-    _apply_image_under(window, cs, bool(cs.get('panel_bg_image') and cs.get('panel_bg_image_all')))
+    _apply_image_under(window, cs, image_all_on(cs))
 
 
 _VIEW_WORDS = ('Viewport', 'View', 'Canvas', 'Preview', 'Grid', 'Gauge')
@@ -3781,7 +3961,7 @@ def _apply_button_alpha(window, app_settings, on): #vers 1
     window.setStyleSheet(ss)
 
 
-def _apply_image_under(window, cs, on): #vers 6
+def _apply_image_under(window, cs, on): #vers 7
     """Panel image behind lists, ribbons, tab bars/pages, splitters and plain panels (tinted),
     or removed when off. GL viewports are left alone."""
     from PyQt6.QtWidgets import (QAbstractScrollArea, QToolBar, QTabWidget, QStackedWidget,
@@ -3805,7 +3985,7 @@ def _apply_image_under(window, cs, on): #vers 6
             if h is not None:
                 targets.append((h, h))
     in_view = lambda w: _is_view(w, solid)               # viewports / canvases keep their paint
-    see = bool(cs.get('see_through')) and not cs.get('panel_bg_image')
+    see = see_through_on(cs)
     bars = _titlebars(window)
     for fr in window.findChildren(QFrame):                # plain panels; viewports keep their own paint
         if in_view(fr) or fr.objectName() == 'gadgetbar' or fr in bars:
@@ -4154,7 +4334,8 @@ class PanelPreviewWidget(QWidget): #vers 1
         p.setFont(QFont("Arial", 7))
         p.drawText(r.adjusted(4, 0, -4, -2), Qt.AlignmentFlag.AlignBottom, text)
 
-class SettingsDialog(AppsysWinMixin, AppsysUIMixin, AppsysLogicMixin, DockPanelsMixin, QDialog): #vers 16
+class SettingsDialog(AppsysWinMixin, AppsysUIMixin, AppsysLogicMixin, AppsysPanelTestMixin,
+                     DockPanelsMixin, QDialog): #vers 17
     """Settings dialog for theme and preference management"""
 
     themeChanged = pyqtSignal(str)  # theme_name

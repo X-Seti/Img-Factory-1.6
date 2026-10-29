@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 4
+#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop widgets
 
 """
@@ -7,7 +7,6 @@ Settings store, helper widgets, dialogs and table models used by Map Workshop.
 
 ##Methods list -
 # euler_degrees_to_quat
-# _key_display_name
 # _model_workshop_config_dir
 # quat_to_euler_degrees
 # _write_ipl_lines
@@ -22,13 +21,6 @@ Settings store, helper widgets, dialogs and table models used by Map Workshop.
 ##class _ModelListDelegate: -
 # paint
 # sizeHint
-
-##class _KeyCaptureButton: -
-# binding
-# __init__
-# keyPressEvent
-# _start_capture
-# _update_text
 
 ##class MapSettings: -
 # get
@@ -372,60 +364,6 @@ class _ModelListDelegate(QStyledItemDelegate):
 
 
 
-
-
-def _key_display_name(key: int, is_numpad: bool) -> str: #vers 1
-    """Human-readable name for a Qt.Key int + numpad flag, for the
-    Keybindings tab's capture buttons and any other UI that needs to
-    show a bound key (Aug 16 2026). QKeySequence already knows how to
-    render most key codes sensibly ("Left", "+", "4") - just prefixed
-    with "Numpad " when the numpad flag is set, since QKeySequence
-    has no notion of that distinction itself (same reason keyPressEvent
-    checks KeypadModifier separately from the key code)."""
-    from PyQt6.QtGui import QKeySequence
-    name = QKeySequence(key).toString() or f"Key {key}"
-    return f"Numpad {name}" if is_numpad else name
-
-
-class _KeyCaptureButton(QPushButton):
-    """A button showing a currently-bound key; click it, then press
-    any key to rebind - Aug 16 2026)"""
-    key_captured = pyqtSignal(int, bool)
-
-    def __init__(self, key: int, is_numpad: bool, parent=None): #vers 1
-        super().__init__(parent)
-        self._key = key
-        self._is_numpad = is_numpad
-        self._capturing = False
-        self._update_text()
-        self.clicked.connect(self._start_capture)
-
-    def _update_text(self): #vers 1
-        self.setText(_key_display_name(self._key, self._is_numpad))
-
-    def _start_capture(self): #vers 1
-        self._capturing = True
-        self.setText("Press a key…")
-        self.grabKeyboard()
-
-    def keyPressEvent(self, event): #vers 1
-        if not self._capturing:
-            super().keyPressEvent(event)
-            return
-        if event.key() == Qt.Key.Key_Escape:
-            self._capturing = False
-            self.releaseKeyboard()
-            self._update_text()
-            return
-        self._key = event.key()
-        self._is_numpad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)
-        self._capturing = False
-        self.releaseKeyboard()
-        self._update_text()
-        self.key_captured.emit(self._key, self._is_numpad)
-
-    def binding(self) -> dict: #vers 1
-        return {'key': self._key, 'numpad': self._is_numpad}
 
 
 def _model_workshop_config_dir() -> Path: #vers 3

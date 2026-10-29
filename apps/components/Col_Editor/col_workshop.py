@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 133
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 134
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -954,7 +954,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
             QMessageBox.warning(self, "Theme Error", f"Could not load theme system:\n{e}")
 
 
-    def _show_settings_dialog(self): #vers 7
+    def _show_settings_dialog(self): #vers 8
         """Show comprehensive settings dialog with all tabs including hotkeys"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                                     QWidget, QLabel, QPushButton, QGroupBox,
@@ -1223,143 +1223,9 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
         constraints_layout.addStretch()
         tabs.addTab(constraints_tab, "Constraints")
 
-        # === KEYBOARD SHORTCUTS TAB ===
-        hotkeys_tab = QWidget()
-        hotkeys_layout = QVBoxLayout(hotkeys_tab)
-
-        # Add scroll area for hotkeys
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-
-        # File Operations Group
-        file_group = QGroupBox("File Operations")
-        file_form = QFormLayout()
-
-        hotkey_edit_open = QKeySequenceEdit(self.hotkey_open.key() if hasattr(self, 'hotkey_open') else QKeySequence.StandardKey.Open)
-        file_form.addRow("Open col:", hotkey_edit_open)
-
-        hotkey_edit_save = QKeySequenceEdit(self.hotkey_save.key() if hasattr(self, 'hotkey_save') else QKeySequence.StandardKey.Save)
-        file_form.addRow("Save col:", hotkey_edit_save)
-
-        hotkey_edit_force_save = QKeySequenceEdit(self.hotkey_force_save.key() if hasattr(self, 'hotkey_force_save') else QKeySequence("Alt+Shift+S"))
-        force_save_layout = QHBoxLayout()
-        force_save_layout.addWidget(hotkey_edit_force_save)
-        force_save_hint = QLabel("(Force save even if unmodified)")
-        force_save_hint.setStyleSheet("color: #888; font-style: italic;")
-        force_save_layout.addWidget(force_save_hint)
-        file_form.addRow("Force Save:", force_save_layout)
-
-        hotkey_edit_save_as = QKeySequenceEdit(self.hotkey_save_as.key() if hasattr(self, 'hotkey_save_as') else QKeySequence.StandardKey.SaveAs)
-        file_form.addRow("Save As:", hotkey_edit_save_as)
-
-        hotkey_edit_close = QKeySequenceEdit(self.hotkey_close.key() if hasattr(self, 'hotkey_close') else QKeySequence.StandardKey.Close)
-        file_form.addRow("Close:", hotkey_edit_close)
-
-        file_group.setLayout(file_form)
-        scroll_layout.addWidget(file_group)
-
-        # Edit Operations Group
-        edit_group = QGroupBox("Edit Operations")
-        edit_form = QFormLayout()
-
-        hotkey_edit_undo = QKeySequenceEdit(self.hotkey_undo.key() if hasattr(self, 'hotkey_undo') else QKeySequence.StandardKey.Undo)
-        edit_form.addRow("Undo:", hotkey_edit_undo)
-
-        hotkey_edit_copy = QKeySequenceEdit(self.hotkey_copy.key() if hasattr(self, 'hotkey_copy') else QKeySequence.StandardKey.Copy)
-        edit_form.addRow("Copy Collision:", hotkey_edit_copy)
-
-        hotkey_edit_paste = QKeySequenceEdit(self.hotkey_paste.key() if hasattr(self, 'hotkey_paste') else QKeySequence.StandardKey.Paste)
-        edit_form.addRow("Paste Collision:", hotkey_edit_paste)
-
-        hotkey_edit_delete = QKeySequenceEdit(self.hotkey_delete.key() if hasattr(self, 'hotkey_delete') else QKeySequence.StandardKey.Delete)
-        edit_form.addRow("Delete:", hotkey_edit_delete)
-
-        hotkey_edit_duplicate = QKeySequenceEdit(self.hotkey_duplicate.key() if hasattr(self, 'hotkey_duplicate') else QKeySequence("Ctrl+D"))
-        edit_form.addRow("Duplicate:", hotkey_edit_duplicate)
-
-        hotkey_edit_rename = QKeySequenceEdit(self.hotkey_rename.key() if hasattr(self, 'hotkey_rename') else QKeySequence("F2"))
-        edit_form.addRow("Rename:", hotkey_edit_rename)
-
-        edit_group.setLayout(edit_form)
-        scroll_layout.addWidget(edit_group)
-
-        # Collision Operations Group
-        coll_group = QGroupBox("Collision Operations")
-        coll_form = QFormLayout()
-
-        hotkey_edit_import = QKeySequenceEdit(self.hotkey_import.key() if hasattr(self, 'hotkey_import') else QKeySequence("Ctrl+I"))
-        coll_form.addRow("Import Collision:", hotkey_edit_import)
-
-        hotkey_edit_export = QKeySequenceEdit(self.hotkey_export.key() if hasattr(self, 'hotkey_export') else QKeySequence("Ctrl+E"))
-        coll_form.addRow("Export Collision:", hotkey_edit_export)
-
-        hotkey_edit_export_all = QKeySequenceEdit(self.hotkey_export_all.key() if hasattr(self, 'hotkey_export_all') else QKeySequence("Ctrl+Shift+E"))
-        coll_form.addRow("Export All:", hotkey_edit_export_all)
-
-        coll_group.setLayout(coll_form)
-        scroll_layout.addWidget(coll_group)
-
-        # View Operations Group
-        view_group = QGroupBox("View Operations")
-        view_form = QFormLayout()
-
-        hotkey_edit_refresh = QKeySequenceEdit(self.hotkey_refresh.key() if hasattr(self, 'hotkey_refresh') else QKeySequence.StandardKey.Refresh)
-        view_form.addRow("Refresh:", hotkey_edit_refresh)
-
-        hotkey_edit_properties = QKeySequenceEdit(self.hotkey_properties.key() if hasattr(self, 'hotkey_properties') else QKeySequence("Alt+Return"))
-        view_form.addRow("Properties:", hotkey_edit_properties)
-
-        hotkey_edit_find = QKeySequenceEdit(self.hotkey_find.key() if hasattr(self, 'hotkey_find') else QKeySequence.StandardKey.Find)
-        view_form.addRow("Find/Search:", hotkey_edit_find)
-
-        hotkey_edit_help = QKeySequenceEdit(self.hotkey_help.key() if hasattr(self, 'hotkey_help') else QKeySequence.StandardKey.HelpContents)
-        view_form.addRow("Help:", hotkey_edit_help)
-
-        view_group.setLayout(view_form)
-        scroll_layout.addWidget(view_group)
-
-        scroll_layout.addStretch()
-
-        scroll.setWidget(scroll_widget)
-        hotkeys_layout.addWidget(scroll)
-
-        # Reset to defaults button
-        reset_layout = QHBoxLayout()
-        reset_layout.addStretch()
-        reset_hotkeys_btn = QPushButton("Reset to Plasma6 Defaults")
-
-        def reset_hotkeys():  #vers 1
-            reply = QMessageBox.question(dialog, "Reset Hotkeys",
-                "Reset all keyboard shortcuts to Plasma6 defaults?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-
-            if reply == QMessageBox.StandardButton.Yes:
-                hotkey_edit_open.setKeySequence(QKeySequence.StandardKey.Open)
-                hotkey_edit_save.setKeySequence(QKeySequence.StandardKey.Save)
-                hotkey_edit_force_save.setKeySequence(QKeySequence("Alt+Shift+S"))
-                hotkey_edit_save_as.setKeySequence(QKeySequence.StandardKey.SaveAs)
-                hotkey_edit_close.setKeySequence(QKeySequence.StandardKey.Close)
-                hotkey_edit_undo.setKeySequence(QKeySequence.StandardKey.Undo)
-                hotkey_edit_copy.setKeySequence(QKeySequence.StandardKey.Copy)
-                hotkey_edit_paste.setKeySequence(QKeySequence.StandardKey.Paste)
-                hotkey_edit_delete.setKeySequence(QKeySequence.StandardKey.Delete)
-                hotkey_edit_duplicate.setKeySequence(QKeySequence("Ctrl+D"))
-                hotkey_edit_rename.setKeySequence(QKeySequence("F2"))
-                hotkey_edit_import.setKeySequence(QKeySequence("Ctrl+I"))
-                hotkey_edit_export.setKeySequence(QKeySequence("Ctrl+E"))
-                hotkey_edit_export_all.setKeySequence(QKeySequence("Ctrl+Shift+E"))
-                hotkey_edit_refresh.setKeySequence(QKeySequence.StandardKey.Refresh)
-                hotkey_edit_properties.setKeySequence(QKeySequence("Alt+Return"))
-                hotkey_edit_find.setKeySequence(QKeySequence.StandardKey.Find)
-                hotkey_edit_help.setKeySequence(QKeySequence.StandardKey.HelpContents)
-
-        reset_hotkeys_btn.clicked.connect(reset_hotkeys)
-        reset_layout.addWidget(reset_hotkeys_btn)
-        hotkeys_layout.addLayout(reset_layout)
-
-        tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
+        # === KEYS & MOUSE TAB (methods/input_bindings_dialog.py) ===
+        from apps.methods.input_bindings_dialog import add_bindings_tab
+        bindings_save = add_bindings_tab(self, tabs)
 
         # Add tabs widget to main layout
         from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
@@ -1405,43 +1271,7 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
             self.name_limit_enabled = name_limit_check.isChecked()
             self.max_surface_name_length = char_limit_spin.value()
 
-            # Apply hotkeys
-            if hasattr(self, 'hotkey_open'):
-                self.hotkey_open.setKey(hotkey_edit_open.keySequence())
-            if hasattr(self, 'hotkey_save'):
-                self.hotkey_save.setKey(hotkey_edit_save.keySequence())
-            if hasattr(self, 'hotkey_force_save'):
-                self.hotkey_force_save.setKey(hotkey_edit_force_save.keySequence())
-            if hasattr(self, 'hotkey_save_as'):
-                self.hotkey_save_as.setKey(hotkey_edit_save_as.keySequence())
-            if hasattr(self, 'hotkey_close'):
-                self.hotkey_close.setKey(hotkey_edit_close.keySequence())
-            if hasattr(self, 'hotkey_undo'):
-                self.hotkey_undo.setKey(hotkey_edit_undo.keySequence())
-            if hasattr(self, 'hotkey_copy'):
-                self.hotkey_copy.setKey(hotkey_edit_copy.keySequence())
-            if hasattr(self, 'hotkey_paste'):
-                self.hotkey_paste.setKey(hotkey_edit_paste.keySequence())
-            if hasattr(self, 'hotkey_delete'):
-                self.hotkey_delete.setKey(hotkey_edit_delete.keySequence())
-            if hasattr(self, 'hotkey_duplicate'):
-                self.hotkey_duplicate.setKey(hotkey_edit_duplicate.keySequence())
-            if hasattr(self, 'hotkey_rename'):
-                self.hotkey_rename.setKey(hotkey_edit_rename.keySequence())
-            if hasattr(self, 'hotkey_import'):
-                self.hotkey_import.setKey(hotkey_edit_import.keySequence())
-            if hasattr(self, 'hotkey_export'):
-                self.hotkey_export.setKey(hotkey_edit_export.keySequence())
-            if hasattr(self, 'hotkey_export_all'):
-                self.hotkey_export_all.setKey(hotkey_edit_export_all.keySequence())
-            if hasattr(self, 'hotkey_refresh'):
-                self.hotkey_refresh.setKey(hotkey_edit_refresh.keySequence())
-            if hasattr(self, 'hotkey_properties'):
-                self.hotkey_properties.setKey(hotkey_edit_properties.keySequence())
-            if hasattr(self, 'hotkey_find'):
-                self.hotkey_find.setKey(hotkey_edit_find.keySequence())
-            if hasattr(self, 'hotkey_help'):
-                self.hotkey_help.setKey(hotkey_edit_help.keySequence())
+            bindings_save()                                   # buttons/<tool>.json
 
             # Refresh UI with new settings
             if hasattr(self, '_reload_surface_table'):
@@ -1688,146 +1518,9 @@ class COLWorkshop(COLWindowMixin, COLSetupUIMixin, COLCoreLogicMixin, COLListMix
     #    IDE-linked operations                                              
 
 
-    def _show_settings_hotkeys(self): #vers 2
-        """Show settings dialog with hotkey customization"""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
-                                    QWidget, QLabel, QLineEdit, QPushButton,
-                                    QGroupBox, QFormLayout, QKeySequenceEdit)
-        from PyQt6.QtCore import Qt
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle(App_name + " Settings")
-        dialog.setMinimumWidth(600)
-        dialog.setMinimumHeight(500)
-
-        layout = QVBoxLayout(dialog)
-
-        # Create tabs
-        tabs = QTabWidget()
-
-        # === HOTKEYS TAB ===
-        hotkeys_tab = QWidget()
-        hotkeys_layout = QVBoxLayout(hotkeys_tab)
-
-        # File Operations Group
-        file_group = QGroupBox("File Operations")
-        file_form = QFormLayout()
-
-        self.hotkey_edit_open = QKeySequenceEdit(self.hotkey_open.key())
-        file_form.addRow("Open col:", self.hotkey_edit_open)
-
-        self.hotkey_edit_save = QKeySequenceEdit(self.hotkey_save.key())
-        file_form.addRow("Save col:", self.hotkey_edit_save)
-
-        self.hotkey_edit_force_save = QKeySequenceEdit(self.hotkey_force_save.key())
-        force_save_layout = QHBoxLayout()
-        force_save_layout.addWidget(self.hotkey_edit_force_save)
-        force_save_hint = QLabel("(Force save even if unmodified)")
-        force_save_hint.setStyleSheet("color: #888; font-style: italic;")
-        force_save_layout.addWidget(force_save_hint)
-        file_form.addRow("Force Save:", force_save_layout)
-
-        self.hotkey_edit_save_as = QKeySequenceEdit(self.hotkey_save_as.key())
-        file_form.addRow("Save As:", self.hotkey_edit_save_as)
-
-        self.hotkey_edit_close = QKeySequenceEdit(self.hotkey_close.key())
-        file_form.addRow("Close:", self.hotkey_edit_close)
-
-        file_group.setLayout(file_form)
-        hotkeys_layout.addWidget(file_group)
-
-        # Edit Operations Group
-        edit_group = QGroupBox("Edit Operations")
-        edit_form = QFormLayout()
-
-        self.hotkey_edit_undo = QKeySequenceEdit(self.hotkey_undo.key())
-        edit_form.addRow("Undo:", self.hotkey_edit_undo)
-
-        self.hotkey_edit_copy = QKeySequenceEdit(self.hotkey_copy.key())
-        edit_form.addRow("Copy Collision:", self.hotkey_edit_copy)
-
-        self.hotkey_edit_paste = QKeySequenceEdit(self.hotkey_paste.key())
-        edit_form.addRow("Paste Collision:", self.hotkey_edit_paste)
-
-        self.hotkey_edit_delete = QKeySequenceEdit(self.hotkey_delete.key())
-        edit_form.addRow("Delete:", self.hotkey_edit_delete)
-
-        self.hotkey_edit_duplicate = QKeySequenceEdit(self.hotkey_duplicate.key())
-        edit_form.addRow("Duplicate:", self.hotkey_edit_duplicate)
-
-        self.hotkey_edit_rename = QKeySequenceEdit(self.hotkey_rename.key())
-        edit_form.addRow("Rename:", self.hotkey_edit_rename)
-
-        edit_group.setLayout(edit_form)
-        hotkeys_layout.addWidget(edit_group)
-
-        # Collision Group
-        coll_group = QGroupBox("Collision Operations")
-        coll_form = QFormLayout()
-
-        self.hotkey_edit_import = QKeySequenceEdit(self.hotkey_import.key())
-        coll_form.addRow("Import Collision:", self.hotkey_edit_import)
-
-        self.hotkey_edit_export = QKeySequenceEdit(self.hotkey_export.key())
-        coll_form.addRow("Export Collision:", self.hotkey_edit_export)
-
-        self.hotkey_edit_export_all = QKeySequenceEdit(self.hotkey_export_all.key())
-        coll_form.addRow("Export All:", self.hotkey_edit_export_all)
-
-        coll_group.setLayout(coll_form)
-        hotkeys_layout.addWidget(coll_group)
-
-        # View Operations Group
-        view_group = QGroupBox("View Operations")
-        view_form = QFormLayout()
-
-        self.hotkey_edit_refresh = QKeySequenceEdit(self.hotkey_refresh.key())
-        view_form.addRow("Refresh:", self.hotkey_edit_refresh)
-
-        self.hotkey_edit_properties = QKeySequenceEdit(self.hotkey_properties.key())
-        view_form.addRow("Properties:", self.hotkey_edit_properties)
-
-        self.hotkey_edit_find = QKeySequenceEdit(self.hotkey_find.key())
-        view_form.addRow("Find/Search:", self.hotkey_edit_find)
-
-        self.hotkey_edit_help = QKeySequenceEdit(self.hotkey_help.key())
-        view_form.addRow("Help:", self.hotkey_edit_help)
-
-        view_group.setLayout(view_form)
-        hotkeys_layout.addWidget(view_group)
-
-        hotkeys_layout.addStretch()
-
-        # Reset to defaults button
-        reset_hotkeys_btn = QPushButton("Reset to Plasma6 Defaults")
-        reset_hotkeys_btn.clicked.connect(lambda: self._reset_hotkeys_to_defaults(dialog))
-        hotkeys_layout.addWidget(reset_hotkeys_btn)
-
-        tabs.addTab(hotkeys_tab, "Keyboard Shortcuts")
-
-        layout.addWidget(tabs)
-
-        # Dialog buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_btn)
-
-        apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(lambda: self._apply_hotkey_settings(dialog))
-        button_layout.addWidget(apply_btn)
-
-        ok_btn = QPushButton("OK")
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(lambda: self._apply_hotkey_settings(dialog, close=True))
-        button_layout.addWidget(ok_btn)
-
-        layout.addLayout(button_layout)
-
-        dialog.exec()
-
+    def _show_settings_hotkeys(self): #vers 3
+        """Key & Mouse Bindings editor (methods/input_bindings_dialog.py)."""
+        self.open_bindings_editor()
 
 #class SvgIcons: #vers 1 - Once functions are updated this class will be moved to the bottom
     """SVG icon data to QIcon with theme color support"""

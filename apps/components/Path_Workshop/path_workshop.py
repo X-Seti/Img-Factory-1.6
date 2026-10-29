@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 14
+#this belongs in apps/components/Path_Workshop/path_workshop.py - Version: 15
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Path Workshop
 
 ##Methods list -
@@ -40,6 +40,7 @@ from PyQt6.QtGui import QFont
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.dock_panels import DockPanelsMixin
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
 from typing import Dict, List, Optional
 from apps.components.Path_Workshop.depends.path_logic_func import GAME_PRESETS, ImgReader, TILE_H, TILE_W, PathLogicMixin
 from apps.components.Path_Workshop.depends.path_ui_func import APPSETTINGS_AVAILABLE, AppSettings, App_name, SVGIconFactory, ToolMenuMixin, PathUIMixin
@@ -115,8 +116,8 @@ class RADSettings:
         return [p for p in self._data.get('recent_files', []) if os.path.isfile(p)]
 
 
-class PathWorkshop(RibbonMixin, PathNodesMixin, PathLogicMixin, PathUIMixin, PathWindowMixin,
-                   DockPanelsMixin, ToolMenuMixin, QWidget): #vers 4
+class PathWorkshop(RibbonIconsMixin, RibbonMixin, PathNodesMixin, PathLogicMixin, PathUIMixin, PathWindowMixin,
+                   DockPanelsMixin, ToolMenuMixin, QWidget): #vers 5
     _ribbon_name = "path_workshop"
     # Bump when the set of ribbons changes (5 = Group ribbon)
     _RIBBON_LAYOUT_VERSION = 6

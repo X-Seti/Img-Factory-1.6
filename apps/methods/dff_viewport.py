@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 46
+# this belongs in apps/methods/dff_viewport.py - Version: 48
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -294,7 +294,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     Shared base for Model Viewer, Model Workshop, Vehicle Workshop.
     """
 
-    def __init__(self, parent=None): #vers 3
+    def __init__(self, parent=None): #vers 4
         super().__init__(parent)
         # Mouse tracking (Aug 19 2026)
         self.setMouseTracking(True)
@@ -610,6 +610,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
         # Multi-pane view lock (3ds Max style Top/Front/Side/Perspective panes)
         self._view_locked = False
+        # Right button orbits; no context menu from parent panels (Linux fires on press)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         self._view_label  = ""
         self._projection  = 'perspective'   # 'perspective' or 'ortho'
         self._capture_ortho = None           # (l, r, b, t) during radar capture
@@ -4492,6 +4494,23 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             pass
         self.update()
 
+    def event(self, e): #vers 1
+        """Mouse buttons remapped per the tool's buttons json (select / orbit / pan)."""
+        from PyQt6.QtCore import QEvent
+        if e.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease,
+                        QEvent.Type.MouseMove, QEvent.Type.MouseButtonDblClick):
+            from apps.methods.input_bindings import mouse_remap
+            remap = mouse_remap(self)
+            if remap:
+                from PyQt6.QtGui import QMouseEvent
+                btn = remap.get(e.button(), e.button())
+                btns = Qt.MouseButton.NoButton
+                for b in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
+                    if e.buttons() & b:
+                        btns |= remap.get(b, b)
+                e = QMouseEvent(e.type(), e.position(), e.globalPosition(), btn, btns, e.modifiers())
+        return super().event(e)
+
     def mousePressEvent(self, event): #vers 11
         self._last_pos = event.pos()
         if self._skeleton and event.button() == Qt.MouseButton.LeftButton:
@@ -6691,12 +6710,13 @@ class VehicleViewport(DFFViewport):
         from PyQt6.QtCore import Qt
         self._last_pos = event.pos(); self._dragging=True; self._drag_btn=event.button()
 
-    def mouseMoveEvent(self, event): #vers 1
+    def mouseMoveEvent(self, event): #vers 2
+        """Right: rotate, middle: pan (same buttons as Model Workshop)."""
         from PyQt6.QtCore import Qt
         if not self._dragging: return
         dx = event.pos().x()-self._last_pos.x()
         dy = event.pos().y()-self._last_pos.y()
-        if self._drag_btn == Qt.MouseButton.LeftButton:
+        if self._drag_btn == Qt.MouseButton.RightButton:
             self._yaw   += dx*0.5
             self._pitch  = max(-89, min(89, self._pitch+dy*0.5))
         elif self._drag_btn == Qt.MouseButton.MiddleButton:

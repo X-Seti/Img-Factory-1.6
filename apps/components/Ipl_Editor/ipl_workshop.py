@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ipl_Editor/ipl_workshop.py - Version: 6
+#this belongs in apps/components/Ipl_Editor/ipl_workshop.py - Version: 8
 # X-Seti - Apr 2026 - IMG Factory 1.6 - IPL Workshop
 # Item Placement List editor for GTA III / VC / SA / SOL
 # Built on GUIWorkshop base (temp_workshop pattern)
@@ -30,6 +30,7 @@ _root = Path(__file__).resolve().parents[3]  # apps/components/Ipl_Editor -> pro
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
 #    GUIWorkshop base                                                           
+from apps.methods.statusbar_func import register_statusbar
 from apps.components.Ipl_Editor.depends.diffcode import GUIWorkshop
 
 try:
@@ -52,6 +53,7 @@ Build    = "Build 1"
 # =============================================================================
 from apps.methods.ipl_file import IPLEntry, IPLSection, IPLFile
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.components.Ide_Editor.ide_editor import IDEPanel
 
 
@@ -800,7 +802,7 @@ class IPLMapPanel(QFrame):  # vers 1
             self._ws.main_window.log_message(
                 f"IPL: rotated {n} object(s) by {degrees:+.0f}°")
 
-class IPLWorkshop(RibbonMixin, GUIWorkshop):
+class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
     """GTA Item Placement List editor — docks in IMG Factory or runs standalone."""
 
     App_name        = "IPL Workshop"
@@ -834,7 +836,7 @@ class IPLWorkshop(RibbonMixin, GUIWorkshop):
     COL_HEADERS = ["ID", "Model", "Int", "X", "Y", "Z",
                    "Rot X", "Rot Y", "Rot Z", "Rot W", "LOD", "File"]
 
-    def __init__(self, parent=None, main_window=None):
+    def __init__(self, parent=None, main_window=None): #vers 2
         self._defer_setup_ui = True
         self._ipl         = None      # first IPLFile (compat)
         self._files       = []        # every loaded IPLFile - each saves to its own path
@@ -849,6 +851,8 @@ class IPLWorkshop(RibbonMixin, GUIWorkshop):
         super().__init__(parent, main_window)
         self.setup_ui()
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        self._apply_ribbon_layout()
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, lambda: self._on_centre_tab_changed(self._centre_tabs.currentIndex()))
         if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
@@ -1628,7 +1632,7 @@ class IPLWorkshop(RibbonMixin, GUIWorkshop):
                 btn.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 3
+    def setup_ui(self): #vers 4
         """Titlebar / Sections dock | ribbon-wrapped tabs / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -1641,7 +1645,7 @@ class IPLWorkshop(RibbonMixin, GUIWorkshop):
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
+        register_statusbar(self, self._status_widget)
 
     def _ide_active(self) -> bool:
         return self._centre_tabs.currentWidget() is self._ide_panel

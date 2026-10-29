@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup_imgfactory.sh — IMG Factory 1.6 universal Linux / WSL2 setup
+# setup_imgfactory.sh — IMG Factory 1.6 universal Linux / WSL2 setup - Version: 2
 # Supports: Ubuntu/Debian/Mint, Arch/Manjaro, Fedora, openSUSE
 # Run once after cloning: chmod +x setup_imgfactory.sh && ./setup_imgfactory.sh
 # Then launch with: python3 launch.py
@@ -38,7 +38,10 @@ install_debian() {
         qt6-base-dev qt6-tools-dev qt6-tools-dev-tools \
         libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0 \
         libxcb-render0 libxcb-shape0 libxcb-xfixes0 \
-        libxcb-randr0 libxcb-glx0 libgl1 libegl1 libx11-xcb1
+        libxcb-randr0 libxcb-glx0 libgl1 libegl1 libx11-xcb1 \
+        portaudio19-dev liblzo2-dev libcairo2 ffmpeg \
+        gstreamer1.0-pipewire gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly gstreamer1.0-tools
 }
 
 install_arch() {
@@ -46,7 +49,9 @@ install_arch() {
         python python-pip git base-devel \
         qt6-base qt6-tools \
         libxcb xcb-util-cursor xcb-util xcb-util-image \
-        xcb-util-keysyms xcb-util-renderutil xcb-util-wm
+        xcb-util-keysyms xcb-util-renderutil xcb-util-wm \
+        portaudio lzo cairo ffmpeg \
+        gst-plugin-pipewire gst-plugins-good gst-plugins-bad gst-plugins-ugly gstreamer
 }
 
 install_fedora() {
@@ -54,14 +59,18 @@ install_fedora() {
         python3 python3-pip git @development-tools \
         qt6-qtbase qt6-qttools \
         xcb-util-cursor xcb-util-wm \
-        libxkbcommon-x11 mesa-libGL mesa-libEGL
+        libxkbcommon-x11 mesa-libGL mesa-libEGL \
+        portaudio-devel lzo-devel cairo ffmpeg-free \
+        pipewire-gstreamer gstreamer1-plugins-good gstreamer1-plugins-bad-free gstreamer1
 }
 
 install_opensuse() {
     sudo zypper install -y \
         python3 python3-pip git gcc make \
         libQt6Core6 libQt6Gui6 libQt6Widgets6 libqt6-qttools \
-        libxcb-cursor0 libxkbcommon-x11-0 Mesa-libGL1 Mesa-libEGL1
+        libxcb-cursor0 libxkbcommon-x11-0 Mesa-libGL1 Mesa-libEGL1 \
+        portaudio-devel lzo-devel libcairo2 ffmpeg \
+        gstreamer-plugin-pipewire gstreamer-plugins-good gstreamer-plugins-bad gstreamer-utils
 }
 
 case "$DISTRO" in
@@ -83,12 +92,8 @@ source .venv/bin/activate
 
 echo "[+] Installing Python dependencies..."
 pip install --upgrade pip
-pip install PyQt6 Pillow numpy cv2
-
-if [ -f requirements.txt ]; then
-    echo "[+] Installing from requirements.txt..."
-    pip install -r requirements.txt
-fi
+echo "[+] Installing from requirements.txt..."
+pip install -r requirements.txt
 
 #    WSL display setup                                                           
 if [ "$IS_WSL" = "1" ]; then

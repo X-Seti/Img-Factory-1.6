@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Terrain_Workshop/terrain_workshop.py - Version: 5
+#this belongs in apps/components/Terrain_Workshop/terrain_workshop.py - Version: 9
 # X-Seti - October 22 2026 - IMG Factory 1.6 - Terrain Workshop
 
 """
@@ -32,18 +32,22 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
 from apps.components.Map_Editor.map_workshop import ModelWorkshop as MapWorkshop
+from apps.components.Terrain_Workshop.depends.terrain_assets_func import TerrainAssetsMixin
+from apps.components.Terrain_Workshop.depends.terrain_water_func import TerrainWaterMixin
+from apps.components.Terrain_Workshop.depends.terrain_nature_func import TerrainNatureMixin
 from apps.components.Terrain_Workshop.depends.terrain_export_func import TerrainExportMixin
 from apps.components.Terrain_Workshop.depends.terrain_grid_func import TerrainGridMixin
 from apps.components.Terrain_Workshop.depends.terrain_image_func import TerrainImageMixin
 from apps.components.Terrain_Workshop.depends.terrain_material_func import TerrainMaterialMixin
+from apps.components.Terrain_Workshop.depends.terrain_panel_func import TerrainPanelMixin
 
 App_name = "Terrain Workshop"
 
 
-class TerrainWorkshop(TerrainGridMixin, TerrainImageMixin, TerrainMaterialMixin, TerrainExportMixin,
-                      MapWorkshop): #vers 2
-    """Map Workshop plus terrain grid, brush, materials and export docks."""
-    _OUTER_LAYOUT_VERSION = 22           # own dock layout
+class TerrainWorkshop(TerrainPanelMixin, TerrainAssetsMixin, TerrainNatureMixin, TerrainWaterMixin, TerrainGridMixin, TerrainImageMixin,
+                      TerrainMaterialMixin, TerrainExportMixin, MapWorkshop): #vers 6
+    """Map Workshop plus the terrain Environment panel (sculpt, water, paint, nature, paths, assets, setup / export)."""
+    _OUTER_LAYOUT_VERSION = 23           # own dock layout (Environment panel)
 
     def _ribbon_config_path(self): #vers 1
         from apps.components.Map_Editor.depends.map_widgets_func import _model_workshop_config_dir
@@ -56,49 +60,33 @@ class TerrainWorkshop(TerrainGridMixin, TerrainImageMixin, TerrainMaterialMixin,
     def _titlebar_title(self): #vers 1
         return App_name
 
-    def setup_ui(self): #vers 3
-        """Map Workshop layout, then Terrain / Brush / Materials / Export on the right."""
+    def setup_ui(self): #vers 4
+        """Map Workshop layout, then one Environment panel (rail + pages) on the right."""
         super().setup_ui()
-        from apps.methods.dock_panels import add_title_widget, icon_only_tabs
+        from apps.methods.dock_panels import icon_only_tabs
         from apps.methods.ui_sizes import fit_inputs
-        mw = self._outer_mw
-        docks = (self._create_tw_grid_dock(), self._create_tw_brush_dock(),
-                 self._create_tw_material_dock(), self._create_tw_export_dock())
-        from PyQt6.QtWidgets import QFrame, QScrollArea
-        for dock, title in zip(docks, ("Terrain", "Brush", "Materials", "Export")):
-            dock.setMinimumWidth(260)
-            if dock is not docks[2]:                              # scroll when space is tight
-                scroll = QScrollArea()
-                scroll.setWidgetResizable(True)
-                scroll.setFrameShape(QFrame.Shape.NoFrame)
-                scroll.setWidget(dock.widget())
-                dock.setWidget(scroll)
-            self._make_dock_collapsible(dock, title)
-            mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-            fit_inputs(dock)
-        for title_widgets, dock in ((self._tw_grid_title, docks[0]), (self._tw_brush_title, docks[1]),
-                                    (self._tw_mat_title, docks[2])):
-            for w in title_widgets:
-                add_title_widget(dock, w)
         from PyQt6.QtWidgets import QDockWidget
+        mw = self._outer_mw
+        env = self._create_tw_env_dock()
+        self._make_dock_collapsible(env, "Environment")
+        mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, env)
+        fit_inputs(env)
         map_right = [d for d in mw.findChildren(QDockWidget)            # Map's own right docks
                      if d.objectName() in ("Object Browser", "IPL Inst File", "IPL Controls")]
         for d in map_right:
             mw.removeDockWidget(d)
-        mw.splitDockWidget(docks[0], docks[1], Qt.Orientation.Vertical)
-        mw.splitDockWidget(docks[1], docks[2], Qt.Orientation.Vertical)
-        for d in [docks[3]] + map_right:                            # one tab group: Terrain first
-            mw.tabifyDockWidget(docks[0], d)
+        for d in map_right:                                              # one tab group: Environment first
+            mw.tabifyDockWidget(env, d)
             d.show()
-        docks[0].raise_()
+        env.raise_()
         from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons
         from apps.methods.imgfactory_svg_icons import SVGIconFactory as S
         ic = self._get_icon_color()
         icons = {"Object Browser": S.box_icon(16, ic), "IPL Inst File": S.list_icon(16, ic),
                  "IPL Controls": S.settings_icon(16, ic)}
-        icon_only_tabs(mw, [(docks[0], OverlayIcons.terrain_icon(16)), (docks[3], S.export_icon(16, ic))] +
+        icon_only_tabs(mw, [(env, OverlayIcons.terrain_icon(16))] +
                        [(d, icons[d.objectName()]) for d in map_right])     # space is limited
-        mw.resizeDocks(list(docks[:3]), [330, 260, 360], Qt.Orientation.Vertical)
+        mw.resizeDocks([env], [380], Qt.Orientation.Horizontal)
         act = getattr(self, '_terrain_act', None)                    # Map's game-world brush: not here
         if act is not None:
             act.setVisible(False)

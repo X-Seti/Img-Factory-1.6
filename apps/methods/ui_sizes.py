@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ui_sizes.py - Version: 5
+#this belongs in apps/methods/ui_sizes.py - Version: 6
 # X-Seti - October 22 2026 - IMG Factory 1.6 - UI size rules
 
 """
@@ -198,13 +198,14 @@ def apply_owner_sizes(owner) -> None: #vers 2
 class _SizeRules: #vers 1
     """App event filter: size rules on each workshop's first show."""
 
-    def __init__(self): #vers 1
-        from PyQt6.QtCore import QObject
+    def __init__(self): #vers 2
+        from PyQt6.QtCore import QEvent, QObject
+        show = QEvent.Type.Show
 
         class _F(QObject):
-            def eventFilter(self, obj, event): #vers 1
-                from PyQt6.QtCore import QEvent
-                if event.type() == QEvent.Type.Show and not getattr(obj, '_size_rules_done', False) \
+            def eventFilter(self, obj, event): #vers 2
+                """Every app event passes here: kept to one compare."""
+                if event.type() == show and not getattr(obj, '_size_rules_done', False) \
                         and (hasattr(obj, '_show_workshop_settings') or hasattr(obj, 'main_tab_widget')):
                     obj._size_rules_done = True
                     apply_owner_sizes(obj)

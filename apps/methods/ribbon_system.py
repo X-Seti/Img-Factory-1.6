@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ribbon_system.py - Version: 7
+#this belongs in apps/methods/ribbon_system.py - Version: 10
 # X-Seti - September 20 2026 - IMG Factory 1.6 - Shared ribbon (toolbar) system
 
 """ribbon_system.py - Ribbon toolbars for QWidget-based workshops (same
@@ -10,6 +10,8 @@ clashes with the workshop's own settings json) and a saved layout from
 an older ribbon structure is rejected via _RIBBON_LAYOUT_VERSION."""
 
 ##Methods list -
+# RibbonMixin._apply_icon_scale
+# RibbonMixin._icon_scale_value
 # RibbonMixin.ribbon_wrap
 # RibbonMixin.ribbon_toolbar
 # RibbonMixin.ribbon_side_toolbar
@@ -25,12 +27,14 @@ an older ribbon structure is rejected via _RIBBON_LAYOUT_VERSION."""
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QSize, QByteArray
-from PyQt6.QtWidgets import QMainWindow, QToolBar, QToolButton, QMenu, QLabel
+from PyQt6.QtCore import Qt, QSize, QByteArray, QTimer
+from PyQt6.QtWidgets import QLabel, QMainWindow, QToolBar, QToolButton
 from apps.methods.img_factory_settings import get_user_config_dir
+from apps.methods.input_bindings import InputBindingsMixin
+from apps.methods.toolbar_menu import standard_toolbar_menu
 
 
-class RibbonMixin:
+class RibbonMixin(InputBindingsMixin):
     """Mix into a workshop QWidget. Set _ribbon_name (file stem) and bump
     _RIBBON_LAYOUT_VERSION whenever the set of ribbons changes."""
     _ribbon_name = "workshop"
@@ -130,21 +134,33 @@ class RibbonMixin:
         tb.addWidget(lbl)
         return lbl
 
-    def ribbon_context_menu(self, toolbar, pos): #vers 3
-        """Save / lock ribbons; panel toggles and Ribbon Manager when the workshop has them."""
-        menu = QMenu(self)
-        menu.addAction("Save Ribbon Config", self.ribbon_save_state)
-        menu.addSeparator()
+    def ribbon_context_menu(self, toolbar, pos): #vers 5
+        """Standard ribbon menu (standard_toolbar_menu) plus Dock All Ribbons."""
+        menu = standard_toolbar_menu(self, self._ribbon_mw.findChildren(QToolBar), self._icon_scale_value())
         menu.addAction("Dock All Ribbons", self._ribbon_dock_all)
-        menu.addAction("Lock All Toolbars", lambda: self._ribbon_set_movable(False))
-        menu.addAction("Unlock All Toolbars", lambda: self._ribbon_set_movable(True))
-        if hasattr(self, '_outer_dock_menu'):
-            menu.addSeparator()
-            self._outer_dock_menu(None, menu)
-        elif hasattr(self, 'open_ribbon_manager'):
-            menu.addSeparator()
-            menu.addAction("Ribbon Manager...", self.open_ribbon_manager)
         menu.exec(toolbar.mapToGlobal(pos))
+
+    def _icon_scale_value(self) -> int: #vers 1
+        """Saved ribbon icon size (px)."""
+        try:
+            return json.loads(self._ribbon_path().read_text()).get('icon_scale', self._RIBBON_ICON)
+        except (OSError, ValueError):
+            return self._RIBBON_ICON
+
+    def _apply_icon_scale(self, px: int, save: bool = True): #vers 1
+        """Ribbon icon and button size, live; saved with the ribbon layout."""
+        for tb in self._ribbon_mw.findChildren(QToolBar):
+            if hasattr(tb, '_side'):
+                continue
+            tb.setIconSize(QSize(px, px))
+            for b in tb.findChildren(QToolButton):
+                if b.objectName() == 'qt_toolbar_ext_button':
+                    continue
+                if b.minimumWidth() == b.maximumWidth() == b.minimumHeight():   # square ribbon button
+                    b.setFixedSize(px + 10, px + 10)
+                b.setIconSize(QSize(px, px))
+        if save:
+            self.ribbon_save_state()
 
     def _ribbon_dock_all(self): #vers 1
         """Floating ribbons back into the top ribbon area."""
@@ -162,23 +178,26 @@ class RibbonMixin:
     def _ribbon_path(self) -> Path: #vers 2
         return get_user_config_dir() / f'{self._ribbon_name}_ribbons.json'
 
-    def ribbon_save_state(self): #vers 1
+    def ribbon_save_state(self): #vers 2
+        """Ribbon layout and icon size to <name>_ribbons.json."""
         mw = getattr(self, '_ribbon_mw', None)
         if mw is None:
             return
         try:
             path = self._ribbon_path()
             path.parent.mkdir(parents=True, exist_ok=True)
+            tb = next((t for t in mw.findChildren(QToolBar) if not hasattr(t, '_side')), None)
             path.write_text(json.dumps({
                 'toolbar_state': mw.saveState(self._RIBBON_LAYOUT_VERSION).toHex().data().decode(),
                 'toolbar_state_version': self._RIBBON_LAYOUT_VERSION,
+                'icon_scale': tb.iconSize().width() if tb else self._RIBBON_ICON,
             }, indent=2))
             if hasattr(self, '_set_status'):
                 self._set_status("Ribbon config saved")
         except Exception as e:
             print(f"[{self._ribbon_name}] ribbon_save_state error: {e}")
 
-    def ribbon_restore_state(self): #vers 3
+    def ribbon_restore_state(self): #vers 5
         """Restore the saved layout; rejects an older ribbon structure and
         always forces every ribbon visible afterwards so a bad state can
         never leave one hidden with no way back."""
@@ -193,6 +212,8 @@ class RibbonMixin:
                         data.get('toolbar_state_version') == self._RIBBON_LAYOUT_VERSION:
                     mw.restoreState(QByteArray.fromHex(data['toolbar_state'].encode()),
                                     self._RIBBON_LAYOUT_VERSION)
+                if data.get('icon_scale', self._RIBBON_ICON) != self._RIBBON_ICON:
+                    self._apply_icon_scale(data['icon_scale'], save=False)
         except Exception as e:
             print(f"[{self._ribbon_name}] ribbon_restore_state error: {e}")
         finally:
@@ -202,3 +223,4 @@ class RibbonMixin:
                 tb.setVisible(True)
                 if hasattr(tb, '_side'):
                     self.ribbon_fit_side(tb)
+            QTimer.singleShot(0, self._bindings_apply)     # ribbon key bindings once built

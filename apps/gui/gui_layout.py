@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 44
+#this belongs in apps/gui/gui_layout.py - Version: 50
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QSizePolicy, QButtonGroup, QListWidget, QListWidgetItem,
     QFormLayout, QScrollArea, QFrame
 )
-from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QPoint, QItemSelectionModel
+from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QPoint, QItemSelectionModel, QObject, QEvent
 from PyQt6.QtGui import QFont, QIcon, QShortcut, QKeySequence, QPalette, QTextCursor
 try:
     from PyQt6.QtGui import QAction
@@ -20,6 +20,8 @@ except ImportError:
 from apps.core.gui_search import ASearchDialog, SearchManager
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.grip_splitter import GripSplitter
+from apps.methods.dock_panels import DockPanelsMixin, add_outer_dock, add_title_widget
+from apps.gui.button_groups import ButtonGroupsMixin, _DockWidthWatch
 
 from apps.methods.imgfactory_svg_icons import (
     get_add_icon, get_open_icon, get_refresh_icon, get_close_icon, get_close_all_icon,
@@ -59,7 +61,6 @@ def _model_app_icon(size=16, color=None): #vers 1
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass, field
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
-from apps.components.Ide_Editor.ide_editor import open_ide_editor
 from apps.gui.gui_backend import GUIBackend, ButtonDisplayMode
 
 #core
@@ -361,7 +362,28 @@ def edit_dff_file(main_window): #vers 2
             main_window.log_message(f"Model Workshop error: {e}")
 
 
-class IMGFactoryGUILayout:
+class _MinWidthGuard(QObject): #vers 1
+    """Splitter children get min width 1: wide pages never widen the window."""
+
+    def __init__(self, splitter): #vers 1
+        super().__init__(splitter)
+        for i in range(splitter.count()):
+            self._shrink(splitter.widget(i))
+        splitter.installEventFilter(self)
+
+    @staticmethod
+    def _shrink(w): #vers 1
+        if isinstance(w, QWidget) and w.minimumWidth() == 0:
+            w.setMinimumWidth(1)
+
+    def eventFilter(self, obj, event): #vers 1
+        if event.type() == QEvent.Type.ChildAdded:
+            self._shrink(event.child())
+        return False
+
+
+class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
+    _OUTER_LAYOUT_VERSION = 1
     """Handles the complete GUI layout for IMG Factory 1.6 with theme system"""
     
     def __init__(self, main_window): #vers 2
@@ -730,9 +752,14 @@ class IMGFactoryGUILayout:
         ]
 
 
-    def _get_options_buttons_data(self): #vers 5
-        """Get Options buttons data with theme colors"""
+    def _get_options_buttons_data(self): #vers 6
+        """Options buttons with theme colors - only tools present in apps/components."""
+        from apps.methods.installed_tools import option_available
         colors = self._get_button_theme_template()
+        return [b for b in self._options_buttons_all(colors) if option_available(b[4])]
+
+    def _options_buttons_all(self, colors): #vers 1
+        """Every Editing Options button (label, attr, icon, colour, method)."""
         return [
             ("Dir Tree",   "dir_tree",   "dir-tree",   colors['editor_data'],    "toggle_dir_tree"), #Dir_tree
             ("Dat Browser","dat_edit",   "dat-edit",   colors['editor_data'],    "edit_dat_file"), #dat_browser
@@ -1154,39 +1181,16 @@ class IMGFactoryGUILayout:
                 print(f"Error updating tearoff button state: {str(e)}")
 
 
-    def _refresh_all_buttons(self): #vers 4
-        """Refresh all buttons with current theme colors"""
-        try:
-            # Get new theme colors
-            img_colors = self._get_img_buttons_data()
-            entry_colors = self._get_entry_buttons_data() 
-            options_colors = self._get_options_buttons_data()
-            
-            # Update IMG buttons
-            if hasattr(self, 'img_buttons'):
-                for i, btn in enumerate(self.img_buttons):
-                    if i < len(img_colors):
-                        label, action_type, icon, color, method_name = img_colors[i]
-                        self._update_button_theme(btn, color)
-            
-            # Update Entry buttons
-            if hasattr(self, 'entry_buttons'):
-                for i, btn in enumerate(self.entry_buttons):
-                    if i < len(entry_colors):
-                        label, action_type, icon, color, method_name = entry_colors[i]
-                        self._update_button_theme(btn, color)
-                        
-            # Update Options buttons
-            if hasattr(self, 'options_buttons'):
-                for i, btn in enumerate(self.options_buttons):
-                    if i < len(options_colors):
-                        label, action_type, icon, color, method_name = options_colors[i]
-                        self._update_button_theme(btn, color)
-                        
-            print(f"Refreshed {len(self.img_buttons + self.entry_buttons + self.options_buttons)} buttons for theme")
-                        
-        except Exception as e:
-            print(f"Error refreshing buttons: {e}")
+    def _refresh_all_buttons(self): #vers 5
+        """Refresh all buttons with current theme colors (matched by method)."""
+        colors = {row[4]: row[3] for fn in (self._get_img_buttons_data, self._get_entry_buttons_data,
+                                            self._get_options_buttons_data) for row in fn()}
+        buttons = self.img_buttons + self.entry_buttons + self.options_buttons
+        for btn in buttons:
+            color = colors.get(btn.property('method_name'))
+            if color:
+                self._update_button_theme(btn, color)
+        print(f"Refreshed {len(buttons)} buttons for theme")
 
 
     def add_txd_editor_button(self): #vers 3
@@ -1682,7 +1686,7 @@ class IMGFactoryGUILayout:
         return short_map.get(localized_label, localized_label)
 
 
-    def create_main_ui_with_splitters(self, main_layout): #vers 7
+    def create_main_ui_with_splitters(self, main_layout): #vers 11
 
         """Create the main UI with 3-panel layout similar to COL Workshop"""
 
@@ -1788,46 +1792,44 @@ class IMGFactoryGUILayout:
                 import traceback; traceback.print_exc()
                 print(f"System top bar error: {_e}")
 
-        # Create main horizontal splitter for 3 panels
-        self.main_splitter = GripSplitter(Qt.Orientation.Horizontal)
-        
-        # LEFT: File list panel (like COL Workshop) #disabled
-        #left_panel = self._create_left_file_list_panel()
-        
-        # MIDDLE: File window (table with sub-tabs) - main content area
-        middle_panel = self._create_middle_file_window_panel()
-        
-        # RIGHT: Control buttons with pastel colors
-        right_panel = self.create_right_panel_with_pastel_buttons()
-        
-        # Add panels to splitter
-        #self.main_splitter.addWidget(left_panel)
-        self.main_splitter.addWidget(middle_panel)
-        self.main_splitter.addWidget(right_panel)
-        
-        # Set splitter proportions (similar to COL Workshop: 2:3:2 ratio)
-        self.main_splitter.setSizes([200, 700, 280])  # Left: 200px, Middle: 700px, Right: 280px
-        
-        # Add size constraints
-        #left_panel.setMaximumWidth(400)  # Max 400px
-        #left_panel.setMinimumWidth(150)  # Min 150px
-        right_panel.setMaximumWidth(350)  # Max 350px
-        right_panel.setMinimumWidth(200)  # Min 200px
-        
-        # Style the main horizontal splitter handle with theme colors
-        self._apply_main_splitter_theme()
-        
-        # Allow all panels to be collapsible so user can adjust
-        self.main_splitter.setCollapsible(0, True)  # Left panel
-        self.main_splitter.setCollapsible(1, True)  # Middle panel
-        self.main_splitter.setCollapsible(2, True)  # Right panel
-
-        # Adapt right panel on resize
-        self.main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
+        # Centre holds the file window (or a note when it is in its own dock); the rest are docks
+        self.section_title_font = QFont(self.main_window.font().family(), 10, QFont.Weight.Bold)
+        self.file_window = self._create_file_window()
+        status_window = self.create_status_window()
+        self._centre = QWidget()
+        centre_lay = QVBoxLayout(self._centre)
+        centre_lay.setContentsMargins(0, 0, 0, 0)
+        centre_lay.addWidget(self.file_window)
+        self._centre_note = QWidget()
+        note_lay = QVBoxLayout(self._centre_note)
+        note_lay.addStretch(1)
+        note_lbl = QLabel("The file window is in its own dock.")
+        note_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        from PyQt6.QtWidgets import QPushButton as _QPB   # QPushButton is local in this method
+        note_btn = _QPB("Put File Window Back")
+        note_btn.clicked.connect(lambda: self._set_file_window_docked(False))
+        note_lay.addWidget(note_lbl)
+        note_lay.addWidget(note_btn, 0, Qt.AlignmentFlag.AlignCenter)
+        note_lay.addStretch(1)
+        self._centre_note.hide()
+        centre_lay.addWidget(self._centre_note)
+        self._files_dock = None
+        mw = self._dock_layout(self._centre, [("Activity Log", status_window, 200,
+                                               Qt.DockWidgetArea.BottomDockWidgetArea)])
+        self._log_dock = self._outer_docks[0]
+        self._set_dock_corners()
+        self._log_header.hide()
+        for b in (self.f_entries_btn, self.split_toggle_btn, self.search_btn, self.rw_scan_btn, self.log_btn):
+            b.setFlat(True)
+            add_title_widget(self._log_dock, b)          # log icons in the title bar before [x]
+        self._dock_watch = _DockWidthWatch(self._on_button_dock_resized, mw)
         self._right_panel_icon_only = False
-
-        # Add splitter to main layout
-        main_layout.addWidget(self.main_splitter)
+        self._build_button_model()
+        self._build_button_views()
+        self._apply_main_splitter_theme()
+        main_layout.addWidget(mw)
+        if self._file_window_docked():                   # before the saved layout is restored
+            self._dock_file_window()
 
         # Remember splitter positions between sessions
         for sp in self._layout_splitters().values():
@@ -1933,38 +1935,6 @@ class IMGFactoryGUILayout:
         return panel
 
 
-    def _create_middle_file_window_panel(self): #vers 2
-        """Create middle panel with file window (table with sub-tabs) - main content area"""
-        middle_container = QWidget()
-        middle_layout = QVBoxLayout(middle_container)
-        middle_layout.setContentsMargins(3, 3, 3, 3)
-        middle_layout.setSpacing(0)  # No spacing - splitter handles this
-
-        # Create vertical splitter for the sections in middle panel
-        self.middle_vertical_splitter = GripSplitter(Qt.Orientation.Vertical)
-
-        # 1. TOP: File Window (table with sub-tabs)
-        self.file_window = self._create_file_window()
-        self.middle_vertical_splitter.addWidget(self.file_window)
-
-        # 2. BOTTOM: Status Window (log and status)
-        status_window = self.create_status_window()
-        self.middle_vertical_splitter.addWidget(status_window)
-
-        # Set section proportions: File(760px), Status(200px)
-        self.middle_vertical_splitter.setSizes([760, 200])
-
-        # Prevent sections from collapsing completely
-        self.middle_vertical_splitter.setCollapsible(0, True)  # File window
-        self.middle_vertical_splitter.setCollapsible(1, True)  # Status window
-
-        # Apply theme styling to vertical splitter
-        self._apply_vertical_splitter_theme()
-
-        middle_layout.addWidget(self.middle_vertical_splitter)
-        return middle_container
-
-
     def _create_left_three_section_panel(self): #vers 4
         """Create left panel with 3 sections: File Window, Status Window"""
         left_container = QWidget()
@@ -1997,7 +1967,7 @@ class IMGFactoryGUILayout:
         return left_container
 
 
-    def _create_file_window(self): #vers 6
+    def _create_file_window(self): #vers 7
         """Create file window with table as main content (tabs moved to toolbar)"""
         file_window = QWidget()
         file_layout = QVBoxLayout(file_window)
@@ -2012,7 +1982,7 @@ class IMGFactoryGUILayout:
         from PyQt6.QtWidgets import QStackedWidget
         self.left_stack = QStackedWidget()
         self.left_stack.setAutoFillBackground(True)
-        self.left_stack.setMinimumWidth(0)
+        self.left_stack.setMinimumWidth(1)              # hidden wide pages never widen the window
         # Placeholder pages — real widgets inserted when panels first open
         self._left_stack_placeholder = QWidget()        # page 0 dir tree slot
         self._left_stack_dat_placeholder = QWidget()    # page 1 dat browser slot
@@ -2033,6 +2003,7 @@ class IMGFactoryGUILayout:
         self.content_splitter.addWidget(self.table)
         self.content_splitter.setStretchFactor(0, 0)
         self.content_splitter.setStretchFactor(1, 1)
+        self._min_width_guard = _MinWidthGuard(self.content_splitter)
         self._apply_content_splitter_theme()
         file_layout.addWidget(self.content_splitter)
 
@@ -2051,104 +2022,107 @@ class IMGFactoryGUILayout:
         return file_window
 
 
-    # Updated function for gui_layout.py - Replace existing create_right_panel_with_pastel_buttons
 
-    def create_right_panel_with_pastel_buttons(self): #vers 4
-        """Create right panel with theme-controlled pastel buttons"""
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(4, 4, 4, 4)
+    def _set_dock_corners(self): #vers 2
+        """Side docks run full height: files and log sit between them."""
+        for corner, area in ((Qt.Corner.TopLeftCorner, Qt.DockWidgetArea.LeftDockWidgetArea),
+                             (Qt.Corner.BottomLeftCorner, Qt.DockWidgetArea.LeftDockWidgetArea),
+                             (Qt.Corner.TopRightCorner, Qt.DockWidgetArea.RightDockWidgetArea),
+                             (Qt.Corner.BottomRightCorner, Qt.DockWidgetArea.RightDockWidgetArea)):
+            self._outer_mw.setCorner(corner, area)
 
-        # Get spacing from settings
-        if hasattr(self.main_window, 'app_settings') and hasattr(self.main_window.app_settings, 'current_settings'):
-            space_between_btnv = self.main_window.app_settings.current_settings.get('button_spacing_vertical', 8)
-            space_between_btnh = self.main_window.app_settings.current_settings.get('button_spacing_horizontal', 6)
-            button_height = self.main_window.app_settings.current_settings.get('button_height', 32)
+    def _restore_outer_layout(self): #vers 1
+        """Saved dock layout, then the corners (old saves had none)."""
+        super()._restore_outer_layout()
+        self._set_dock_corners()
+
+    def _file_window_docked(self) -> bool: #vers 1
+        """File window in its own dock (else in the centre)."""
+        import json
+        try:
+            return bool(json.loads(self._ribbon_config_path().read_text()).get('file_window_docked', False))
+        except (OSError, ValueError):
+            return False
+
+    def _dock_file_window(self, floating=False): #vers 1
+        """File window into a 'Files' dock; the centre shows a put-back note."""
+        if self._files_dock is None:
+            self._files_dock = add_outer_dock(self, self._outer_mw, "Files", self.file_window, 200,
+                                              Qt.DockWidgetArea.RightDockWidgetArea)
+            self._outer_docks.append(self._files_dock)
+        self._centre_note.show()
+        self._files_dock.show()
+        self._files_dock.setFloating(floating)
+
+    def _centre_file_window(self): #vers 1
+        """File window back in the centre; its dock removed."""
+        dock = self._files_dock
+        if dock is None:
+            return
+        self._centre.layout().insertWidget(0, self.file_window)
+        self.file_window.show()
+        self._centre_note.hide()
+        self._outer_mw.removeDockWidget(dock)
+        self._outer_docks.remove(dock)
+        dock.deleteLater()
+        self._files_dock = None
+
+    def _set_file_window_docked(self, docked: bool): #vers 1
+        """Save and apply: file window in a dock (floating at first) or the centre."""
+        self._ribbon_config_set('file_window_docked', bool(docked))
+        if docked:
+            self._dock_file_window(floating=True)
         else:
-            # Defaults if settings not available
-            space_between_btnv = 8
-            space_between_btnh = 6
-            button_height = 32
+            self._centre_file_window()
+        self._save_outer_layout()
 
-        right_layout.setSpacing(space_between_btnv)
+    def _statusbar_position(self) -> str: #vers 1
+        """'window' bottom, 'pane' under the file pane, or 'dock' (movable)."""
+        import json
+        try:
+            return json.loads(self._ribbon_config_path().read_text()).get('statusbar_position', 'window')
+        except (OSError, ValueError):
+            return 'window'
 
-        # IMG Section with theme colors
-        img_box = QGroupBox("IMG, COL, TXD Files")
-        img_layout = QGridLayout()
-        img_layout.setSpacing(space_between_btnv)
-        img_layout.setHorizontalSpacing(space_between_btnh)
-        img_layout.setVerticalSpacing(space_between_btnv)
+    def _place_status_bar(self, where=None): #vers 1
+        """Put the status bar at the window bottom, under the file pane, or in a dock."""
+        from PyQt6.QtWidgets import QMainWindow
+        mw = self.main_window
+        bar = getattr(mw, '_img_status_bar', None) or QMainWindow.statusBar(mw)
+        mw._img_status_bar = bar                         # statusBar() returns it wherever placed
+        where = where or self._statusbar_position()
+        dock = getattr(self, '_status_dock', None)
+        if dock is not None:                             # leave the dock
+            self._outer_mw.removeDockWidget(dock)
+            self._outer_docks.remove(dock)
+        bar.setParent(None)                              # leaves window / pane / dock
+        if dock is not None:
+            dock.deleteLater()
+            self._status_dock = None
+        if where == 'pane':
+            self.file_window.layout().addWidget(bar)
+        elif where == 'dock':
+            self._status_dock = add_outer_dock(self, self._outer_mw, "Status Bar", bar, 100,
+                                               Qt.DockWidgetArea.BottomDockWidgetArea)
+            self._outer_docks.append(self._status_dock)
+        else:
+            mw.setStatusBar(bar)
+        bar.show()
+        bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        if not getattr(bar, '_place_menu', False):
+            bar._place_menu = True
+            bar.customContextMenuRequested.connect(lambda pos: self._outer_dock_menu(bar.mapToGlobal(pos)))
 
-        # Use theme-controlled button data
-        img_buttons_data = self._get_img_buttons_data()
+    def _set_statusbar_position(self, where: str): #vers 1
+        """Save and apply the status bar position."""
+        self._ribbon_config_set('statusbar_position', where)
+        self._place_status_bar(where)
+        self._save_outer_layout()
 
-        for i, (label, action_type, icon, color, method_name) in enumerate(img_buttons_data):
-            btn = self.create_pastel_button(label, action_type, icon, color, method_name)
-            btn.setMaximumHeight(button_height)
-            btn.setMinimumHeight(button_height - 4)
-            self.img_buttons.append(btn)
-            # Add to backend as well
-            if hasattr(self, 'backend'):
-                self.backend.img_buttons.append(btn)
-            img_layout.addWidget(btn, i // 3, i % 3)
-
-        img_box.setLayout(img_layout)
-        right_layout.addWidget(img_box)
-
-        # Entries Section with theme colors
-        entries_box = QGroupBox("File Entries")
-        entries_layout = QGridLayout()
-        entries_layout.setSpacing(space_between_btnv)
-        entries_layout.setHorizontalSpacing(space_between_btnh)
-        entries_layout.setVerticalSpacing(space_between_btnv)
-
-        # Use theme-controlled button data
-        entry_buttons_data = self._get_entry_buttons_data()
-
-        for i, (label, action_type, icon, color, method_name) in enumerate(entry_buttons_data):
-            btn = self.create_pastel_button(label, action_type, icon, color, method_name)
-            btn.setMaximumHeight(button_height)
-            btn.setMinimumHeight(button_height - 4)
-            self.entry_buttons.append(btn)
-            # Add to backend as well
-            if hasattr(self, 'backend'):
-                self.backend.entry_buttons.append(btn)
-            entries_layout.addWidget(btn, i // 3, i % 3)
-
-        entries_box.setLayout(entries_layout)
-        right_layout.addWidget(entries_box)
-
-        # Options Section with theme colors
-        options_box = QGroupBox("Editing Options")
-        options_layout = QGridLayout()
-        options_layout.setSpacing(space_between_btnv)
-        options_layout.setHorizontalSpacing(space_between_btnh)
-        options_layout.setVerticalSpacing(space_between_btnv)
-
-        # Use theme-controlled button data
-        options_buttons_data = self._get_options_buttons_data()
-
-        for i, (label, action_type, icon, color, method_name) in enumerate(options_buttons_data):
-            btn = self.create_pastel_button(label, action_type, icon, color, method_name)
-            btn.setMaximumHeight(button_height)
-            btn.setMinimumHeight(button_height - 4)
-            # Wire right-click context menu for the Dat Edit button
-            if action_type == "dat_edit":
-                btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-                btn.customContextMenuRequested.connect(
-                    lambda pos, b=btn: self._dat_edit_context_menu(b, pos))
-            self.options_buttons.append(btn)
-            # Add to backend as well
-            if hasattr(self, 'backend'):
-                self.backend.options_buttons.append(btn)
-            options_layout.addWidget(btn, i // 3, i % 3)
-
-        options_box.setLayout(options_layout)
-        right_layout.addWidget(options_box)
-
-        # Add stretch to push everything up
-        right_layout.addStretch()
-        return right_panel
+    def _ribbon_config_path(self): #vers 1
+        """IMG Factory dock layout / button arrangement file."""
+        from apps.methods.img_factory_settings import get_user_config_dir
+        return get_user_config_dir() / 'imgfactory_docks.json'
 
 
     def set_button_display_mode(self, mode: str):
@@ -2257,7 +2231,7 @@ class IMGFactoryGUILayout:
             self.set_button_display_mode('text_only')
 
 
-    def create_status_window(self): #vers 3
+    def create_status_window(self): #vers 4
         """Create toolbar - ALL BUTTONS CONNECTED"""
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
         from PyQt6.QtGui import QFont
@@ -2286,6 +2260,7 @@ class IMGFactoryGUILayout:
         # Header with buttons
         header_layout = QHBoxLayout()
         header = QLabel("Activity Logs")
+        self._log_header = header                   # hidden when the dock title shows it
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         header_layout.addWidget(header)
         header_layout.addStretch()
@@ -3110,34 +3085,15 @@ class IMGFactoryGUILayout:
         """)
 
 
-    def _apply_main_splitter_theme(self): #vers 6
-        """Apply theme styling to main horizontal splitter"""
-        theme_colors = self._get_theme_colors("default")
-
-        # Extract variables FIRST
-        bg_secondary = theme_colors.get('bg_secondary', '#f8f9fa')
-        bg_primary = theme_colors.get('bg_primary', '#ffffff')
-        bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
-
-        self.main_splitter.setStyleSheet(f"""
-            QSplitter::handle:horizontal {{
-                background-color: {bg_secondary};
-                border: 1px solid {bg_primary};
-                border-left: 1px solid {bg_tertiary};
-                width: 8px;
-                margin: 2px 1px;
-                border-radius: 3px;
-            }}
-
-            QSplitter::handle:horizontal:hover {{
-                background-color: {bg_primary};
-                border-color: {bg_tertiary};
-            }}
-
-            QSplitter::handle:horizontal:pressed {{
-                background-color: {bg_tertiary};
-            }}
-        """)
+    def _apply_main_splitter_theme(self): #vers 7
+        """Theme colours on the dock separators."""
+        mw = getattr(self, '_outer_mw', None)
+        if mw is None:
+            return
+        tc = self._get_theme_colors("default")
+        mw.setStyleSheet(f"QMainWindow::separator {{ background: {tc.get('bg_secondary', '#f8f9fa')}; "
+                         f"width: 5px; height: 5px; }} "
+                         f"QMainWindow::separator:hover {{ background: {tc.get('bg_tertiary', '#e9ecef')}; }}")
 
 
     def _apply_vertical_splitter_theme(self): #vers 7
@@ -3371,29 +3327,12 @@ class IMGFactoryGUILayout:
         except Exception:
             pass
 
-    def _update_widget_spacing(self, spacing): #vers 1
+    def _update_widget_spacing(self, spacing): #vers 2
         """Update widget spacing"""
-        try:
-            if hasattr(self, 'main_splitter') and self.main_splitter:
-                # Update splitter spacing
-                self.main_splitter.setHandleWidth(max(4, spacing))
-        except Exception:
-            pass
+        if getattr(self, 'content_splitter', None):
+            self.content_splitter.setHandleWidth(max(4, spacing))
 
     # RESPONSIVE DESIGN & ADAPTIVE LAYOUT
-    def _on_main_splitter_moved(self, pos, index): #vers 1
-        """Switch right panel between icon+text and icon-only at ~50% width"""
-        sizes = self.main_splitter.sizes()
-        if len(sizes) < 2:
-            return
-        right_width = sizes[-1]
-        threshold = 250  # below this → icon only (panel max is 350)
-
-        if right_width > 0 and right_width < threshold and not getattr(self, '_right_panel_icon_only', False):
-            self._set_right_panel_icon_only(True)
-        elif right_width >= threshold and getattr(self, '_right_panel_icon_only', False):
-            self._set_right_panel_icon_only(False)
-
     def _set_right_panel_icon_only(self, icon_only: bool): #vers 3
         """Toggle right panel buttons between text-only and 32x32 icon-only"""
         self._right_panel_icon_only = icon_only
@@ -3425,13 +3364,11 @@ class IMGFactoryGUILayout:
         from PyQt6.QtWidgets import QApplication
         QApplication.processEvents()
 
-    def handle_resize_event(self, event): #vers 1
+    def handle_resize_event(self, event): #vers 2
         """Handle window resize to adapt button text"""
-        if self.main_splitter:
-            sizes = self.main_splitter.sizes()
-            if len(sizes) > 1:
-                right_panel_width = sizes[1]
-                self.adapt_buttons_to_width(right_panel_width)
+        docks = [d for d in getattr(self, '_button_docks', []) if d.isVisible()]
+        if docks:
+            self.adapt_buttons_to_width(min(d.width() for d in docks))
 
     def adapt_buttons_to_width(self, width): #vers 1
         """Adapt button text based on available width"""
@@ -4554,17 +4491,6 @@ class IMGFactoryGUILayout:
             pass
 
 
-# LEGACY COMPATIBILITY FUNCTIONS
-
-def create_control_panel(main_window): #vers 1
-    """Create the main control panel - LEGACY FUNCTION"""
-    # Redirect to new method for compatibility
-    if hasattr(main_window, 'gui_layout'):
-        return main_window.gui_layout.create_right_panel_with_pastel_buttons()
-    return None
-
-
 __all__ = [
     'IMGFactoryGUILayout',
-    'create_control_panel',  # Legacy compatibility
 ]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 17
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 20
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -24,6 +24,8 @@ from PyQt6.QtWidgets import (
     QRadioButton, QCheckBox, QGroupBox, QProgressDialog,
 )
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.dock_panels import DockPanelsMixin
 from PyQt6.QtCore import QSize, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont, QColor
 from apps.methods.img_factory_settings import get_user_config_dir
@@ -700,7 +702,7 @@ class TXDDumpDialog(QDialog): #vers 1
         self.accept()
 
 
-class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
+class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget): #vers 7
     """
     Full DAT/IDE/IPL browser panel.
     Drop into any QTabWidget or use standalone.
@@ -719,6 +721,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
                          GTAGame.SA: "San Andreas", GTAGame.SOL: "GTASOL",
                          GTAGame.IV: "GTA IV"}
     _DIR_TREE_IDX = 6
+    _OUTER_LAYOUT_VERSION = 1     # Load Order dock
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
@@ -728,6 +731,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._thread:    Optional[_LoadThread]  = None
         self._asset_db   = None   # AssetDB for current profile
         self.game_root   = ''     # set once a load succeeds - see _on_load_done
+        self.section_title_font = QFont("Arial", 10, QFont.Weight.Bold)   # dock titles
         self._setup_ui()
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(150, self._autoload_last_profile)
@@ -740,7 +744,11 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         from apps.methods.ui_color import get_ui_color
         return get_ui_color(self, key)
 
-    def _setup_ui(self): #vers 4
+    def _ribbon_config_path(self): #vers 1
+        """Ribbon-layout file for the Ribbon Manager."""
+        return get_user_config_dir() / "dat_browser_docks.json"
+
+    def _setup_ui(self): #vers 6
         # Ensure opaque background — prevents content bleeding from widgets beneath
         self.setAutoFillBackground(True)
         from PyQt6.QtCore import Qt as _Qt
@@ -850,6 +858,8 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         _QT2.singleShot(100, self._load_toolbar_icons)
 
         self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw                 # Ribbon Manager target
+        self._apply_ribbon_layout()
 
         # Progress bar (hidden when idle)
         self._progress = QProgressBar()
@@ -890,27 +900,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         search_row.addWidget(self._type_filter)
         root.addLayout(search_row)
 
-        # Main splitter: left = load-order tree  |  right = data tabs
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setAutoFillBackground(True)
-        splitter.setHandleWidth(4)
-        splitter.setOpaqueResize(True)
-        self._dat_splitter = splitter
-        root.addWidget(splitter, 1)
-        # Apply theme-aware handle style
-        try:
-            mw = self.main_window
-            if mw and hasattr(mw, 'app_settings'):
-                tc = mw.app_settings.get_theme_colors() or {}
-                mid = tc.get('splitter_color_background', tc.get('bg_secondary', '#2a2a2a'))
-                hov = tc.get('accent_primary', '#1976d2')
-                splitter.setStyleSheet(f"""
-                    QSplitter::handle:horizontal {{ background: {mid}; width: 4px; border: none; }}
-                    QSplitter::handle:horizontal:hover {{ background: {hov}; }}
-                """)
-        except Exception:
-            pass
-
+        # Load Order dock (file tree) | data tabs in the centre
         # Left — file load-order tree
         left = QWidget()
         left.setAutoFillBackground(True)
@@ -922,7 +912,6 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         tree_hdr = QHBoxLayout()
         tree_hdr.setContentsMargins(2, 2, 2, 0)
         tree_hdr.setSpacing(4)
-        tree_hdr.addWidget(QLabel("Load Order:"))
         tree_hdr.addStretch()
 
         # Sort combo
@@ -971,7 +960,6 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         self._tree.viewport().setAutoFillBackground(True)
         self._tree.itemClicked.connect(self._on_tree_click)
         ll.addWidget(self._tree)
-        splitter.addWidget(left)
 
         # Enable right-click on tree to open source files
         self._setup_tree_context_menu()
@@ -979,9 +967,8 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         # Right — tabbed result tables
         self._tabs = QTabWidget()
         self._tabs.setAutoFillBackground(True)
-        splitter.addWidget(self._tabs)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 3)
+        root.addWidget(self._dock_layout(self._tabs, [
+            ("Load Order", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
 
         self._obj_table = self._make_table(
             ["ID", "Model", "TXD", "Type", "Section", "Draw Dist", "Flags", "Source IDE"])
@@ -3705,22 +3692,10 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
         """
         self.setStyleSheet(ss)
 
-    def _on_theme_changed(self): #vers 5
+    def _on_theme_changed(self): #vers 6
         """Refresh DAT-specific row colors when theme switches."""
         self._apply_theme_stylesheet()
         self.setStyleSheet(self.styleSheet())  # force repaint
-        # Re-apply splitter handle style
-        try:
-            if hasattr(self, '_dat_splitter') and self.main_window:
-                tc = self.main_window.app_settings.get_theme_colors() or {}
-                mid = tc.get('splitter_color_background', tc.get('bg_secondary', '#2a2a2a'))
-                hov = tc.get('accent_primary', '#1976d2')
-                self._dat_splitter.setStyleSheet(f"""
-                    QSplitter::handle:horizontal {{ background: {mid}; width: 4px; border: none; }}
-                    QSplitter::handle:horizontal:hover {{ background: {hov}; }}
-                """)
-        except Exception:
-            pass
         self.update()
 
     def _get_txd_names_from_img(self, img_path: str) -> list:
@@ -4169,7 +4144,7 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
 
     _BUILTIN_PROFILES = ['GTASOL', 'GTA3', 'VC', 'SA', 'GTAIV']
 
-    def _build_db_panel(self): #vers 2
+    def _build_db_panel(self): #vers 3
         """Build the collapsible Asset DB panel widget.
         Buttons use SVG icons. When panel is narrow (<400px)
         labels are hidden and only icons + tooltips are shown."""
@@ -4245,9 +4220,12 @@ class DATBrowserWidget(RibbonMixin, QWidget): #vers 5
 
         pl.addLayout(row1)
 
-        # Load icons after widget is constructed
+        # Load icons after widget is constructed; timer dies with the panel
         from PyQt6.QtCore import QTimer as _QT3
-        _QT3.singleShot(0, self._db_load_panel_icons)
+        self._db_icon_timer = _QT3(panel)
+        self._db_icon_timer.setSingleShot(True)
+        self._db_icon_timer.timeout.connect(self._db_load_panel_icons)
+        self._db_icon_timer.start(0)
 
         #    Row 2: stats label                                          
         self._db_stats_lbl = QLabel("No database loaded.")

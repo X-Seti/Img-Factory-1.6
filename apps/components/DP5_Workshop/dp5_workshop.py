@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 115
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 117
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -45,6 +45,7 @@ from PyQt6.QtGui import (
     QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
     QPainterPath, QKeySequence
 )
+from apps.methods.statusbar_func import register_statusbar, set_statusbar_shown, statusbar_shown
 from apps.methods.corner_handles import paint_corner_handles
 from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.img_factory_settings import get_user_config_dir
@@ -1491,7 +1492,6 @@ class DP5Settings:
         'grid_color':        '#808080',  # pixel grid colour (hex)
         'platform_mode':     'none',   # 'none'|'c64'|'c64m'|'spectrum'|'msx'|'cpc'|'atari_st'|'amiga'
         'show_cell_grid':    False,    # show platform cell boundaries
-        'show_statusbar':    True,     # show bottom status bar
         'ui_font_size':      10,       # toolbar/button font size
         'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
         'show_anim_strip':   False,    # show animation timeline strip
@@ -1589,7 +1589,7 @@ class DP5Settings:
 class DP5SettingsDialog(QDialog):
     """Settings dialog for DP5 Workshop — does NOT touch global AppSettings."""
 
-    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 6
+    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 7
         super().__init__(parent)
         self.s = dp5_settings
         self._workshop = parent   # DP5Workshop instance - gives access to _WIDGET_REGISTRY
@@ -1788,7 +1788,7 @@ class DP5SettingsDialog(QDialog):
         ul.addRow("Show bitmap list panel:", self._bitmap_chk)
 
         self._statusbar_chk = QCheckBox()
-        self._statusbar_chk.setChecked(self.s.get('show_statusbar'))
+        self._statusbar_chk.setChecked(statusbar_shown(self._workshop))    # workshop_ui.json
         ul.addRow("Show status bar:", self._statusbar_chk)
 
         self._font_size_spin = QSpinBox(); self._font_size_spin.setRange(7, 18)
@@ -1946,7 +1946,7 @@ class DP5SettingsDialog(QDialog):
         btns.addWidget(ok_btn); btns.addWidget(cancel_btn)
         root.addLayout(btns)
 
-    def _accept(self): #vers 1
+    def _accept(self): #vers 2
         self.s.set('default_width',    self._w_spin.value())
         self.s.set('default_height',   self._h_spin.value())
         self.s.set('default_zoom',     self._zoom_spin.value())
@@ -1983,7 +1983,7 @@ class DP5SettingsDialog(QDialog):
             chk = self._widget_chks.get(entry['key'])
             if chk is not None:
                 self.s.set(setting_key, chk.isChecked())
-        self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
+        set_statusbar_shown(self._workshop, self._statusbar_chk.isChecked())
         self.s.set('ui_font_size',     self._font_size_spin.value())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
         self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
@@ -6756,7 +6756,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
     #    Centre panel: canvas                                                   
 
-    def _create_centre_panel(self): #vers 2
+    def _create_centre_panel(self): #vers 3
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -6804,7 +6804,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         self._status_bar = QStatusBar()
         self._status_bar.setSizeGripEnabled(False)
         self._status_bar.setFixedHeight(22)
-        self._status_bar.setVisible(self.dp5_settings.get('show_statusbar'))
+        register_statusbar(self, self._status_bar)
         # Permanent right-side info labels
         self._status_size_lbl  = QLabel("320×256")
         self._status_depth_lbl = QLabel("RGBA32")
@@ -6815,7 +6815,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
         return panel
 
-    def _build_canvas_menus(self, mb): #vers 5
+    def _build_canvas_menus(self, mb): #vers 6
         """Populate a QMenuBar (topbar) or QMenu (docked/dropdown) with all DP5 menus.
         Both share the same addMenu()/addAction() API so one method serves all cases."""
         # File (Save / Export entries see the flattened layers)
@@ -7033,7 +7033,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         cg.setCheckable(True); cg.setChecked(False)
         cg.triggered.connect(self._toggle_cell_grid)
         sb = vm.addAction("Status bar")
-        sb.setCheckable(True); sb.setChecked(self.dp5_settings.get('show_statusbar'))
+        sb.setCheckable(True); sb.setChecked(statusbar_shown(self))
         sb.triggered.connect(self._toggle_statusbar)
         an = vm.addAction("Animation timeline")
         an.setCheckable(True); an.setChecked(self.dp5_settings.get('show_anim_strip', False))
@@ -7980,22 +7980,13 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 lambda pos, t=toolbar: self._ribbon_context_menu(t, pos))
             toolbar._ribbon_ctx_menu_wired = True
 
-    def _ribbon_context_menu(self, toolbar, pos): #vers 1
-        """Right-click context menu on any ribbon's empty background -
-        gives access to the Ribbon Manager without needing to dig
-        through Settings, plus quick lock/unlock for all ribbons at
-        once."""
-        from PyQt6.QtWidgets import QMenu, QToolBar
-        menu = QMenu(self)
-        menu.addAction("Ribbon Manager…", self._open_ribbon_manager)
-        menu.addSeparator()
+    def _ribbon_context_menu(self, toolbar, pos): #vers 2
+        """Right-click on any ribbon: shared menu (methods/toolbar_menu.py)."""
+        from PyQt6.QtWidgets import QToolBar
+        from apps.methods.toolbar_menu import standard_toolbar_menu
         outer_mw = getattr(self, '_outer_mw', None)
-        if outer_mw is not None:
-            menu.addAction("Lock All Ribbons",
-                lambda: [tb.setMovable(False) for tb in outer_mw.findChildren(QToolBar)])
-            menu.addAction("Unlock All Ribbons",
-                lambda: [tb.setMovable(True) for tb in outer_mw.findChildren(QToolBar)])
-        menu.exec(toolbar.mapToGlobal(pos))
+        toolbars = outer_mw.findChildren(QToolBar) if outer_mw is not None else []
+        standard_toolbar_menu(self, toolbars).exec(toolbar.mapToGlobal(pos))
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
@@ -9565,11 +9556,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         self.dp5_canvas.update()
 
 
-    def _toggle_statusbar(self, on: bool): #vers 1
-        self.dp5_settings.set('show_statusbar', on)
-        self.dp5_settings.save()
-        if hasattr(self, '_status_bar'):
-            self._status_bar.setVisible(on)
+    def _toggle_statusbar(self, on: bool): #vers 2
+        set_statusbar_shown(self, on)
 
 
     def _zoom_mode_menu(self, pos): #vers 1
@@ -13223,7 +13211,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
     #    Settings / theme                                                       
 
-    def _show_workshop_settings(self): #vers 1
+    def _show_workshop_settings(self): #vers 2
         """Open DP5-specific settings dialog (NOT the global theme dialog)."""
         old_icon_sz = self.dp5_settings.get('tool_icon_size')
 
@@ -13245,8 +13233,6 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 dock = getattr(self, entry['dock_attr'], None)
                 if dock is not None:
                     dock.setVisible(self.dp5_settings.get(entry['enabled_setting']))
-            if hasattr(self, '_status_bar'):
-                self._status_bar.setVisible(self.dp5_settings.get('show_statusbar'))
 
             if self.dp5_canvas:
                 self.dp5_canvas.show_grid = self.dp5_settings.get('show_pixel_grid')

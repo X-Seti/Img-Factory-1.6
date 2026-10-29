@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 9
+#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 10
 # X-Seti - May10 2026 - IMG Factory 1.6 - DFF Model Viewer
 """
 DFF Model Viewer - OpenGL hardware 3D viewer for GTA RenderWare DFF files.
@@ -24,9 +24,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
-from apps.methods.titlebar_func import TitlebarMixin
-from apps.methods.corner_handles import paint_corner_handles
 from apps.methods.ribbon_system import RibbonMixin
+from apps.methods.ribbon_dialog import RibbonIconsMixin
+from apps.methods.gui_workshop import GUIWorkshop
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QFrame,
@@ -143,17 +143,15 @@ except ImportError:
 # DFFViewport.set_show_grid / set_prelight / set_light_dir / reset_camera
 # DFFViewport.mousePressEvent / mouseMoveEvent / mouseReleaseEvent / wheelEvent
 # ModelViewer._build_menus_into_qmenu
-# ModelViewer.__init__ / get_content_margins / get_panel_margins / get_tab_margins
-# ModelViewer.setup_ui / _create_toolbar / _create_left_panel
+# ModelViewer.__init__ / get_tab_margins
+# ModelViewer.setup_ui / _build_ribbons / _create_left_panel
 # ModelViewer._create_centre_panel / _create_right_panel / _create_status_bar
 # ModelViewer._show_workshop_settings / _light_setup_dialog
 # ModelViewer._refresh_icons / _apply_theme / _get_icon_color / _on_menu_btn_clicked
 # ModelViewer._open_dff / _open_txd / load_dff / load_txd
 # ModelViewer._populate_geom_list / _on_geom_selected / _set_status
-# ModelViewer._get_resize_corner / _update_cursor / _is_on_draggable_area
-# ModelViewer._handle_corner_resize
-# ModelViewer.mousePressEvent / mouseMoveEvent / mouseReleaseEvent
-# ModelViewer.resizeEvent / showEvent / closeEvent / paintEvent
+# ModelViewer._open_file / _save_toolbar_state / _toolbar_context_menu
+# ModelViewer.closeEvent  (window chrome: GUIWorkshop)
 # open_model_viewer
 
 
@@ -200,14 +198,18 @@ class MVSettings:
 # DFFViewport imported from apps.methods.dff_viewport
 
 # - Main workshop widget (RadarWorkshop pattern)
-class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
-    """Model Viewer — RadarWorkshop UI template with DFFViewport canvas."""
+class ModelViewer(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
+    """Model Viewer — GUIWorkshop: ribbons + Ribbon Manager, Model / View docks, DFFViewport centre."""
 
-    workshop_closed = pyqtSignal()
-    window_closed   = pyqtSignal()
-
+    App_name        = App_name
+    App_build       = Build
+    App_description = "OpenGL DFF viewer for GTA models."
+    config_key      = "model_viewer"                     # same model_viewer.json as before
+    WS_DEFAULTS     = {"last_dir": "", "recent": []}
+    DROP_EXTS       = ('.dff', '.txd')
     _ribbon_name = "model_viewer"
     _RIBBON_LAYOUT_VERSION = 2     # 2 = File ribbon (Tools moved to titlebar)
+    _RIBBON_WIDGET_ITEMS = True    # Ribbon Manager saves moved ribbon buttons
 
     def _build_menus_into_qmenu(self, pm): #vers 1
         fm = pm.addMenu("File")
@@ -234,110 +236,29 @@ class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
         vm.addSeparator()
         vm.addAction("About", self._show_about)
 
-    def __init__(self, parent=None, main_window=None): #vers 2
-        super().__init__(parent)
-        self.main_window      = main_window
-        self.standalone_mode  = (main_window is None)
-        self.is_docked        = not self.standalone_mode
-        self.button_display_mode = 'both'
-        self.dock_display_mode   = None
-
-        # Fonts
-        self.title_font   = QFont("Arial", 14)
-        self.panel_font   = QFont("Arial", 10)
-        self.button_font  = QFont("Arial", 10)
-        self.infobar_font = QFont("Courier New", 9)
-
-        # Window chrome
-        self.use_system_titlebar  = False
-        self.window_always_on_top = False
-        self.dragging             = False
-        self.drag_position        = None
-        self.resizing             = False
-        self.resize_corner        = None
-        self.corner_size          = 20
-        self.hover_corner         = None
-
-        # App settings (theme)
-        if main_window and hasattr(main_window, 'app_settings'):
-            self.app_settings = main_window.app_settings
-        elif APPSETTINGS_AVAILABLE:
-            try:    self.app_settings = AppSettings()
-            except: self.app_settings = None
-        else:
-            self.app_settings = None
-
-        if self.app_settings and hasattr(self.app_settings, 'theme_changed'):
-            self.app_settings.theme_changed.connect(self._refresh_icons)
-
-        # Per-tool settings
-        self.MV_settings = MVSettings()
-
-        # Spacing/margins (template pattern)
-        self.contmergina=5; self.contmerginb=5; self.contmerginc=5; self.contmergind=5
-        self.setspacing=2
-        self.panelmergina=5; self.panelmerginb=5; self.panelmerginc=5; self.panelmergind=5
-        self.panelspacing=5
-        self.titlebarheight=45; self.toolbarheight=50
+    def __init__(self, parent=None, main_window=None): #vers 3
+        self.dock_display_mode = None
         self.tabmerginsa=5; self.tabmerginsb=0; self.tabmerginsc=5; self.tabmerginsd=0
-        self.statusheight=22
-
-        self.icon_factory = SVGIconFactory() if ICONS_AVAILABLE else None
-
-        self.setWindowTitle(App_name)
-        self.resize(1200, 780)
-        self.setMinimumSize(800, 500)
-
-        # Viewer state
         self._dff_model    = None
-        self._last_dir     = self.MV_settings.get('last_dir', '')
         self._current_geom = 0
-
-        # Restore geometry
-        if self.standalone_mode:
-            wx = self.MV_settings.get('window_x', -1)
-            wy = self.MV_settings.get('window_y', -1)
-            ww = self.MV_settings.get('window_w', 1200)
-            wh = self.MV_settings.get('window_h', 780)
-            self.resize(max(800, ww), max(500, wh))
-            if wx >= 0 and wy >= 0:
-                self.move(wx, wy)
-
-        if self.standalone_mode:
-            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        else:
-            self.setWindowFlags(Qt.WindowType.Widget)
-
-        if parent:
-            p = parent.pos(); self.move(p.x()+50, p.y()+80)
-
-        self.setup_ui()
-        self._apply_theme()
-        # App icon — colour from theme bg_panel so it updates with theme changes
-        try:
-            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SIF
-            _ic = '#4a9fd4'
-            if self.app_settings:
-                _colors = self.app_settings.get_theme_colors()
-                _ic = _colors.get('bg_panel', _colors.get('accent_primary', '#4a9fd4'))
-            self.setWindowIcon(_SIF.mesh_icon(32, _ic))
-        except Exception:
-            pass
+        super().__init__(parent, main_window)            # GUIWorkshop: chrome, settings, setup_ui
+        self.MV_settings = self.WS
+        self._last_dir = self.WS.get('last_dir', '')
+        if self.WS.get('recent') and not self.WS.get('recent_files'):   # older recent list
+            self.WS.set('recent_files', list(self.WS.get('recent')))
+        self.ribbon_restore_state()
+        self._apply_ribbon_layout()                      # Ribbon Manager moves / hidden buttons
+        self._refresh_icons()                            # window icon from theme
 
     # - margins (template)
-
-    def get_content_margins(self): #vers 1
-        return (self.contmergina, self.contmerginb, self.contmerginc, self.contmergind)
-
-    def get_panel_margins(self): #vers 1
-        return (self.panelmergina, self.panelmerginb, self.panelmerginc, self.panelmergind)
 
     def get_tab_margins(self): #vers 1
         return (self.tabmerginsa, self.tabmerginsb, self.tabmerginsc, self.tabmerginsd)
 
     # - setup_ui
 
-    def setup_ui(self): #vers 4
+    def setup_ui(self): #vers 5
+        """Titlebar / Model dock | ribbons + viewport | View dock / status bar."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -348,21 +269,14 @@ class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
 
         self._tb_frame = self._create_toolbar()
         main_layout.addWidget(self._tb_frame)
-
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self._create_left_panel())
-        splitter.addWidget(self._create_centre_panel())
-        splitter.addWidget(self._create_right_panel())
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 5)
-        splitter.setStretchFactor(2, 0)
-        splitter.setSizes([200, 800, 180])
-        main_layout.addWidget(self.ribbon_wrap(splitter), 1)
+        docks = [("Model", self._create_left_panel(), 180, Qt.DockWidgetArea.LeftDockWidgetArea),
+                 ("View", self._create_right_panel(), 160, Qt.DockWidgetArea.RightDockWidgetArea)]
+        main_layout.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()), docks), 1)
+        self._inner_mw = self._ribbon_mw                 # Ribbon Manager works on these ribbons
         self._build_ribbons()
         status_bar = self._create_status_bar()
         main_layout.addWidget(status_bar)
         register_statusbar(self, status_bar)
-        self.ribbon_restore_state()
 
     def _build_ribbons(self): #vers 2
         """File ribbon; Menu, Settings, Info, Theme live in the titlebar."""
@@ -370,6 +284,23 @@ class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
         tb = self.ribbon_toolbar("File")
         self.open_dff_btn = B(tb, "open_icon", "Open DFF model (Ctrl+O)", self._open_dff, text="DFF")
         self.open_txd_btn = B(tb, "texture_icon", "Open TXD textures", self._open_txd, text="TXD")
+
+    def _save_toolbar_state(self): #vers 1
+        """Ribbon Manager OK: save the ribbon layout."""
+        self.ribbon_save_state()
+
+    def _toolbar_context_menu(self, toolbar, pos): #vers 1
+        """Ribbon Manager new toolbars: same right-click menu as the ribbons."""
+        self.ribbon_context_menu(toolbar, pos)
+
+    def _open_file(self, path=None): #vers 1
+        """Dropped .dff / .txd files."""
+        if path and path.lower().endswith('.txd'):
+            self.load_txd(path)
+        elif path:
+            self.load_dff(path)
+        else:
+            self._open_dff()
 
 
 
@@ -383,10 +314,6 @@ class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
         return App_name
 
 
-
-    def _toggle_maximize(self): #vers 2
-        if self.isMaximized(): self.showNormal()
-        else:                  self.showMaximized()
 
 
     # - left panel — geometry + texture lists
@@ -1505,214 +1432,11 @@ class ModelViewer(TitlebarMixin, RibbonMixin, ToolMenuMixin, QWidget):
             self.main_window.log_message(f"[ModelViewer] {msg}")
 
 
-    # - window chrome (from RadarWorkshop)
-    def _get_resize_corner(self, pos): #vers 2
-        if not self.standalone_mode:           # docked: no corner resize
-            return None
-        s=self.corner_size; w=self.width(); h=self.height()
-        if pos.x()<s and pos.y()<s:           return "top-left"
-        if pos.x()>w-s and pos.y()<s:         return "top-right"
-        if pos.x()<s and pos.y()>h-s:         return "bottom-left"
-        if pos.x()>w-s and pos.y()>h-s:       return "bottom-right"
-        return None
-
-
-    def _update_cursor(self, direction): #Vers 2
-        cursors = {
-            "top":          Qt.CursorShape.SizeVerCursor,
-            "bottom":       Qt.CursorShape.SizeVerCursor,
-            "left":         Qt.CursorShape.SizeHorCursor,
-            "right":        Qt.CursorShape.SizeHorCursor,
-            "top-left":     Qt.CursorShape.SizeFDiagCursor,
-            "bottom-right": Qt.CursorShape.SizeFDiagCursor,
-            "top-right":    Qt.CursorShape.SizeBDiagCursor,
-            "bottom-left":  Qt.CursorShape.SizeBDiagCursor,
-        }
-        self.setCursor(cursors.get(direction, Qt.CursorShape.ArrowCursor))
-
-
-    def _get_resize_direction(self, pos): #vers 1
-        """Determine resize direction based on mouse position"""
-        rect = self.rect()
-        margin = self.resize_margin
-
-        left = pos.x() < margin
-        right = pos.x() > rect.width() - margin
-        top = pos.y() < margin
-        bottom = pos.y() > rect.height() - margin
-
-        if left and top:
-            return "top-left"
-        elif right and top:
-            return "top-right"
-        elif left and bottom:
-            return "bottom-left"
-        elif right and bottom:
-            return "bottom-right"
-        elif left:
-            return "left"
-        elif right:
-            return "right"
-        elif top:
-            return "top"
-        elif bottom:
-            return "bottom"
-
-        return None
-
-    def _handle_resize(self, global_pos): #vers 1
-        """Handle window resizing"""
-        if not self.resize_direction or not self.drag_position:
-            return
-
-        delta = global_pos - self.drag_position
-        geometry = self.frameGeometry()
-
-        min_width = 800
-        min_height = 600
-
-        # Handle horizontal resizing
-        if "left" in self.resize_direction:
-            new_width = geometry.width() - delta.x()
-            if new_width >= min_width:
-                geometry.setLeft(geometry.left() + delta.x())
-        elif "right" in self.resize_direction:
-            new_width = geometry.width() + delta.x()
-            if new_width >= min_width:
-                geometry.setRight(geometry.right() + delta.x())
-
-        # Handle vertical resizing
-        if "top" in self.resize_direction:
-            new_height = geometry.height() - delta.y()
-            if new_height >= min_height:
-                geometry.setTop(geometry.top() + delta.y())
-        elif "bottom" in self.resize_direction:
-            new_height = geometry.height() + delta.y()
-            if new_height >= min_height:
-                geometry.setBottom(geometry.bottom() + delta.y())
-
-        self.setGeometry(geometry)
-        self.drag_position = global_pos
-
-
-    def _is_on_draggable_area(self, pos): #Vers 1
-        if not hasattr(self, 'titlebar'):
-            return False
-        if not self.titlebar.rect().contains(pos):
-            return False
-        for w in self.titlebar.findChildren(QPushButton):
-            if w.isVisible() and w.geometry().contains(pos):
-                return False
-        return True
-
-
-    def mousePressEvent(self, event): #Vers 1
-        if event.button() != Qt.MouseButton.LeftButton:
-            return super().mousePressEvent(event)
-        pos = event.pos()
-        self.resize_corner = self._get_resize_corner(pos)
-        if self.resize_corner:
-            self.resizing = True
-            self.drag_position = event.globalPosition().toPoint()
-            self.initial_geometry = self.geometry()
-            event.accept(); return
-        if hasattr(self, 'titlebar') and self.titlebar.geometry().contains(pos):
-            tb_pos = self.titlebar.mapFromParent(pos)
-            if self._is_on_draggable_area(tb_pos):
-                handle = self.windowHandle()
-                if handle:
-                    handle.startSystemMove()
-                event.accept(); return
-        super().mousePressEvent(event)
-
-
-    def mouseMoveEvent(self, event): #Vers 1
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            if self.resizing and self.resize_corner:
-                self._handle_corner_resize(event.globalPosition().toPoint())
-                event.accept(); return
-        else:
-            corner = self._get_resize_corner(event.pos())
-            if corner != self.hover_corner:
-                self.hover_corner = corner
-                self.update()
-            self.update()
-            self._update_cursor(corner)
-        super().mouseMoveEvent(event)
-
-
-    def mouseReleaseEvent(self, event): #Vers 2
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = self.resizing = False
-            self.resize_corner = None
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-            event.accept()
-
-
-    def _handle_corner_resize(self, global_pos): #Vers 1
-        if not self.resize_corner or not self.drag_position:
-            return
-        delta = global_pos - self.drag_position
-        geometry = self.initial_geometry
-        min_w, min_h = 800, 500
-        if self.resize_corner == "bottom-right":
-            nw = geometry.width() + delta.x()
-            nh = geometry.height() + delta.y()
-            if nw >= min_w and nh >= min_h:
-                self.resize(nw, nh)
-        elif self.resize_corner == "bottom-left":
-            nx = geometry.x() + delta.x()
-            nw = geometry.width() - delta.x()
-            nh = geometry.height() + delta.y()
-            if nw >= min_w and nh >= min_h:
-                self.setGeometry(nx, geometry.y(), nw, nh)
-        elif self.resize_corner == "top-right":
-            ny = geometry.y() + delta.y()
-            nw = geometry.width() + delta.x()
-            nh = geometry.height() - delta.y()
-            if nw >= min_w and nh >= min_h:
-                self.setGeometry(geometry.x(), ny, nw, nh)
-        elif self.resize_corner == "top-left":
-            nx = geometry.x() + delta.x()
-            ny = geometry.y() + delta.y()
-            nw = geometry.width() - delta.x()
-            nh = geometry.height() - delta.y()
-            if nw >= min_w and nh >= min_h:
-                self.setGeometry(nx, ny, nw, nh)
-
-
-    def paintEvent(self, event): #vers 3
-        """Corner handles, COL style (methods/corner_handles.py)."""
-        super().paintEvent(event)
-        paint_corner_handles(self)
-
-    def resizeEvent(self, event): #vers 2
-        super().resizeEvent(event)
-        self.update()
-
-    def showEvent(self, event): #vers 2
-        super().showEvent(event)
-        if self.standalone_mode:
-            # Small delay ensures window geometry is finalised
-            self.update()
-
-    def resizeEvent(self, event): #vers 2
-        super().resizeEvent(event)
-        if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
-        self.update()
-
-    def closeEvent(self, event): #Vers 3
+    def closeEvent(self, event): #Vers 4
+        """Ribbons saved; GUIWorkshop saves geometry, docks and emits closed."""
         self.ribbon_save_state()
-        # Save window geometry
-        if self.standalone_mode:
-            g = self.geometry()
-            self.MV_settings.set('window_x', g.x())
-            self.MV_settings.set('window_y', g.y())
-            self.MV_settings.set('window_w', g.width())
-            self.MV_settings.set('window_h', g.height())
-            self.MV_settings.save()
-        self.window_closed.emit()
-        event.accept()
+        self.WS.set('last_dir', self._last_dir)
+        super().closeEvent(event)
 
     #End of Class
 
