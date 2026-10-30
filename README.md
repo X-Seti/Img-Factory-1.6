@@ -37,6 +37,24 @@ For now, I'm continuing to build on what is already there, improve the overall e
 - Thanks to everyone following the project. There's a lot more to come!
 
 
+# Install - Pick your OS version
+
+sudo apt install git
+git clone https://github.com/X-Seti/Img-Factory-1.6
+
+
+cd Img-Factory-1.6/
+
+./chmod +x setup_imgfactory.sh
+
+./chmod +x launch.py
+
+./setup_imgfactory.sh
+
+Windows
+
+Download and run the .exe
+
 
 ## What is it?
 
