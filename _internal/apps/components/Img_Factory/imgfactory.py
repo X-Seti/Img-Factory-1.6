@@ -1,0 +1,5755 @@
+#!/usr/bin/env python3
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 128
+# X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
+
+"""
+IMG Factory 1.6 - Grand Theft Auto Archive Manager
+Main application file - always runs in "main app" mode
+"""
+
+#TODO: Workflow update needed when switching panels and apps. When dat_browser opens other apps, these need to shown in the taskbar, and switch to that app automatically. when img files are opened, the only indication is the status bar, there is no taskbar icon, this icon can be clicked on, to bring the user to that tab/section.
+
+import sys
+import os
+import mimetypes
+from typing import Optional, List, Dict, Any
+from pathlib import Path
+
+print("Starting application...")
+
+# PyQt6 imports
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QSplitter, QTableWidget, QTableWidgetItem, QTextEdit, QLabel, QDialog,
+    QPushButton, QFileDialog, QMessageBox, QMenuBar, QStatusBar,
+    QProgressBar, QHeaderView, QGroupBox, QComboBox, QLineEdit,
+    QAbstractItemView, QTreeWidget, QTreeWidgetItem, QTabWidget,
+    QGridLayout, QMenu, QButtonGroup, QRadioButton, QToolBar, QFormLayout,
+    QInputDialog, QFrame
+)
+print("PyQt6.QtWidgets imported successfully")
+
+from PyQt6.QtCore import pyqtSignal, QMimeData, Qt, QThread, QTimer, QSettings, QSize, QPoint, QRect, QByteArray, QItemSelectionModel
+from PyQt6.QtGui import QShortcut, QKeySequence, QPalette, QTextCursor, QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor, QContextMenuEvent, QDragEnterEvent
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
+print("PyQt6.QtCore imported successfully")
+
+# Check for optional MSS library
+try:
+    import mss
+    print("MSS library available")
+except ImportError:
+    print("MSS library not available (screenshots disabled)")
+
+
+# App utilities
+from apps.utils.app_settings_system import AppSettings, apply_theme_to_app, SettingsDialog
+from apps.methods.corner_handles import paint_corner_handles
+from apps.methods.startup_splash import startup_finish, startup_step
+
+# Components
+from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
+from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+
+# Debug
+from apps.debug.debug_functions import set_col_debug_enabled, set_debug_main_window
+from apps.debug.debug_functions import integrate_all_improvements, install_debug_control_system
+
+# Core functions
+from apps.core.img_formats import GameSpecificIMGDialog, IMGCreator
+from apps.core.file_extraction import setup_complete_extraction_integration
+from apps.core.extract import extract_textures_function
+from apps.core.file_type_filter import integrate_file_filtering
+from apps.methods.rw_versions import get_rw_version_name
+from apps.core.right_click_actions import setup_table_context_menu
+from apps.core.shortcuts import setup_all_shortcuts, create_debug_keyboard_shortcuts
+from apps.core.convert import convert_img, convert_img_format
+from apps.core.reload import integrate_reload_functions
+from apps.core.img_split import integrate_split_functions
+from apps.core.theme_integration import integrate_theme_system
+from apps.core.create import create_new_img
+from apps.core.open import _detect_and_open_file, open_file_dialog, _detect_file_type
+from apps.core.clean import integrate_clean_utilities
+from apps.core.close import install_close_functions, setup_close_manager
+from apps.core.export import integrate_export_functions
+from apps.core.impotr import integrate_import_functions
+from apps.core.remove import integrate_remove_functions
+from apps.core.export import export_selected_function, export_all_function
+from apps.core.dump import dump_all_function, dump_selected_function, integrate_dump_functions
+from apps.core.import_via import integrate_import_via_functions
+from apps.core.remove_via import integrate_remove_via_functions
+from apps.core.export_via import export_via_function
+from apps.core.rebuild import integrate_rebuild_functions
+from apps.core.rebuild_all import integrate_batch_rebuild_functions
+from apps.core.imgcol_rename import integrate_imgcol_rename_functions
+from apps.core.imgcol_replace import integrate_imgcol_replace_functions
+from apps.core.imgcol_convert import integrate_imgcol_convert_functions
+from apps.core.save_entry import integrate_save_entry_function
+from apps.core.undo_system import integrate_undo_system
+from apps.core.pin_entries import integrate_pin_functions
+from apps.core.inverse_selection import integrate_inverse_selection
+from apps.core.sort_via_ide import integrate_sort_via_ide
+from apps.core.advanced_img_tools import integrate_advanced_img_tools
+from apps.core.rw_unk_snapshot import integrate_unknown_rw_detection
+from apps.core.col_viewer_integration import integrate_col_viewer
+
+# GUI Layout
+from apps.gui.ide_dialog import integrate_ide_dialog
+from apps.gui.gui_backend import ButtonDisplayMode, GUIBackend
+from apps.gui.gui_layout import IMGFactoryGUILayout
+from apps.gui.unified_button_theme import apply_unified_button_theme
+from apps.gui.autosave_menu import integrate_autosave_menu
+from apps.gui.tearoff_integration import integrate_tearoff_system
+from apps.gui.gui_context import (open_col_file_dialog, open_col_batch_proc_dialog, open_col_editor_dialog, analyze_col_file_dialog, fix_menu_system_and_functionality)
+from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
+
+# Shared Methods
+from apps.methods.img_core_classes import IMGFile
+
+from apps.methods.col_workshop_loader import COLFile
+
+from apps.methods.img_analyze import analyze_img_corruption, show_analysis_dialog
+from apps.methods.img_validation import IMGValidator
+from apps.methods.tab_system import (setup_tab_system, migrate_tabs, create_tab, update_references, integrate_tab_system)
+
+from apps.methods.populate_img_table import reset_table_styling, install_img_table_populator, populate_img_table
+from apps.methods.progressbar_functions import integrate_progress_system
+from apps.methods.update_ui_for_loaded_img import update_ui_for_loaded_img, integrate_update_ui_for_loaded_img
+
+from apps.methods.import_highlight_system import enable_import_highlighting
+from apps.methods.img_entry_operations import integrate_entry_operations
+from apps.methods.mirror_tab_shared import show_mirror_tab_selection
+from apps.methods.ide_parser_functions import integrate_ide_parser
+from apps.methods.find_dups_functions import find_duplicates_by_hash, show_duplicates_dialog
+from apps.methods.dragdrop_functions import integrate_drag_drop_system
+from apps.methods.img_templates import IMGTemplateManager, TemplateManagerDialog
+from apps.methods.img_import_functions import integrate_img_import_functions
+from apps.methods.img_export_functions import integrate_img_export_functions
+from apps.methods.col_export_functions import integrate_col_export_functions
+from apps.methods.column_width_manager import integrate_column_width_manager
+from apps.methods.pin_file_manager import integrate_pin_manager
+from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.imgfactory_svg_icons import (
+    get_add_icon, get_open_icon, get_refresh_icon, get_close_icon,
+    get_save_icon, get_export_icon, get_import_icon, get_remove_icon,
+    get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
+    get_rebuild_icon, get_undobar_icon, get_undo_icon, get_redo_icon
+)
+
+
+# App metadata - imported from app_info.py to avoid circular imports
+from apps.app_info import App_name, App_build, App_auth, App_build_num, get_full_build
+
+##Methods list -
+
+def get_current_git_branch(): #vers 1
+    """Get current git branch name"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['git', 'branch', '--show-current'],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        if result.returncode == 0:
+            branch = result.stdout.strip()
+            return f"({branch})" if branch else ""
+        return ""
+    except:
+        return ""
+
+
+
+
+
+
+class IMGLoadThread(QThread):
+    """Background thread for loading IMG files"""
+    progress_updated = pyqtSignal(int, str)     # progress, status
+    loading_finished = pyqtSignal(object, int)  # IMGFile object, tab_index
+    loading_error    = pyqtSignal(str, int)     # error message, tab_index
+
+    def __init__(self, file_path: str, tab_index: int = -1):
+        super().__init__()
+        self.file_path = file_path
+        self.tab_index = tab_index  # target tab — set before start()
+
+    def run(self): #vers 2
+        try:
+            self.progress_updated.emit(10, "Opening file...")
+
+            img_file = IMGFile(self.file_path)
+
+            self.progress_updated.emit(30, "Detecting format...")
+
+            if not img_file.open():
+                if hasattr(img_file, '_streaming_segment_error'):
+                    self.loading_error.emit(img_file._streaming_segment_error, self.tab_index)
+                    return
+                ver = img_file.version.name if img_file.version else "UNKNOWN"
+                sz  = os.path.getsize(self.file_path)
+                self.loading_error.emit(
+                    f"Failed to open IMG file: {self.file_path}\n"
+                    f"Detected version: {ver}  Size: {sz/1024/1024:.1f} MB",
+                    self.tab_index)
+                return
+
+            self.progress_updated.emit(60, "Reading entries...")
+
+            if not img_file.entries:
+                self.loading_error.emit(
+                    f"No entries found in IMG file: {self.file_path}",
+                    self.tab_index)
+                return
+
+            self.progress_updated.emit(80, "Validating...")
+
+            try:
+                validation = IMGValidator.validate_img_file(img_file)
+                if not validation.is_valid:
+                    print(f"IMG validation warnings: {validation.get_summary()}")
+            except Exception:
+                pass
+
+            self.progress_updated.emit(100, "Complete")
+            self.loading_finished.emit(img_file, self.tab_index)
+
+        except Exception as e:
+            self.loading_error.emit(f"Error loading IMG file: {str(e)}", self.tab_index)
+
+
+class IMGFactory(QMainWindow):
+    """Main IMG Factory application window"""
+    def __init__(self, settings): #vers 64
+        """Initialize IMG Factory with optimized loading order"""
+        super().__init__()
+
+        # === PHASE 1: CORE SETUP (Fast) ===
+        startup_step("Core setup", 25)
+        self.settings  = settings
+        self.ide_db    = None   # set by DAT Browser on world load
+        self.asset_db  = None   # set by DAT Browser after DB build
+        self.app_settings = settings if hasattr(settings, 'themes') else AppSettings()
+
+        # Set SVG icon color from theme before any UI is built
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            _theme_name = self.app_settings.current_settings.get('theme', 'default')
+            _colors = self.app_settings.get_theme_colors(_theme_name)
+            if _colors:
+                SVGIconFactory.set_theme_color(_colors.get('text_primary', '#000000'))
+        except Exception:
+            pass
+
+        # CRITICAL: Initialize IMG Factory settings BEFORE using them
+        from apps.methods.img_factory_settings import IMGFactorySettings
+        self.img_settings = IMGFactorySettings()
+
+        # Initialize project manager
+        try:
+            from apps.components.Project_Manager.project_manager import ProjectManager
+            self.project_manager = ProjectManager(self)
+
+            # Auto-restore last active project (game_root etc.) so the
+            # directory tree autoload doesn't falsely report "No Project
+            # Configured" when a project was actually set up previously.
+            last_name = self.img_settings.get('last_project_name', '')
+            if last_name and last_name in self.project_manager.projects:
+                self.project_manager.set_current_project(last_name)
+            elif not getattr(self, 'game_root', None):
+                # Fallback: last_game_root survives even if the named
+                # project was since renamed/deleted.
+                last_root = self.img_settings.get('last_game_root', '')
+                if last_root:
+                    self.game_root = last_root
+        except Exception:
+            self.project_manager = None
+
+        self.apply_window_decoration_setting()
+
+        # Get UI mode from img_settings (now initialized)
+        ui_mode = self.img_settings.get("ui_mode", "custom")  # default to custom UI
+        show_toolbar = self.img_settings.get("show_toolbar", True)
+        show_status_bar = self.img_settings.get("show_status_bar", True)
+        show_menu_bar = self.img_settings.get("show_menu_bar", True)
+
+        print(f"DEBUG: Loading UI mode: {ui_mode!r}")
+
+        # Window setup
+        branch = get_current_git_branch()
+        self.setWindowTitle(f"{App_name} - {get_full_build()} ({App_auth})")
+        self.setGeometry(100, 100, 1200, 800)
+
+        # Set default fonts
+        from PyQt6.QtGui import QFont
+        default_font = QFont("Fira Sans Condensed", 14)
+        #self.setFont(default_font)
+        self.title_font = QFont("Arial", 14)
+        self.panel_font = QFont("Arial", 10)
+        self.button_font = QFont("Arial", 10)
+        self.infobar_font = QFont("Courier New", 9)
+
+        self.undo_stack = []
+        self.button_display_mode = 'both'
+        self.last_save_directory = None
+
+        # Core data initialization
+        self.current_img: Optional[IMGFile] = None
+        self.current_col: Optional[COLFile] = None
+
+        #self.current_txd = None
+        #self.txd_workshops = []
+        self.open_files = {}
+        self.tab_counter = 0
+        self.load_thread: Optional[IMGLoadThread] = None
+        self.info_bar = None
+        self._checkerboard_size = 16
+        self._overlay_opacity = 50
+        self.background_color = self._get_ui_color('viewport_bg')
+        self.background_mode = 'solid'
+
+        #self._initialize_features()
+
+        # Corner resize variables
+        self.dragging = False
+        self.drag_position = None
+        self.resizing = False
+        self.resize_corner = None
+        self.corner_size = 20
+        self.hover_corner = None
+
+        # Enable mouse tracking for resize corners
+        self.setMouseTracking(True)
+
+        # === PHASE 2: ESSENTIAL COMPONENTS (Fast) ===
+        startup_step("Essential components", 32)
+
+        # Template manager (with better error handling)
+        try:
+            from apps.methods.img_templates import IMGTemplateManager
+            self.template_manager = IMGTemplateManager()
+            print("Template manager initialized")
+        except Exception as e:
+            print(f"Template manager failed: {str(e)}")
+            class DummyTemplateManager:
+                def get_all_templates(self): return []
+                def get_default_templates(self): return []
+                def get_user_templates(self): return []
+            self.template_manager = DummyTemplateManager()
+
+        # === PHASE 3: GUI CREATION (Medium) ===
+        startup_step("Building the window", 40)
+
+        # Integrate functionality that menu system depends on
+        integrate_sort_via_ide(self)
+
+        # Create GUI layout based on UI mode (using variables set earlier)
+        print(f"DEBUG: Creating GUI layout for mode: {ui_mode!r}")
+        if ui_mode == "custom":
+            from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
+            self.gui_layout = IMGFactoryGUILayoutCustom(self)
+        else:
+            from apps.gui.gui_layout import IMGFactoryGUILayout
+            self.gui_layout = IMGFactoryGUILayout(self)
+
+        # Apply UI mode settings to the newly created layout
+        self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
+
+        #  Unified menu system  
+        # Single system for both custom (popup) and system (inline bar) modes.
+        # Replaces dual IMGFactoryMenuBar + CustomMenuManager approach.
+        from apps.gui.unified_menu import UnifiedMenuSystem
+        self.menu_system = UnifiedMenuSystem(main_window=self)
+        self.menu_system.build()
+
+        # Keep menu_bar_system as alias for backward compat with older code
+        self.menu_bar_system = self.menu_system
+
+        # Menu callbacks (will be wired after _create_ui when methods exist)
+        # Project callback helpers — lazy import to avoid circular deps
+        def _pm_new(mw):
+            try:
+                from apps.components.Project_Manager.project_manager import create_new_project
+                if not getattr(mw, 'project_manager', None):
+                    from apps.components.Project_Manager.project_manager import ProjectManager
+                    mw.project_manager = ProjectManager(mw)
+                create_new_project(mw)
+            except Exception as e:
+                mw.log_message(f"New project error: {e}")
+
+        def _pm_open(mw):
+            try:
+                from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                if not getattr(mw, 'project_manager', None):
+                    from apps.components.Project_Manager.project_manager import ProjectManager
+                    mw.project_manager = ProjectManager(mw)
+                show_project_manager_dialog(mw)
+            except Exception as e:
+                mw.log_message(f"Open project error: {e}")
+
+        def _pm_save(mw):
+            try:
+                from apps.gui.file_menu_integration import save_project_settings
+                save_project_settings(mw)
+                mw.log_message("Project saved.")
+            except Exception as e:
+                mw.log_message(f"Save project error: {e}")
+
+        def _pm_set_assets(mw): #vers 2
+            try:
+                from apps.components.Project_Manager.project_manager import handle_set_assets_folder
+                handle_set_assets_folder(mw)
+            except Exception as e:
+                mw.log_message(f"Set assets folder error: {e}")
+
+        callbacks = {
+            "about": self.show_about,
+            "open_img": self.open_img_file,
+            "new_img": self.create_new_img,
+            "hybrid_load": self.open_hybrid_load,
+            "scan_img_folder": self.scan_img_folder,
+            "recent_scans": self.scan_img_recent,
+            "exit": self.close,
+            "img_validate": self.validate_img,
+            "customize_interface": self.show_gui_settings,
+            "open_col_in_workshop": self._open_col_file_in_workshop,
+            # Project menu
+            "new_project":    lambda: _pm_new(self),
+            "open_project":   lambda: _pm_open(self),
+            "save_project":   lambda: _pm_save(self),
+            "set_assets_folder": lambda: _pm_set_assets(self),
+        }
+        self.menu_bar_system.set_callbacks(callbacks)
+        integrate_drag_drop_system(self)
+
+        # Create main UI
+        self._create_ui()
+
+        # Attach unified menu to current UI mode + wire all callbacks
+        try:
+            self.menu_system.wire_standard_callbacks()
+            self.menu_system.attach_to_ui()
+
+            # System UI mode: insert menubar into top bar if available
+            if self.menu_system.menubar:
+                smb = getattr(self.gui_layout, '_system_menu_bar', None)
+                if smb:
+                    # Replace existing QMenuBar placeholder with unified one
+                    smb.clear()
+                    for action in self.menu_system.menubar.actions():
+                        smb.addAction(action)
+                    self.menu_system.menubar = smb
+        except Exception as _me:
+            import traceback; traceback.print_exc()
+            print(f"Unified menu attach error: {_me}")
+
+        # Stub for selection callbacks before full button system loads
+        if not hasattr(self, '_update_button_states'):
+            self._update_button_states = lambda has_selection: None
+
+        # Additional UI integrations
+        integrate_tab_system(self)
+        integrate_tearoff_system(self)
+
+        # Core parsers (now safe to use log_message)
+        integrate_ide_parser(self)
+        integrate_ide_dialog(self)
+        integrate_dump_functions(self)
+        integrate_export_functions(self)
+        integrate_import_functions(self)
+
+        # Apply button display mode from settings
+        self._apply_button_display_mode_from_settings()
+        self._apply_button_settings_at_startup()
+        QTimer.singleShot(0, self._apply_panel_effects_now)   # image / see-through at startup
+
+        integrate_remove_functions(self)
+        from apps.core.rename import integrate_rename_functions
+        integrate_rename_functions(self)
+        integrate_save_entry_function(self)
+        integrate_batch_rebuild_functions(self)
+        integrate_rebuild_functions(self)
+
+        integrate_imgcol_rename_functions(self)
+        integrate_imgcol_replace_functions(self)
+        integrate_imgcol_convert_functions(self)
+
+        # Integrate new functionality
+        integrate_undo_system(self)
+        integrate_pin_functions(self)
+        integrate_inverse_selection(self)
+        integrate_advanced_img_tools(self)
+
+        self.export_via = lambda: export_via_function(self)
+        integrate_import_via_functions(self)
+        integrate_remove_via_functions(self)
+        integrate_entry_operations(self)
+        integrate_img_import_functions(self)
+        integrate_img_export_functions(self)
+        integrate_col_export_functions(self)
+        # No specific integration needed for extract functionality
+
+        # File operations
+        install_close_functions(self)
+
+        # Table population (needed for IMG display)
+        install_img_table_populator(self)
+
+        # Update UI system
+        integrate_update_ui_for_loaded_img(self)
+
+        # === PHASE 5: CORE FUNCTIONALITY (Medium) ===
+        startup_step("Core functions", 60)
+        self.export_selected = lambda: export_selected_function(self)
+        self.export_all = lambda: export_all_function(self)
+        self.dump_all = lambda: dump_all_function(self)
+        self.dump_selected = lambda: dump_selected_function(self)
+        #integrate_refresh_table(self)
+        integrate_reload_functions(self)
+        integrate_pin_manager(self)
+
+        # TXD Editor Integration
+        try:
+            self.txd_editor = None
+            self.log_message("TXD Editor available")
+        except Exception as e:
+            self.log_message(f"TXD Editor failed: {str(e)}")
+
+        # File extraction
+        try:
+            from apps.core.file_extraction import setup_complete_extraction_integration
+            setup_complete_extraction_integration(self)
+            self.log_message("File extraction integrated")
+        except Exception as e:
+            self.log_message(f"Extraction integration failed: {str(e)}")
+
+        # COL System Integration
+        try:
+            from apps.methods.populate_col_table import load_col_file_safely
+            self.load_col_file_safely = lambda file_path: load_col_file_safely(self, file_path)
+            self.log_message("COL file loading enabled")
+        except Exception as e:
+            self.log_message(f"COL loading setup failed: {str(e)}")
+
+        # File filtering
+        integrate_file_filtering(self)
+
+        # === PHASE 6: GUI BACKEND & SHORTCUTS (Medium) ===
+        startup_step("Shortcuts and backend", 70)
+
+        # GUI backend
+        self.gui_backend = GUIBackend(self)
+
+        # Keyboard shortcuts
+        setup_all_shortcuts(self)
+
+        # Context menus
+        setup_table_context_menu(self)
+
+        # === PHASE 7: OPTIONAL FEATURES (Heavy - Can be delayed) ===
+        startup_step("Optional features", 78)
+
+        # Auto-save menu
+        integrate_autosave_menu(self)
+
+        # Theme system
+        integrate_theme_system(self)
+        if hasattr(self.app_settings, 'themes'):
+            apply_theme_to_app(QApplication.instance(), self.app_settings)
+
+        # Progress system
+        #integrate_progress_system(self)
+
+        # Split functions
+        integrate_split_functions(self)
+
+        # Encryption
+        from apps.core.img_encryption import integrate_encryption_functions
+        integrate_encryption_functions(self)
+
+        # RW detection
+        integrate_unknown_rw_detection(self)
+
+        try:
+            integrate_rebuild_functions(self)
+            integrate_batch_rebuild_functions(self)
+            integrate_clean_utilities(self)
+            self.log_message("All systems integrated")
+        except Exception as e:
+            self.log_message(f"Integration failed: {e}")
+
+        # === PHASE 9: HIGHLIGHTING & FINAL SETUP ===
+
+        # Import highlighting
+        enable_import_highlighting(self)
+
+        # Restore settings
+        startup_step("Restoring last session", 86)
+        self._restore_settings()
+        startup_step("Loading game folder", 92)
+        self.autoload_game_root()
+        startup_step("Final setup", 97)
+
+        # Attach unified debug system
+        set_debug_main_window(self)
+
+        # Utility functions
+        self.setup_missing_utility_functions()
+        integrate_column_width_manager(self)
+
+        # Final reload alias
+        self.reload_table = self.reload_current_file
+
+        # === STARTUP COMPLETE ===
+        self.log_message(f"{App_name} initialized - Ready!")
+
+        # Apply comprehensive fixes for menu system and functionality
+        fix_menu_system_and_functionality(self)
+
+        # Apply search and performance fixes
+        self.apply_search_and_performance_fixes()
+
+        # Show window (non-blocking)
+        self.show()
+        startup_finish()
+
+
+
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
+
+    def log_message(self, message: str): #vers 3
+        """Optimized logging that works before GUI is ready, optionally writes to file"""
+        try:
+            # Write to file if enabled
+            if hasattr(self, 'img_settings') and self.img_settings.get("log_to_file", False):
+                try:
+                    import time
+                    log_path = self.img_settings.get("log_file_path", "imgfactory_activity.log")
+                    with open(log_path, 'a') as f:
+                        f.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
+                except Exception:
+                    pass
+
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'log') and self.gui_layout.log:
+                QTimer.singleShot(0, lambda: self._append_log_message(message))
+            else:
+                print(f"LOG: {message}")
+        except Exception:
+            print(f"LOG: {message}")
+
+
+    def _append_log_message(self, message: str): #vers 1
+        """Internal log message append"""
+        try:
+            if hasattr(self.gui_layout, 'log') and self.gui_layout.log:
+                self.gui_layout.log.append(message)
+                # Scroll to bottom
+                scrollbar = self.gui_layout.log.verticalScrollBar()
+                scrollbar.setValue(scrollbar.maximum())
+        except Exception:
+            pass
+
+
+    def apply_window_decoration_setting(self):
+        """Apply system vs custom window decoration based on settings"""
+
+        if not hasattr(self, 'app_settings'):
+            return
+        use_system = self.app_settings.current_settings.get('use_system_titlebar', True)
+        current_geometry = self.geometry()
+        was_visible = self.isVisible()
+        if use_system:
+            self.setWindowFlags(
+                Qt.WindowType.Window |
+                Qt.WindowType.WindowMinimizeButtonHint |
+                Qt.WindowType.WindowMaximizeButtonHint |
+                Qt.WindowType.WindowCloseButtonHint
+            )
+        else:
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setGeometry(current_geometry)
+        if was_visible:
+            self.show()
+
+
+    def apply_ui_mode(self, ui_mode, show_toolbar=True, show_status_bar=True, show_menu_bar=True): #vers 7
+        """Apply UI mode settings — custom or system UI.
+        Menu orientation (topbar/dropdown) is read from img_settings independently
+        so it works the same way in both UI modes, mirroring DP5 behaviour.
+        """
+        current_geometry = self.geometry()
+        was_visible = self.isVisible()
+
+        if ui_mode == "custom":
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        else:
+            self.setWindowFlags(
+                Qt.WindowType.Window |
+                Qt.WindowType.WindowMinimizeButtonHint |
+                Qt.WindowType.WindowMaximizeButtonHint |
+                Qt.WindowType.WindowCloseButtonHint
+            )
+
+        # Hard-clamp Qt system menubar — it must never allocate space on Windows
+        # setMaximumHeight(0) alone is insufficient; also need setFixedHeight(0)
+        # and hide it before the layout engine measures it.
+        try:
+            mb = self.menuBar()
+            mb.setVisible(False)
+            mb.setMaximumHeight(0)
+            mb.setMinimumHeight(0)
+            mb.setFixedHeight(0)
+            from PyQt6.QtWidgets import QSizePolicy
+            mb.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Fixed)
+        except Exception:
+            pass
+
+        # Apply standalone menubar orientation
+        if hasattr(self, '_standalone_menu_bar'):
+            self._apply_img_menu_orientation()
+
+        # Status bar visibility
+        if hasattr(self, 'statusBar') and callable(self.statusBar):
+            status_bar = self.statusBar()
+            if status_bar:
+                status_bar.setVisible(show_status_bar)
+
+        # Toolbar visibility - delegate to gui_layout
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'apply_ui_mode'):
+            self.gui_layout.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
+
+        self.setGeometry(current_geometry)
+        if was_visible:
+            self.show()
+
+    def _apply_img_menu_orientation(self): #vers 2
+        """Show/hide _standalone_menu_bar and Menu button per saved orientation."""
+        orient = getattr(self, 'img_settings', None)
+        orient = orient.get('img_menu_orientation', 'topbar') if orient else 'topbar'
+        want_topbar = (orient == 'topbar')
+
+        if hasattr(self, '_standalone_menu_bar'):
+            if want_topbar:
+                self._standalone_menu_bar.setFixedHeight(20)
+                self._standalone_menu_bar.setVisible(True)
+            else:
+                self._standalone_menu_bar.setVisible(False)
+                self._standalone_menu_bar.setMaximumHeight(0)
+
+        # Always hide Qt system menubar — standalone bar handles it
+        try:
+            mb = self.menuBar()
+            mb.setVisible(False)
+            mb.setMaximumHeight(0)
+        except Exception:
+            pass
+
+        # Show/hide Menu button in custom titlebar
+        # menu_btn is None in system UI mode (set explicitly by gui_layout)
+        if hasattr(self, 'gui_layout') and getattr(self.gui_layout, 'menu_btn', None) is not None:
+            self.gui_layout.menu_btn.setVisible(not want_topbar)
+
+    def _update_tool_menu_for_tab(self, tab_widget): #vers 3
+        """Inject or remove tool menu via unified menu system."""
+        ms = getattr(self, 'menu_system', None)
+        if ms:
+            ms.deactivate_tool()
+        elif hasattr(self, 'menu_bar_system'):
+            self.menu_bar_system._remove_tool_menu()
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'unregister_tool_menu_btn'):
+                self.gui_layout.unregister_tool_menu_btn()
+
+        if not tab_widget:
+            return
+
+        from apps.gui.tool_menu_mixin import ToolMenuMixin
+        tool = None
+        if isinstance(tab_widget, ToolMenuMixin):
+            tool = tab_widget
+        else:
+            from PyQt6.QtWidgets import QWidget as _QW
+            for child in tab_widget.findChildren(_QW):
+                if isinstance(child, ToolMenuMixin):
+                    tool = child
+                    break
+
+        if not tool:
+            return
+
+        if ms:
+            ms.activate_tool(tool)
+        elif hasattr(tool, '_register_titlebar_tool_btn'):
+            tool._register_titlebar_tool_btn()
+
+    def set_img_menu_orientation(self, orientation: str): #vers 2
+        """Switch imgfactory menu between 'topbar' and 'dropdown'.
+        Mirrors DP5's set_menu_orientation. Saves to img_settings and applies live.
+        """
+        if hasattr(self, 'img_settings'):
+            self.img_settings.set('img_menu_orientation', orientation)
+        self._apply_img_menu_orientation()
+
+
+    def autoload_game_root(self): #vers 5
+        """Autoload game root - defers dir tree placement until after UI is shown."""
+        try:
+            from apps.methods.img_factory_settings import IMGFactorySettings
+            img_settings = IMGFactorySettings()
+            autoload_enabled = img_settings.get("autoload_directory_tree", True)
+            if not autoload_enabled:
+                return
+
+            # Resolve game root (Aug 20 2026,  "lets fix map
+            # workshop and img factory" - now the one, shared, app-
+            # folder-relative QSettings instance, not a separate
+            # QSettings("IMG-Factory", "IMG-Factory") native location)
+            from apps.methods.img_factory_settings import get_img_factory_qsettings
+            settings = get_img_factory_qsettings()
+            game_root = settings.value("game_root", "", type=str)
+            if not game_root and hasattr(self, 'project_manager') and self.project_manager:
+                if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
+                    ps = self.project_manager.get_project_settings(
+                        self.project_manager.current_project)
+                    game_root = ps.get('game_root', '')
+
+            if game_root and os.path.exists(game_root):
+                self.game_root = game_root
+
+            # Defer until after show() so content_splitter is fully laid out
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(200, self._autoload_dir_tree)
+
+        except Exception as e:
+            self.log_message(f"Error autoloading game root: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+
+    def _autoload_dir_tree(self): #vers 1
+        """Called after show() - places dir tree into content_splitter via standard path."""
+        try:
+            if not hasattr(self, 'gui_layout'):
+                return
+            gl = self.gui_layout
+            if not hasattr(gl, '_switch_to_directory_tree'):
+                return
+
+            # Use the same path as the button: integrate + add to content_splitter
+            mw = self
+            splitter = getattr(gl, 'content_splitter', None)
+            if not splitter:
+                return
+
+            # Integrate if not already done
+            if not hasattr(mw, 'directory_tree') or not mw.directory_tree:
+                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                if not integrate_directory_tree_browser(mw):
+                    return
+
+            # Add to splitter if not already there
+            tree = mw.directory_tree
+            already_in = any(splitter.widget(i) is tree for i in range(splitter.count()))
+            if not already_in:
+                splitter.addWidget(tree)
+
+            # Browse to game root
+            root = getattr(mw, 'game_root', None) or str(__import__('pathlib').Path.home())
+            if hasattr(tree, 'browse_directory'):
+                tree.browse_directory(root)
+
+            # Start hidden — user opens via taskbar "Browser" button
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([total, 0])
+            mw._dirtree_setup_complete = True
+            mw._dirtree_state = 0
+
+            # Register in taskbar so user can toggle it
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                _icon = SVGIconFactory.info_icon(16, '#cccccc')
+                if hasattr(mw, 'register_tool'):
+                    mw.register_tool("dirtree", "Dir", lambda sz, col: SVGIconFactory.info_icon(sz, col),
+                                     tree, "Directory Tree Browser")
+            except Exception:
+                pass
+
+        except Exception as e:
+            self.log_message(f"Dir tree autoload error: {e}")
+
+
+    def _apply_panel_effects_now(self, widget=None): #vers 2
+        """Panel image, button and see-through settings, same path as Settings Apply."""
+        if getattr(self, 'app_settings', None) is None:
+            return
+        from apps.utils.app_settings_system import apply_panel_effects
+        self.setStyleSheet(self.app_settings.get_stylesheet())   # tints read from window QSS
+        apply_panel_effects(self, self.app_settings)
+
+    def _apply_button_settings_at_startup(self): #vers 1
+        """Apply button sizing and spacing settings at startup"""
+        try:
+            if hasattr(self, 'app_settings') and hasattr(self.app_settings, 'current_settings'):
+                # Get button settings
+                button_height = self.app_settings.current_settings.get('button_height', 32)
+                space_v = self.app_settings.current_settings.get('button_spacing_vertical', 8)
+                space_h = self.app_settings.current_settings.get('button_spacing_horizontal', 6)
+
+                # Apply to GUI layout if available
+                if hasattr(self, 'gui_layout'):
+                    # Apply button heights
+                    if hasattr(self.gui_layout, 'img_buttons'):
+                        for btn in self.gui_layout.img_buttons:
+                            btn.setMaximumHeight(button_height)
+                            btn.setMinimumHeight(button_height - 4)
+
+                    if hasattr(self.gui_layout, 'entry_buttons'):
+                        for btn in self.gui_layout.entry_buttons:
+                            btn.setMaximumHeight(button_height)
+                            btn.setMinimumHeight(button_height - 4)
+
+                    if hasattr(self.gui_layout, 'options_buttons'):
+                        for btn in self.gui_layout.options_buttons:
+                            btn.setMaximumHeight(button_height)
+                            btn.setMinimumHeight(button_height - 4)
+
+                    self.log_message(f"✓ Button sizing applied: {button_height}px height, {space_v}/{space_h}px spacing")
+
+        except Exception as e:
+            self.log_message(f"Error applying button settings: {str(e)}")
+
+
+    def _apply_button_display_mode_from_settings(self): #vers 3
+        """Button display mode from Settings: icons, text, both or auto by width."""
+        self.gui_layout.set_button_display_mode('text_only')
+        self.gui_layout._apply_button_text_mode()
+
+    def statusBar(self): #vers 1
+        """IMG Factory status bar wherever it is placed (window, pane or dock)."""
+        bar = getattr(self, '_img_status_bar', None)        # set once placed
+        return bar if bar is not None else super().statusBar()
+
+
+
+    def show_debug_settings(self): #vers 1
+        """Show debug settings dialog"""
+        try:
+            # Try to show proper debug settings if available
+            from apps.utils.app_settings_system import SettingsDialog
+            if hasattr(self, 'app_settings'):
+                dialog = SettingsDialog(self.app_settings, self)
+                dialog.exec()
+            else:
+                QMessageBox.information(self, "Debug Settings", "Debug settings: Use F12 to toggle performance mode")
+        except ImportError:
+            QMessageBox.information(self, "Debug Settings", "Debug settings: Use F12 to toggle performance mode")
+
+
+    def _append_log_message(self, message: str): #vers 1
+        """Internal log message append"""
+        try:
+            if hasattr(self.gui_layout, 'log') and self.gui_layout.log:
+                self.gui_layout.log.append(message)
+                # Scroll to bottom
+                scrollbar = self.gui_layout.log.verticalScrollBar()
+                scrollbar.setValue(scrollbar.maximum())
+        except Exception:
+            pass
+
+
+    def analyze_img_corruption(self): #vers 1
+        """Analyze IMG file for corruption - Menu callback"""
+        try:
+            if not hasattr(self, 'current_img') or not self.current_img:
+                QMessageBox.warning(self, "No IMG File", "Please open an IMG file first to analyze corruption")
+                return
+
+            self.log_message("ðŸ” Starting IMG corruption analysis...")
+
+            # Show corruption analysis dialog
+            from apps.core.img_corruption_analyzer import show_corruption_analysis_dialog
+            result = show_corruption_analysis_dialog(self)
+
+            if result:
+                # User wants to apply fixes
+                report = result['report']
+                fix_options = result['fix_options']
+
+                from apps.core.img_corruption_analyzer import fix_corrupted_img
+                success = fix_corrupted_img(self.current_img, report, fix_options, self)
+
+                if success:
+                    self.log_message("IMG corruption fixed successfully")
+                else:
+                    self.log_message("IMG corruption fix failed")
+            else:
+                self.log_message("Corruption analysis completed (no fixes applied)")
+
+        except Exception as e:
+            self.log_message(f"Corruption analysis error: {str(e)}")
+            QMessageBox.critical(self, "Analysis Error", f"Corruption analysis failed:\n{str(e)}")
+
+
+
+
+
+    # Menu isolation: Docked workshops should not affect main window menu
+    def open_txd_workshop_docked(self, txd_name=None, txd_data=None, file_path=None): #vers 5
+        """Open TXD Workshop in its own tab with icon"""
+        try:
+            if file_path:
+                # Direct file path - standalone TXD or IMG
+                from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                open_txd_workshop(self, file_path)
+            elif txd_name and hasattr(self, 'current_img') and self.current_img:
+                # TXD entry inside current IMG - open workshop with IMG, then select entry
+                from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                img_path = self.current_img.file_path
+                workshop = open_txd_workshop(self, img_path)
+                # Auto-select the named TXD entry in the list
+                if workshop and hasattr(workshop, 'txd_list_widget'):
+                    for i in range(workshop.txd_list_widget.count()):
+                        item = workshop.txd_list_widget.item(i)
+                        if item and item.text().lower() == txd_name.lower():
+                            workshop.txd_list_widget.setCurrentItem(item)
+                            workshop._on_txd_selected(item)
+                            break
+            else:
+                from apps.core.open import open_file_dialog
+                open_file_dialog(self)
+        except Exception as e:
+            self.log_message(f"TXD workshop error: {str(e)}")
+
+    # Menu isolation: Docked workshops should not affect main window menu
+    def open_col_workshop_docked(self, col_name=None, col_data=None, file_path=None): #vers 3
+        """Open COL Workshop in its own tab with icon"""
+        try:
+            if file_path:
+                from apps.components.Col_Editor.col_workshop import open_col_workshop
+                return open_col_workshop(self, file_path)
+            elif col_name and hasattr(self, 'current_img') and self.current_img:
+                for entry in self.current_img.entries:
+                    if entry.name.lower() == col_name.lower():
+                        self.log_message(f"COL entry found: {entry.name}")
+                        break
+                self.log_message(f"COL workshop opened for: {col_name}")
+            else:
+                from apps.core.open import open_file_dialog
+                open_file_dialog(self)
+        except Exception as e:
+            self.log_message(f"COL workshop error: {str(e)}")
+
+
+    def open_dp5_workshop_docked(self, file_path=None): #vers 2
+        """Open DP5 Paint Workshop embedded as a tab in IMG Factory.
+        Injects DP5 menus into imgfactory menubar when docked.
+        """
+        try:
+            from apps.components.DP5_Workshop.dp5_workshop import DP5Workshop
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+            # Bring existing DP5 tab to front if already open
+            for i in range(self.main_tab_widget.count()):
+                widget = self.main_tab_widget.widget(i)
+                if widget:
+                    workshops = widget.findChildren(DP5Workshop)
+                    if workshops:
+                        self.main_tab_widget.setCurrentIndex(i)
+                        self.log_message("DP5 Workshop already open — switched to tab")
+                        if file_path:
+                            workshops[0]._import_bitmap_path(file_path)
+                        return workshops[0]
+
+            # Create tab container
+            tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(0)
+
+            workshop = DP5Workshop(tab_container, self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tab_layout.addWidget(workshop)
+
+            # Open file if provided
+            if file_path:
+                QTimer.singleShot(100, lambda: workshop._import_bitmap_path(file_path))
+
+            # Add tab with DP5 icon
+            try:
+                from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+                icon = get_dp5_workshop_icon(20)
+                idx = self.main_tab_widget.addTab(tab_container, icon, "DP5 Paint")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "DP5 Paint")
+
+            self.main_tab_widget.setCurrentIndex(idx)
+            # Wire workshop close to unregister taskbar button
+            def _on_dp5_closed(tidx=idx):
+                try:
+                    if hasattr(self, 'tool_taskbar'):
+                        self.tool_taskbar.unregister('dp5')
+                    self._update_tool_menu_for_tab(None)
+                    self._sync_taskbar_active("")
+                except Exception:
+                    pass
+            workshop.window_closed.connect(_on_dp5_closed)
+            workshop.show()
+            self._ensure_tab_area_visible()
+
+            # Menu injection handled by _on_tab_changed → _update_tool_menu_for_tab
+            # DP5Workshop now inherits ToolMenuMixin so the standard path picks it up.
+            # Trigger it manually once for the initial open.
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(300, lambda: self._update_tool_menu_for_tab(
+                self.main_tab_widget.currentWidget()))
+
+            self.log_message("DP5 Workshop opened (docked)")
+
+            # Register in tool taskbar and mark active
+            try:
+                from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+                from apps.gui.gui_layout import _register_tool_taskbar
+                _register_tool_taskbar(self, "dp5", "Paint",
+                                       lambda sz, col: get_dp5_workshop_icon(sz, col),
+                                       "DP5 Paint Workshop", tab_container)
+                self._sync_taskbar_active("dp5")
+            except Exception:
+                pass
+
+            return workshop
+
+        except Exception as e:
+            self.log_message(f"DP5 Workshop error: {str(e)}")
+            import traceback; traceback.print_exc()
+
+
+    def _auto_load_dat_browser(self): #vers 1
+        """Auto-load DAT Browser if a game root is already set (deferred startup)."""
+        try:
+            widget = getattr(self, 'dat_browser', None)
+            if not widget:
+                return
+            # Don't auto-load if user has already interacted
+            if widget.loader and widget.loader.objects:
+                return
+            game_root = getattr(self, 'game_root', None)
+            if not game_root:
+                # Try to get from settings/project
+                try:
+                    from apps.utils.app_settings_system import AppSettings
+                    settings = getattr(self, 'app_settings', None)
+                    if settings:
+                        game_root = settings.get('last_game_root', '')
+                except Exception:
+                    pass
+            if game_root and os.path.isdir(game_root):
+                from apps.methods.gta_dat_parser import detect_game
+                if detect_game(game_root):
+                    widget.load_from_game_root(game_root)
+                    self.log_message(f"DAT Browser: auto-loading {game_root}")
+        except Exception as e:
+            pass   # auto-load is best-effort
+
+    def open_model_viewer_docked(self, dff_path=None, txd_path=None, img=None): #vers 1
+        """Open GL Model Viewer docked as a tab in IMG Factory."""
+        try:
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+            from PyQt6.QtCore import Qt, QTimer
+            from apps.components.Model_Viewer.model_viewer import ModelViewer
+
+            # Bring existing tab to front if already open
+            for i in range(self.main_tab_widget.count()):
+                widget = self.main_tab_widget.widget(i)
+                if widget:
+                    viewers = widget.findChildren(ModelViewer)
+                    if viewers:
+                        self.main_tab_widget.setCurrentIndex(i)
+                        v = viewers[0]
+                        if dff_path: QTimer.singleShot(100, lambda: v.load_dff(dff_path))
+                        if txd_path: QTimer.singleShot(200, lambda: v.load_txd(txd_path))
+                        if img:      QTimer.singleShot(50,  lambda: v.load_img(img))
+                        return v
+
+            # Create tab container
+            tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(0)
+
+            # Add tab first so viewer is embedded before init completes
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                icon = SVGIconFactory.cube_icon(20, '#ffffff')
+                idx = self.main_tab_widget.addTab(tab_container, icon, "Model Viewer")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "Model Viewer")
+            self.main_tab_widget.setCurrentIndex(idx)
+            self._ensure_tab_area_visible()
+
+            # Create viewer with tab_container as parent — never shown as window
+            viewer = ModelViewer(tab_container, self)
+            tab_layout.addWidget(viewer)
+
+            # Deferred load — GL context needs widget visible first
+            def _deferred_load(v=viewer):
+                if dff_path: v.load_dff(dff_path)
+                if img:      v.load_img(img)
+                if txd_path: QTimer.singleShot(300, lambda: v.load_txd(txd_path))
+            QTimer.singleShot(200, _deferred_load)
+
+            # Register in taskbar
+            QTimer.singleShot(100, lambda: self._sync_img_taskbar_buttons(idx))
+
+            self.log_message("Model Viewer opened")
+            return viewer
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            self.log_message(f"Model Viewer error: {e}")
+            return None
+
+    def open_model_workshop_docked(self, dff_name=None, file_path=None): #vers 1
+        """Open Model Workshop in its own tab with icon"""
+        try:
+            from apps.components.Model_Editor.model_workshop import open_model_workshop
+            if file_path:
+                open_model_workshop(self, file_path)
+            elif dff_name and hasattr(self, 'current_img') and self.current_img:
+                # Extract DFF entry from current IMG to temp file
+                import tempfile, os
+                img = self.current_img
+                for entry in img.entries:
+                    if entry.name.lower() == dff_name.lower():
+                        try:
+                            data = img.extract_entry_data(entry)
+                            if data:
+                                tmp = tempfile.NamedTemporaryFile(
+                                    delete=False, suffix='.dff',
+                                    prefix=os.path.splitext(dff_name)[0] + '_')
+                                tmp.write(data); tmp.close()
+                                # Pass original DFF entry name so IDE lookup works
+                                open_model_workshop(self, tmp.name,
+                                    original_dff_name=dff_name)
+                                return
+                        except Exception as ex:
+                            self.log_message(f"DFF extract error: {ex}")
+                self.log_message(f"DFF entry not found: {dff_name}")
+            else:
+                open_model_workshop(self)
+        except Exception as e:
+            self.log_message(f"Model Workshop error: {str(e)}")
+
+    def open_map_workshop_docked(self, game_root=None, dat_path=None, force_preload_img=False): #vers 3
+        """Open Map Workshop in its own tab with icon - game_root, if
+        given, is auto-loaded (e.g. passed in from Dat Browser's
+        currently-loaded game root). dat_path, if given instead, loads
+        from that specific .dat file directly (e.g. right-clicking a
+        .dat entry in the DAT Browser tree). force_preload_img (Aug 16
+        2026,  "add another option to open in map workshop,
+        preload img(s) file") - passed through to dat_path's load
+        only, a one-off override for the Loading tab's persistent
+        preload setting."""
+        try:
+            from apps.components.Map_Editor.map_workshop import open_map_workshop
+            open_map_workshop(self, game_root=game_root, dat_path=dat_path,
+                             force_preload_img=force_preload_img)
+        except Exception as e:
+            self.log_message(f"Map Workshop error: {str(e)}")
+
+    def setup_unified_signals(self): #vers 6
+        """Setup unified signal handler for all table interactions"""
+        from apps.components.unified_signal_handler import connect_table_signals
+
+        # Connect main entries table to unified system
+        success = connect_table_signals(
+            table_name="main_entries",
+            table_widget=self.gui_layout.table,
+            parent_instance=self,
+            selection_callback=self._unified_selection_handler,
+            double_click_callback=self._unified_double_click_handler
+        )
+
+        if success:
+            self.log_message("Unified signal system connected")
+        else:
+            self.log_message("Failed to connect unified signals")
+
+        # Connect unified signals to status bar updates
+        from apps.components.unified_signal_handler import signal_handler
+        signal_handler.status_update_requested.connect(self._update_status_from_signal)
+
+
+    def _unified_double_click_handler(self, row, filename, item): #vers 3
+        """Handle double-click - opens TXD/COL workshop for matching entries"""
+        if row < self.gui_layout.table.rowCount():
+            name_item = self.gui_layout.table.item(row, 0)
+            if name_item:
+                actual_filename = name_item.text().lower()
+                self.log_message(f"Double-clicked: {name_item.text()}")
+
+                if actual_filename.endswith('.txd') and self.current_img:
+                    from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                    img_path = self.current_img.file_path
+                    workshop = open_txd_workshop(self, img_path)
+                    if workshop and hasattr(workshop, 'txd_list_widget') and workshop.txd_list_widget:
+                        for i in range(workshop.txd_list_widget.count()):
+                            list_item = workshop.txd_list_widget.item(i)
+                            if list_item and list_item.text().lower() == name_item.text().lower():
+                                workshop.txd_list_widget.setCurrentItem(list_item)
+                                workshop._on_txd_selected(list_item)
+                                break
+                    return
+
+                elif actual_filename.endswith('.col') and self.current_img:
+                    self._open_col_entry_smart(name_item.text(), row)
+                    return
+
+            else:
+                self.log_message(f"Double-clicked row {row} (no filename found)")
+        else:
+            self.log_message(f"Double-clicked: {filename}")
+
+
+    def _unified_selection_handler(self, selected_rows, selection_count): #vers 2
+        """Handle selection changes through unified system"""
+        # Update button states based on selection
+        has_selection = selection_count > 0
+        self._update_button_states(has_selection)
+
+        # Update selection status widget if available
+        if hasattr(self, 'selection_status_widget') and hasattr(self.gui_layout, 'table'):
+            total_count = self.gui_layout.table.rowCount()
+            self.selection_status_widget.update_selection(selection_count, total_count)
+
+        # Log selection (unified approach - no spam)
+        if selection_count == 0:
+            # Don't log "Ready" for empty selection to reduce noise
+            pass
+        elif selection_count == 1:
+            # Get filename of selected item
+            if selected_rows and len(selected_rows) > 0:
+                row = selected_rows[0]
+                if row < self.gui_layout.table.rowCount():
+                    name_item = self.gui_layout.table.item(row, 0)
+                    if name_item:
+                        self.log_message(f"Selected: {name_item.text()}")
+
+
+# - Settings Reusable
+
+
+    def setup_missing_utility_functions(self): #vers 1
+        """Add missing utility functions that selection callbacks need"""
+
+        # Simple file type detection functions - MISSING FUNCTIONS
+        self.has_col = lambda name: name.lower().endswith('.col') if name else False
+        self.has_dff = lambda name: name.lower().endswith('.dff') if name else False
+        self.has_txd = lambda name: name.lower().endswith('.txd') if name else False
+        self.get_entry_type = lambda name: name.split('.')[-1].upper() if name and '.' in name else "Unknown"
+
+        # Add missing functions for menu system
+        self.save_img_as = self._save_img_as
+        #self.save_img_entry = self._save_img_entry  # Main save function with modification check
+        self.find_entries = self._find_entries
+        self.find_next_entries = self._find_next_entries
+        self.duplicate_selected = self._duplicate_selected
+        # rename wired via integrate_rename_functions
+        #self.remove_selected = self._remove_selected_entries
+        self.select_inverse_entries = self._select_inverse_entries
+        self.extract_textures = lambda: extract_textures_function(self)
+        # NEW: Add extract DFF texture lists functionality
+        from apps.core.extract import extract_dff_texture_lists
+        self.extract_dff_texture_lists = lambda: extract_dff_texture_lists(self)
+        self.undo = self._undo_action
+        self.redo = self._redo_action
+
+        self.log_message("Missing utility functions added")
+
+    """
+    def _unified_double_click_handler(self, row, filename, item): #vers 3
+        unified_double_click_handler(self, row, filename, item)
+
+    def _unified_selection_handler(self, selected_rows, selection_count): #vers 2
+        unified_selection_handler(self, selected_rows, selection_count)
+
+    def setup_missing_utility_functions(self): #vers 2
+        setup_missing_utility_functions(self)
+    """
+
+    def _save_img_as(self):
+        """Save IMG file as a new file"""
+        try:
+            if not hasattr(self, 'current_img') or not self.current_img:
+                QMessageBox.warning(self, "Save As", "No IMG file loaded to save.")
+                return False
+
+            # Get file path from user
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save IMG As",
+                "",
+                "IMG Files (*.img);;All Files (*.*)"
+            )
+
+            if file_path:
+                # Ensure file has .img extension
+                if not file_path.lower().endswith('.img'):
+                    file_path += '.img'
+
+                try:
+                    # Save the IMG file
+                    if hasattr(self.current_img, 'save_to_path'):
+                        success = self.current_img.save_to_path(file_path)
+                    elif hasattr(self.current_img, 'save'):
+                        # Temporarily change the file path and save
+                        original_path = getattr(self.current_img, 'file_path', None)
+                        self.current_img.file_path = file_path
+                        success = self.current_img.save()
+                        self.current_img.file_path = original_path
+                    else:
+                        # Create a new IMG file and copy entries
+                        from apps.methods.img_core_classes import IMGFile
+                        new_img = IMGFile(file_path)
+                        new_img.entries = self.current_img.entries[:]
+                        success = new_img.save()
+
+                    if success:
+                        self.log_message(f"IMG file saved as: {file_path}")
+                        QMessageBox.information(self, "Save As", f"File saved successfully as:\n{file_path}")
+                        return True
+                    else:
+                        QMessageBox.critical(self, "Save As", "Failed to save IMG file.")
+                        return False
+
+                except Exception as e:
+                    QMessageBox.critical(self, "Save As", f"Error saving file:\n{str(e)}")
+                    return False
+            else:
+                # User cancelled
+                return False
+
+        except Exception as e:
+            self.log_message(f"Error in save_img_as: {str(e)}")
+            QMessageBox.critical(self, "Save As Error", f"Failed to save IMG file:\n{str(e)}")
+            return False
+
+    def _save_img_entry(self):
+        """Save IMG file with modification check - addresses issue #1"""
+        try:
+            if not hasattr(self, 'current_img') or not self.current_img:
+                QMessageBox.warning(self, "Save", "No IMG file loaded to save.")
+                return False
+
+            # Check active tab file object first, fall back to current_img
+            try:
+                from apps.methods.tab_system import get_current_file_from_active_tab
+                tab_file, tab_type = get_current_file_from_active_tab(self)
+                if tab_file and tab_type == 'IMG':
+                    self.current_img = tab_file
+            except Exception:
+                pass
+
+            is_modified = getattr(self.current_img, 'modified', False)
+
+            if not is_modified:
+                self.log_message("IMG file unchanged, nothing to save")
+                QMessageBox.information(self, "Save", "IMG file unchanged, nothing to save")
+                return False
+
+            # Get the file path - use current file path if available
+            file_path = getattr(self.current_img, 'file_path', None)
+            
+            if not file_path:
+                # If no file path, prompt user to save as new file
+                from PyQt6.QtWidgets import QFileDialog
+                file_path, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Save IMG File",
+                    "",
+                    "IMG Files (*.img);;All Files (*.*)"
+                )
+                
+                if not file_path:
+                    # User cancelled
+                    return False
+                
+                # Ensure file has .img extension
+                if not file_path.lower().endswith('.img'):
+                    file_path += '.img'
+
+            try:
+                # Save the IMG file using the appropriate method
+                if hasattr(self.current_img, 'save'):
+                    success = self.current_img.save()
+                elif hasattr(self.current_img, 'save_to_path'):
+                    success = self.current_img.save_to_path(file_path)
+                else:
+                    # Fallback: create a new IMG file and copy entries
+                    from apps.methods.img_core_classes import IMGFile
+                    new_img = IMGFile(file_path)
+                    new_img.entries = self.current_img.entries[:]
+                    success = new_img.save()
+
+                if success:
+                    # Reset the modified flag after successful save
+                    self.current_img.modified = False
+                    self.log_message(f"IMG file saved: {file_path}")
+                    QMessageBox.information(self, "Save", f"File saved successfully:\n{file_path}")
+                    return True
+                else:
+                    QMessageBox.critical(self, "Save", "Failed to save IMG file.")
+                    return False
+
+            except Exception as e:
+                QMessageBox.critical(self, "Save Error", f"Error saving file:\n{str(e)}")
+                return False
+
+        except Exception as e:
+            self.log_message(f"Error in save_img_entry: {str(e)}")
+            QMessageBox.critical(self, "Save Error", f"Failed to save IMG file:\n{str(e)}")
+            return False
+
+    def _find_entries(self):
+        """Find entries in the table"""
+        try:
+            # Show find dialog
+            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel
+            from PyQt6.QtCore import Qt
+            
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Find Entries")
+            dialog.setModal(True)
+            dialog.resize(400, 120)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # Search input
+            search_layout = QHBoxLayout()
+            search_label = QLabel("Find what:")
+            search_input = QLineEdit()
+            search_layout.addWidget(search_label)
+            search_layout.addWidget(search_input)
+            layout.addLayout(search_layout)
+            
+            # Options
+            options_layout = QHBoxLayout()
+            case_sensitive = QPushButton("Aa")
+            case_sensitive.setCheckable(True)
+            case_sensitive.setToolTip("Case sensitive")
+            regex_mode = QPushButton(".*")
+            regex_mode.setCheckable(True)
+            regex_mode.setToolTip("Regular expression")
+            options_layout.addWidget(case_sensitive)
+            options_layout.addWidget(regex_mode)
+            layout.addLayout(options_layout)
+            
+            # Buttons
+            button_layout = QHBoxLayout()
+            find_btn = QPushButton("Find Next")
+            find_btn.clicked.connect(lambda: self._perform_find(search_input.text(), case_sensitive.isChecked(), regex_mode.isChecked()))
+            cancel_btn = QPushButton("Cancel")
+            cancel_btn.clicked.connect(dialog.reject)
+            button_layout.addWidget(find_btn)
+            button_layout.addWidget(cancel_btn)
+            layout.addLayout(button_layout)
+            
+            # Set focus to search input
+            search_input.setFocus()
+            
+            # Enter key to find next
+            search_input.returnPressed.connect(find_btn.click)
+            
+            dialog.exec()
+            
+        except Exception as e:
+            self.log_message(f"Error in find_entries: {str(e)}")
+
+    def _perform_find(self, search_text, case_sensitive, regex_mode):
+        """Perform the actual find operation"""
+        try:
+            if not search_text or not hasattr(self, 'gui_layout') or not hasattr(self.gui_layout, 'table'):
+                return
+
+            table = self.gui_layout.table
+            current_row = table.currentRow()
+            current_col = table.currentColumn()
+            
+            if current_row < 0:
+                current_row = 0
+                current_col = 0
+
+            # Determine search range (start from next cell)
+            start_row = current_row
+            start_col = current_col + 1
+            
+            # If we're at the end of the row, go to next row
+            if start_col >= table.columnCount():
+                start_row += 1
+                start_col = 0
+            
+            # Search from current position to end of table
+            for row in range(start_row, table.rowCount()):
+                for col in range(start_col if row == start_row else 0, table.columnCount()):
+                    item = table.item(row, col)
+                    if item:
+                        text = item.text()
+                        
+                        # Perform search based on mode
+                        match = False
+                        if regex_mode:
+                            import re
+                            flags = 0 if case_sensitive else re.IGNORECASE
+                            try:
+                                match = bool(re.search(search_text, text, flags))
+                            except re.error:
+                                QMessageBox.warning(self, "Find", "Invalid regular expression")
+                                return
+                        else:
+                            if case_sensitive:
+                                match = search_text in text
+                            else:
+                                match = search_text.lower() in text.lower()
+                        
+                        if match:
+                            # Select and scroll to the found item
+                            table.setCurrentItem(item)
+                            table.scrollToItem(item)
+                            self.log_message(f"Found '{search_text}' at row {row}, column {col}")
+                            return
+                
+                # Reset start_col for subsequent rows
+                start_col = 0
+
+            # If not found, wrap around and search from beginning
+            for row in range(0, start_row + 1):
+                for col in range(0, table.columnCount()):
+                    # Skip items we already checked
+                    if row == start_row and col < (start_col if row == start_row else 0):
+                        continue
+                    
+                    item = table.item(row, col)
+                    if item:
+                        text = item.text()
+                        
+                        # Perform search based on mode
+                        match = False
+                        if regex_mode:
+                            import re
+                            flags = 0 if case_sensitive else re.IGNORECASE
+                            try:
+                                match = bool(re.search(search_text, text, flags))
+                            except re.error:
+                                QMessageBox.warning(self, "Find", "Invalid regular expression")
+                                return
+                        else:
+                            if case_sensitive:
+                                match = search_text in text
+                            else:
+                                match = search_text.lower() in text.lower()
+                        
+                        if match:
+                            # Select and scroll to the found item
+                            table.setCurrentItem(item)
+                            table.scrollToItem(item)
+                            self.log_message(f"Found '{search_text}' at row {row}, column {col}")
+                            return
+
+            # Not found anywhere
+            QMessageBox.information(self, "Find", f"'{search_text}' not found in table.")
+            
+        except Exception as e:
+            self.log_message(f"Error in perform_find: {str(e)}")
+
+    def _find_next_entries(self):
+        """Find next entry (just calls the same find functionality)"""
+        # This would typically continue the search from the last found position
+        # For now, we'll just show the find dialog again
+        self._find_entries()
+
+
+
+    def _duplicate_selected(self):
+        """Duplicate selected entries"""
+        try:
+            if not hasattr(self, 'gui_layout') or not hasattr(self.gui_layout, 'table'):
+                QMessageBox.warning(self, "Duplicate", "Table not available.")
+                return
+
+            table = self.gui_layout.table
+            selected_items = table.selectedItems()
+            
+            if not selected_items:
+                QMessageBox.information(self, "Duplicate", "Please select entries to duplicate.")
+                return
+
+            # Get selected rows
+            selected_rows = list(set(item.row() for item in selected_items))
+            
+            if not hasattr(self, 'current_img') or not self.current_img:
+                QMessageBox.warning(self, "Duplicate", "No IMG file loaded.")
+                return
+
+            # Duplicate the selected entries
+            duplicated_count = 0
+            for row in selected_rows:
+                if row < len(self.current_img.entries):
+                    original_entry = self.current_img.entries[row]
+                    
+                    # Create a copy of the entry
+                    from apps.methods.img_core_classes import IMGEntry
+                    new_entry = IMGEntry()
+                    new_entry.name = original_entry.name + "_copy"
+                    new_entry.size = original_entry.size
+                    new_entry.offset = original_entry.offset
+                    new_entry.data = getattr(original_entry, 'data', b'')  # Copy data if available
+                    
+                    # Add to IMG file
+                    self.current_img.entries.append(new_entry)
+                    duplicated_count += 1
+
+            # Refresh the table to show new entries
+            if hasattr(self, 'reload_current_file'):
+                self.reload_current_file()
+            elif hasattr(self, 'populate_img_table'):
+                self.populate_img_table()
+
+            self.log_message(f"Duplicated {duplicated_count} entry(ies)")
+            QMessageBox.information(self, "Duplicate", f"Duplicated {duplicated_count} entry(ies).")
+            
+        except Exception as e:
+            self.log_message(f"Error in duplicate_selected: {str(e)}")
+            QMessageBox.critical(self, "Duplicate Error", f"Failed to duplicate entries:\n{str(e)}")
+
+
+    def _check_duplicate_name(self, new_name, current_entry):
+        """Check if new name would create duplicate"""
+        try:
+            if hasattr(self, 'current_img') and self.current_img:
+                for entry in self.current_img.entries:
+                    if entry != current_entry and getattr(entry, 'name', '') == new_name:
+                        return True
+            return False
+        except:
+            return True  # Return True on error to be safe
+
+    def _remove_selected_entries(self):
+        """Remove selected entries from IMG file"""
+        try:
+            if not hasattr(self, 'gui_layout') or not hasattr(self.gui_layout, 'table'):
+                QMessageBox.warning(self, "Remove", "Table not available.")
+                return
+
+            table = self.gui_layout.table
+            selected_items = table.selectedItems()
+            
+            if not selected_items:
+                QMessageBox.information(self, "Remove", "Please select entries to remove.")
+                return
+
+            # Get selected rows
+            selected_rows = sorted(set(item.row() for item in selected_items), reverse=True)  # Reverse order for safe deletion
+            
+            if not hasattr(self, 'current_img') or not self.current_img:
+                QMessageBox.warning(self, "Remove", "No IMG file loaded.")
+                return
+
+            # Confirm removal
+            reply = QMessageBox.question(
+                self,
+                "Remove Entries",
+                f"Remove {len(selected_rows)} selected entry(ies)?\n\n"
+                f"This action cannot be undone.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Remove entries in reverse order to maintain correct indices
+                removed_count = 0
+                for row in selected_rows:
+                    if row < len(self.current_img.entries):
+                        del self.current_img.entries[row]
+                        removed_count += 1
+
+                # Refresh the table to reflect changes
+                if hasattr(self, 'reload_current_file'):
+                    self.reload_current_file()
+                elif hasattr(self, 'populate_img_table'):
+                    self.populate_img_table()
+
+                self.log_message(f"Removed {removed_count} entry(ies)")
+                QMessageBox.information(self, "Remove", f"Removed {removed_count} entry(ies).")
+                
+        except Exception as e:
+            self.log_message(f"Error in remove_selected_entries: {str(e)}")
+            QMessageBox.critical(self, "Remove Error", f"Failed to remove entries:\n{str(e)}")
+
+    def _move_entries(self, direction: int): #vers 1
+        """Move selected entries up (-1) or down (+1) in the IMG entry list."""
+        try:
+            from apps.methods.export_shared import get_active_table
+            table = get_active_table(self)
+            if table is None:
+                return
+
+            try:
+                from apps.methods.tab_system import get_current_file_from_active_tab
+                img_file, _ = get_current_file_from_active_tab(self)
+            except Exception:
+                img_file = getattr(self, 'current_img', None)
+
+            if not img_file or not img_file.entries:
+                return
+
+            selected_rows = sorted(
+                {item.row() for item in table.selectedItems()},
+                reverse=(direction > 0)
+            )
+            if not selected_rows:
+                return
+
+            entries = img_file.entries
+            n = len(entries)
+
+            # Check bounds
+            for row in selected_rows:
+                if row + direction < 0 or row + direction >= n:
+                    return
+
+            # Swap each selected entry with its neighbour
+            moved = set()
+            for row in selected_rows:
+                target = row + direction
+                if target not in moved:
+                    entries[row], entries[target] = entries[target], entries[row]
+                    moved.add(row)
+
+            # Refresh table
+            if hasattr(self, '_populate_real_img_table'):
+                self._populate_real_img_table(img_file, table=table)
+            elif hasattr(self, 'refresh_table'):
+                self.refresh_table()
+
+            # Restore selection on moved rows
+            table.clearSelection()
+            for row in selected_rows:
+                new_row = row + direction
+                for col in range(table.columnCount()):
+                    item = table.item(new_row, col)
+                    if item:
+                        item.setSelected(True)
+
+            self.log_message(
+                f"Moved {len(selected_rows)} entr{'y' if len(selected_rows)==1 else 'ies'} "
+                f"{'up' if direction < 0 else 'down'}"
+            )
+        except Exception as e:
+            self.log_message(f"Move entries error: {e}")
+
+    def _move_entries_up(self): #vers 1
+        """Move selected entries up one position (Ctrl+Up)."""
+        self._move_entries(-1)
+
+    def _move_entries_down(self): #vers 1
+        """Move selected entries down one position (Ctrl+Down)."""
+        self._move_entries(1)
+
+    def _select_inverse_entries(self):
+        """Invert the current selection"""
+        try:
+            if not hasattr(self, 'gui_layout') or not hasattr(self.gui_layout, 'table'):
+                return
+
+            table = self.gui_layout.table
+            all_selected = []
+            
+            # Get all currently selected items
+            for row in range(table.rowCount()):
+                for col in range(table.columnCount()):
+                    item = table.item(row, col)
+                    if item and item.isSelected():
+                        all_selected.append((row, col))
+            
+            # Clear current selection
+            table.clearSelection()
+            
+            # Select all items that were NOT selected
+            for row in range(table.rowCount()):
+                for col in range(table.columnCount()):
+                    item = table.item(row, col)
+                    if item and (row, col) not in all_selected:
+                        item.setSelected(True)
+            
+            self.log_message("Selection inverted")
+            
+        except Exception as e:
+            self.log_message(f"Error in select_inverse_entries: {str(e)}")
+
+    def _undo_action(self): #vers 3
+        """Undo last action (IMG-archive undo - import/export/rebuild,
+        via self.undo_manager).
+
+         fix (Aug 21 2026, found while wiring up Map Workshop's
+        own real undo delegation below  own real "there is
+        also the undo button on img factory, does nothing" report) -
+        was calling self.undo(), which is set once, unconditionally,
+        to self._undo_action itself (self.undo = self._undo_action,
+        __init__) and never reassigned anywhere else in the whole real
+        codebase - every real call was actually infinite recursion,
+        not a working undo at all. Calls self.undo_manager.undo()
+        directly now, the same real object the old, broken indirection
+        was always meant to eventually reach."""
+        if hasattr(self, 'undo_manager') and hasattr(self.undo_manager, 'undo'):
+            self.undo_manager.undo()
+        else:
+            self.log_message("Nothing to undo")
+
+    def _redo_action(self): #vers 3
+        """Redo last action (IMG-archive redo) - same real fix as
+        _undo_action just above, same real infinite-recursion bug."""
+        if hasattr(self, 'undo_manager') and hasattr(self.undo_manager, 'redo'):
+            self.undo_manager.redo()
+        else:
+            self.log_message("Nothing to redo")
+
+    def _find_active_map_workshop(self): #vers 1
+        """Return the real, live Map Workshop instance if it's the
+        currently-active tab, or None otherwise (Aug 21 2026, per
+         : "there is also the undo button on img factory, does
+        nothing from what I can remember be if there is a way to pass
+        whatever is docked, to that undo button") - Map Workshop's
+        own real ModelWorkshop instance is nested one level deep
+        inside a plain container QWidget when docked as a tab (see
+        open_map_workshop in map_workshop.py), so this checks the
+        current tab's own real children rather than the tab widget
+        itself. Duck-typed (checks for _on_undo_ribbon_clicked, Map
+        Workshop's own real undo entry point built last turn) rather
+        than importing ModelWorkshop directly, to avoid a real risk
+        of a circular import between this module and map_workshop.py."""
+        tab_widget = getattr(self, 'main_tab_widget', None)
+        if tab_widget is None:
+            return None
+        current = tab_widget.currentWidget()
+        if current is None:
+            return None
+        if hasattr(current, '_on_undo_ribbon_clicked'):
+            return current
+        for child in current.findChildren(QWidget):
+            if hasattr(child, '_on_undo_ribbon_clicked'):
+                return child
+        return None
+
+    def _smart_undo_action(self): #vers 1
+        """ Undo button handler (Aug 21 2026  own real
+        request above) - delegates to Map Workshop's own real undo/
+        redo (_on_undo_ribbon_clicked, same left-click=undo, Shift+
+        click=redo behavior its own ribbon button already has) when
+        Map Workshop is the currently-active tab; falls back to the
+        existing, separate IMG-archive undo system otherwise,
+        completely unchanged for every other real tab/context."""
+        workshop = self._find_active_map_workshop()
+        if workshop is not None:
+            workshop._on_undo_ribbon_clicked()
+            return
+        self._undo_action()
+
+
+    # INTEGRATION FIX for imgfactory.py:
+
+
+    def _update_ui_for_loaded_col(self): #vers 3
+        """Update UI when COL file is loaded - Uses proper methods/populate_col_table.py"""
+        if not hasattr(self, 'current_col') or not self.current_col:
+            self.log_message("_update_ui_for_loaded_col called but no current_col")
+            return
+
+        try:
+            # Update window title
+            if hasattr(self.current_col, 'file_path'):
+                file_name = os.path.basename(self.current_col.file_path)
+                self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+
+            # Use proper COL table population from apps.methods.
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
+                from apps.methods.populate_col_table import populate_table_with_col_data_debug
+                populate_table_with_col_data_debug(self, self.current_col)
+
+                model_count = len(self.current_col.models) if hasattr(self.current_col, 'models') else 0
+                self.log_message(f"COL table populated with {model_count} models")
+
+            # Update status
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, "COL loaded")
+
+            self.log_message("COL UI updated successfully")
+
+        except Exception as e:
+            self.log_message(f"Error updating COL UI: {str(e)}")
+
+    # FIX: Close manager tab widget issue
+
+    def _update_status_from_signal(self, message): #vers 4
+        """Update status from unified signal system"""
+        # Update status bar if available
+        if hasattr(self, 'statusBar') and self.statusBar():
+            self.statusBar().showMessage(message)
+
+        # Also update GUI layout status if available
+        if hasattr(self.gui_layout, 'status_label') and self.gui_layout.status_label:
+            self.gui_layout.status_label.setText(message)
+            
+        # Update selection status widget if available
+        if hasattr(self, 'selection_status_widget'):
+            # Extract selection count from message if possible
+            import re
+            match = re.search(r'(\d+) entries? selected', message)
+            if match:
+                selected_count = int(match.group(1))
+                # We'll need to determine the total count separately, for now use 0
+                self.selection_status_widget.update_selection(selected_count, 0)
+            elif "Ready" in message or "ready" in message:
+                self.selection_status_widget.update_selection(0, 0)
+                
+        # Update operation status if it's an operation message
+        if hasattr(self, 'set_operation_status'):
+            if "working" in message.lower() or "processing" in message.lower() or "loading" in message.lower():
+                self.set_operation_status("working", message)
+            elif "error" in message.lower() or "failed" in message.lower():
+                self.set_operation_status("error", message)
+            elif "success" in message.lower() or "completed" in message.lower():
+                self.set_operation_status("success", message)
+            else:
+                self.set_operation_status("idle", message)
+
+
+    #these need to be checked
+
+    def create_new_img(self): #vers 5
+        """Show new IMG creation dialog - FIXED: No signal connections"""
+
+
+    def select_all_entries(self): #vers 4
+        """Select all entries in current table"""
+        table = self._get_active_table()
+        if table:
+            table.selectAll()
+            self.log_message("Selected all entries")
+
+
+    def select_inverse(self): #vers 3
+        """Select inverse of current selection"""
+        try:
+            table = self._get_active_table()
+            if table:
+                selected_rows = set(item.row() for item in table.selectedItems())
+                table.clearSelection()
+                for row in range(table.rowCount()):
+                    if row not in selected_rows:
+                        table.selectRow(row)
+                self.log_message("Selection inverted")
+        except Exception as e:
+            self.log_message(f"Select inverse error: {str(e)}")
+
+
+    def sort_entries(self): #vers 2
+        """Sort entries in the table"""
+        try:
+            table = self._get_active_table()
+            if table:
+                selected_rows = set(item.row() for item in table.selectedItems())
+                table.sortItems(0, Qt.SortOrder.AscendingOrder)
+                if selected_rows:
+                    for row in selected_rows:
+                        if row < table.rowCount():
+                            for col in range(table.columnCount()):
+                                item = table.item(row, col)
+                                if item:
+                                    item.setSelected(True)
+                self.log_message("Entries sorted")
+        except Exception as e:
+            self.log_message(f"Sort entries error: {str(e)}")
+
+
+    def pin_selected_entries(self): #vers 2
+        """Pin selected entries to keep them at the top of the table"""
+        try:
+            from apps.core.pin_entries import pin_selected
+            pin_selected(self)
+        except Exception as e:
+            self.log_message(f"Pin selected error: {str(e)}")
+
+
+
+
+
+    def validate_img(self): #vers 4
+        """Validate current IMG file"""
+        if not self.current_img:
+            self.log_message("No IMG file loaded")
+            return
+
+        try:
+            from apps.methods.img_validation import IMGValidator
+            validation = IMGValidator.validate_img_file(self.current_img)
+            if validation.is_valid:
+                self.log_message("IMG validation passed")
+            else:
+                self.log_message(f"IMG validation issues: {validation.get_summary()}")
+        except Exception as e:
+            self.log_message(f"Validation error: {str(e)}")
+
+
+    def show_gui_settings(self): #vers 6
+        """Show GUI settings dialog"""
+        self.log_message("GUI settings requested")
+        try:
+            from apps.utils.app_settings_system import SettingsDialog, apply_theme_to_app
+            from PyQt6.QtWidgets import QApplication
+            dialog = SettingsDialog(self.app_settings, self)
+
+            def _live_theme(theme_key):
+                """Apply theme live as user picks it — no restart needed."""
+                try:
+                    apply_theme_to_app(QApplication.instance(), self.app_settings)
+                    colors = self.app_settings.get_theme_colors() or {}
+                    icon_color = colors.get('text_primary', '#cccccc')
+                    if hasattr(self.gui_layout, 'refresh_icons'):
+                        self.gui_layout.refresh_icons(icon_color)
+                    if hasattr(self.gui_layout, 'apply_table_theme'):
+                        self.gui_layout.apply_table_theme()
+                    if hasattr(self, 'tool_taskbar'):
+                        self.tool_taskbar.apply_theme(colors)
+                    self._apply_tab_theme()
+                    self.log_message(f"Theme applied: {theme_key}")
+                except Exception as _e:
+                    self.log_message(f"Live theme error: {_e}")
+
+            dialog.themeChanged.connect(_live_theme)
+            dialog.exec()
+            self._apply_button_display_mode_from_settings()
+        except Exception as e:
+            self.log_message(f"Settings dialog error: {str(e)}")
+
+
+    def _show_workshop_settings(self): #vers 1
+        """Show workshop settings dialog - called from custom UI"""
+        self.log_message("Workshop settings requested")
+        try:
+            # Use the method from gui_layout_custom
+            if hasattr(self.gui_layout, '_show_workshop_settings'):
+                # Add safeguard to prevent duplicate dialogs
+                if hasattr(self, '_settings_dialog_open') and self._settings_dialog_open:
+                    return  # Already open, ignore duplicate call
+                self._settings_dialog_open = True
+                try:
+                    self.gui_layout._show_workshop_settings()
+                finally:
+                    self._settings_dialog_open = False
+            else:
+                # Fallback to regular settings
+                self.show_gui_settings()
+        except Exception as e:
+            self.log_message(f"Workshop settings dialog error: {str(e)}")
+
+
+    #  Rebuild methods
+    def rebuild_img(self): #vers 1
+        try:
+            from apps.core.rebuild import rebuild_current_img_native
+            rebuild_current_img_native(self, mode="auto")
+        except Exception as e:
+            self.log_message(f"Rebuild error: {e}")
+
+    def fast_rebuild(self): #vers 1
+        try:
+            from apps.core.rebuild import fast_rebuild_current
+            fast_rebuild_current(self)
+        except Exception as e:
+            self.log_message(f"Fast rebuild error: {e}")
+
+    def quick_rebuild(self): #vers 1
+        self.fast_rebuild()
+
+    def safe_rebuild(self): #vers 1
+        try:
+            from apps.core.rebuild import safe_rebuild_current
+            safe_rebuild_current(self)
+        except Exception as e:
+            self.log_message(f"Safe rebuild error: {e}")
+
+    def rebuild_all_img(self): #vers 1
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Batch Rebuild",
+            "Batch rebuild — use Rebuild IMG for the current file.")
+
+    def toggle_debug_mode(self): #vers 1
+        current = getattr(self, '_debug_mode', False)
+        self._debug_mode = not current
+        self.log_message(f"Debug mode: {'ON' if self._debug_mode else 'OFF'}")
+
+    def enable_col_debug(self): #vers 4
+        """Enable COL debug output"""
+        # Set debug flag on all loaded COL files
+        if hasattr(self, 'current_col') and self.current_col:
+            self.current_col._debug_enabled = True
+
+        set_col_debug_enabled(True)
+
+        self.log_message("COL debug output enabled")
+
+
+    def disable_col_debug(self): #vers 4
+        """Disable COL debug output"""
+        # Set debug flag on all loaded COL files
+        if hasattr(self, 'current_col') and self.current_col:
+            self.current_col._debug_enabled = False
+
+        set_col_debug_enabled(False)
+
+        self.log_message("COL debug output disabled")
+
+
+    def toggle_col_debug(self): #vers 4
+        """Toggle COL debug output"""
+        try:
+            from apps.debug.debug_functions import is_col_debug_enabled
+            if is_col_debug_enabled():
+                self.disable_col_debug()
+            else:
+                self.enable_col_debug()
+
+        except Exception as e:
+            self.log_message(f"Debug toggle error: {e}")
+
+
+
+    def _create_ui(self): #vers 16
+        """Create the main user interface - WITH TABS FIXED"""
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        self.setContentsMargins(5, 5, 5, 5)          # COL corner strip around the window
+
+        # Main layout
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # IN CUSTOM UI MODE: Add toolbar FIRST (before tabs)
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, '_create_toolbar'):
+            try:
+                ui_mode = self.img_settings.get("ui_mode", "custom")  # default to custom UI
+                if ui_mode == "custom":
+                    toolbar = self.gui_layout._create_toolbar()
+                    toolbar.setVisible(True)
+                    main_layout.addWidget(toolbar)  # Add toolbar at TOP
+
+                    # Apply correct theme colour to titlebar icons immediately
+                    # (avoids black-on-dark invisible icons at startup)
+                    try:
+                        if hasattr(self, 'app_settings'):
+                            _init_colors = self.app_settings.get_theme_colors() or {}
+                            _icon_color = _init_colors.get('text_primary', '#cccccc')
+                            if hasattr(self.gui_layout, 'refresh_icons'):
+                                self.gui_layout.refresh_icons(_icon_color)
+                    except Exception as _re:
+                        print(f"Initial icon refresh failed: {_re}")
+
+                    # Tool taskbar is now embedded inside the titlebar row
+                    # (created by _create_toolbar, stored as gui_layout._inline_taskbar
+                    #  and exposed on main_window.tool_taskbar)
+                    # Apply initial theme colours if taskbar was created successfully
+                    try:
+                        if hasattr(self, 'tool_taskbar') and hasattr(self, 'app_settings'):
+                            _tb_colors = self.app_settings.get_theme_colors() or {}
+                            self.tool_taskbar.apply_theme(_tb_colors)
+                    except Exception as _te:
+                        print(f"Tool taskbar theme apply failed: {_te}")
+            except Exception as e:
+                print(f"Toolbar creation failed: {e}")
+
+        # Build the persistent shell: right panel + log live OUTSIDE the tab widget
+        # so they are always visible regardless of which tab is active.
+        # main_tab_widget only contains the table/content area per tab.
+
+        # Create the shared GUI shell (table, right panel, log) once
+        self.gui_layout.create_main_ui_with_splitters(main_layout)
+
+        # Replace gui_layout.table with a tab widget so tabs swap table content
+        self.main_tab_widget = QTabWidget()
+        self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
+        self.main_tab_widget.setTabsClosable(True)
+        # Keep taskbar in sync when tabs are added/removed
+        self.main_tab_widget.tabBar().tabMoved.connect(
+            lambda: QTimer.singleShot(50, lambda: self._sync_img_taskbar_buttons(
+                self.main_tab_widget.currentIndex())))
+        self.main_tab_widget.setMovable(True)
+        # Tab stylesheet — identical to app_settings_system so they look the same.
+        # Colors injected from live theme via _apply_tab_theme().
+        # Geometry only here; colors set separately so theme switches work live.
+        self.main_tab_widget.setStyleSheet("""
+            QTabBar::tab {
+                margin-top: 2px;
+                margin-bottom: 0px;
+                margin-right: 2px;
+                padding: 5px 14px;
+            }
+            QTabWidget::pane {
+                border-top: 1px solid palette(mid);
+                margin-top: 0px;
+                background-color: palette(window);
+            }
+        """)
+        self.main_tab_widget.setAutoFillBackground(True)
+        self._apply_tab_theme()
+        self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
+
+        # Panel toggle button - left corner of tab bar, outside tabs
+        try:
+            from PyQt6.QtWidgets import QPushButton
+            from PyQt6.QtCore import QSize, Qt
+            from apps.methods.imgfactory_svg_icons import get_panel_toggle_icon
+
+            def _on_toggle():
+                splitter = getattr(getattr(self, 'gui_layout', None), 'content_splitter', None)
+                if not splitter or splitter.count() < 2:
+                    return
+                total = sum(splitter.sizes()) or 10000
+                dir_tree = getattr(self, 'directory_tree', None)
+                tree_idx = -1
+                for i in range(splitter.count()):
+                    if splitter.widget(i) is dir_tree:
+                        tree_idx = i
+                        break
+                tab_idx = 1 - tree_idx if tree_idx != -1 else 0
+                sizes = splitter.sizes()
+                if sizes[tab_idx] >= total * 0.9:
+                    saved = self.gui_layout.saved_splitter_sizes('content_splitter')
+                    split_ok = saved and len(saved) == splitter.count() and min(saved) > 20
+                    splitter.setSizes(saved if split_ok else [total // 2, total // 2])
+                else:
+                    s = [0, 0]
+                    s[tab_idx] = total
+                    splitter.setSizes(s)
+
+            _tog_btn = QPushButton()
+            _tog_btn.setIcon(get_panel_toggle_icon())
+            _tog_btn.setMaximumSize(32, 32)
+            _tog_btn.setToolTip("Toggle: tabs full / split")
+            _tog_btn.setStyleSheet("QPushButton { margin-top: 3px; }")
+            _tog_btn.clicked.connect(_on_toggle)
+            self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopRightCorner)
+            self._panel_toggle_btn = _tog_btn
+        except Exception as e:
+            self.log_message(f"Panel toggle button error: {e}")
+
+        # Replace table placeholder (index 1) in content_splitter with main_tab_widget
+        # Index 0 = left_stack (dir tree / dat browser panel)
+        # Index 1 = table placeholder -> replaced with main_tab_widget
+        if hasattr(self.gui_layout, 'content_splitter'):
+            cs = self.gui_layout.content_splitter
+            # Find table's index — it's the non-left_stack widget
+            left_stack = getattr(self.gui_layout, 'left_stack', None)
+            table_idx = 1  # default
+            for i in range(cs.count()):
+                if cs.widget(i) is not left_stack:
+                    table_idx = i
+                    break
+            cs.replaceWidget(table_idx, self.main_tab_widget)
+            self.gui_layout.table.setVisible(False)
+            self.gui_layout.table.setMaximumSize(0, 0)
+            # Ensure left_stack stays hidden until Dir/DAT opened
+            if left_stack:
+                left_stack.hide()
+                cs.setSizes([0, cs.width() or 1000])
+        else:
+            main_layout.addWidget(self.main_tab_widget)
+
+        # Initialize open files tracking
+        if not hasattr(self, 'open_files'):
+            self.open_files = {}
+
+        # Create initial empty tab with just a table
+        # Setup close manager BEFORE tab system
+        self.close_manager = install_close_functions(self)
+
+        # Setup NEW tab system
+        setup_tab_system(self)
+
+        # Migrate existing tabs if any
+        if self.open_files:
+            migrate_tabs(self)
+
+        # Create welcome / intro tab (shows on first launch)
+        self._create_initial_tab()
+
+        # Create GUI layout system (single instance)
+        self.gui_layout.create_status_bar()
+        self.gui_layout._place_status_bar()            # window bottom, settings visibility
+        self.gui_layout.apply_table_theme()
+
+        # Apply saved tab settings
+        try:
+            from apps.methods.tab_settings_apply import apply_tab_settings
+            apply_tab_settings(self, self.img_settings)
+        except Exception as e:
+            print(f"Tab settings startup apply failed: {e}")
+
+        # Setup unified signal system
+        self.setup_unified_signals()
+
+        # Integrate DAT Browser (places widget in left_stack, wires xref tooltips)
+        try:
+            from apps.components.Dat_Browser.dat_browser import integrate_dat_browser
+            integrate_dat_browser(self)
+            # Auto-load if a game root is already known (e.g. from project/settings)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(800, self._auto_load_dat_browser)
+        except Exception as e:
+            print(f"DAT Browser integration failed: {e}")
+
+
+    def _create_initial_tab(self): #vers 7
+        """No initial Home tab — welcome/intro lives in left_stack page 2.
+        Tab area starts empty; tabs are created when files are opened.
+        """
+        pass
+
+
+
+
+    def _on_tab_changed(self, index): #vers 12
+        """Handle tab switching - DIR Tree, IMG, COL, TXD tabs"""
+        try:
+            current_tab = self.main_tab_widget.widget(index)
+            tab_name = self.main_tab_widget.tabText(index)
+
+            if not current_tab:
+                return
+
+            file_type = getattr(current_tab, 'file_type', None)
+            file_object = getattr(current_tab, 'file_object', None)
+
+            # Sync gui_layout.table to active tab's table so all core/ files work
+            tab_table = getattr(current_tab, 'table_ref', None)
+            if tab_table and hasattr(self, 'gui_layout'):
+                self.gui_layout.table = tab_table
+
+            # Diagnostic (Sep 5 2026  own real screenshots
+            # showing the COL tab's own table displaying IMG-style
+            # columns instead of its own real ones) - shows exactly
+            # which table object this tab actually has, and what its
+            # real column headers are right now, directly in the
+            # Activity Logs, rather than guessing further from static
+            # code alone.
+            if tab_table is not None:
+                headers = [tab_table.horizontalHeaderItem(i).text()
+                           if tab_table.horizontalHeaderItem(i) else '?'
+                           for i in range(tab_table.columnCount())]
+                self.log_message(
+                    f"[tab-diag] '{tab_name}' idx={index} file_type={file_type} "
+                    f"table_id={id(tab_table)} cols={headers} rows={tab_table.rowCount()}")
+
+            #  Tool menu injection  
+            # Remove any previously injected tool menu, then inject the
+            # active tab's tool menu if it implements ToolMenuMixin.
+            self._update_tool_menu_for_tab(current_tab)
+
+            # Check if this tab contains an embedded TXD Workshop
+            from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+            workshops = current_tab.findChildren(TXDWorkshop)
+            if workshops:
+                workshop = workshops[0]
+                self.current_img = None
+                self.current_col = None
+                if hasattr(self, 'update_img_status'):
+                    import os
+                    ws = workshop
+                    tn2 = tab_name
+                    def _txd_status(w=ws, t=tn2):
+                        tex_count = len(w.texture_list) if hasattr(w, 'texture_list') else 0
+                        txd_name  = getattr(w, 'current_txd_name', None) or t
+                        txd_path  = getattr(w, 'current_txd_path', '') or ''
+                        file_size = os.path.getsize(txd_path) if txd_path and os.path.isfile(txd_path) else 0
+                        if hasattr(self, 'update_img_status'):
+                            self.update_img_status(filename=txd_path or txd_name,
+                                                   entry_count=tex_count,
+                                                   file_size=file_size,
+                                                   version='TXD')
+                        if hasattr(self, 'selection_status_widget'):
+                            self.selection_status_widget.update_selection(0, tex_count)
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(0, _txd_status)
+                is_txd = workshop.config_key == "txd_workshop"     # Asset Workshop is a TXDWorkshop too
+                self._sync_taskbar_active("txd" if is_txd else workshop.config_key)
+                self.log_message(f"→ {tab_name} ({workshop.App_name})")
+                return
+
+            # Check if this tab contains an embedded COL Workshop
+            from apps.components.Col_Editor.col_workshop import COLWorkshop
+            col_workshops = current_tab.findChildren(COLWorkshop)
+            if col_workshops:
+                workshop = col_workshops[0]
+                self.current_img = None
+                self.current_col = None
+                if hasattr(self, 'update_img_status'):
+                    col_count = 0
+                    if hasattr(workshop, 'col_file') and workshop.col_file:
+                        col_count = len(getattr(workshop.col_file, 'models', [])) 
+                    col_path = getattr(workshop, 'current_col_path', '') or ''
+                    import os
+                    file_size = os.path.getsize(col_path) if col_path and os.path.isfile(col_path) else 0
+                    self.update_img_status(filename=col_path or tab_name,
+                                           entry_count=col_count,
+                                           file_size=file_size,
+                                           version='COL')
+                self._sync_taskbar_active("col")
+                self.log_message(f"→ {tab_name} (COL Workshop)")
+                return
+
+            # Check if this tab contains an embedded Model Workshop
+            from apps.components.Model_Editor.model_workshop import ModelWorkshop
+            model_workshops = current_tab.findChildren(ModelWorkshop)
+            if model_workshops:
+                workshop = model_workshops[0]
+                self.current_img = None
+                self.current_col = None
+                dff_path = getattr(workshop, '_current_dff_path', '') or ''
+                import os
+                file_size = os.path.getsize(dff_path) if dff_path and os.path.isfile(dff_path) else 0
+                if hasattr(self, 'update_img_status'):
+                    n_geoms = getattr(getattr(workshop, '_current_dff_model', None), 'geometry_count', 0)
+                    self.update_img_status(filename=dff_path or tab_name,
+                                           entry_count=n_geoms,
+                                           file_size=file_size,
+                                           version='DFF')
+                self._sync_taskbar_active("model")
+                self.log_message(f"→ {tab_name} (Model Workshop)")
+                return
+
+            if file_type == 'COL':
+                self.current_col = file_object
+                self.current_img = None
+                # Re-populate if this tab's own table looks empty when we
+                # switch back to it (Sep 5 2026,  "when I tab
+                # away and come back, the col tab contents is forgotten,
+                # seems to show a copy of the img file instead") - the
+                # IMG branch right below already has this exact safety
+                # net; the COL branch never did.
+                if (tab_table and tab_table.rowCount() == 0
+                        and hasattr(file_object, 'models') and file_object.models):
+                    from apps.methods.populate_col_table import populate_table_with_col_data_debug
+                    populate_table_with_col_data_debug(self, file_object)
+                if hasattr(self, 'update_img_status'):
+                    col_count = len(file_object.models) if hasattr(file_object, 'models') and file_object.models else 0
+                    fp = getattr(file_object, 'file_path', '')
+                    self.update_img_status(filename=fp, entry_count=col_count, version='COL')
+                if hasattr(self, 'selection_status_widget'):
+                    self.selection_status_widget.update_selection(0, 0)
+                self._sync_taskbar_active("col")
+                self.log_message(f"→ {tab_name} (COL)")
+            elif file_type == 'IMG' and file_object is not None:
+                self.current_img = file_object
+                self.current_col = None
+                # Populate only if table is empty (first visit to this tab)
+                if tab_table and tab_table.rowCount() == 0:
+                    if hasattr(self, '_populate_real_img_table'):
+                        self._populate_real_img_table(file_object, table=tab_table)
+                # Defer status + selection update to after Qt processes the table
+                def _update_after_populate(fo=file_object, tt=tab_table, tn=tab_name):
+                    if hasattr(self, 'update_img_status'):
+                        self.update_img_status(img_file=fo)
+                    if tt and hasattr(self, 'selection_status_widget'):
+                        sel = len(set(i.row() for i in tt.selectedItems()))
+                        self.selection_status_widget.update_selection(sel, tt.rowCount())
+                    # Populate COL Workshop left panel from loaded IMG
+                    self._populate_workshop_lists_from_img(fo)
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, _update_after_populate)
+                self._sync_taskbar_active("")
+                self.log_message(f"→ {tab_name}")
+            else:
+                self.current_img = None
+                self.current_col = None
+                if hasattr(self, 'update_img_status'):
+                    self.update_img_status(filename="", entry_count=0, file_size=0, version="—")
+                if hasattr(self, 'selection_status_widget'):
+                    self.selection_status_widget.update_selection(0, 0)
+                # Check if this is an IDE tab
+                tab_name_lower = tab_name.lower()
+                if 'ide' in tab_name_lower:
+                    self._sync_taskbar_active("ide")
+                elif 'ai' in tab_name_lower:
+                    self._sync_taskbar_active("ai")
+                elif 'dat' in tab_name_lower:
+                    self._sync_taskbar_active("dat")
+                elif 'dp5' in tab_name_lower or 'paint' in tab_name_lower:
+                    self._sync_taskbar_active("dp5")
+                elif 'col workshop' in tab_name_lower:
+                    self._sync_taskbar_active("col")
+                elif 'txd workshop' in tab_name_lower:
+                    self._sync_taskbar_active("txd")
+                elif 'model workshop' in tab_name_lower:
+                    self._sync_taskbar_active("model")
+                else:
+                    self._sync_taskbar_active("")
+                self.log_message(f"→ {tab_name}")
+                self._sync_img_taskbar_buttons(index)
+
+        except Exception as e:
+            self.log_message(f"Tab switch error: {str(e)})")
+            import traceback
+            traceback.print_exc()
+
+
+    def _sync_img_taskbar_buttons(self, active_index: int = -1): #vers 3
+        """Register one taskbar button per open IMG tab; highlight the active one.
+        Keys: 'img_0', 'img_1', ... matching main_tab_widget indices.
+        Home tab (index 0) is skipped — it has no file.
+        """
+        if hasattr(self, 'main_tab_widget'):
+            from apps.methods.tab_system import update_tab_overflow
+            update_tab_overflow(self)
+        if not hasattr(self, 'tool_taskbar') or not hasattr(self, 'main_tab_widget'):
+            return
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            colors = {}
+            if hasattr(self, 'app_settings'):
+                colors = self.app_settings.get_theme_colors() or {}
+            icon_color = colors.get('text_primary', '#cccccc')
+            icon = SVGIconFactory.open_icon(16, icon_color)
+
+            tw = self.main_tab_widget
+            # Remove stale img_N buttons for tabs that no longer exist
+            registered = list(getattr(self.tool_taskbar, '_tools', {}).keys())
+            existing_img_keys = {k for k in registered if k.startswith('img_')}
+            valid_keys = set()
+            tool_targets = {id(v.get('target')) for k, v in self.tool_taskbar._tools.items()
+                            if not k.startswith('img_')}
+
+            for i in range(tw.count()):
+                tab = tw.widget(i)
+                file_type = getattr(tab, 'file_type', None)
+                file_obj  = getattr(tab, 'file_object', None)
+
+                # Skip home tab (no file_type, no file_object)
+                if file_type is None and file_obj is None:
+                    continue
+
+                # Pick icon by type
+                try:
+                    if file_type == 'WORKSHOP':
+                        tab_label = tw.tabText(i) or 'Tool'
+                        tab_icon  = SVGIconFactory.mesh_icon(16, icon_color)
+                    elif file_type == 'COL':
+                        tab_icon = SVGIconFactory.col_icon(16, icon_color) if hasattr(SVGIconFactory,'col_icon') else icon
+                        tab_label = tw.tabText(i) or 'COL'
+                    else:
+                        tab_icon  = icon
+                        tab_label = tw.tabText(i) or f'IMG{i}'
+                except Exception:
+                    tab_icon = icon
+                    tab_label = tw.tabText(i) or f'Tab{i}'
+
+                # Skip IMG/COL tabs with no file loaded
+                if file_type in ('IMG', 'COL') and file_obj is None:
+                    continue
+                # Workshop tab with its own tool button: no second button
+                if file_type == 'WORKSHOP' and id(tab) in tool_targets:
+                    continue
+
+                key = f'img_{i}'
+                valid_keys.add(key)
+                label = tab_label
+                if len(label) > 12:
+                    label = label[:11] + '…'
+
+                def _make_switcher(idx=i):
+                    def _switch():
+                        self.main_tab_widget.setCurrentIndex(idx)
+                    return _switch
+
+                if self.tool_taskbar.is_registered(key):
+                    self.tool_taskbar.update_target(key, _make_switcher())
+                else:
+                    self.tool_taskbar.register(key, label, tab_icon,
+                                               _make_switcher(), f'Switch to {tw.tabText(i)}')
+
+            # Remove buttons for closed tabs
+            for old_key in existing_img_keys - valid_keys:
+                try:
+                    self.tool_taskbar.unregister(old_key)
+                except Exception:
+                    pass
+
+            # Highlight active img button
+            active_key = f'img_{active_index}'
+            for k in valid_keys:
+                self.tool_taskbar.set_active(k, k == active_key)
+
+        except Exception as e:
+            self.log_message(f"IMG taskbar sync error: {e}")
+
+
+
+
+
+    def get_current_file_type(main_window) -> str: #vers 1
+        """Get the current file type (IMG or COL)"""
+        try:
+            if hasattr(main_window, 'current_col') and main_window.current_col:
+                return 'COL'
+            elif hasattr(main_window, 'current_img') and main_window.current_img:
+                return 'IMG'
+            else:
+                return 'UNKNOWN'
+        except:
+            return 'UNKNOWN'
+
+
+
+
+    def _populate_workshop_lists_from_img(self, img_file): #vers 2
+        """After IMG load: push COL + TXD file lists into docked workshops."""
+        try:
+            if not img_file or not hasattr(img_file, 'entries'):
+                return
+
+            from apps.components.Col_Editor.col_workshop import COLWorkshop
+            from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+
+            # Search every tab for embedded workshops via findChildren
+            if hasattr(self, 'tab_widget'):
+                for i in range(self.tab_widget.count()):
+                    widget = self.tab_widget.widget(i)
+                    if not widget:
+                        continue
+
+                    # COL workshops
+                    for w in widget.findChildren(COLWorkshop):
+                        w.current_img = img_file
+                        if hasattr(w, '_load_img_col_list'):
+                            w._load_img_col_list()
+
+                    # TXD workshops
+                    for w in widget.findChildren(TXDWorkshop):
+                        w.current_img = img_file
+                        if hasattr(w, '_load_img_txd_list'):
+                            w._load_img_txd_list()
+
+                    # Also check direct attributes on tab widget
+                    for attr in ('col_workshop', 'txd_workshop'):
+                        w = getattr(widget, attr, None)
+                        if w is None: continue
+                        w.current_img = img_file
+                        if hasattr(w, '_load_img_col_list'): w._load_img_col_list()
+                        if hasattr(w, '_load_img_txd_list'): w._load_img_txd_list()
+
+            # Direct attributes on main window
+            for attr in ('col_workshop', 'txd_workshop'):
+                w = getattr(self, attr, None)
+                if w is None: continue
+                w.current_img = img_file
+                if hasattr(w, '_load_img_col_list'): w._load_img_col_list()
+                if hasattr(w, '_load_img_txd_list'): w._load_img_txd_list()
+
+        except Exception as e:
+            self.log_message(f"Workshop list populate error: {e}")
+
+    def open_img_file(self): #vers 2
+        """Open file dialog - FIXED: Call imported function correctly"""
+        try:
+            open_file_dialog(self)  # Call function with self parameter
+        except Exception as e:
+            self.log_message(f"Error opening file dialog: {str(e)}")
+
+
+    def scan_img_folder(self): #vers 1
+        """Recursively scan a folder for IMG files, show results dialog."""
+        from apps.core.scan_img import scan_img_folder as _scan
+        _scan(self)
+
+    def scan_img_recent(self): #vers 1
+        """Open the Recent Scans dialog."""
+        from apps.core.scan_img import scan_img_recent as _recent
+        _recent(self)
+
+    def open_hybrid_load(self): #vers 3
+        """Hybrid Load: open an IMG file and automatically pair each DFF entry
+        with its matching COL data.
+
+        Pairing sources (checked in priority order):
+          1. Sibling .col file in the same directory (e.g. game_sa.col next to game_sa.img)
+          2. .col entries inside the IMG itself (GTA3/VC/SA world props)
+          3. models/coll/ sub-models (SA/SOL vehicles, peds, weapons)
+
+        The interleaved paired-row table view is STUB — currently logs pairing
+        summary and loads the IMG normally, storing pairs on the tab.
+        """
+        try:
+            import struct
+            from PyQt6.QtWidgets import QFileDialog
+            from apps.methods.img_core_classes import IMGFile
+            from apps.methods.gta_dat_parser import detect_game, GTAGame
+
+            #  1. Pick the IMG file  
+            img_path, _ = QFileDialog.getOpenFileName(
+                self, "Hybrid Load — Select IMG File", "",
+                "IMG Archives (*.img);;All Files (*)"
+            )
+            if not img_path:
+                return
+
+            img_name = os.path.basename(img_path)
+            img_dir  = os.path.dirname(img_path)
+            img_stem = img_name.lower().rsplit(".", 1)[0]   # e.g. "game_sa"
+
+            #  2. Open the IMG
+            img = IMGFile(img_path)
+            img.open()
+
+            #  3. Resolve game root and game type  
+            game_root = getattr(self, "game_root", None)
+            if not game_root:
+                dat_browser = getattr(self, "dat_browser", None)
+                if dat_browser and hasattr(dat_browser, "_path_edit"):
+                    game_root = dat_browser._path_edit.text().strip()
+            if not game_root:
+                # img likely lives in models/ — go up one level
+                game_root = os.path.dirname(img_dir)
+
+            game     = detect_game(game_root) if game_root else None
+            is_sa_sol = game in (GTAGame.SA, GTAGame.SOL)
+
+            #  helper: index sub-models from a COL archive binary  
+            def _index_col_binary(data: bytes, source_label: str, dest: dict):
+                offset = 0
+                while offset + 32 < len(data):
+                    sig = data[offset:offset + 4]
+                    if sig in (b"COLL", b"COL2", b"COL3", b"COL4"):
+                        name_raw = data[offset + 8: offset + 30]
+                        sub = name_raw.split(b"\x00")[0].decode(
+                            "ascii", errors="ignore").strip().lower()
+                        if sub and sub not in dest:
+                            dest[sub] = source_label
+                        try:
+                            blk_size = struct.unpack_from("<I", data, offset + 4)[0]
+                            offset += blk_size + 8
+                        except Exception:
+                            offset += 4
+                    else:
+                        offset += 1
+
+            #  4a. Sibling .col file (same dir, same stem or any .col)
+            # e.g. game_sa.col sitting next to game_sa.img
+            col_sibling = {}   # stem -> source label
+            sibling_col = os.path.join(img_dir, img_stem + ".col")
+            if not os.path.isfile(sibling_col):
+                # Try any .col in same dir with same stem prefix
+                for fname in os.listdir(img_dir):
+                    if fname.lower().endswith(".col"):
+                        candidate = os.path.join(img_dir, fname)
+                        if os.path.isfile(candidate):
+                            sibling_col = candidate
+                            break
+                else:
+                    sibling_col = None
+            if sibling_col:
+                try:
+                    with open(sibling_col, "rb") as f:
+                        data = f.read()
+                    label = os.path.basename(sibling_col)
+                    _index_col_binary(data, label, col_sibling)
+                    self.log_message(
+                        f"Hybrid: indexed {len(col_sibling)} sub-models "
+                        f"from sibling {label}"
+                    )
+                except Exception as e:
+                    self.log_message(f"Hybrid: could not read sibling COL: {e}")
+
+            #  4b. COL entries inside the IMG itself
+            col_in_img = {}   # stem -> entry
+            for entry in img.entries:
+                name = getattr(entry, "name", "") or ""
+                if name.lower().endswith(".col"):
+                    col_in_img[name.lower().rsplit(".", 1)[0]] = entry
+
+            #  4c. models/coll/ external archives (SA/SOL only)  
+            col_external = {}  # stem -> source filename
+            if is_sa_sol:
+                from apps.methods.gta_dat_parser import external_col_files
+                for col_path in external_col_files(game_root):
+                    fname = os.path.basename(col_path)
+                    try:
+                        with open(col_path, "rb") as f:
+                            data = f.read()
+                        _index_col_binary(data, fname, col_external)
+                    except Exception as e:
+                        self.log_message(f"Hybrid: could not scan {fname}: {e}")
+
+            #  5. Pair DFF entries
+            dff_entries = [e for e in img.entries
+                           if getattr(e, "name", "").lower().endswith(".dff")]
+            paired = []   # (dff_entry, col_source_str or None)
+            for entry in dff_entries:
+                stem = entry.name.lower().rsplit(".", 1)[0]
+                if stem in col_sibling:
+                    paired.append((entry, f"{stem}.col ({col_sibling[stem]})"))
+                elif stem in col_in_img:
+                    paired.append((entry, f"{stem}.col (in IMG)"))
+                elif stem in col_external:
+                    paired.append((entry, f"{stem}.col ({col_external[stem]})"))
+                else:
+                    paired.append((entry, None))
+
+            matched   = sum(1 for _, c in paired if c)
+            unmatched = len(paired) - matched
+
+            parts = [
+                f"Hybrid Load: {img_name}",
+                f"{len(dff_entries)} DFF entries",
+                f"{matched} paired",
+                f"{unmatched} no COL",
+            ]
+            if col_sibling:
+                parts.append(f"{len(col_sibling)} sibling COL sub-models")
+            if col_external:
+                parts.append(f"{len(col_external)} external COL sub-models")
+            self.log_message("  |  ".join(parts))
+
+            #  6. Store pairing data then load IMG (async thread)  
+            # _on_img_loaded will consume _pending_hybrid_pairs once the
+            # table is actually populated.
+            self._pending_hybrid_pairs = paired
+
+            if hasattr(self, "_load_img_file_in_new_tab"):
+                self._load_img_file_in_new_tab(img_path)
+            elif hasattr(self, "load_img_file_in_new_tab"):
+                self.load_img_file_in_new_tab(img_path)
+            else:
+                self.current_img = img
+                self._clean_on_img_loaded(img)
+
+        except Exception as e:
+            self.log_message(f"Hybrid Load error: {e}")
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Hybrid Load Error", str(e))
+
+    def _clean_on_img_loaded(self, img_file: IMGFile): #vers 7
+        """Handle IMG loading - USES ISOLATED FILE WINDOW"""
+        try:
+            # Store the loaded IMG file
+            current_index = self.main_tab_widget.currentIndex()
+            if current_index in self.open_files:
+                self.open_files[current_index]['file_object'] = img_file
+
+            # Set current IMG reference
+            self.current_img = img_file
+            # CRITICAL: Store file object in tab tracking for tab switching
+            current_index = self.main_tab_widget.currentIndex()
+            if current_index in self.open_files:
+                self.open_files[current_index]['file_object'] = img_file
+                self.log_message(f"IMG file object stored in tab {current_index}")
+
+            # Refresh the directory file list in the left panel
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'refresh_directory_files'):
+                self.gui_layout.refresh_directory_files()
+
+            # Use isolated file window update
+            #success = self.gui_layout.update_file_window_only(img_file)
+
+            # Properly hide progress and ensure GUI visibility
+            self.gui_layout.hide_progress_properly()
+
+            self.log_message(f"Loaded (isolated): {os.path.basename(img_file.file_path)} ({len(img_file.entries)} entries)")
+
+        except Exception as e:
+            self.log_message(f"Loading error: {str(e)}")
+
+
+    def reload_table(self): #vers 1
+        """Reload current file - called by reload button"""
+        return self.reload_current_file()
+
+
+    def switch_to_img_file(self, file_name: str): #vers 1
+        """Switch to the tab containing the specified file"""
+        try:
+            # Look for the tab with the matching file name
+            for i in range(self.main_tab_widget.count()):
+                tab_text = self.main_tab_widget.tabText(i)
+                if tab_text == file_name or tab_text.startswith(file_name):
+                    # Switch to this tab
+                    self.main_tab_widget.setCurrentIndex(i)
+                    
+                    # Update the main window references
+                    from apps.methods.tab_system import switch_tab
+                    switch_tab(self, i)
+                    
+                    self.log_message(f"Switched to file: {file_name}")
+                    return True
+            
+            # If file not found, log a message
+            self.log_message(f"File not found in open tabs: {file_name}")
+            return False
+            
+        except Exception as e:
+            self.log_message(f"Error switching to file {file_name}: {str(e)}")
+            return False
+
+
+    def load_file_unified(self, file_path: str): #vers 11
+        """Unified file loader - handles IMG, COL, TXD, HXD, MXD, AGR, LVZ"""
+        try:
+            if not file_path or not os.path.exists(file_path):
+                self.log_message("File not found")
+                return False
+
+            file_ext = os.path.splitext(file_path)[1].lower()
+
+            from apps.methods.txd_reader import TEXTURE_EXTS
+            if file_ext in TEXTURE_EXTS:
+                self._load_txd_file_in_new_tab(file_path)
+                return True
+            elif file_ext in ('.hxd', '.mxd', '.agr', '.lvz'):
+                self._load_img_file_in_new_tab(file_path)
+                return True
+            elif file_ext in ('.iso', '.bin'):                 # disc images
+                self.open_disc_workshop_docked(file_path)
+                return True
+
+            if file_ext == '.img':
+                self._load_img_file_in_new_tab(file_path)  # â† Starts threading
+                return True  # â† Return immediately, let threading finish
+
+            elif file_ext == '.col':
+                from apps.components.Col_Editor.col_workshop import open_col_workshop
+                open_col_workshop(self, file_path)
+                return True
+
+            else:
+                self.log_message(f"Unsupported file type: {file_ext}")
+                return False
+
+        except Exception as e:
+            self.log_message(f"Error loading file: {str(e)}")
+            import traceback
+            traceback.print_exc()  # Debug info
+            return False
+
+    def load_img_files_batch(self, paths, title="Loading IMG archives", report=None): #vers 3
+        """Open IMGs as tabs; 2+ files report in one window, no popups.
+        report: caller's own window (file_started/done/failed/skipped)."""
+        paths = [p for p in paths if p]
+        if len(paths) == 1 and report is None:
+            self._load_img_file_in_new_tab(paths[0])
+            return
+        if not paths:
+            return
+        from apps.gui.img_batch_load_dialog import ImgBatchLoadDialog
+        from apps.methods.img_core_classes import IMGFile, IMGVersion
+        batch = report
+        if batch is None:
+            batch = ImgBatchLoadDialog(self, len(paths), title)
+            self._img_batch_dialog = batch
+            batch.show()
+        for p in paths:
+            if IMGFile(p).detect_version() == IMGVersion.VERSION_STREAMING_SEG:
+                batch.file_skipped(p, "stream data, no directory (opens with its .lvz)")
+                continue
+            self._load_img_file_in_new_tab(p, batch=batch)
+
+    def _load_img_file_in_new_tab(self, file_path, batch=None): #vers 5
+        """Load IMG file in a new tab.
+
+        Each file gets its own IMGLoadThread carrying the target tab_index so
+        multiple concurrent loads never clobber each other's tab.
+        batch: ImgBatchLoadDialog - results go there, no per-file error popup.
+        """
+        try:
+            from apps.methods.cd_image import is_cd_image
+            if is_cd_image(file_path):                     # CD / DVD image, not a GTA IMG
+                self.open_disc_workshop_docked(file_path)
+                return
+            from apps.methods.tab_system import create_tab
+
+            # Create the tab first — get back the index for THIS file
+            tab_index = create_tab(self, file_path=file_path,
+                                   file_type='IMG', file_object=None)
+            if tab_index is None:
+                self.log_message(f"Failed to create tab for {os.path.basename(file_path)}")
+                return
+
+            # Each thread is independent — no shared self._loading_img_tab_index
+            thread = IMGLoadThread(file_path, tab_index=tab_index)
+            thread.progress_updated.connect(self._on_img_load_progress)
+            thread.loading_finished.connect(self._on_img_loaded)
+            thread.loading_error.connect(self._on_img_load_error)
+            if batch is not None:
+                thread._batch = True
+                batch.file_started(file_path)
+                thread.loading_finished.connect(lambda img, _i, p=file_path: batch.file_done(p, img))
+                thread.loading_error.connect(lambda msg, _i, p=file_path: batch.file_failed(p, msg))
+            thread.start()
+
+            # Keep reference so it isn't garbage-collected before finishing
+            if not hasattr(self, '_img_load_threads'):
+                self._img_load_threads = []
+            self._img_load_threads.append(thread)
+            # Clean up finished threads from the list
+            self._img_load_threads = [t for t in self._img_load_threads
+                                       if t.isRunning()]
+
+        except Exception as e:
+            self.log_message(f"Error loading IMG in new tab: {str(e)}")
+
+
+    def _load_txd_file_in_new_tab(self, file_path):  # vers 4
+        """Load TXD file in new tab via open_txd_workshop (single tab)"""
+        try:
+            from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+            workshop = open_txd_workshop(self, file_path)
+            if not workshop:
+                self.log_message("TXD workshop failed to open")
+        except Exception as e:
+            self.log_message(f"Error loading TXD in new tab: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    def _load_col_file_in_new_tab(self, file_path):  # vers 4
+        """Load COL file into a new tab with correct single-tab creation.
+
+        Flow: parse COL -> create one tab -> populate tab's COL workshop widget.
+        Suppresses _update_ui_for_loaded_col to prevent a second tab being created.
+        """
+        try:
+            import os
+            from apps.methods.col_workshop_loader import COLFile
+            file_name = os.path.basename(file_path)
+            self.log_message(f"Loading COL: {file_name}")
+
+            #  Parse the COL file first (no UI side effects)
+            col_file = COLFile()
+            if not col_file.load_from_file(file_path):
+                err = getattr(col_file, 'load_error', 'parse failed')
+                self.log_message(f"COL parse failed: {err}")
+                return
+
+            model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
+            self.log_message(f"COL parsed: {model_count} models")
+
+            #  Create exactly ONE tab  
+            tab_index = self.create_tab(file_path, 'COL', col_file)
+            if tab_index is None:
+                self.log_message("Failed to create COL tab")
+                return
+
+            #  Store on tab widget
+            tab_widget = self.main_tab_widget.widget(tab_index)
+            if tab_widget:
+                tab_widget.file_object = col_file
+                tab_widget.file_type   = 'COL'
+                tab_widget.file_path   = file_path
+                tab_widget.tab_ready   = True
+
+            #  Store reference for other code that checks current_col  
+            self.current_col = col_file
+
+            #  Switch to the new tab
+            self.main_tab_widget.setCurrentIndex(tab_index)
+            self.log_message(f"✅ COL loaded: {file_name} ({model_count} models)")
+
+        except Exception as e:
+            self.log_message(f"Error loading COL: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    def _open_txd_workshop(self, file_path=None): #vers 2
+        """Open TXD Workshop - connects to tab switching"""
+        from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+
+        if not file_path:
+            if hasattr(self, 'current_img') and self.current_img:
+                file_path = self.current_img.file_path
+
+        workshop = open_txd_workshop(self, file_path)
+
+        if workshop:
+            if not hasattr(self, 'txd_workshops'):
+                self.txd_workshops = []
+
+            self.txd_workshops.append(workshop)
+
+            # Connect workshop to tab changes
+            self.main_tab_widget.currentChanged.connect(
+                lambda idx: self._update_workshop_on_tab_change(workshop, idx)
+            )
+
+            workshop.workshop_closed.connect(lambda: self._on_workshop_closed(workshop))
+            self.log_message(f"Workshop opened and connected ({len(self.txd_workshops)} total)")
+
+        return workshop
+
+
+    def _update_workshop_on_tab_change(self, workshop, tab_index): #vers 3
+        """Update specific workshop when tab changes"""
+        if not workshop or not workshop.isVisible():
+            return
+
+        tab_widget = self.main_tab_widget.widget(tab_index)
+        if not tab_widget:
+            return
+
+        file_path = getattr(tab_widget, 'file_path', None)
+        if file_path:
+            from apps.methods.txd_reader import TEXTURE_EXTS
+            if file_path.lower().endswith(TEXTURE_EXTS):
+                # Only open standalone TXD if workshop doesn't have an IMG loaded
+                if not getattr(workshop, 'current_img', None):
+                    workshop.open_txd_file(file_path)
+            elif file_path.lower().endswith('.img'):
+                # Only reload IMG if it's a different one
+                current_img = getattr(workshop, 'current_img', None)
+                current_path = getattr(current_img, 'file_path', None) if current_img else None
+                if current_path != file_path:
+                    workshop.load_from_img_archive(file_path)
+
+    def _on_workshop_closed(self, workshop): #vers 1
+        """Remove closed workshop from tracking list"""
+        if hasattr(self, 'txd_workshops') and workshop in self.txd_workshops:
+            self.txd_workshops.remove(workshop)
+            self.log_message(f"Workshop closed ({len(self.txd_workshops)} remaining)")
+
+
+    def open_file_dialog(self): #vers 9
+        """Unified open dialog - apps/core/open.py."""
+        return open_file_dialog(self)
+
+    def _on_img_load_progress(self, progress: int, status: str): #vers 5
+        """Handle IMG loading progress updates - UPDATED: Uses unified progress system"""
+        try:
+            from apps.methods.progressbar_functions import update_progress
+            update_progress(self, progress, status)
+        except ImportError:
+            # Fallback for systems without unified progress
+            self.log_message(f"Progress: {progress}% - {status}")
+
+
+    def _update_ui_for_no_img(self): #vers 6
+        """Update UI when no IMG file is loaded - UPDATED: Uses unified progress system"""
+        # Clear current data
+        self.current_img = None
+        self.current_col = None
+        self.current_txd = None
+
+        # Update window title
+        self.setWindowTitle(f"{App_name} - {get_full_build()} ({App_auth})")
+
+        # Clear table if it exists
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
+            self.gui_layout.table.setRowCount(0)
+
+        # Reset progress using unified system
+        try:
+            from apps.methods.progressbar_functions import hide_progress
+            hide_progress(self, "Ready")
+        except ImportError:
+            # Fallback for old systems
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, "Ready")
+
+        # Update file info
+        if hasattr(self.gui_layout, 'update_img_info'):
+            self.gui_layout.update_img_info("No IMG loaded")
+
+        # Reset status bar
+        if hasattr(self, 'set_ready_status'):
+            self.set_ready_status()
+
+        # Reset any status labels
+        if hasattr(self, 'file_path_label'):
+            self.file_path_label.setText("No file loaded")
+        if hasattr(self, 'version_label'):
+            self.version_label.setText("---")
+        if hasattr(self, 'entry_count_label'):
+            self.entry_count_label.setText("0")
+        if hasattr(self, 'img_status_label'):
+            self.img_status_label.setText("No IMG loaded")
+
+        # Disable buttons that require an IMG to be loaded
+        buttons_to_disable = [
+            'close_img_btn', 'rebuild_btn', 'rebuild_as_btn', 'validate_btn',
+            'import_btn', 'export_all_btn', 'export_selected_btn'
+        ]
+
+        for btn_name in buttons_to_disable:
+            if hasattr(self.gui_layout, btn_name):
+                button = getattr(self.gui_layout, btn_name)
+                if hasattr(button, 'setEnabled'):
+                    button.setEnabled(False)
+
+    def _on_img_load_error(self, error_message: str, tab_index: int = -1): #vers 6
+        """Handle IMG loading error — close the empty tab that was created."""
+        self.log_message(f" {error_message}")
+        # Remove the empty tab that was pre-created for this file
+        if tab_index >= 0 and hasattr(self, 'main_tab_widget'):
+            try:
+                if tab_index < self.main_tab_widget.count():
+                    self.main_tab_widget.removeTab(tab_index)
+            except Exception:
+                pass
+
+        # Hide progress using unified system
+        try:
+            from apps.methods.progressbar_functions import hide_progress
+            hide_progress(self, "Load failed")
+        except ImportError:
+            # Fallback for old systems
+            if hasattr(self.gui_layout, 'hide_progress'):
+                self.gui_layout.hide_progress()
+
+        if not getattr(self.sender(), '_batch', False):   # batch loads log in one window
+            QMessageBox.critical(self, "IMG Load Error", error_message)
+
+    # Add this to __init__ method after GUI creation:
+
+
+
+    def _on_load_progress(self, progress: int, status: str): #vers 4
+        """Handle loading progress updates"""
+        if hasattr(self.gui_layout, 'show_progress'):
+            self.gui_layout.show_progress(progress, status)
+        else:
+            self.log_message(f"Progress: {progress}% - {status}")
+
+
+
+
+    def _on_col_loaded(self, col_file): #vers 1 #Restore
+        """Handle COL file loaded - UPDATED with styling"""
+        try:
+            self.current_col = col_file
+            # Store COL file in tab tracking
+            current_index = self.main_tab_widget.currentIndex()
+
+            if hasattr(self, 'open_files') and current_index in self.open_files:
+                self.open_files[current_index]['file_object'] = col_file
+                self.log_message(f"COL file object stored in tab {current_index}")
+
+            # Apply COL tab styling if available
+            if hasattr(self, '_apply_individual_col_tab_style'):
+                self._apply_individual_col_tab_style(current_index)
+
+            # Update file info in open_files (same as IMG)
+            if current_index in self.open_files:
+                self.open_files[current_index]['file_object'] = col_file
+                self.log_message(f"Updated tab {current_index} with loaded COL")
+            else:
+                # Show warning icon on the tab if possible
+                try:
+                    from apps.methods.imgfactory_svg_icons import get_warning_icon
+                    warning_icon = get_warning_icon()
+                    self.main_tab_widget.setTabIcon(current_index, warning_icon)
+                except:
+                    pass  # Fallback to just the log message if icon setting fails
+                self.log_message(f"Tab {current_index} not found in open_files")
+
+            # Apply enhanced COL tab styling after loading
+            if hasattr(self, '_apply_individual_col_tab_style'):
+                self._apply_individual_col_tab_style(current_index)
+
+            # Update UI for loaded COL
+            if hasattr(self, '_update_ui_for_loaded_col'):
+                self._update_ui_for_loaded_col()
+
+            # Update window title to show current file
+            file_name = os.path.basename(col_file.file_path) if hasattr(col_file, 'file_path') else "Unknown COL"
+            self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+
+            model_count = len(col_file.models) if hasattr(col_file, 'models') and col_file.models else 0
+            self.log_message(f"Loaded: {file_name} ({model_count} models)")
+
+            # Hide progress and show COL-specific status
+            if hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, f"COL loaded: {model_count} models")
+
+        except Exception as e:
+            self.log_message(f"Error in _on_col_loaded: {str(e)}")
+            if hasattr(self, '_on_col_load_error'):
+                self._on_col_load_error(str(e))
+
+
+
+    def _on_load_progress(self, progress: int, status: str): #vers 2 #Restore
+        """Handle loading progress updates"""
+        if hasattr(self.gui_layout, 'show_progress'):
+            self.gui_layout.show_progress(progress, status)
+        else:
+            self.log_message(f"Progress: {progress}% - {status}")
+
+
+    def _on_img_loaded(self, img_file, tab_index: int = -1): #vers 5
+        """Handle IMG loading completion — tab_index comes from the thread signal."""
+        try:
+            self.current_img = img_file
+
+            # Use the tab_index carried by the thread signal.
+            # Fall back to the current tab only if no index was provided
+            # (e.g. legacy callers that still use the old signal signature).
+            if tab_index < 0:
+                tab_index = getattr(self, '_loading_img_tab_index', None)
+            if tab_index is None or tab_index < 0:
+                tab_index = self.main_tab_widget.currentIndex()
+
+            tab_widget = self.main_tab_widget.widget(tab_index)
+
+            if tab_widget:
+                tab_widget.file_object = img_file
+                tab_widget.file_type = 'IMG'
+                self.log_message(f"IMG stored on tab {tab_index}")
+
+            # Get this tab's table widget
+            from PyQt6.QtWidgets import QTableWidget
+
+            table = getattr(tab_widget, 'table_ref', None)
+
+            if table is None and tab_widget:
+                tables = tab_widget.findChildren(QTableWidget)
+                table = tables[0] if tables else None
+
+            if table:
+                self._populate_img_table_widget(table, img_file)
+                # Sync gui_layout.table so all core/ files see the active table
+                if hasattr(self, 'gui_layout'):
+                    self.gui_layout.table = table
+
+                # Hybrid load: if pairing data is waiting, fill the COL column now
+                pending = getattr(self, '_pending_hybrid_pairs', None)
+                if pending is not None and table:
+                    try:
+                        from apps.methods.populate_img_table import populate_col_column, apply_xref_tooltips
+                        col_hits = populate_col_column(table, pending)
+                        total = len([p for p in pending if p[0] is not None])
+                        self.log_message(
+                            f"Hybrid: COL column filled — "
+                            f"{col_hits} matched, {total - col_hits} missing"
+                        )
+
+                        # Push matched stems into xref.col_stems so tooltip_for()
+                        # stops reporting "missing col" for entries hybrid found
+                        dat_browser = getattr(self, "dat_browser", None)
+                        xref = getattr(dat_browser, "xref", None) if dat_browser else None
+                        if xref is not None:
+                            for entry, source in pending:
+                                if source is not None:
+                                    name = getattr(entry, "name", "") or ""
+                                    stem = name.lower().rsplit(".", 1)[0]
+                                    xref.col_stems.add(stem)
+                            # Re-apply tooltips so hover text reflects the update
+                            apply_xref_tooltips(table, xref)
+
+                    except Exception as e:
+                        self.log_message(f"Hybrid: COL column error: {e}")
+                    finally:
+                        self._pending_hybrid_pairs = None
+
+            # Update window title + tab header label
+            file_name = os.path.basename(img_file.file_path)
+            self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+            # Sync the inline tab header label
+            if tab_widget and hasattr(tab_widget, 'tab_name_lbl'):
+                tab_widget.tab_name_lbl.setText(file_name)
+            # Sync the QTabBar tab text
+            if 0 <= tab_index < self.main_tab_widget.count():
+                self.main_tab_widget.setTabText(tab_index, file_name)
+
+            # Update UI for loaded IMG
+            if hasattr(self, '_update_ui_for_loaded_img'):
+                self._update_ui_for_loaded_img()
+
+            # Load and apply pinned entries
+            if hasattr(self.gui_layout, 'load_and_apply_pins') and img_file and img_file.file_path:
+                self.gui_layout.load_and_apply_pins(img_file.file_path)
+
+            # Apply pinned status to entries in the IMG file object itself
+            if img_file and img_file.file_path:
+                from apps.core.pin_entries import load_pin_file
+                pin_data = load_pin_file(img_file.file_path)
+                for entry in img_file.entries:
+                    entry_name = getattr(entry, 'name', '')
+                    entry_data = pin_data.get("entries", {}).get(entry_name, {})
+                    if entry_data.get("pinned", False):
+                        entry.is_pinned = True
+
+            # Log success
+            entry_count = len(img_file.entries) if img_file.entries else 0
+            self.log_message(f"Loaded: {file_name} ({entry_count} entries)")
+
+            # Update status bar
+            if hasattr(self, 'update_img_status'):
+                self.update_img_status(img_file=img_file)
+
+            # Hide progress
+            if hasattr(self.gui_layout, 'hide_progress'):
+                self.gui_layout.hide_progress()
+
+            # Now that file_object is set, register/refresh this tab's
+            # taskbar button and make sure the tab area isn't collapsed
+            if hasattr(self, '_sync_img_taskbar_buttons'):
+                self._sync_img_taskbar_buttons(tab_index)
+            if hasattr(self, '_ensure_tab_area_visible'):
+                self._ensure_tab_area_visible()
+
+        except Exception as e:
+            self.log_message(f"Error in _on_img_loaded: {str(e)}")
+
+
+    def _populate_img_table_widget(self, table, img_file): #vers 1
+        """Populate a specific table widget with IMG entries"""
+        self._populate_real_img_table(img_file, table=table)
+
+
+    def _populate_real_img_table(self, img_file: IMGFile, table=None): #vers 6
+        """Populate table with real IMG file entries - for SA format display with Date column"""
+
+        if not img_file or not img_file.entries:
+            if table:
+                table.setRowCount(0)
+            else:
+                self.gui_layout.table.setRowCount(0)
+            return
+
+        if table is None:
+            table = self.gui_layout.table
+        entries = img_file.entries
+
+        # Set up columns: 9 standard + optional Source column for LVZ/DTZ
+        from apps.methods.img_core_classes import IMGVersion
+        _is_stream_fmt = (hasattr(img_file, 'version') and img_file.version in (
+            IMGVersion.VERSION_PS2_LVZ,
+            IMGVersion.VERSION_DTZ_VCS,
+            IMGVersion.VERSION_DTZ_LCS,
+        ))
+        _ncols = 12 if _is_stream_fmt else 11
+        table.setColumnCount(_ncols)
+        if _is_stream_fmt:
+            table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "Source", "IDE Model", "IDE TXD"])
+        else:
+            table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "IDE Model", "IDE TXD"])
+        if img_file.version in (IMGVersion.VERSION_3, IMGVersion.VERSION_3_ENC):
+            table.horizontalHeaderItem(5).setText("Rage Flags")
+            table.horizontalHeaderItem(6).setText("Rage Version")
+        # Hide IDE columns until xref loads
+        ide_col = _ncols - 2
+        table.setColumnHidden(ide_col, True)
+        table.setColumnHidden(ide_col + 1, True)
+
+        # Clear existing data (including sample entries)
+        table.setRowCount(0)
+        table.setRowCount(len(entries))
+
+        for row, entry in enumerate(entries):
+            try:
+                # Name - column 0
+                clean_name = str(entry.name).strip() if hasattr(entry, 'name') else f"Entry_{row}"
+                table.setItem(row, 0, QTableWidgetItem(clean_name))
+
+                # Type - column 1 (previously called Extension)
+                if hasattr(entry, 'extension') and entry.extension:
+                    extension = entry.extension
+                else:
+                    # Fallback extraction
+                    if '.' in clean_name:
+                        extension = clean_name.split('.')[-1].upper()
+                        extension = ''.join(c for c in extension if c.isalpha())
+                    else:
+                        extension = "NO_EXT"
+                table.setItem(row, 1, QTableWidgetItem(extension))
+
+                # Date - column 2 - shows last modification date
+                date_text = getattr(entry, 'date_modified', "")
+                table.setItem(row, 2, QTableWidgetItem(date_text))
+
+                # Size - column 3 (previously column 2)
+                try:
+                    if hasattr(entry, 'size') and entry.size:
+                        size_bytes = int(entry.size)
+                        if size_bytes < 1024:
+                            size_text = f"{size_bytes} B"
+                        elif size_bytes < 1024 * 1024:
+                            size_text = f"{size_bytes / 1024:.1f} KB"
+                        else:
+                            size_text = f"{size_bytes / (1024 * 1024):.1f} MB"
+                    else:
+                        size_text = "0 B"
+                except:
+                    size_text = "Unknown"
+                table.setItem(row, 3, QTableWidgetItem(size_text))
+
+                # Offset - column 4 (previously column 3)
+                try:
+                    if hasattr(entry, 'offset') and entry.offset is not None:
+                        offset_text = f"0x{int(entry.offset):X}"
+                    else:
+                        offset_text = "0x0"
+                except:
+                    offset_text = "0x0"
+                table.setItem(row, 4, QTableWidgetItem(offset_text))
+
+                # RW Address - column 5 (raw RW version hex from header)
+                try:
+                    if hasattr(entry, 'rw_version') and entry.rw_version and entry.rw_version > 0:
+                        rw_addr_text = f"0x{int(entry.rw_version):08X}"
+                    else:
+                        rw_addr_text = "N/A"
+                except:
+                    rw_addr_text = "N/A"
+                table.setItem(row, 5, QTableWidgetItem(rw_addr_text))
+
+                # RW Version - column 6 (previously column 4)
+                try:
+                    if extension in ['DFF', 'TXD']:
+                        if hasattr(entry, 'get_version_text') and callable(entry.get_version_text):
+                            version_text = entry.get_version_text()
+                        elif hasattr(entry, 'rw_version') and entry.rw_version > 0:
+                            # FIXED: Use proper RW version mapping
+                            rw_versions = {
+                                # ---- Canonical SDK versions ----
+                                0x30000: "3.0.0.0",
+                                0x31000: "3.1.0.0",
+                                0x31001: "3.1.0.1",
+                                0x32000: "3.2.0.0",
+                                0x33002: "3.3.0.2",
+                                0x34001: "3.4.0.1", #(Manhunt / SOL)
+                                0x34003: "3.4.0.3",
+                                0x35000: "3.5.0.0", #(Internal / Dev)
+                                0x35001: "3.5.0.1", #(LCS / MDL)
+                                0x35002: "3.5.0.2", #(VCS)
+                                0x36003: "3.6.0.3", #(SA / Bully)
+                                0x37002: "3.7.0.2",
+
+                                # ---- Extended / platform-packed forms ----
+                                0x0800FFFF: "3.0.0.0", #GTA3 (PS2)
+                                0x0C00FFFF: "3.1.0.0", #GTA3/VC (PC)
+                                0x0C01FFFF: "3.1.0.1", #GTA VC (PC)
+                                0x0C02FFFF: "3.1.0.2", #GTA III PC / GTA VC (PS2)
+                                0x1000FFFF: "3.2.0.0", #GTA3 (PC)
+                                0x1003FFFF: "3.2.0.3", #GTA3 (PC TXD)
+                                0x1005FFFF: "3.2.0.5", #GTA VC (PC)
+                                0x1402FFFF: "3.3.0.2", #GTA3/VC (PS2)
+                                0x1401FFFF: "3.4.0.1", #Manhunt / SOL
+                                0x1403FFFF: "3.4.0.3", #GTA VC (late)
+                                0x1800FFFF: "3.5.0.0", #Internal Dev (SA Alpha)
+                                0x1801FFFF: "3.5.0.1", #Internal Dev (LCS)
+                                0x1802FFFF: "3.5.0.2", #Internal Dev (VCS)
+                                0x1803FFFF: "3.6.0.3", #GTA SA (PC)
+                                0x1C020037: "3.7.0.2", #San Andreas Mobile / PSP
+                            }
+
+                            if entry.rw_version in rw_versions:
+                                version_text = f"RW {rw_versions[entry.rw_version]}"
+                            else:
+                                # Show hex for unknown versions
+                                version_text = f"RW 0x{entry.rw_version:X}"
+                        else:
+                            version_text = "Unknown"
+                    elif extension == 'COL':
+                        version_text = "COL"
+                    elif extension == 'IFP':
+                        version_text = "IFP"
+                    else:
+                        version_text = "Unknown"
+                except:
+                    version_text = "Unknown"
+                if hasattr(entry, 'v3_type'):           # GTA IV: Rage resource version
+                    from apps.methods.rw_versions import rage_version_text
+                    version_text = (rage_version_text(entry.v3_type) if entry.v3_resource
+                                    else f"{extension} File")
+                    rw_addr_text = f"0x{entry.v3_flags:08X}" if entry.v3_resource else "N/A"
+                    table.setItem(row, 5, QTableWidgetItem(rw_addr_text))
+                table.setItem(row, 6, QTableWidgetItem(version_text))
+
+                # Compression - column 7 (previously column 5)
+                try:
+                    _ct = getattr(entry, 'compression_type', None)
+                    # Strip enum class prefix e.g. "CompressionType.LZA" -> "LZA"
+                    _cts = str(_ct).split('.')[-1] if _ct is not None else 'NONE'
+                    compression_text = 'None' if _cts.upper() in ('NONE', 'NOCOMPRESSION', '') else _cts
+                except:
+                    compression_text = 'None'
+                table.setItem(row, 7, QTableWidgetItem(compression_text))
+
+                # Status - column 8 (previously column 6)
+                try:
+                    if hasattr(entry, 'is_new_entry') and entry.is_new_entry:
+                        status_text = "New"
+                    elif hasattr(entry, 'is_replaced') and entry.is_replaced:
+                        status_text = "Modified"
+                    elif hasattr(entry, 'is_pinned') and entry.is_pinned:
+                        status_text = "Pinned"
+                    else:
+                        status_text = "Ready"
+                except:
+                    status_text = "Ready"
+                table.setItem(row, 8, QTableWidgetItem(status_text))
+
+                # Source - column 9 (only for LVZ/DTZ streaming formats)
+                if _is_stream_fmt:
+                    try:
+                        source_text = getattr(entry, '_source_ref', '')
+                        if not source_text:
+                            # Build source reference from file path + offset
+                            _src_file = getattr(entry, '_source_img',
+                                        os.path.basename(img_file.file_path) if hasattr(img_file, 'file_path') else '')
+                            _src_name = os.path.basename(_src_file) if _src_file else ''
+                            cd_sec = getattr(entry, 'cd_sector', None)
+                            if cd_sec is not None:
+                                source_text = f'{_src_name} @ sector {cd_sec}'
+                            elif entry.offset:
+                                source_text = f'{_src_name} @ 0x{int(entry.offset):X}'
+                            else:
+                                source_text = _src_name
+                    except Exception:
+                        source_text = ''
+                    table.setItem(row, 9, QTableWidgetItem(source_text))
+
+                # Apply row colour for new/replaced/pinned entries
+                is_new = hasattr(entry, 'is_new_entry') and entry.is_new_entry
+                is_replaced = hasattr(entry, 'is_replaced') and entry.is_replaced
+                is_pinned = hasattr(entry, 'is_pinned') and entry.is_pinned
+                if is_new or is_replaced:
+                    from apps.core.undo_system import get_import_row_colours
+                    from PyQt6.QtGui import QBrush
+                    row_bg, row_fg = get_import_row_colours(self, replaced=is_replaced)
+                    for col in range(9):
+                        cell = table.item(row, col)
+                        if not cell:
+                            cell = QTableWidgetItem("")
+                            table.setItem(row, col, cell)
+                        cell.setBackground(QBrush(row_bg))
+                        cell.setForeground(QBrush(row_fg))
+                elif is_pinned:
+                    from apps.core.undo_system import get_pin_row_colours
+                    from PyQt6.QtGui import QBrush
+                    pin_bg, pin_fg = get_pin_row_colours(self)
+                    for col in range(9):
+                        cell = table.item(row, col)
+                        if not cell:
+                            cell = QTableWidgetItem("")
+                            table.setItem(row, col, cell)
+                        cell.setBackground(QBrush(pin_bg))
+                        cell.setForeground(QBrush(pin_fg))
+                # Make all items read-only
+                for col in range(9):
+                    item = table.item(row, col)
+                    if item:
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+            except Exception as e:
+                self.log_message(f"âŒ Error populating row {row}: {str(e)}")
+                # Create minimal fallback row
+                table.setItem(row, 0, QTableWidgetItem(f"Entry_{row}"))
+                table.setItem(row, 1, QTableWidgetItem("UNKNOWN"))
+                table.setItem(row, 2, QTableWidgetItem("0 B"))
+                table.setItem(row, 3, QTableWidgetItem("0x0"))
+                table.setItem(row, 4, QTableWidgetItem("Unknown"))
+                table.setItem(row, 5, QTableWidgetItem("None"))
+                table.setItem(row, 6, QTableWidgetItem("Error"))
+
+        self.log_message(f"Table populated with {len(entries)} entries (SA format parser fixed)")
+
+        # Apply DAT cross-reference tooltips if a DAT has been loaded
+        try:
+            dat_browser = getattr(self, "dat_browser", None)
+            xref = getattr(dat_browser, "xref", None) if dat_browser else None
+            if xref:
+                from apps.methods.populate_img_table import apply_xref_tooltips
+                hits = apply_xref_tooltips(table, xref)
+                if hits:
+                    self.log_message(f"XRef tooltips: {hits} entries cross-referenced")
+        except Exception:
+            pass
+
+        # Restore saved column widths
+        try:
+            from apps.methods.column_width_manager import apply_column_widths
+            apply_column_widths(table, "img", self)
+        except Exception:
+            pass
+
+
+    def _on_load_error(self, error_message): #vers 2
+        """Handle loading error from background thread"""
+        try:
+            self.log_message(f"Loading error: {error_message}")
+
+            # Hide progress - CHECK if method exists first
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, "Error loading file")
+
+            # Reset UI to no-file state
+            self._update_ui_for_no_img()
+
+            # Show error dialog
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Loading Error",
+                f"Failed to load IMG file:\n\n{error_message}")
+
+        except Exception as e:
+            self.log_message(f"Error in _on_load_error: {str(e)}")
+
+
+    def close_all_img(self):
+        """Close all IMG files - Wrapper for close_all_tabs"""
+        try:
+            if hasattr(self, 'close_manager') and self.close_manager:
+                self.close_manager.close_all_tabs()
+            else:
+                self.log_message("Close manager not available")
+        except Exception as e:
+            self.log_message(f"Error in close_all_img: {str(e)}")
+
+
+
+
+    def import_files(self):
+        """Import files into current IMG"""
+        if not self.current_img:
+            QMessageBox.warning(self, "No IMG", "No IMG file is currently loaded.")
+            return
+
+        try:
+            file_paths, _ = QFileDialog.getOpenFileNames(
+                self, "Import Files", "", "All Files (*);;DFF Models (*.dff);;TXD Textures (*.txd);;COL Collision (*.col)")
+
+            if file_paths:
+                self.log_message(f"Importing {len(file_paths)} files...")
+
+                # Show progress - CHECK if method exists first
+                if hasattr(self.gui_layout, 'show_progress'):
+                    self.gui_layout.show_progress(0, "Importing files...")
+
+                imported_count = 0
+                skipped_pinned = []
+                imported_names = []
+                from apps.core.undo_system import set_entry_date
+                for i, file_path in enumerate(file_paths):
+                    name = os.path.basename(file_path)
+                    progress = int((i + 1) * 100 / len(file_paths))
+                    if hasattr(self.gui_layout, 'show_progress'):
+                        self.gui_layout.show_progress(progress, f"Importing {name}")
+
+                    # Check if existing entry is pinned before importing
+                    if hasattr(self.current_img, 'entries'):
+                        existing = next(
+                            (e for e in self.current_img.entries
+                             if getattr(e, 'name', '').lower() == name.lower()), None)
+                        if existing and getattr(existing, 'is_pinned', False):
+                            skipped_pinned.append(name)
+                            self.log_message(f"Skipped pinned: {name}")
+                            continue
+
+                    if hasattr(self.current_img, 'import_file'):
+                        entries_before = len(self.current_img.entries)
+                        if self.current_img.import_file(file_path):
+                            imported_count += 1
+                            imported_names.append(name)
+                            img_path = getattr(self.current_img, "file_path", None)
+                            # Stamp the newly added/replaced entry
+                            for e in self.current_img.entries:
+                                if getattr(e, 'name', '').lower() == name.lower():
+                                    set_entry_date(e, img_path)
+                                    break
+                            else:
+                                # Fallback: stamp last entry if new one was appended
+                                if len(self.current_img.entries) > entries_before:
+                                    set_entry_date(self.current_img.entries[-1], img_path)
+                            self.log_message(f"Imported: {name}")
+                    else:
+                        self.log_message(f"IMG import_file method not available")
+                        break
+
+                # Push undo for import
+                if imported_names and hasattr(self, 'undo_manager'):
+                    from apps.core.undo_system import ImportCommand
+                    self.undo_manager.push(ImportCommand(self.current_img, imported_names))
+
+                # Refresh active table
+                from apps.methods.export_shared import get_active_table
+                _active_table = get_active_table(self)
+                if hasattr(self, '_populate_real_img_table'):
+                    self._populate_real_img_table(self.current_img, table=_active_table)
+                    if getattr(self.current_img, 'file_path', None):
+                        if hasattr(self.gui_layout, 'load_and_apply_pins'):
+                            self.gui_layout.load_and_apply_pins(self.current_img.file_path)
+                else:
+                    populate_img_table(_active_table or self.gui_layout.table, self.current_img)
+
+                self.log_message(f"Import complete: {imported_count}/{len(file_paths)} files imported")
+                if skipped_pinned:
+                    self.log_message(f"Skipped {len(skipped_pinned)} pinned: {', '.join(skipped_pinned[:5])}")
+
+                if hasattr(self.gui_layout, 'show_progress'):
+                    self.gui_layout.show_progress(-1, "Import complete")
+                if hasattr(self.gui_layout, 'update_img_info'):
+                    self.gui_layout.update_img_info(f"{len(self.current_img.entries)} entries")
+
+                skip_msg = f"\n{len(skipped_pinned)} pinned skipped: {', '.join(skipped_pinned[:5])}" if skipped_pinned else ""
+                QMessageBox.information(self, "Import Complete",
+                                      f"Imported {imported_count} of {len(file_paths)} files{skip_msg}")
+
+        except Exception as e:
+            error_msg = f"Error importing files: {str(e)}"
+            self.log_message(error_msg)
+            if hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, "Import error")
+            QMessageBox.critical(self, "Import Error", error_msg)
+
+    def _get_active_table(self): #vers 1
+        """Return the active tab's table widget, falling back to gui_layout.table"""
+        try:
+            from apps.methods.tab_system import get_current_active_tab_info
+            tab_info = get_current_active_tab_info(self)
+            table = tab_info.get('table_widget')
+            if table:
+                return table
+        except Exception:
+            pass
+        return getattr(self.gui_layout, 'table', None)
+
+    def _get_active_selected_rows(self): #vers 1
+        """Return deduplicated list of selected row indices from active tab's table"""
+        table = self._get_active_table()
+        if not table:
+            return []
+        seen = set()
+        rows = []
+        for item in table.selectedItems():
+            r = item.row()
+            if r not in seen:
+                seen.add(r)
+                rows.append(r)
+        return rows
+
+    def export_selected(self):
+        """Export selected entries"""
+        if not self.current_img:
+            QMessageBox.warning(self, "No IMG", "No IMG file is currently loaded.")
+            return
+
+        try:
+            selected_rows = self._get_active_selected_rows()
+            table = self._get_active_table()
+
+            if not selected_rows:
+                QMessageBox.warning(self, "No Selection", "Please select entries to export.")
+                return
+
+            export_dir = QFileDialog.getExistingDirectory(self, "Export To Folder")
+            if export_dir:
+                self.log_message(f"Exporting {len(selected_rows)} entries...")
+
+                if hasattr(self.gui_layout, 'show_progress'):
+                    self.gui_layout.show_progress(0, "Exporting...")
+
+                exported_count = 0
+                for i, row in enumerate(selected_rows):
+                    progress = int((i + 1) * 100 / len(selected_rows))
+                    entry_name = table.item(row, 0).text() if table and table.item(row, 0) else f"Entry_{row}"
+
+                    if hasattr(self.gui_layout, 'show_progress'):
+                        self.gui_layout.show_progress(progress, f"Exporting {entry_name}")
+
+                    # Check if IMG has export_entry method
+                    if hasattr(self.current_img, 'export_entry'):
+                        #if self.current_img.export_entry(row, export_dir):
+                        entry = self.current_img.entries[row]
+                        output_path = os.path.join(export_dir, entry.name)
+                        if self.current_img.export_entry(entry, output_path):
+                            exported_count += 1
+                            self.log_message(f"Exported: {entry_name}")
+                    else:
+                        self.log_message(f"IMG export_entry method not available")
+                        break
+
+                self.log_message(f"Export complete: {exported_count}/{len(selected_rows)} files exported")
+
+                if hasattr(self.gui_layout, 'show_progress'):
+                    self.gui_layout.show_progress(-1, "Export complete")
+
+                QMessageBox.information(self, "Export Complete", f"Exported {exported_count} of {len(selected_rows)} files to {export_dir}")
+
+        except Exception as e:
+            error_msg = f"Error exporting files: {str(e)}"
+            self.log_message(error_msg)
+            if hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, "Export error")
+            QMessageBox.critical(self, "Export Error", error_msg)
+
+
+    def export_all(self):
+        """Export all entries"""
+        if not self.current_img:
+            QMessageBox.warning(self, "No IMG", "No IMG file is currently loaded.")
+            return
+
+        try:
+            export_dir = QFileDialog.getExistingDirectory(self, "Export All To Folder")
+            if export_dir:
+                entry_count = len(self.current_img.entries) if hasattr(self.current_img, 'entries') and self.current_img.entries else 0
+                self.log_message(f"Exporting all {entry_count} entries...")
+
+                if hasattr(self.gui_layout, 'show_progress'):
+                    self.gui_layout.show_progress(0, "Exporting all...")
+
+                exported_count = 0
+                for i, entry in enumerate(self.current_img.entries):
+                    progress = int((i + 1) * 100 / entry_count)
+                    entry_name = getattr(entry, 'name', f"Entry_{i}")
+
+                    if hasattr(self.gui_layout, 'show_progress'):
+                        self.gui_layout.show_progress(progress, f"Exporting {entry_name}")
+
+                    # Check if IMG has export_entry method
+                    if hasattr(self.current_img, 'export_entry'):
+                        #if self.current_img.export_entry(i, export_dir):
+                        entry = self.current_img.entries[i]
+                        output_path = os.path.join(export_dir, entry.name)
+                        if self.current_img.export_entry(entry, output_path):
+                            exported_count += 1
+                            self.log_message(f"Exported: {entry_name}")
+                    else:
+                        self.log_message(f"IMG export_entry method not available")
+                        break
+
+                self.log_message(f"Export complete: {exported_count}/{entry_count} files exported")
+
+                if hasattr(self.gui_layout, 'show_progress'):
+                    self.gui_layout.show_progress(-1, "Export complete")
+
+                QMessageBox.information(self, "Export Complete", f"Exported {exported_count} of {entry_count} files to {export_dir}")
+
+        except Exception as e:
+            error_msg = f"Error exporting all files: {str(e)}"
+            self.log_message(error_msg)
+            if hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, "Export error")
+            QMessageBox.critical(self, "Export Error", error_msg)
+
+
+    def remove_selected(self):
+        """Remove selected entries"""
+        if not self.current_img:
+            QMessageBox.warning(self, "No IMG", "No IMG file is currently loaded.")
+            return
+
+        try:
+            selected_rows = self._get_active_selected_rows()
+            table = self._get_active_table()
+
+            if not selected_rows:
+                QMessageBox.warning(self, "No Selection", "Please select entries to remove.")
+                return
+
+            # Confirm removal
+            entry_names = []
+            for row in selected_rows:
+                item = table.item(row, 0) if table else None
+                entry_names.append(item.text() if item else f"Entry_{row}")
+
+            reply = QMessageBox.question(
+                self, "Confirm Removal", f"Remove {len(selected_rows)} selected entries?\n\n" + "\n".join(entry_names[:5]) +
+                (f"\n... and {len(entry_names) - 5} more" if len(entry_names) > 5 else ""),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Sort in reverse order to maintain indices
+                selected_rows.sort(reverse=True)
+
+                removed_count = 0
+                for row in selected_rows:
+                    item = table.item(row, 0) if table else None
+                    entry_name = item.text() if item else f"Entry_{row}"
+
+                    # Check if IMG has remove_entry method
+                    if hasattr(self.current_img, 'remove_entry'):
+                        if self.current_img.remove_entry(row):
+                            removed_count += 1
+                            self.log_message(f"Removed: {entry_name}")
+                    else:
+                        self.log_message(f"IMG remove_entry method not available")
+                        break
+
+                # Refresh table
+                if hasattr(self, '_populate_real_img_table'):
+                    self._populate_real_img_table(self.current_img)
+                else:
+                    populate_img_table(self.gui_layout.table, self.current_img)
+
+                self.log_message(f"Removal complete: {removed_count} entries removed")
+
+                if hasattr(self.gui_layout, 'update_img_info'):
+                    self.gui_layout.update_img_info(f"{len(self.current_img.entries)} entries")
+
+                QMessageBox.information(self, "Removal Complete",
+                                      f"Removed {removed_count} entries")
+
+        except Exception as e:
+            error_msg = f"Error removing entries: {str(e)}"
+            self.log_message(error_msg)
+            QMessageBox.critical(self, "Removal Error", error_msg)
+
+
+    def remove_all_entries(self):
+        """Remove all entries from IMG"""
+        if not self.current_img:
+            QMessageBox.warning(self, "Warning", "No IMG file loaded")
+            return
+
+        try:
+            reply = QMessageBox.question(self, "Remove All",
+                                        "Remove all entries from IMG?")
+            if reply == QMessageBox.StandardButton.Yes:
+                self.current_img.entries.clear()
+                self._update_ui_for_loaded_img()
+                self.log_message("All entries removed")
+        except Exception as e:
+            self.log_message(f"Error in remove_all_entries: {str(e)}")
+
+
+    def quick_export(self): #vers 2
+        """Quick export selected entries to Assists folder."""
+        try:
+            from apps.core.quick_export import quick_export_function
+            quick_export_function(self)
+        except Exception as e:
+            self.log_message(f"Quick export error: {str(e)}")
+
+    def close_img_file(self): #vers2
+        """Close current IMG file using installed close functions"""
+        try:
+            if hasattr(self, 'close_manager') and self.close_manager:
+                self.close_manager.close_current_file()
+            else:
+                # Fallback: clear current references
+                self.current_img = None
+                if hasattr(self, 'current_col'):
+                    self.current_col = None
+                if hasattr(self, 'current_txd'):
+                    self.current_txd = None
+                self._update_ui_for_no_img()
+        except Exception as e:
+            self.log_message(f"Error in close_img_file: {str(e)}")
+
+    def close_all_file(self): #vers2
+        """Close all files using installed close functions"""
+        try:
+            if hasattr(self, 'close_manager') and self.close_manager:
+                self.close_manager.close_all_tabs()
+            else:
+                # Fallback: clear all references
+                self.current_img = None
+                if hasattr(self, 'current_col'):
+                    self.current_col = None
+                if hasattr(self, 'current_txd'):
+                    self.current_txd = None
+                self._update_ui_for_no_img()
+        except Exception as e:
+            self.log_message(f"Error in close_all_file: {str(e)}")
+
+    def reload_current_file(self): #vers 2
+        """Reload current IMG or COL file (close and reopen) - TAB AWARE"""
+        try:
+            # Use the proper tab-aware reload function from reload module
+            from apps.core.reload import reload_current_file as proper_reload_function
+            return proper_reload_function(self)
+            
+        except Exception as e:
+            self.log_message(f"Reload failed: {str(e)}")
+            return False
+
+
+    # Add aliases for button connections To-Do
+    def reload_file(self):
+        return self.reload_current_file()
+
+    def export_selected_via(self): #vers 2
+        """Export selected entries via IDE file"""
+        from apps.core.export_via import export_via_function
+        export_via_function(self)
+
+    def quick_export_selected(self): #vers 2
+        """Quick export selected entries"""
+        from apps.core.quick_export import quick_export_function
+        quick_export_function(self)
+
+    def dump_entries(self): #vers 2
+        """Dump all entries"""
+        try:
+            from apps.core.dump import dump_all_function
+            dump_all_function(self)
+        except Exception as e:
+            self.log_message(f"Dump error: {str(e)}")
+
+
+    def import_files_via(self): #vers 2
+        """Import files via IDE file"""
+        try:
+            from apps.core.import_via import import_via_function
+            import_via_function(self)
+        except Exception as e:
+            self.log_message(f"Import via error: {str(e)}")
+
+
+    def remove_via_entries(self): #vers 2
+        """Remove entries via IDE file"""
+        try:
+            from apps.core.remove_via import remove_via_function
+            remove_via_function(self)
+        except Exception as e:
+            self.log_message(f"Remove via error: {str(e)}")
+
+
+    def pin_selected(self): #vers 1
+        """Pin selected entries to top of list"""
+        try:
+            if hasattr(self.gui_layout, 'table') and hasattr(self.gui_layout.table, 'selectionModel'):
+                selected_rows = self.gui_layout.table.selectionModel().selectedRows()
+            else:
+                selected_rows = []
+
+            if not selected_rows:
+                QMessageBox.information(self, "Pin", "No entries selected")
+                return
+
+            self.log_message(f"Pinned {len(selected_rows)} entries")
+        except Exception as e:
+            self.log_message(f"Error in pin_selected: {str(e)}")
+
+
+
+    def apply_search_and_performance_fixes(self): #vers 3
+        """Apply search and performance fixes"""
+        try:
+            self.log_message("  Applying search and performance fixes...")
+
+            # 1. Setup our new consolidated search system
+            from apps.core.gui_search import install_search_system
+            if install_search_system(self):
+                self.log_message("New search system installed")
+            else:
+                self.log_message("Search system setup failed")
+
+            # 2. COL debug control (keep your existing code)
+            try:
+                def toggle_col_debug():
+                    """Simple COL debug toggle"""
+                    try:
+                        from apps.debug.debug_functions import toggle_col_debug as _toggle
+                        _toggle()
+                        from apps.debug.debug_functions import is_col_debug_enabled
+                        if is_col_debug_enabled():
+                            self.log_message("COL debug enabled")
+                        else:
+                            self.log_message("COL debug disabled")
+
+                    except Exception as e:
+                        self.log_message(f"COL debug toggle error: {e}")
+
+                # Add to main window
+                self.toggle_col_debug = toggle_col_debug
+
+                # Start with debug disabled for performance
+                set_col_debug_enabled(False)
+
+                self.log_message("COL performance mode enabled")
+
+            except Exception as e:
+                self.log_message(f"COL setup issue: {e}")
+
+            self.log_message("Search and performance fixes applied")
+
+        except Exception as e:
+            self.log_message(f"Apply fixes error: {e}")
+
+
+    # COL and editor functions
+    def _open_col_entry_smart(self, col_name: str, table_row: int = -1): #vers 2
+        """Open a COL entry from the IMG file list.
+        Tries COL Workshop first; falls back to inline COL viewer if not installed."""
+        import os
+
+        if not self.current_img:
+            return
+
+        # Extract raw COL data from the IMG archive
+        col_data = None
+        for entry in self.current_img.entries:
+            if entry.name.lower() == col_name.lower():
+                try:
+                    col_data = self.current_img.read_entry(entry)
+                except Exception:
+                    col_data = getattr(entry, 'data', None)
+                break
+
+        #  Try COL Workshop  
+        try:
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            workshop = open_col_workshop(self, self.current_img.file_path)
+            # Try to pre-select the matching entry
+            if workshop and col_name:
+                models = getattr(getattr(workshop, 'current_col_file', None), 'models', [])
+                for i, m in enumerate(models):
+                    if getattr(m, 'name', '').lower() == col_name.lower().replace('.col',''):
+                        for lw in (getattr(workshop,'col_compact_list',None),
+                                   getattr(workshop,'collision_list',None)):
+                            if lw and lw.isVisible() and i < lw.rowCount():
+                                lw.selectRow(i)
+                                break
+                        break
+            return
+        except ImportError:
+            pass   # COL Workshop not installed — use inline viewer
+        except Exception as e:
+            self.log_message(f"COL Workshop error: {e}")
+
+        #  Fallback: inline COL info dialog
+        if not col_data:
+            self.log_message(f"Could not read COL data for {col_name}")
+            return
+
+        try:
+            from apps.methods.col_workshop_loader import COLFile
+            cf = COLFile()
+            cf.load_from_data(col_data, col_name)
+            models = cf.models
+
+            from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTableWidget,
+                QTableWidgetItem, QLabel, QPushButton, QHBoxLayout, QHeaderView)
+            from PyQt6.QtCore import Qt
+
+            dlg = QDialog(self)
+            dlg.setWindowTitle(f"COL: {col_name}  ({len(models)} models)")
+            dlg.setMinimumSize(700, 400)
+            lay = QVBoxLayout(dlg)
+
+            info = QLabel(f"<b>{col_name}</b>  —  {len(models)} collision model(s)  "
+                          f"<small>(Install COL Workshop for full editing)</small>")
+            info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lay.addWidget(info)
+
+            tbl = QTableWidget(len(models), 8)
+            tbl.setHorizontalHeaderLabels(
+                ["Name","Version","Spheres","Boxes","Vertices","Faces","Shadow V","Shadow F"])
+            tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            tbl.setAlternatingRowColors(True)
+            tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+
+            for i, m in enumerate(models):
+                ver = getattr(m.version,'name','?') if hasattr(m,'version') else '?'
+                row_data = [
+                    getattr(m,'name',''),
+                    ver,
+                    str(len(getattr(m,'spheres',[]))),
+                    str(len(getattr(m,'boxes',[]))),
+                    str(len(getattr(m,'vertices',[]))),
+                    str(len(getattr(m,'faces',[]))),
+                    str(len(getattr(m,'shadow_vertices',[]))),
+                    str(len(getattr(m,'shadow_faces',[]))),
+                ]
+                for j, val in enumerate(row_data):
+                    tbl.setItem(i, j, QTableWidgetItem(val))
+
+            lay.addWidget(tbl)
+
+            btn_row = QHBoxLayout()
+            btn_close = QPushButton("Close")
+            btn_close.clicked.connect(dlg.accept)
+            btn_row.addStretch()
+            btn_row.addWidget(btn_close)
+            lay.addLayout(btn_row)
+            dlg.exec()
+
+        except Exception as e:
+            self.log_message(f"COL inline view error: {e}")
+            import traceback; traceback.print_exc()
+
+    def _open_col_file_in_workshop(self): #vers 1
+        """File menu → Open COL in COL Workshop.
+        Shows a file dialog to pick a standalone .col file, then opens it
+        directly in the COL Workshop panel.
+        """
+        try:
+            from PyQt6.QtWidgets import QFileDialog
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            from apps.gui.gui_layout import _register_tool_taskbar, get_col_workshop_icon
+
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Open COL File in COL Workshop",
+                "", "COL Files (*.col *.COL);;All Files (*)")
+            if not file_path:
+                return
+            w = open_col_workshop(self, file_path)
+            _register_tool_taskbar(self, "col", "COL",
+                get_col_workshop_icon, "COL Workshop", w)
+            import os
+            self.log_message(f"COL Workshop: {os.path.basename(file_path)}")
+        except Exception as e:
+            self.log_message(f"Error opening COL Workshop: {e}")
+
+    def open_col_editor(self, entry=None): #vers 5
+        """Open COL Workshop with current COL data and selected entry"""
+        try:
+            from apps.components.Col_Editor.col_workshop import COLWorkshop
+
+            # Get selected COL entry name — from passed entry or table selection
+            selected_col_name = None
+            if entry is not None:
+                selected_col_name = getattr(entry, 'name', str(entry))
+            elif hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
+                table = self.gui_layout.table
+                selected_items = table.selectedItems()
+                if selected_items:
+                    row = selected_items[0].row()
+                    name_item = table.item(row, 0)
+                    if name_item:
+                        selected_col_name = name_item.text()
+
+            # Get COL/IMG path if available
+            col_path = None
+            if hasattr(self, 'current_col') and self.current_col:
+                col_path = self.current_col.file_path
+            elif hasattr(self, 'current_img') and self.current_img:
+                col_path = self.current_img.file_path
+
+            # Open docked workshop
+            workshop = self.open_col_workshop_docked()
+
+            # Load COL/IMG if available
+            if workshop and col_path:
+                if col_path.lower().endswith('.col'):
+                    workshop.open_col_file(col_path)
+                else:
+                    workshop.load_from_img_archive(col_path)
+
+                # Auto-select the entry that was clicked
+                if selected_col_name and hasattr(workshop, 'select_col_by_name'):
+                    workshop.select_col_by_name(selected_col_name)
+
+            self.log_message(f"COL Workshop opened - Selected: {selected_col_name or 'None'}")
+
+        except Exception as e:
+            self.log_message(f"Error opening COL Workshop: {str(e)}")
+
+
+    #  Tool taskbar helpers  
+
+    def register_tool(self, key: str, label: str, icon_fn,
+                      target=None, tooltip: str = "") -> None: #vers 2
+        """Register a tool in the taskbar (creates button if custom UI is active).
+
+        target can be:
+          - a QWidget  → raise/show it
+          - a callable → call it
+          - None       → updates label/icon only; use update_target later
+        If the key already exists its button is just refreshed (not duplicated).
+        """
+        if not hasattr(self, 'tool_taskbar'):
+            return
+        try:
+            colors = {}
+            if hasattr(self, 'app_settings'):
+                colors = self.app_settings.get_theme_colors() or {}
+            icon_color = colors.get('text_primary', '#cccccc')
+            icon = icon_fn(20, icon_color) if callable(icon_fn) else icon_fn
+            # If already registered just update the target
+            if self.tool_taskbar.is_registered(key) and target is not None:
+                self.tool_taskbar.update_target(key, target)
+            else:
+                self.tool_taskbar.register(key, label, icon, target, tooltip)
+            # Always re-apply theme so new buttons pick up correct colours
+            self.tool_taskbar.apply_theme(colors)
+            # Show the taskbar if it was hidden (first tool registered)
+            if not self.tool_taskbar.isVisible():
+                self.tool_taskbar.setVisible(True)
+        except Exception as e:
+            self.log_message(f"Tool taskbar register error: {e}")
+
+    def _sync_taskbar_active(self, active_key: str = "") -> None: #vers 1
+        """Light up the taskbar button matching active_key; dim all others."""
+        if not hasattr(self, 'tool_taskbar'):
+            return
+        try:
+            if active_key:
+                self.tool_taskbar._set_exclusive_active(active_key)
+            else:
+                # No active tool — clear all underlines
+                for k in list(self.tool_taskbar._tools.keys()):
+                    self.tool_taskbar.set_active(k, False)
+        except Exception:
+            pass
+
+
+    def open_ai_workshop_docked(self): #vers 1
+        """Open AI Workshop embedded as a tab in IMG Factory"""
+        try:
+            from apps.components.Ai_Workshop.ai_workshop import AIWorkshop
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+                # No tab widget - open standalone
+                self.open_ai_workshop_standalone()
+                return None
+
+            # Check if AI Workshop tab is already open
+            for i in range(self.main_tab_widget.count()):
+                widget = self.main_tab_widget.widget(i)
+                if widget:
+                    workshops = widget.findChildren(AIWorkshop)
+                    if workshops:
+                        self.main_tab_widget.setCurrentIndex(i)
+                        self.log_message("AI Workshop already open - switched to tab")
+                        return workshops[0]
+
+            # Create tab container
+            tab_container = QWidget()
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+
+            workshop = AIWorkshop(tab_container, self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tab_layout.addWidget(workshop)
+
+            # Add tab with icon if available
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                icon = SVGIconFactory().info_icon()
+                idx = self.main_tab_widget.addTab(tab_container, icon, "AI Workshop")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "AI Workshop")
+
+            self.main_tab_widget.setCurrentIndex(idx)
+            workshop.show()
+            self.log_message("AI Workshop opened (docked)")
+            # Register in tool taskbar
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            self.register_tool("ai", "AI", SVGIconFactory.ai_icon,
+                               tab_container, "AI Workshop — local LLM chat")
+            return workshop
+
+        except Exception as e:
+            self.log_message(f"Error opening AI Workshop: {str(e)}")
+            return None
+
+
+    def open_ai_workshop_standalone(self): #vers 1
+        """Open AI Workshop as a standalone floating window"""
+        try:
+            from apps.components.Ai_Workshop.ai_workshop import AIWorkshop
+
+            workshop = AIWorkshop(None, self)
+            workshop.setWindowFlags(Qt.WindowType.Window)
+            workshop.setWindowTitle("AI Workshop")
+            workshop.resize(1300, 800)
+            workshop.show()
+            workshop.raise_()
+
+            if not hasattr(self, 'ai_workshops'):
+                self.ai_workshops = []
+            self.ai_workshops.append(workshop)
+            workshop.window_closed.connect(
+                lambda: self.ai_workshops.remove(workshop) if workshop in self.ai_workshops else None
+            )
+
+            self.log_message("AI Workshop opened (standalone)")
+            return workshop
+
+        except Exception as e:
+            self.log_message(f"Error opening AI Workshop standalone: {str(e)}")
+            return None
+
+
+
+
+    def open_ipl_editor(self): #vers 2
+        """Open IPL Workshop docked in a tab."""
+        try:
+            from apps.components.Ipl_Editor.ipl_workshop import open_ipl_workshop
+            open_ipl_workshop(self)
+        except Exception as e:
+            import traceback
+            self.log_message(f"IPL Workshop error: {e}")
+            traceback.print_exc()
+
+    def _register_intro_tool(self): #vers 1
+        """Register [Intro] taskbar button to open welcome screen in left panel."""
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            from apps.gui.gui_layout_custom import _show_intro_panel
+            _icon_fn = SVGIconFactory.info_icon
+            def _show():
+                _show_intro_panel(self)
+            if hasattr(self, 'register_tool') and _icon_fn:
+                self.register_tool('intro', 'Intro', _icon_fn,
+                                   _show, 'Show welcome / intro screen')
+            # Auto-show on startup if preference set — wait for UI to fully settle
+            try:
+                from apps.components.Img_Factory.welcome_screen import WelcomeScreen
+                if WelcomeScreen.should_show_on_startup():
+                    # Guard: only auto-show once per session
+                    if not getattr(self, '_intro_auto_shown', False):
+                        self._intro_auto_shown = True
+                        from PyQt6.QtCore import QTimer
+                        QTimer.singleShot(1500, _show)
+            except Exception:
+                pass
+        except Exception as e:
+            self.log_message(f"Intro tool registration error: {e}")
+
+    def toggle_dir_tree(self): #vers 3
+        """Delegate to _show_dir_tree which uses left_stack."""
+        try:
+            from apps.gui.gui_layout_custom import _show_dir_tree
+            _show_dir_tree(self)
+        except Exception as e:
+            self.log_message(f"Dir tree error: {e}")
+
+
+    def _apply_tab_theme(self): #vers 3
+        """Apply theme colours to main_tab_widget tab bar.
+
+        Sets the stylesheet directly on tabBar() (not the QTabWidget) so it
+        wins over the global QApplication stylesheet from apply_theme_to_app.
+        Identical visual to app_settings_system tabs.
+        """
+        if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+            return
+        try:
+            colors = self.app_settings.get_theme_colors() or {} if hasattr(self, 'app_settings') else {}
+            bg_p  = colors.get('bg_primary',     '#ffffff')
+            bg_s  = colors.get('bg_secondary',   '#f5f5f5')
+            txt_p = colors.get('text_primary',   '#000000')
+            txt_s = colors.get('text_secondary', '#666666')
+            acc   = colors.get('accent_primary', '#1976d2')
+            acc2  = colors.get('accent_secondary','#1565c0')
+            hover = colors.get('button_hover',   '#e0e0e0')
+            brd   = colors.get('border',         '#cccccc')
+
+            # Single stylesheet on QTabWidget — includes both tab bar AND pane rules.
+            # Must be ONE call; a second setStyleSheet() call resets the first.
+            # Using QTabWidget QTabBar::tab (child selector) keeps specificity
+            # high enough to beat the global QApplication stylesheet.
+            self.main_tab_widget.setStyleSheet(f"""
+                QTabWidget::pane {{
+                    border-top: 1px solid {brd};
+                    margin-top: 0px;
+                    background-color: {bg_p};
+                }}
+                QTabWidget > QTabBar::tab {{
+                    background-color: {bg_s};
+                    border: 1px solid {brd};
+                    border-bottom: 3px solid transparent;
+                    padding: 5px 14px;
+                    color: {txt_s};
+                    margin-bottom: 0px;
+                    margin-right: 2px;
+                }}
+                QTabWidget > QTabBar::tab:selected {{
+                    background-color: {bg_p};
+                    color: {txt_p};
+                    border-bottom: 3px solid {acc};
+                    font-weight: bold;
+                }}
+                QTabWidget > QTabBar::tab:hover:!selected {{
+                    background-color: {hover};
+                    color: {txt_p};
+                    border-bottom: 3px solid {acc2};
+                }}
+            """)
+            self._apply_tab_content_mode()
+        except Exception as e:
+            self.log_message(f"Tab theme error: {e}")
+
+    def _apply_tab_content_mode(self): #vers 1
+        """Set tabs to show icon+text, icon only, or text only."""
+        if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+            return
+        try:
+            mode = "both"
+            if hasattr(self, 'img_settings'):
+                mode = self.img_settings.get("tab_content_mode", "both")
+            tw = self.main_tab_widget
+            from PyQt6.QtWidgets import QTabBar
+            tb = tw.tabBar()
+            for i in range(tw.count()):
+                icon = tw.tabIcon(i)
+                text = tw.tabText(i)
+                has_icon = not icon.isNull()
+                if mode == "icon" and has_icon:
+                    tw.setTabText(i, "")
+                    tw.setTabToolTip(i, text)
+                elif mode == "text":
+                    from PyQt6.QtGui import QIcon
+                    tw.setTabIcon(i, QIcon())
+                    if not text:
+                        tw.setTabText(i, tw.tabToolTip(i) or f"Tab {i}")
+                else:  # both
+                    if not text and tw.tabToolTip(i):
+                        tw.setTabText(i, tw.tabToolTip(i))
+        except Exception as e:
+            self.log_message(f"Tab content mode error: {e}")
+
+    def open_ide_editor(self): #vers 2
+        """Open IDE Editor — docked by default, standalone on right-click."""
+        self.open_ide_editor_docked()
+
+    def open_ide_editor_docked(self): #vers 2
+        """Open the IDE editor - it lives in the IPL Workshop's IDE tab now."""
+        try:
+            from apps.components.Ide_Editor.ide_editor import open_ide_editor
+            return open_ide_editor(self)
+        except Exception as e:
+            self.log_message(f"Error opening IDE Editor: {e}")
+
+
+
+
+
+
+    def open_vehicle_workshop_docked(self, file_path=None): #vers 1
+        """Open Vehicle Workshop docked in a tab."""
+        from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+        self._open_workshop_tab(
+            'apps.components.Vehicle_Workshop.vehicle_workshop',
+            'VehicleWorkshop', None,
+            'Vehicle Workshop', file_path)
+
+    def open_ped_workshop_docked(self, file_path=None, game_root=None): #vers 1
+        """Open Ped Workshop in a tab; game root from file or last loaded game."""
+        from apps.components.Ped_Workshop.ped_workshop import open_ped_workshop
+        return open_ped_workshop(self, game_root or getattr(self, 'game_root', '') or '', file_path)
+
+    def open_terrain_workshop_docked(self): #vers 1
+        """Open Terrain Workshop in a tab."""
+        from apps.components.Terrain_Workshop.terrain_workshop import open_terrain_workshop
+        return open_terrain_workshop(self)
+
+    def open_disc_workshop_docked(self, file_path=None): #vers 1
+        """Open Disc Workshop (CD / DVD images) in a tab."""
+        from apps.components.Disc_Workshop.disc_workshop import open_disc_workshop
+        return open_disc_workshop(self, file_path)
+
+    def open_retro_gta_workshop_docked(self, file_path=None): #vers 1
+        """Open Retro GTA Workshop (GTA2 maps / styles) in a tab."""
+        from apps.components.Retro_GTA_Workshop.retro_gta_workshop import open_retro_gta_workshop
+        return open_retro_gta_workshop(self, file_path)
+
+    def open_scm_workshop_docked(self, file_path=None): #vers 1
+        """Open SCM Workshop docked in a tab."""
+        from apps.components.Scm_Workshop.scm_workshop import open_scm_workshop
+        return open_scm_workshop(self, file_path)
+
+    def open_hex_workshop_docked(self, file_path=None): #vers 1
+        """Open Hex Workshop docked in a tab."""
+        from apps.components.Hex_Editor.hex_workshop import open_hex_workshop
+        return open_hex_workshop(self, file_path)
+
+    def open_asset_checker(self, dat_path=None): #vers 4
+        """Open Asset Workshop - prompts for a game's main .dat if
+        none given (Intro page tile has no file context of its own).
+        Needs a whole .dat, not a single file, since Asset Workshop
+        cross-references all 3 of IMG/COL/IDE together (Sep 12
+        2026, per Keith). Looks up the current project's own real
+        game_root first and offers "Continue" with that project's
+        .dat, or "Browse..." for a different one (Sep 12 2026, per
+        Keith: "Continue to load project path 'Vice-City, gta_vc.
+        dat' or browse for your own .dat file")."""
+        if not dat_path:
+            dat_path = self._find_project_dat_with_prompt()
+        if not dat_path:
+            from PyQt6.QtWidgets import QFileDialog
+            dat_path, _ = QFileDialog.getOpenFileName(
+                self, "Select game .dat file", "",
+                "GTA DAT files (gta3.dat gta_vc.dat gta.dat gta_sol.dat "
+                "gtasol.dat gta_quick.dat);;All files (*.dat)")
+            if not dat_path:
+                return
+        from apps.components.Asset_Workshop.asset_workshop import open_asset_workshop
+        open_asset_workshop(self, dat_path=dat_path)
+
+    def _find_project_dat_with_prompt(self): #vers 1
+        """Return the current project's real main .dat path if the
+        user confirms it via a Continue/Browse prompt, else None
+        (falls through to a plain file browse)."""
+        pm = getattr(self, 'project_manager', None)
+        if not pm or not pm.current_project:
+            return None
+        settings = pm.get_project_settings(pm.current_project)
+        game_root = settings.get('game_root', '')
+        if not game_root or not os.path.isdir(game_root):
+            return None
+        try:
+            from apps.methods.gta_dat_parser import detect_game, find_dat_file
+            game = detect_game(game_root)
+            if not game:
+                return None
+            dat_path = find_dat_file(game_root, game)
+            if not dat_path or not os.path.isfile(dat_path):
+                return None
+        except Exception:
+            return None
+
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setWindowTitle("Asset Checker")
+        box.setText(
+            f"Continue to load project path '{pm.current_project}, "
+            f"{os.path.basename(dat_path)}' or browse for your own .dat file?")
+        continue_btn = box.addButton("Continue", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Browse...", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        return dat_path if box.clickedButton() == continue_btn else None
+
+    def open_radar_map(self): #vers 7
+        """Open Radar Workshop docked in a tab (DP5 pattern), or standalone fallback."""
+        # Read before addTab - tab switch clears current_img
+        start_img = getattr(self.current_img, 'file_path', '') if self.current_img else ''
+        if not start_img:                       # DAT Browser tab active: use its game
+            start_img = self._radar_file_for_root(self._dat_browser_game_root())
+        try:
+            from apps.components.Radar_Editor.radar_workshop import RadarWorkshop
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+            # Already open as tab — switch to it
+            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                for i in range(self.main_tab_widget.count()):
+                    widget = self.main_tab_widget.widget(i)
+                    if widget:
+                        found = widget.findChildren(RadarWorkshop)
+                        if found:
+                            self.main_tab_widget.setCurrentIndex(i)
+                            self.log_message("Radar Workshop already open")
+                            return found[0]
+
+            # Docked in tab (main_tab_widget is always present in imgfactory)
+            tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"  # prevents tab_system clearing current_img
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(0)
+
+            workshop = RadarWorkshop(tab_container, self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tab_layout.addWidget(workshop)
+
+            # Add tab with radar icon
+            try:
+                icon = SVGIconFactory.radar_workshop_icon(20)
+                idx = self.main_tab_widget.addTab(tab_container, icon, "Radar")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "Radar")
+            self.main_tab_widget.setCurrentIndex(idx)
+            workshop.show()
+            # Ensure the tab area is visible (content_splitter may hide it)
+            self._ensure_tab_area_visible()
+
+            # Register in taskbar
+            try:
+                from apps.gui.gui_layout import _register_tool_taskbar
+                _register_tool_taskbar(self, "radar", "Radar",
+                    SVGIconFactory.radar_workshop_icon,
+                    "Radar Workshop — GTA radar tile editor",
+                    target=tab_container)
+            except Exception as e:
+                self.log_message(f"Radar taskbar error: {e}")
+
+            self.log_message("Radar Workshop opened (docked)")
+
+            # Pass the IMG that was current when opened
+            if start_img:
+                from pathlib import Path
+                img_path = start_img
+                if img_path and Path(img_path).exists():
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(200, lambda: workshop._open_file(img_path))
+
+            return workshop
+
+        except Exception as e:
+            import traceback
+            self.log_message(f"Radar Workshop error: {e}")
+            traceback.print_exc()
+
+    def open_paths_map(self, file_path=None): #vers 2
+        """Open Path Workshop docked in a tab."""
+        self._open_workshop_tab(
+            'apps.components.Path_Workshop.path_workshop',
+            'PathWorkshop', 'open_path_workshop',
+            'Paths', file_path)
+
+    def open_handling_editor(self, file_path=None): #vers 2
+        """Open Handling Editor docked in a tab."""
+        if file_path is None:
+            file_path = getattr(self, 'vehicle_data_paths', {}).get('handling', '')
+        self._open_workshop_tab(
+            'apps.components.Handling_Editor.handling_editor',
+            'HandlingEditor', None,
+            'Handling', file_path or None)
+
+    def open_timecyc_editor(self, file_path=None): #vers 3
+        """Open Timecyc Workshop docked in a tab."""
+        if file_path is None:
+            file_path = getattr(self, 'vehicle_data_paths', {}).get('timecyc', '')
+        self._open_workshop_tab(
+            'apps.components.Timecyc_Editor.timecyc_workshop',
+            'TimecycWorkshop', None,
+            'Timecyc', file_path or None)
+
+    def open_breakable_editor(self, file_path=None): #vers 3
+        """Open Breakable Editor docked in a tab.
+
+        No longer auto-fills a remembered object.dat path when opened
+        without one (Aug 20 2026,  "the open dialog can go,
+        let the user decide to open the objects dat") - this used to
+        silently pull self.vehicle_data_paths['object'] and, if set,
+        auto-load that file the moment the tab opened (via _open_
+        workshop_tab's own QTimer.singleShot(100, ...) call straight
+        into _open_file with a known path - not a literal dialog
+        popup, but the same real effect my report describes: the
+        tool deciding to open a file on its own rather than the user
+        choosing to). Now genuinely opens empty unless a real,
+        explicit file_path is passed in (e.g. from DAT Browser's own
+        "Object" entry, which legitimately wants to open a specific,
+        user-chosen file, not this method silently reaching for a
+        remembered default) - the person can open object.dat
+        themselves via the tool's own real Open button whenever
+        they're ready."""
+        self._open_workshop_tab(
+            'apps.components.Breakable_Editor.breakable_editor',
+            'BreakableEditor', None,
+            'Breakable', file_path or None)
+
+    def _open_workshop_tab(self, module_path, class_name, open_fn, tab_label, file_path=None): #vers 4
+        """Generic: import module, instantiate class, dock in tab. Reuses existing tab if open."""
+        try:
+            import importlib
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+            mod = importlib.import_module(module_path)
+            cls = getattr(mod, class_name)
+
+            # Reuse existing tab
+            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                for i in range(self.main_tab_widget.count()):
+                    w = self.main_tab_widget.widget(i)
+                    if w:
+                        found = w.findChildren(cls)
+                        if found:
+                            self.main_tab_widget.setCurrentIndex(i)
+                            if file_path and hasattr(found[0], '_open_file'):
+                                found[0]._open_file(file_path)
+                            return found[0]
+
+            tab_container = QWidget()
+            tab_container.file_type = 'WORKSHOP'
+            tl = QVBoxLayout(tab_container)
+            tl.setContentsMargins(0,0,0,0); tl.setSpacing(0)
+            workshop = cls(parent=tab_container, main_window=self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tl.addWidget(workshop)
+            if file_path and hasattr(workshop, '_open_file'):
+                QTimer.singleShot(100, lambda: workshop._open_file(file_path))
+            icon = workshop.windowIcon()                 # workshop app icon
+            idx = self.main_tab_widget.addTab(tab_container, icon, tab_label)
+            self.main_tab_widget.setCurrentIndex(idx)
+            self._ensure_tab_area_visible()
+            self.register_tool(class_name.lower(), tab_label.replace(' Workshop', ''), icon,
+                               tab_container, workshop.windowTitle())
+            self._sync_img_taskbar_buttons(idx)          # drop the tab's generic button
+            QTimer.singleShot(0, self._apply_panel_effects_now)
+            self.log_message(f"{tab_label} opened")
+            return workshop
+        except Exception as e:
+            self.log_message(f"{tab_label} error: {e}")
+            import traceback; traceback.print_exc()
+
+
+    def _water_file_for_img(self, img_path): #vers 2
+        """waterpro.dat / water.dat of the game owning img_path, or ''."""
+        if not img_path:
+            return ''
+        folder = os.path.dirname(os.path.abspath(img_path))
+        root = os.path.dirname(folder) if os.path.basename(folder).lower() == 'models' else folder
+        return self._water_file_for_root(root)
+
+    def _water_file_for_root(self, root): #vers 1
+        """waterpro.dat / water.dat under a game root (IV: common/data)."""
+        if not root:
+            return ''
+        from apps.methods.gta_dat_parser import _data_dir, _resolve_ci
+        hit = _resolve_ci(root, 'common/data/water.dat')
+        if hit:
+            return hit
+        data = _data_dir(root)
+        for name in ('waterpro.dat', 'water.dat'):
+            hit = _resolve_ci(data, name)
+            if hit:
+                return hit
+        return ''
+
+    def _dat_browser_game_root(self): #vers 1
+        """Game root loaded in the DAT Browser, or ''."""
+        db = getattr(self, 'dat_browser', None)
+        root = getattr(db, 'game_root', '') if db is not None else ''
+        return root if root and os.path.isdir(root) else ''
+
+    def _radar_file_for_root(self, root): #vers 1
+        """Radar source under a game root: IV radar.img, SOL radartex.img, else gta3.img."""
+        if not root:
+            return ''
+        from apps.methods.gta_dat_parser import _resolve_ci
+        for want in ('radar.img', 'radartex.img'):
+            for base, dirs, files in os.walk(root):
+                if base[len(root):].count(os.sep) >= 3:
+                    dirs[:] = []
+                hit = next((f for f in files if f.lower() == want), None)
+                if hit:
+                    return os.path.join(base, hit)
+        return _resolve_ci(root, 'models/gta3.img') or ''
+
+    def open_water_workshop(self, file_path=None): #vers 4
+        """Open Water Workshop docked in a tab (DP5 pattern), or standalone fallback."""
+        # Read before addTab - tab switch clears current_img
+        auto_path = ''
+        if not file_path:
+            auto_path = self._water_file_for_img(getattr(self.current_img, 'file_path', '')) \
+                if self.current_img else self._water_file_for_root(self._dat_browser_game_root())
+        try:
+            from apps.components.Water_Editor.water_workshop import WaterWorkshop
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+            # If already open as a tab, switch to it
+            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                for i in range(self.main_tab_widget.count()):
+                    widget = self.main_tab_widget.widget(i)
+                    if widget:
+                        found = widget.findChildren(WaterWorkshop)
+                        if found:
+                            self.main_tab_widget.setCurrentIndex(i)
+                            self.log_message("Water Workshop already open")
+                            if file_path:
+                                found[0]._load_file(file_path)
+                            return found[0]
+
+            # Docked in tab (main_tab_widget always present)
+            tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(0)
+
+            workshop = WaterWorkshop(tab_container, self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tab_layout.addWidget(workshop)
+
+            load_path = file_path or auto_path
+            if load_path:
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(100, lambda: workshop._load_file(load_path))
+
+            # Add tab with anchor icon
+            try:
+                icon = SVGIconFactory.water_workshop_icon(20)
+                idx = self.main_tab_widget.addTab(tab_container, icon, "Water")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "Water")
+            self.main_tab_widget.setCurrentIndex(idx)
+            workshop.show()
+            self._ensure_tab_area_visible()
+
+            # Register in taskbar
+            try:
+                from apps.gui.gui_layout import _register_tool_taskbar
+                _register_tool_taskbar(self, "water", "Water",
+                    SVGIconFactory.water_workshop_icon,
+                    "Water Workshop — GTA water plane editor",
+                    target=tab_container)
+            except Exception as e:
+                self.log_message(f"Water taskbar error: {e}")
+
+            self.log_message("Water Workshop opened (docked)")
+            return workshop
+
+        except Exception as e:
+            import traceback
+            self.log_message(f"Water Workshop error: {e}")
+            traceback.print_exc()
+
+    def open_capture_workshop(self): #vers 1
+        """Open Capture Workshop docked in a tab; switch to it if open."""
+        from apps.components.Capture_Workshop.capture_workshop import CaptureWorkshop
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        from PyQt6.QtWidgets import QVBoxLayout, QWidget
+        for i in range(self.main_tab_widget.count()):
+            w = self.main_tab_widget.widget(i)
+            if w and w.findChildren(CaptureWorkshop):
+                self.main_tab_widget.setCurrentIndex(i)
+                return w.findChildren(CaptureWorkshop)[0]
+        tab_container = QWidget()
+        tab_container.file_type = "WORKSHOP"
+        lay = QVBoxLayout(tab_container)
+        lay.setContentsMargins(0, 0, 0, 0)
+        workshop = CaptureWorkshop(tab_container, self)
+        workshop.setWindowFlags(Qt.WindowType.Widget)
+        lay.addWidget(workshop)
+        idx = self.main_tab_widget.addTab(tab_container, SVGIconFactory.capture_workshop_icon(20), "Capture")
+        self.main_tab_widget.setCurrentIndex(idx)
+        workshop.show()
+        self._ensure_tab_area_visible()
+        from apps.gui.gui_layout import _register_tool_taskbar
+        _register_tool_taskbar(self, "capture", "Capture", SVGIconFactory.capture_workshop_icon,
+                               "Capture Workshop - device, screen and window capture",
+                               target=tab_container)
+        self.log_message("Capture Workshop opened (docked)")
+        return workshop
+
+
+    def _ensure_tab_area_visible(self): #vers 3
+        """Ensure main_tab_widget is visible and has space in the content splitter.
+        Works whether or not an IMG file is loaded.
+        """
+        try:
+            QTimer.singleShot(0, self._apply_panel_effects_now)   # effects on new workshop tab
+            # Ensure the tab widget itself is shown
+            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                if not self.main_tab_widget.isVisible():
+                    self.main_tab_widget.setVisible(True)
+
+            gl = getattr(self, 'gui_layout', None)
+            if not gl:
+                return
+            splitter = getattr(gl, 'content_splitter', None)
+            if not splitter or splitter.count() < 2:
+                return
+
+            # Make sure the tab widget is in the splitter and visible
+            tw = self.main_tab_widget
+            for i in range(splitter.count()):
+                if splitter.widget(i) is tw:
+                    if not tw.isVisible():
+                        tw.setVisible(True)
+                    break
+
+            sizes = splitter.sizes()
+            total = sum(sizes)
+            if not total:
+                # Splitter has no size yet — set a reasonable default
+                w = self.width() or 1200
+                splitter.setSizes([0, w])
+                return
+
+            # Find the tab widget's index in the splitter
+            left_stack = getattr(gl, 'left_stack', None)
+            tab_idx = 0
+            for i in range(splitter.count()):
+                if splitter.widget(i) is not left_stack:
+                    tab_idx = i
+                    break
+
+            # Fully collapse the left panel (Intro/Dir Tree/DAT) so the
+            # workshop tab gets the whole content width
+            new_sizes = [0] * splitter.count()
+            new_sizes[tab_idx] = total
+            splitter.setSizes(new_sizes)
+            if left_stack is not None:
+                left_stack.hide()
+            if hasattr(self, 'tool_taskbar'):
+                self.tool_taskbar.set_active('intro', False)
+                self.tool_taskbar.set_active('dirtree', False)
+                self.tool_taskbar.set_active('dat', False)
+        except Exception as e:
+            self.log_message(f"_ensure_tab_area_visible error: {e}")
+
+    def validate_img(self): #vers 3
+        """Validate current IMG file"""
+        if not self.current_img:
+            QMessageBox.warning(self, "No IMG", "No IMG file is currently loaded.")
+            return
+
+        try:
+            self.log_message("Validating IMG file...")
+
+            if hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(0, "Validating...")
+
+            # Try different validation approaches
+            validation_result = None
+
+            # Method 1: Try IMGValidator class
+            try:
+                validator = IMGValidator()
+                if hasattr(validator, 'validate'):
+                    validation_result = validator.validate(self.current_img)
+                elif hasattr(validator, 'validate_img_file'):
+                    validation_result = validator.validate_img_file(self.current_img)
+            except Exception as e:
+                self.log_message(f"IMGValidator error: {str(e)}")
+
+            # Method 2: Try static method
+            if not validation_result:
+                try:
+                    validation_result = IMGValidator.validate_img_file(self.current_img)
+                except Exception as e:
+                    self.log_message(f"Static validation error: {str(e)}")
+
+            if hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, "Validation complete")
+
+            if validation_result:
+                if hasattr(validation_result, 'is_valid') and validation_result.is_valid:
+                    self.log_message("IMG file validation passed")
+                    QMessageBox.information(self, "Validation Result", "IMG file is valid!")
+                else:
+                    errors = getattr(validation_result, 'errors', ['Unknown validation issues'])
+                    self.log_message(f"IMG file validation failed: {len(errors)} errors")
+                    error_details = "\n".join(errors[:10])
+                    if len(errors) > 10:
+                        error_details += f"\n... and {len(errors) - 10} more errors"
+
+                    QMessageBox.warning(self, "Validation Failed",
+                                      f"IMG file has {len(errors)} validation errors:\n\n{error_details}")
+            else:
+                self.log_message("IMG file validation completed (no issues detected)")
+                QMessageBox.information(self, "Validation Result", "IMG file appears to be valid!")
+
+        except Exception as e:
+            error_msg = f"Error validating IMG: {str(e)}"
+            self.log_message(error_msg)
+            if hasattr(self.gui_layout, 'show_progress'):
+                self.gui_layout.show_progress(-1, "Validation error")
+            QMessageBox.critical(self, "Validation Error", error_msg)
+
+
+    def show_theme_settings(self): #vers 2
+        """Show theme settings dialog"""
+        self.show_settings()  # For now, use general settings
+
+    def show_about(self): #vers 4
+        """About dialog (same as the titlebar info button), with the Legal button."""
+        self.gui_layout._show_imgfactory_info()
+
+    def show_legal(self): #vers 1
+        """Legal page (Legal.md) with the scales icon."""
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        colors = self.app_settings.get_theme_colors() or {}
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"{App_name} - Legal")
+        dlg.setWindowIcon(SVGIconFactory.legal_icon(20, colors.get('text_primary', '#cccccc')))
+        dlg.resize(680, 560)
+        lay = QVBoxLayout(dlg)
+        view = QTextBrowser()
+        view.setOpenExternalLinks(True)
+        view.setMarkdown((Path(__file__).resolve().parents[3] / 'Legal.md').read_text(encoding='utf-8'))
+        lay.addWidget(view)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dlg.reject)
+        lay.addWidget(buttons)
+        dlg.exec()
+
+
+
+    def show_gui_layout_settings(self): #vers 2
+        """Show GUI Layout settings - called from menu"""
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'show_gui_layout_settings'):
+            self.gui_layout.show_gui_layout_settings()
+        else:
+            self.log_message("GUI Layout settings not available")
+
+    def debug_theme_system(self): #vers 1
+        """Debug method to check theme system status"""
+        try:
+            if hasattr(self, 'app_settings'):
+                settings = self.app_settings
+                self.log_message(f"Theme System Debug:")
+
+                if hasattr(settings, 'settings_file'):
+                    self.log_message(f"   Settings file: {settings.settings_file}")
+                if hasattr(settings, 'themes_dir'):
+                    self.log_message(f"   Themes directory: {settings.themes_dir}")
+                    self.log_message(f"   Themes dir exists: {settings.themes_dir.exists()}")
+                if hasattr(settings, 'themes'):
+                    self.log_message(f"   Available themes: {list(settings.themes.keys())}")
+                if hasattr(settings, 'current_settings'):
+                    self.log_message(f"   Current theme: {settings.current_settings.get('theme')}")
+
+                # Check if themes directory has files
+                if hasattr(settings, 'themes_dir') and settings.themes_dir.exists():
+                    theme_files = list(settings.themes_dir.glob("*.json"))
+                    self.log_message(f"   Theme files found: {[f.name for f in theme_files]}")
+                else:
+                    self.log_message(f"Themes directory does not exist!")
+            else:
+                self.log_message("No app_settings available")
+        except Exception as e:
+            self.log_message(f"Error in debug_theme_system: {str(e)}")
+
+    def show_settings(self): #vers 1
+        """Show settings dialog"""
+        print("show_settings called!")  # Debug
+        try:
+            # Try different import paths
+            try:
+                from apps.utils.app_settings_system import SettingsDialog, apply_theme_to_app
+            except ImportError:
+                from app_settings_system import SettingsDialog, apply_theme_to_app
+
+            dialog = SettingsDialog(self.app_settings, self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                apply_theme_to_app(QApplication.instance(), self.app_settings)
+                if hasattr(self.gui_layout, 'apply_table_theme'):
+                    self.gui_layout.apply_table_theme()
+                # Refresh titlebar icons and tool taskbar with new theme colour
+                colors = self.app_settings.get_theme_colors() or {}
+                icon_color = colors.get('text_primary', '#cccccc')
+                if hasattr(self.gui_layout, 'refresh_icons'):
+                    self.gui_layout.refresh_icons(icon_color)
+                if hasattr(self, 'tool_taskbar'):
+                    self.tool_taskbar.apply_theme(colors)
+                self.log_message("Settings updated")
+        except Exception as e:
+            print(f"Settings error: {e}")
+            self.log_message(f"Settings error: {str(e)}")
+
+    # SETTINGS PERSISTENCE - KEEP 100% OF FUNCTIONALITY
+
+    def _restore_settings(self): #vers 3
+        """Restore application settings"""
+        try:
+            # Aug 20 2026 - now the one, shared, app-folder-relative
+            # QSettings instance, not a separate QSettings("XSeti",
+            # "IMGFactory") native location. IniFormat correctly
+            # round-trips QByteArray values (geometry/splitter state)
+            # the same way the native format already did - Qt handles
+            # that serialization transparently regardless of format.
+            from apps.methods.img_factory_settings import get_img_factory_qsettings
+            settings = get_img_factory_qsettings()
+
+            # Restore window geometry, clamped to available screen area.
+            # Stale saves (e.g. from a different screen or old menubar height)
+            # can push the window off-screen or make it taller than the desktop.
+            geometry = settings.value("geometry")
+            if geometry:
+                self.restoreGeometry(geometry)
+                from PyQt6.QtWidgets import QApplication
+                screen = QApplication.primaryScreen()
+                if screen:
+                    avail = screen.availableGeometry()
+                    geo = self.geometry()
+                    new_w = min(geo.width(),  avail.width())
+                    new_h = min(geo.height(), avail.height())
+                    new_x = max(avail.x(), min(geo.x(), avail.right()  - new_w))
+                    new_y = max(avail.y(), min(geo.y(), avail.bottom() - new_h))
+                    self.setGeometry(new_x, new_y, new_w, new_h)
+
+            self.log_message("Settings restored")
+
+        except Exception as e:
+            self.log_message(f"Failed to restore settings: {str(e)}")
+
+    def _save_settings(self): #vers 2
+        """Save application settings"""
+        try:
+            from apps.methods.img_factory_settings import get_img_factory_qsettings
+            settings = get_img_factory_qsettings()
+
+            # Save window geometry
+            settings.setValue("geometry", self.saveGeometry())
+
+            # Save dock layout (sizes too)
+            self.gui_layout._save_outer_layout()
+
+            self.log_message("Settings saved")
+
+        except Exception as e:
+            self.log_message(f"Failed to save settings: {str(e)}")
+
+
+    def _show_search_dialog(self): #vers 1
+        """Show advanced search dialog"""
+        try:
+            if hasattr(self, 'search_manager'):
+                self.search_manager.show_search_dialog()
+            else:
+                self.log_message("⚠️ Search manager not available")
+        except Exception as e:
+            self.log_message(f"Show search dialog error: {e}")
+
+
+
+
+    def paintEvent(self, event): #vers 5
+        """Corner handles, COL style (methods/corner_handles.py); frameless only."""
+        super().paintEvent(event)
+        if self.windowFlags() & Qt.WindowType.FramelessWindowHint:
+            self.hover_corner = getattr(getattr(self, 'gui_layout', None), 'hover_corner', None)
+            paint_corner_handles(self)
+
+    def showEvent(self, event): #vers 4
+        super().showEvent(event)
+        from PyQt6.QtCore import Qt, QTimer
+        # Register [Intro] taskbar button → left panel welcome screen
+        QTimer.singleShot(900, self._register_intro_tool)
+
+    def _get_resize_corner(self, pos): #vers 4
+        """Determine which corner is under mouse position"""
+        size = getattr(self.gui_layout, 'corner_size', 20)
+        w = self.width()
+        h = self.height()
+
+        if pos.x() < size and pos.y() < size:
+            return "top-left"
+        if pos.x() > w - size and pos.y() < size:
+            return "top-right"
+        if pos.x() < size and pos.y() > h - size:
+            return "bottom-left"
+        if pos.x() > w - size and pos.y() > h - size:
+            return "bottom-right"
+
+        return None
+
+
+    def _update_cursor(self, corner): #vers 2
+        """Update cursor based on resize corner"""
+        from PyQt6.QtCore import Qt
+
+        if corner == "top-left" or corner == "bottom-right":
+            self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        elif corner == "top-right" or corner == "bottom-left":
+            self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+        elif corner:
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+
+    def mousePressEvent(self, event): #vers 10
+        """Handle ALL mouse press - dragging and resizing"""
+        from PyQt6.QtCore import Qt
+
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
+
+        pos = event.pos()
+        is_frameless = bool(self.windowFlags() & Qt.WindowType.FramelessWindowHint)
+
+        if is_frameless:
+            # Check corner resize FIRST
+            resize_corner = self._get_resize_corner(pos)
+            if resize_corner:
+                self.gui_layout.resizing = True
+                self.gui_layout.resize_corner = resize_corner
+                self.gui_layout.drag_position = event.globalPosition().toPoint()
+                self.gui_layout.initial_geometry = self.geometry()
+                event.accept()
+                return
+
+            # Check if on titlebar for dragging
+            if hasattr(self.gui_layout, 'titlebar') and self.gui_layout.titlebar:
+                titlebar_geometry = self.gui_layout.titlebar.geometry()
+                if titlebar_geometry.contains(pos):
+                    titlebar_pos = self.gui_layout.titlebar.mapFromParent(pos)
+                    if hasattr(self.gui_layout, '_is_on_draggable_area') and self.gui_layout._is_on_draggable_area(titlebar_pos):
+                        self.windowHandle().startSystemMove()
+                        event.accept()
+                        return
+
+        super().mousePressEvent(event)
+
+
+    def mouseMoveEvent(self, event): #vers 5
+        """Handle mouse move for resizing and hover effects"""
+        from PyQt6.QtCore import Qt
+
+        is_frameless = bool(self.windowFlags() & Qt.WindowType.FramelessWindowHint)
+
+        if is_frameless:
+            if event.buttons() == Qt.MouseButton.LeftButton:
+                # Active resize
+                if hasattr(self.gui_layout, 'resizing') and self.gui_layout.resizing:
+                    if hasattr(self.gui_layout, 'resize_corner') and self.gui_layout.resize_corner:
+                        self._handle_corner_resize_window(event.globalPosition().toPoint())
+                        event.accept()
+                        return
+            else:
+                # Update hover state and cursor
+                corner = self._get_resize_corner(event.pos())
+                if hasattr(self.gui_layout, 'hover_corner'):
+                    if corner != self.gui_layout.hover_corner:
+                        self.gui_layout.hover_corner = corner
+                        self.update()
+                self._update_cursor(corner)
+
+        super().mouseMoveEvent(event)
+
+
+    def mouseReleaseEvent(self, event): #vers 5
+        """Handle mouse release"""
+        from PyQt6.QtCore import Qt
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            is_frameless = bool(self.windowFlags() & Qt.WindowType.FramelessWindowHint)
+            was_resizing = False
+            if is_frameless:
+                was_resizing = bool(getattr(self.gui_layout, 'resizing', False))
+                if hasattr(self.gui_layout, 'resizing'):
+                    self.gui_layout.resizing = False
+                if hasattr(self.gui_layout, 'resize_corner'):
+                    self.gui_layout.resize_corner = None
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+            if was_resizing:
+                event.accept()
+            else:
+                super().mouseReleaseEvent(event)
+        else:
+            super().mouseReleaseEvent(event)
+
+
+    def mouseDoubleClickEvent(self, event): #vers 3
+        """Handle double-click - maximize/restore"""
+        from PyQt6.QtCore import Qt
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Check if on titlebar
+            if hasattr(self.gui_layout, 'titlebar') and self.gui_layout.titlebar:
+                titlebar_geometry = self.gui_layout.titlebar.geometry()
+                if titlebar_geometry.contains(event.pos()):
+                    titlebar_pos = self.gui_layout.titlebar.mapFromParent(event.pos())
+                    if hasattr(self.gui_layout, '_is_on_draggable_area') and self.gui_layout._is_on_draggable_area(titlebar_pos):
+                        self._toggle_maximize()
+                        event.accept()
+                        return
+
+        super().mouseDoubleClickEvent(event)
+
+
+    def _handle_corner_resize_window(self, global_pos): #vers 3
+        """Handle window resizing from corners"""
+        if not hasattr(self.gui_layout, 'resize_corner') or not self.gui_layout.resize_corner:
+            return
+        if not hasattr(self.gui_layout, 'drag_position') or not self.gui_layout.drag_position:
+            return
+        if not hasattr(self.gui_layout, 'initial_geometry'):
+            return
+
+        delta = global_pos - self.gui_layout.drag_position
+        geometry = self.gui_layout.initial_geometry
+
+        min_width = 800
+        min_height = 600
+
+        # Calculate new geometry based on corner
+        if self.gui_layout.resize_corner == "top-left":
+            new_x = geometry.x() + delta.x()
+            new_y = geometry.y() + delta.y()
+            new_width = geometry.width() - delta.x()
+            new_height = geometry.height() - delta.y()
+            if new_width >= min_width and new_height >= min_height:
+                self.setGeometry(new_x, new_y, new_width, new_height)
+
+        elif self.gui_layout.resize_corner == "top-right":
+            new_y = geometry.y() + delta.y()
+            new_width = geometry.width() + delta.x()
+            new_height = geometry.height() - delta.y()
+            if new_width >= min_width and new_height >= min_height:
+                self.setGeometry(geometry.x(), new_y, new_width, new_height)
+
+        elif self.gui_layout.resize_corner == "bottom-left":
+            new_x = geometry.x() + delta.x()
+            new_width = geometry.width() - delta.x()
+            new_height = geometry.height() + delta.y()
+            if new_width >= min_width and new_height >= min_height:
+                self.setGeometry(new_x, geometry.y(), new_width, new_height)
+
+        elif self.gui_layout.resize_corner == "bottom-right":
+            new_width = geometry.width() + delta.x()
+            new_height = geometry.height() + delta.y()
+            if new_width >= min_width and new_height >= min_height:
+                self.setGeometry(geometry.x(), geometry.y(), new_width, new_height)
+
+
+    def _toggle_maximize(self): #vers 2
+        """Toggle window maximize state"""
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+
+    def resizeEvent(self, event): #vers 4
+        """Handle window resize event"""
+        super().resizeEvent(event)
+        self.update()
+
+
+    def _toggle_maximize(self): #vers 1
+        """Toggle window maximize state"""
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+
+    def closeEvent(self, event): #vers 6
+        """Handle application close"""
+        # Tools with unsaved work (confirm_close) can cancel the quit
+        try:
+            from apps.methods.tab_system import _tab_allows_close
+            if hasattr(self, 'main_tab_widget'):
+                for i in range(self.main_tab_widget.count()):
+                    if not _tab_allows_close(self.main_tab_widget.widget(i), "Quit IMG Factory"):
+                        event.ignore()
+                        return
+        except ImportError as e:
+            print(f"closeEvent: unsaved-work check unavailable: {e}")
+        # Give any docked workshop tabs (Model/COL/TXD Workshop etc) a
+        # chance to save their ribbon layout - closing the whole app used
+        # to skip this entirely since only close_tab() emitted
+        # window_closed, never a full-application shutdown.
+        try:
+            from PyQt6.QtWidgets import QWidget as _QW
+            from apps.gui.tool_menu_mixin import ToolMenuMixin
+            if hasattr(self, 'main_tab_widget'):
+                for i in range(self.main_tab_widget.count()):
+                    tab = self.main_tab_widget.widget(i)
+                    if tab is None:
+                        continue
+                    for child in tab.findChildren(_QW):
+                        if isinstance(child, ToolMenuMixin) and hasattr(child, 'window_closed'):
+                            try:
+                                child.window_closed.emit()
+                            except Exception:
+                                pass
+                            break
+        except Exception:
+            pass
+
+        try:
+            self._save_settings()
+        except Exception:
+            pass
+
+        try:
+            if hasattr(self, 'load_thread') and self.load_thread and self.load_thread.isRunning():
+                self.load_thread.quit()
+                if not self.load_thread.wait(2000):
+                    self.load_thread.terminate()
+                    self.load_thread.wait(500)
+        except Exception:
+            pass
+
+        event.accept()
+        QApplication.quit()
+
+
+def main(): #vers 2
+   """Main application entry point"""
+   try:
+       app = QApplication.instance() or QApplication(sys.argv)   # launch.py may have made it (splash)
+       app.setApplicationName("IMG Factory")
+       app.setApplicationVersion("1.5")
+       app.setOrganizationName("X-Seti")
+
+       # Set application icon
+       try:
+           from apps.methods.imgfactory_svg_icons import get_app_icon
+           app_icon = get_app_icon()
+           app.setWindowIcon(app_icon)
+       except Exception as e:
+           print(f"Could not set application icon: {e}")
+
+       # Load settings
+       try:
+           # Try different import paths for settings
+           try:
+               from apps.utils.app_settings_system import AppSettings
+           except ImportError:
+               from app_settings_system import AppSettings
+
+           startup_step("Loading settings and theme", 15)
+           settings = AppSettings()
+           if hasattr(settings, 'load_settings'):
+               settings.load_settings()
+
+           # Test if settings actually work
+           if not hasattr(settings, 'get_stylesheet'):
+               raise AttributeError("AppSettings missing get_stylesheet method")
+
+       except Exception as e:
+           print(f"Warning: Could not load settings: {str(e)}")
+           # Only use DummySettings as last resort
+           class DummySettings:
+               def __init__(self):
+                   self.current_settings = {
+                       "theme": "img_factory",
+                       "font_family": "Arial",
+                       "font_size": 9,
+                       "show_tooltips": True,
+                       "auto_save": True,
+                       "debug_mode": False
+                   }
+                   self.themes = {
+                       "img_factory": {
+                           "colors": {
+                               "background": "#f0f0f0",
+                               "text": "#000000",
+                               "button_text_color": "#000000"
+                           }
+                       }
+                   }
+
+               def get_stylesheet(self):
+                   return "QMainWindow { background-color: palette(window); }"
+
+               def get_theme(self, theme_name=None):
+                   return self.themes.get("img_factory", {"colors": {}})
+
+               def load_settings(self):
+                   pass
+
+               def save_settings(self):
+                   pass
+
+           settings = DummySettings()
+           print("Using DummySettings - theme system may be limited")
+
+       # Create main window
+       window = IMGFactory(settings)
+       # Show window
+       window.show()
+
+       return app.exec()
+
+   except Exception as e:
+       print(f"Fatal error in main(): {str(e)}")
+       import traceback
+       traceback.print_exc()
+       return 1

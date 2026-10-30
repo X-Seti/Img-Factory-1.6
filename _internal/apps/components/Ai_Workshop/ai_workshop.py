@@ -1,0 +1,2436 @@
+#!/usr/bin/env python3
+#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 10
+# X-Seti - March 2026 - AI Workshop: Ollama chat interface
+# Based on COL Workshop template (col_workshop.py)
+
+"""
+components/Ai_Workshop/ai_workshop.py
+AI Workshop - Local LLM chat interface via Ollama REST API
+Three-panel layout: Sessions | Chat | Settings
+"""
+
+import os
+import json
+import requests
+import threading
+import re
+import html
+from datetime import datetime
+from pathlib import Path
+
+import sys
+if sys.platform.startswith('linux'):   # xcb only exists on Linux
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
+    os.environ['QSG_RHI_BACKEND'] = 'opengl'
+
+import sys
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from apps.methods.corner_handles import paint_corner_handles
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
+    QListWidget, QListWidgetItem, QLabel, QPushButton, QFrame,
+    QTextEdit, QLineEdit, QMessageBox, QGroupBox, QComboBox,
+    QSpinBox, QTabWidget, QScrollArea, QCheckBox, QDialog,
+    QFormLayout, QFontComboBox, QSlider, QDoubleSpinBox,
+    QSizePolicy, QAbstractItemView, QMenu, QFileDialog, QColorDialog
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QThread, pyqtSlot, QTimer, QUrl
+from PyQt6.QtGui import QFont, QIcon, QColor, QPainter, QPen, QBrush, QPainterPath, QKeySequence, QShortcut, QDesktopServices, QTextCursor, QTextDocument
+from apps.methods.img_factory_settings import get_user_config_dir
+from apps.methods.titlebar_func import TitlebarMixin
+from apps.methods.dock_panels import DockPanelsMixin
+
+App_name = "AI Workshop"
+DEBUG_STANDALONE = False
+OLLAMA_BASE_URL = "http://localhost:11434"
+
+# --- Try importing shared infrastructure ---
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+    ICONS_AVAILABLE = True
+except ImportError:
+    ICONS_AVAILABLE = False
+    class SVGIconFactory:
+        def __getattr__(self, name):
+            return lambda *a, **k: QIcon()
+        @staticmethod
+        def clear_cache(): pass
+
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    APPSETTINGS_AVAILABLE = False
+    AppSettings = None
+
+
+# ---------------------------------------------------------------------------
+# Worker thread: streams Ollama response without blocking UI
+# ---------------------------------------------------------------------------
+
+class OllamaWorker(QThread):
+    """Runs Ollama API call in background thread."""
+
+    token_received  = pyqtSignal(str)   # incremental token
+    response_done   = pyqtSignal(str)   # full response on completion
+    error_occurred  = pyqtSignal(str)   # error message
+
+    def __init__(self, model: str, messages: list, base_url: str = OLLAMA_BASE_URL,
+                 temperature: float = 0.7, max_tokens: int = 2048):
+        super().__init__()
+        self.model       = model
+        self.messages    = messages
+        self.base_url    = base_url
+        self.temperature = temperature
+        self.max_tokens  = max_tokens
+        self._full_response = ""
+        self._stop_flag  = False
+        self.setTerminationEnabled(True)
+
+    def stop(self):
+        """Request clean stop."""
+        self._stop_flag = True
+
+    def run(self):
+        try:
+            url  = f"{self.base_url}/api/chat"
+            body = {
+                "model":    self.model,
+                "messages": self.messages,
+                "stream":   True,
+                "options":  {
+                    "temperature": self.temperature,
+                    "num_predict": self.max_tokens,
+                }
+            }
+
+            with requests.post(url, json=body, stream=True, timeout=120) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if self._stop_flag:
+                        break
+                    if not line:
+                        continue
+                    chunk = json.loads(line)
+                    token = chunk.get("message", {}).get("content", "")
+                    if token:
+                        self._full_response += token
+                        self.token_received.emit(token)
+                    if chunk.get("done"):
+                        break
+
+            self.response_done.emit(self._full_response)
+
+        except requests.exceptions.ConnectionError:
+            self.error_occurred.emit(
+                "Cannot connect to Ollama.\n"
+                "Make sure it is running:  ollama serve"
+            )
+        except Exception as e:
+            if not self._stop_flag:
+                self.error_occurred.emit(str(e))
+
+
+# ---------------------------------------------------------------------------
+# Small helpers
+# ---------------------------------------------------------------------------
+
+def _fetch_models(base_url: str = OLLAMA_BASE_URL) -> list:
+    """Return list of locally installed model names."""
+    try:
+        r = requests.get(f"{base_url}/api/tags", timeout=1)
+        r.raise_for_status()
+        return [m["name"] for m in r.json().get("models", [])]
+    except Exception:
+        return []
+
+
+def _ollama_running(base_url: str = OLLAMA_BASE_URL) -> bool:
+    try:
+        requests.get(f"{base_url}/api/tags", timeout=1)
+        return True
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Main window class
+# ---------------------------------------------------------------------------
+
+class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
+    _OUTER_LAYOUT_VERSION = 1     # Sessions + Settings docks
+    """AI Workshop – Ollama chat UI built from COL Workshop skeleton."""
+
+    workshop_closed = pyqtSignal()
+    window_closed   = pyqtSignal()
+
+    # -----------------------------------------------------------------------
+    # Init
+    # -----------------------------------------------------------------------
+
+    def __init__(self, parent=None, main_window=None): #vers 2
+        super().__init__(parent)
+        from PyQt6.QtCore import QTimer
+
+        self.main_window        = main_window
+        self.standalone_mode    = (main_window is None)
+        self.is_docked          = not self.standalone_mode
+
+        # Chat state
+        self.sessions: list[dict] = []   # [{name, messages, created}]
+        self.current_session_index = -1
+        self.worker: OllamaWorker | None = None
+        self._current_response   = ""
+        self._stream_buffer = ""
+        self._stream_cursor = None  # cursor anchored in the active assistant bubble
+        self._stream_timer = QTimer(self)
+        self._stream_timer.setInterval(75)  # batch tokens to avoid a full redraw per token
+        self._stream_timer.timeout.connect(self._flush_stream_buffer)
+        self._last_assistant_response = ""
+        self.chat_user_color_key = "accent_primary"
+        self.chat_ai_color_key = "success"
+        self.download_dir = os.path.join(get_user_config_dir(), "ai_downloads")
+        os.makedirs(self.download_dir, exist_ok=True)
+        self._pending_attachments: list[dict] = []  # files queued for next send
+
+        # Settings
+        self.selected_model   = ""
+        self.temperature      = 0.7
+        self.max_tokens       = 2048
+        self.system_prompt    = (
+            "You are a helpful coding assistant specialising in Python, "
+            "PyQt6, and GTA modding tools. Be concise and practical."
+        )
+        self.ai_rules         = (
+            "- Always reply in the same language the user writes in\n"
+            "- Keep responses concise unless asked to elaborate\n"
+            "- For code, always specify the language in fenced blocks\n"
+            "- Never make up library names or functions that don't exist"
+        )
+        self.sessions_dir     = os.path.join(get_user_config_dir(), "ai_sessions")
+
+        # SSH settings
+        self.ssh_config = {
+            "host":      "127.0.0.1",
+            "port":      22,
+            "username":  "",
+            "password":  "",
+            "key_path":  "",
+            "root_path": "/home",
+        }
+        self._ssh = None   # SSHFileAccess instance, lazy-init
+
+        # Web server settings
+        self.web_config = {
+            "enabled":  False,
+            "host":     "127.0.0.1",
+            "port":     8080,
+        }
+        self._web_thread  = None   # background thread running uvicorn
+        self._web_running = False
+
+        # Chat display options
+        self.show_timestamps   = True
+        self.show_line_numbers = True
+        self.user_name         = "Me"
+        self.ai_name           = "AI"
+        self.date_format       = "%H:%M:%S"   # strftime format string
+
+        # Fonts (mirrors COL Workshop)
+        self.title_font   = QFont("Arial", 14)
+        self.panel_font   = QFont("Arial", 10)
+        self.button_font  = QFont("Arial", 10)
+        self.chat_font    = QFont("Courier New", 10)
+        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)   # dock titles
+        self.button_display_mode = 'both'
+
+        # Window chrome
+        self.use_system_titlebar  = False
+        self.window_always_on_top = False
+        self.dragging             = False
+        self.drag_position        = None
+        self.resizing             = False
+        self.resize_corner        = None
+        self.corner_size          = 20
+        self.hover_corner         = None
+
+        # AppSettings
+        if main_window and hasattr(main_window, 'app_settings'):
+            self.app_settings = main_window.app_settings
+        elif APPSETTINGS_AVAILABLE:
+            try:
+                self.app_settings = AppSettings()
+            except Exception:
+                self.app_settings = None
+        else:
+            self.app_settings = None
+
+        if self.app_settings and hasattr(self.app_settings, 'theme_changed'):
+            self.app_settings.theme_changed.connect(self._refresh_icons)
+
+        # Icon factory
+        self.icon_factory = SVGIconFactory()
+
+        self.setWindowTitle(App_name)
+        if ICONS_AVAILABLE:
+            self.setWindowIcon(SVGIconFactory.ai_app_icon())
+        self.resize(1400, 800)
+        self.setMinimumSize(800, 500)
+
+        # Frameless in standalone (custom titlebar), widget when docked
+        if self.standalone_mode:
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        else:
+            self.setWindowFlags(Qt.WindowType.Widget)
+
+        if parent:
+            p = parent.pos()
+            self.move(p.x() + 50, p.y() + 80)
+
+        self.setup_ui()
+        self._load_sessions_from_disk()   # load persisted sessions AFTER widgets exist
+        self._refresh_session_list()
+        self._load_session(self.current_session_index)
+        self._setup_hotkeys()
+        self._apply_theme()
+        # Defer Ollama network calls so UI appears immediately — not blocking on startup
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(300, self._refresh_model_list)
+
+    # -----------------------------------------------------------------------
+    # UI construction
+    # -----------------------------------------------------------------------
+
+
+    def _get_ui_color(self, key): #vers 2
+        """Theme QColor via shared helper."""
+        from apps.methods.ui_color import get_ui_color
+        return get_ui_color(self, key)
+
+    def _ribbon_config_path(self): #vers 1
+        """Dock layout file."""
+        return Path(get_user_config_dir()) / "ai_workshop_docks.json"
+
+    def setup_ui(self): #vers 2
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(5)
+
+        toolbar = self._create_toolbar()
+        self._workshop_toolbar = toolbar
+        toolbar.setVisible(self.standalone_mode)   # shown standalone, hidden docked
+        main_layout.addWidget(toolbar)
+
+        main_layout.addWidget(self._dock_layout(self._create_centre_panel(), [
+            ("Sessions", self._create_left_panel(), 180, Qt.DockWidgetArea.LeftDockWidgetArea),
+            ("Settings", self._create_right_panel(), 180, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
+
+    # --- Toolbar -----------------------------------------------------------
+
+    def _titlebar_actions(self, layout): #vers 1
+        """AI titlebar: New Session, Clear."""
+        self.new_session_btn = self._tb_button('add_icon', "New Session",
+            "Start a new chat session (Ctrl+N)", self._new_session_action)
+        layout.addWidget(self.new_session_btn)
+        self.clear_btn = self._tb_button('delete_icon', "Clear",
+            "Clear current session messages", self._clear_current_session)
+        layout.addWidget(self.clear_btn)
+
+    def _titlebar_info(self): #vers 1
+        """Info button: about AI Workshop."""
+        QMessageBox.information(self, f"About {App_name}",
+            f"{App_name}\n\nOllama chat interface.\nPart of IMG Factory 1.6 - X-Seti.")
+
+    def _titlebar_menu(self, menu): #vers 1
+        """Menu drop-down: session and settings actions."""
+        menu.addAction("New Session", self._new_session_action)
+        menu.addAction("Clear Session", self._clear_current_session)
+        menu.addSeparator()
+        menu.addAction("Settings...", self._show_workshop_settings)
+        menu.addAction("Theme...", self._launch_theme_settings)
+
+    def _titlebar_title(self): #vers 1
+        """Centre title."""
+        return App_name
+
+    def _titlebar_title_icon(self): #vers 1
+        """AI icon left of the title."""
+        return 'ai_icon' if ICONS_AVAILABLE else None
+
+
+
+    # --- Left panel: session list ------------------------------------------
+
+    def _create_left_panel(self): #vers 2
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setMinimumWidth(180)
+        panel.setMaximumWidth(280)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(4)
+
+        # Header row
+        hdr = QHBoxLayout()
+        hdr.addStretch()
+
+        new_btn = QPushButton("+")
+        new_btn.setFixedSize(24, 24)
+        new_btn.setToolTip("New session")
+        new_btn.clicked.connect(self._new_session_action)
+        hdr.addWidget(new_btn)
+        layout.addLayout(hdr)
+
+        # Search bar
+        self.session_search = QLineEdit()
+        self.session_search.setPlaceholderText("Search sessions…")
+        self.session_search.setFont(self.panel_font)
+        self.session_search.textChanged.connect(self._on_session_search)
+        layout.addWidget(self.session_search)
+
+        # Session list
+        self.session_list = QListWidget()
+        self.session_list.setAlternatingRowColors(True)
+        self.session_list.currentRowChanged.connect(self._on_session_selected)
+        self.session_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.session_list.customContextMenuRequested.connect(self._session_context_menu)
+        self.session_list.setToolTip("Right-click for options")
+        layout.addWidget(self.session_list)
+
+        # Bottom buttons
+        btn_row = QHBoxLayout()
+        export_btn = QPushButton("Export")
+        export_btn.setFont(self.button_font)
+        export_btn.setToolTip("Export current session")
+        export_btn.clicked.connect(self._export_current_session)
+        btn_row.addWidget(export_btn)
+
+        downloads_btn = QPushButton("Downloads")
+        downloads_btn.setFont(self.button_font)
+        downloads_btn.setToolTip("Save code or files created in assistant replies")
+        downloads_btn.clicked.connect(self._show_downloads)
+        btn_row.addWidget(downloads_btn)
+
+        del_btn = QPushButton("Delete")
+        del_btn.setFont(self.button_font)
+        del_btn.setToolTip("Delete current session")
+        del_btn.clicked.connect(lambda: self._delete_session(self.current_session_index))
+        btn_row.addWidget(del_btn)
+        layout.addLayout(btn_row)
+
+        self._refresh_session_list()
+        return panel
+
+    # --- Centre panel: chat ------------------------------------------------
+
+    def _create_centre_panel(self):
+        panel = QGroupBox("Chat")
+        layout = QVBoxLayout(panel)
+        layout.setSpacing(4)
+
+        # Status bar (Ollama connection)
+        self.status_label = QLabel("Checking Ollama...")
+        self.status_label.setFont(QFont("Arial", 9))
+        self.status_label.setObjectName("status_label")
+        layout.addWidget(self.status_label)
+
+        # Chat display
+        self.chat_display = QTextEdit()
+        self.chat_display.setReadOnly(True)
+        self.chat_display.setFont(self.chat_font)
+        self.chat_display.document().setDefaultFont(self.chat_font)
+        self.chat_display.setPlaceholderText("Messages will appear here…")
+        self.chat_display.installEventFilter(self)
+        self.chat_display.setAcceptDrops(True)
+        layout.addWidget(self.chat_display, stretch=1)
+
+        # Typing indicator
+        self.typing_label = QLabel("")
+        self.typing_label.setFont(QFont("Arial", 9))
+        self.typing_label.setObjectName("typing_label")
+        layout.addWidget(self.typing_label)
+
+        # Attachment chips area (hidden when empty)
+        self.attachments_frame = QFrame()
+        self.attachments_layout = QHBoxLayout(self.attachments_frame)
+        self.attachments_layout.setContentsMargins(0, 2, 0, 2)
+        self.attachments_layout.setSpacing(4)
+        self.attachments_layout.addStretch()
+        self.attachments_frame.setVisible(False)
+        layout.addWidget(self.attachments_frame)
+
+        # Input area
+        input_frame = QFrame()
+        input_layout = QHBoxLayout(input_frame)
+        input_layout.setContentsMargins(0, 0, 0, 0)
+        input_layout.setSpacing(4)
+
+        self.input_box = QTextEdit()
+        self.input_box.setFont(self.chat_font)
+        self.input_box.setMaximumHeight(80)
+        self.input_box.setPlaceholderText("Type your message… (Ctrl+Enter to send)")
+        self.input_box.installEventFilter(self)
+        self.input_box.setAcceptDrops(True)
+        input_layout.addWidget(self.input_box, stretch=1)
+
+        btn_col = QVBoxLayout()
+        self.send_btn = QPushButton("Send")
+        self.send_btn.setFont(self.button_font)
+        self.send_btn.setFixedWidth(70)
+        self.send_btn.setMinimumHeight(30)
+        self.send_btn.clicked.connect(self._send_message)
+        self.send_btn.setToolTip("Send message (Ctrl+Enter)")
+        btn_col.addWidget(self.send_btn)
+
+        self.stop_btn = QPushButton("Stop")
+        self.stop_btn.setFont(self.button_font)
+        self.stop_btn.setFixedWidth(70)
+        self.stop_btn.setEnabled(False)
+        self.stop_btn.clicked.connect(self._stop_generation)
+        self.stop_btn.setToolTip("Stop generation")
+        btn_col.addWidget(self.stop_btn)
+
+        # Attach local file
+        attach_btn = QPushButton("📎")
+        attach_btn.setFixedWidth(70)
+        attach_btn.setFont(self.button_font)
+        attach_btn.setToolTip("Attach local file")
+        attach_btn.clicked.connect(self._attach_local_file)
+        btn_col.addWidget(attach_btn)
+
+        # Attach via SSH
+        ssh_btn = QPushButton("🔗")
+        ssh_btn.setFixedWidth(70)
+        ssh_btn.setFont(self.button_font)
+        ssh_btn.setToolTip("Attach file via SSH")
+        ssh_btn.clicked.connect(self._attach_ssh_file)
+        btn_col.addWidget(ssh_btn)
+
+        btn_col.addStretch()
+        input_layout.addLayout(btn_col)
+        layout.addWidget(input_frame)
+
+        return panel
+
+    # --- Right panel: settings ---------------------------------------------
+
+    def _create_right_panel(self): #vers 2
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setMinimumWidth(180)
+        panel.setMaximumWidth(280)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(10)
+
+        # Model selector
+        model_group = QGroupBox("Model")
+        model_layout = QVBoxLayout(model_group)
+
+        self.model_combo = QComboBox()
+        self.model_combo.setFont(self.panel_font)
+        self.model_combo.setToolTip("Select installed Ollama model")
+        self.model_combo.currentTextChanged.connect(self._on_model_changed)
+        model_layout.addWidget(self.model_combo)
+
+        refresh_btn = QPushButton("Refresh Models")
+        refresh_btn.setFont(self.button_font)
+        refresh_btn.clicked.connect(self._refresh_model_list)
+        model_layout.addWidget(refresh_btn)
+
+        layout.addWidget(model_group)
+
+        # Generation parameters
+        gen_group = QGroupBox("Generation")
+        gen_layout = QFormLayout(gen_group)
+
+        self.temp_spin = QDoubleSpinBox()
+        self.temp_spin.setRange(0.0, 2.0)
+        self.temp_spin.setSingleStep(0.1)
+        self.temp_spin.setValue(self.temperature)
+        self.temp_spin.setToolTip("Temperature: 0=deterministic, 1=creative")
+        self.temp_spin.valueChanged.connect(lambda v: setattr(self, 'temperature', v))
+        gen_layout.addRow("Temperature:", self.temp_spin)
+
+        self.tokens_spin = QSpinBox()
+        self.tokens_spin.setRange(128, 16384)
+        self.tokens_spin.setSingleStep(256)
+        self.tokens_spin.setValue(self.max_tokens)
+        self.tokens_spin.setToolTip("Maximum tokens to generate")
+        self.tokens_spin.valueChanged.connect(lambda v: setattr(self, 'max_tokens', v))
+        gen_layout.addRow("Max tokens:", self.tokens_spin)
+
+        layout.addWidget(gen_group)
+
+        # System prompt
+        sys_group = QGroupBox("System Prompt")
+        sys_layout = QVBoxLayout(sys_group)
+
+        self.system_prompt_edit = QTextEdit()
+        self.system_prompt_edit.setFont(QFont("Courier New", 9))
+        self.system_prompt_edit.setMaximumHeight(120)
+        self.system_prompt_edit.setPlainText(self.system_prompt)
+        self.system_prompt_edit.textChanged.connect(
+            lambda: setattr(self, 'system_prompt', self.system_prompt_edit.toPlainText())
+        )
+        sys_layout.addWidget(self.system_prompt_edit)
+
+        layout.addWidget(sys_group)
+
+        # Chat Display options
+        display_group = QGroupBox("Chat Display")
+        display_layout = QFormLayout(display_group)
+
+        # Text size spinner
+        self.chat_size_spin = QSpinBox()
+        self.chat_size_spin.setRange(8, 24)
+        self.chat_size_spin.setValue(self.chat_font.pointSize())
+        self.chat_size_spin.setSuffix(" pt")
+        self.chat_size_spin.setToolTip("Chat message text size")
+        self.chat_size_spin.valueChanged.connect(self._on_chat_size_changed)
+        display_layout.addRow("Text size:", self.chat_size_spin)
+
+        # Font family
+        self.chat_font_combo = QFontComboBox()
+        self.chat_font_combo.setCurrentFont(self.chat_font)
+        self.chat_font_combo.setToolTip("Chat message font")
+        self.chat_font_combo.currentFontChanged.connect(self._on_chat_font_changed)
+        display_layout.addRow("Font:", self.chat_font_combo)
+
+        layout.addWidget(display_group)
+
+        # Ollama URL
+        url_group = QGroupBox("Ollama")
+        url_layout = QFormLayout(url_group)
+
+        self.url_input = QLineEdit(OLLAMA_BASE_URL)  # http://localhost:11434
+        self.url_input.setFont(self.panel_font)
+        self.url_input.setToolTip("Ollama base URL")
+        url_layout.addRow("URL:", self.url_input)
+
+        layout.addWidget(url_group)
+
+        layout.addStretch()
+
+        # Ollama status indicator
+        self.ollama_status = QLabel("● Checking…")
+        self.ollama_status.setFont(QFont("Arial", 9))
+        layout.addWidget(self.ollama_status)
+
+        # Settings button — only shown when docked (toolbar is hidden in docked mode)
+        self.docked_settings_btn = QPushButton()
+        self.docked_settings_btn.setFont(self.button_font)
+        self.docked_settings_btn.setIcon(self.icon_factory.settings_icon())
+        self.docked_settings_btn.setText("Settings / Options")
+        self.docked_settings_btn.setIconSize(QSize(18, 18))
+        self.docked_settings_btn.clicked.connect(self._show_workshop_settings)
+        self.docked_settings_btn.setToolTip("AI Workshop Settings")
+        self.docked_settings_btn.setVisible(not self.standalone_mode)
+        layout.addWidget(self.docked_settings_btn)
+
+        return panel
+
+    # -----------------------------------------------------------------------
+    # Session management
+    # -----------------------------------------------------------------------
+
+    # -----------------------------------------------------------------------
+    # Session management — backed by SessionManager
+    # -----------------------------------------------------------------------
+
+    def _get_session_manager(self):
+        """Lazy-init SessionManager using current sessions_dir setting."""
+        from apps.components.Ai_Workshop.depends.session_manager import SessionManager
+        return SessionManager(self.sessions_dir)
+
+    def _new_session(self, name: str = "") -> dict:
+        sm = self._get_session_manager()
+        session = sm.new_session(name)
+        self.sessions.append(session)
+        self.current_session_index = len(self.sessions) - 1
+        sm.save_session(session)
+        return session
+
+    def _new_session_action(self):
+        self._new_session()
+        self._refresh_session_list()
+        if hasattr(self, 'session_list'):
+            self.session_list.setCurrentRow(self.current_session_index)
+        self._load_session(self.current_session_index)
+
+    def _load_sessions_from_disk(self):
+        """Load all persisted sessions from disk on startup."""
+        try:
+            sm = self._get_session_manager()
+            loaded = sm.load_all()
+            if loaded:
+                self.sessions = loaded
+                self.current_session_index = 0
+            else:
+                self._new_session()
+        except Exception as e:
+            print(f"[AI Workshop] load sessions error: {e}")
+            self._new_session()
+
+    def _save_current_session(self):
+        """Persist current session to disk."""
+        if self.current_session_index < 0 or self.current_session_index >= len(self.sessions):
+            return
+        try:
+            sm = self._get_session_manager()
+            sm.save_session(self.sessions[self.current_session_index])
+        except Exception as e:
+            print(f"[AI Workshop] save session error: {e}")
+
+    def _refresh_session_list(self):
+        if not hasattr(self, 'session_list'):
+            return
+        # Apply search filter if active
+        query = self.session_search.text() if hasattr(self, 'session_search') else ""
+        if query.strip():
+            try:
+                sm = self._get_session_manager()
+                visible = sm.search(query, self.sessions)
+            except Exception:
+                visible = self.sessions
+        else:
+            visible = self.sessions
+
+        self.session_list.blockSignals(True)
+        self.session_list.clear()
+        for s in visible:
+            pin  = "⭐ " if s.get("pinned") else ""
+            name = s.get("name", "Unnamed")
+            msgs = len(s.get("messages", []))
+            item = QListWidgetItem(f"{pin}{name}  ({msgs})")
+            item.setData(Qt.ItemDataRole.UserRole, s.get("id"))
+            self.session_list.addItem(item)
+        self.session_list.blockSignals(False)
+
+        # Re-select current
+        if self.current_session_index >= 0:
+            # Find the item matching current session id
+            cur_id = self.sessions[self.current_session_index].get("id") if self.sessions else None
+            for i in range(self.session_list.count()):
+                if self.session_list.item(i).data(Qt.ItemDataRole.UserRole) == cur_id:
+                    self.session_list.setCurrentRow(i)
+                    break
+
+    def _on_session_search(self, text: str):
+        self._refresh_session_list()
+
+    def _on_session_selected(self, row: int):
+        if not hasattr(self, 'session_list') or row < 0:
+            return
+        item = self.session_list.item(row)
+        if not item:
+            return
+        sid = item.data(Qt.ItemDataRole.UserRole)
+        for i, s in enumerate(self.sessions):
+            if s.get("id") == sid:
+                self.current_session_index = i
+                self._load_session(i)
+                return
+
+    def _load_session(self, index: int):
+        if not hasattr(self, 'chat_display'):
+            return
+        if index < 0 or index >= len(self.sessions):
+            return
+        self.current_session_index = index
+        self._redraw_chat()
+
+    def _session_context_menu(self, pos):
+        item = self.session_list.itemAt(pos)
+        if not item:
+            return
+        sid = item.data(Qt.ItemDataRole.UserRole)
+        row = next((i for i, s in enumerate(self.sessions) if s.get("id") == sid), -1)
+        if row < 0:
+            return
+
+        menu = QMenu(self)
+        rename_a  = menu.addAction("Rename")
+        pin_a     = menu.addAction("Unpin ⭐" if self.sessions[row].get("pinned") else "Pin ⭐")
+        menu.addSeparator()
+        export_txt_a = menu.addAction("Export as .txt")
+        export_md_a  = menu.addAction("Export as .md")
+        menu.addSeparator()
+        delete_a  = menu.addAction("Delete")
+
+        action = menu.exec(self.session_list.mapToGlobal(pos))
+        if action == rename_a:
+            self._rename_session(row)
+        elif action == pin_a:
+            self._toggle_pin_session(row)
+        elif action == export_txt_a:
+            self._export_session(row, "txt")
+        elif action == export_md_a:
+            self._export_session(row, "md")
+        elif action == delete_a:
+            self._delete_session(row)
+
+    def _rename_session(self, row: int):
+        from PyQt6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "Rename Session",
+                                        "Session name:",
+                                        text=self.sessions[row].get("name", ""))
+        if ok and name.strip():
+            self.sessions[row]["name"] = name.strip()
+            self._save_current_session()
+            self._refresh_session_list()
+
+    def _toggle_pin_session(self, row: int):
+        self.sessions[row]["pinned"] = not self.sessions[row].get("pinned", False)
+        # Re-sort: pinned first
+        self.sessions.sort(key=lambda s: not s.get("pinned", False))
+        self.current_session_index = next(
+            (i for i, s in enumerate(self.sessions)
+             if s.get("id") == self.sessions[row].get("id")), 0)
+        self._save_current_session()
+        self._refresh_session_list()
+
+    def _delete_session(self, row: int):
+        if row < 0 or row >= len(self.sessions):
+            return
+        if len(self.sessions) <= 1:
+            QMessageBox.information(self, "Delete", "Cannot delete the only session.")
+            return
+        reply = QMessageBox.question(
+            self, "Delete Session",
+            f"Delete session '{self.sessions[row].get('name', '')}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            sm = self._get_session_manager()
+            sm.delete_session(self.sessions[row].get("id", ""))
+        except Exception:
+            pass
+        self.sessions.pop(row)
+        self.current_session_index = max(0, min(row, len(self.sessions) - 1))
+        self._refresh_session_list()
+        self._load_session(self.current_session_index)
+
+    def _clear_current_session(self):
+        if self.current_session_index < 0 or not hasattr(self, 'chat_display'):
+            return
+        reply = QMessageBox.question(self, "Clear Session",
+                                     "Clear all messages in this session?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self.sessions[self.current_session_index]["messages"] = []
+            self._save_current_session()
+            self.chat_display.clear()
+            self._refresh_session_list()
+
+    def _export_current_session(self):
+        if self.current_session_index < 0:
+            return
+        self._export_session(self.current_session_index, "md")
+
+    def _export_session(self, row: int, fmt: str):
+        from PyQt6.QtWidgets import QFileDialog
+        session = self.sessions[row]
+        name = session.get("name", "session").replace(" ", "_")
+        default = os.path.join(os.path.expanduser("~"), f"{name}.{fmt}")
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"Export Session as .{fmt}", default,
+            f"{'Text' if fmt == 'txt' else 'Markdown'} (*.{fmt});;All Files (*)")
+        if not path:
+            return
+        try:
+            sm = self._get_session_manager()
+            ok = sm.export_txt(session, path) if fmt == "txt" else sm.export_md(session, path)
+            if ok:
+                QMessageBox.information(self, "Export", f"Saved to:\n{path}")
+            else:
+                QMessageBox.warning(self, "Export", "Export failed.")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Error", str(e))
+
+    # -----------------------------------------------------------------------
+    # File attachments
+    # -----------------------------------------------------------------------
+
+    def _attach_local_file(self):
+        from PyQt6.QtWidgets import QFileDialog
+        from apps.components.Ai_Workshop.depends.file_attachments import (
+            read_local_file, create_attachment_chip)
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Attach File(s)", os.path.expanduser("~"),
+            "All Files (*);;Python (*.py);;Images (*.png *.jpg *.jpeg);;Text (*.txt *.cfg *.dat)")
+        for path in paths:
+            att = read_local_file(path)
+            self._add_attachment(att)
+
+    def _attach_ssh_file(self):
+        """Open SSH file browser to pick a remote file."""
+        if not self._ensure_ssh_connected():
+            return
+        self._show_ssh_browser()
+
+    def _ensure_ssh_connected(self) -> bool:
+        """Connect SSH if not already. Returns True if connected."""
+        if self._ssh and getattr(self._ssh, 'connected', False):
+            return True
+        cfg = self.ssh_config
+        if not cfg.get("username"):
+            QMessageBox.warning(self, "SSH Not Configured",
+                                "Configure SSH credentials in Settings → SSH tab first.")
+            return False
+        try:
+            from apps.components.Ai_Workshop.depends.ssh_file_access import SSHFileAccess
+            ssh = SSHFileAccess()
+            ok, msg = ssh.connect(cfg["host"], cfg["port"],
+                                  cfg["username"], cfg["password"], cfg["key_path"])
+            if ok:
+                self._ssh = ssh
+                if hasattr(self, 'ollama_status'):
+                    self.ollama_status.setText(f"SSH: {cfg['username']}@{cfg['host']}")
+                return True
+            else:
+                QMessageBox.warning(self, "SSH Connection Failed", msg)
+                return False
+        except Exception as e:
+            QMessageBox.warning(self, "SSH Error", str(e))
+            return False
+
+    def _show_ssh_browser(self):
+        """Simple SSH directory browser dialog."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                      QListWidget, QListWidgetItem, QPushButton, QLabel)
+        from apps.components.Ai_Workshop.depends.file_attachments import read_ssh_file
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("SSH File Browser")
+        dlg.resize(500, 400)
+        layout = QVBoxLayout(dlg)
+
+        path_label = QLabel(self.ssh_config.get("root_path", "/home"))
+        path_label.setFont(self.panel_font)
+        layout.addWidget(path_label)
+
+        file_list = QListWidget()
+        layout.addWidget(file_list)
+
+        current_path = [self.ssh_config.get("root_path", "/home")]
+
+        def populate(path):
+            file_list.clear()
+            path_label.setText(path)
+            ok, entries = self._ssh.list_dir(path)
+            if not ok:
+                return
+            # Add parent dir entry
+            if path != "/":
+                up = QListWidgetItem("📁 ..")
+                up.setData(Qt.ItemDataRole.UserRole, {"path": str(Path(path).parent), "is_dir": True})
+                file_list.addItem(up)
+            for e in entries:
+                icon = "📁 " if e["is_dir"] else "📄 "
+                size = f"  ({e['size'] // 1024} KB)" if not e["is_dir"] and e["size"] > 0 else ""
+                item = QListWidgetItem(f"{icon}{e['name']}{size}")
+                item.setData(Qt.ItemDataRole.UserRole, e)
+                file_list.addItem(item)
+
+        def on_double_click(item):
+            entry = item.data(Qt.ItemDataRole.UserRole)
+            if entry and entry.get("is_dir"):
+                current_path[0] = entry["path"]
+                populate(current_path[0])
+
+        file_list.itemDoubleClicked.connect(on_double_click)
+        populate(current_path[0])
+
+        btn_row = QHBoxLayout()
+        attach_btn = QPushButton("Attach Selected")
+        cancel_btn = QPushButton("Cancel")
+        btn_row.addWidget(attach_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+        def do_attach():
+            item = file_list.currentItem()
+            if not item:
+                return
+            entry = item.data(Qt.ItemDataRole.UserRole)
+            if not entry or entry.get("is_dir"):
+                return
+            att = read_ssh_file(self._ssh, entry["path"])
+            self._add_attachment(att)
+            dlg.accept()
+
+        attach_btn.clicked.connect(do_attach)
+        cancel_btn.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def _add_attachment(self, attachment: dict):
+        """Add attachment to pending list and show chip."""
+        from apps.components.Ai_Workshop.depends.file_attachments import create_attachment_chip
+        self._pending_attachments.append(attachment)
+        chip = create_attachment_chip(attachment,
+                                       on_remove=self._remove_attachment,
+                                       parent=self)
+        # Insert before the stretch
+        self.attachments_layout.insertWidget(
+            self.attachments_layout.count() - 1, chip)
+        self.attachments_frame.setVisible(True)
+
+        if attachment.get("error"):
+            QMessageBox.warning(self, "Attachment Warning",
+                                f"{attachment['name']}: {attachment['error']}")
+
+    def _remove_attachment(self, attachment: dict):
+        """Remove attachment chip and from pending list."""
+        if attachment in self._pending_attachments:
+            self._pending_attachments.remove(attachment)
+        # Rebuild chip area
+        self._rebuild_attachment_chips()
+
+    def _rebuild_attachment_chips(self):
+        """Redraw all attachment chips from pending list."""
+        from apps.components.Ai_Workshop.depends.file_attachments import create_attachment_chip
+        # Clear layout except stretch
+        while self.attachments_layout.count() > 1:
+            item = self.attachments_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for att in self._pending_attachments:
+            chip = create_attachment_chip(att, on_remove=self._remove_attachment, parent=self)
+            self.attachments_layout.insertWidget(
+                self.attachments_layout.count() - 1, chip)
+        self.attachments_frame.setVisible(bool(self._pending_attachments))
+
+    # -----------------------------------------------------------------------
+    def _handle_file_drop(self, urls):
+        """Attach dropped local files to the next message."""
+        from apps.components.Ai_Workshop.depends.file_attachments import read_local_file
+        added = 0
+        for url in urls:
+            if not url.isLocalFile():
+                continue
+            path = url.toLocalFile()
+            if not os.path.isfile(path):
+                continue
+            try:
+                self._add_attachment(read_local_file(path))
+                added += 1
+            except Exception as exc:
+                QMessageBox.warning(self, "Attachment Error", f"Could not attach {path}: {exc}")
+        if added:
+            self.input_box.setFocus()
+            self.typing_label.setText(f"{added} file(s) ready to attach")
+
+    def _show_downloads(self):
+        """List code blocks in assistant replies and let the user save them as files."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem
+        dialog = QDialog(self)
+        dialog.setWindowTitle("AI Workshop Downloads")
+        dialog.resize(720, 480)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Select a code block from an AI reply, then save it as a file."))
+        items = QListWidget()
+        layout.addWidget(items, 1)
+        extensions = {"python": "py", "py": "py", "bash": "sh", "sh": "sh", "json": "json",
+                      "javascript": "js", "js": "js", "typescript": "ts", "html": "html", "css": "css",
+                      "xml": "xml", "yaml": "yml", "yml": "yml", "toml": "toml", "sql": "sql",
+                      "markdown": "md", "md": "md", "text": "txt", "txt": "txt", "ini": "ini",
+                      "c": "c", "cpp": "cpp", "c++": "cpp", "java": "java", "rust": "rs", "go": "go"}
+        if 0 <= self.current_session_index < len(self.sessions):
+            messages = self.sessions[self.current_session_index].get("messages", [])
+            for message_index, message in enumerate(messages):
+                if message.get("role") != "assistant":
+                    continue
+                matches = re.finditer(r"```([^\n`]*)\n(.*?)```", message.get("content", ""), re.S)
+                for block_index, match in enumerate(matches, 1):
+                    language = match.group(1).strip().split()[0].lower() if match.group(1).strip() else "txt"
+                    body = match.group(2).rstrip() + "\n"
+                    filename = f"assistant_message_{message_index + 1}_block_{block_index}.{extensions.get(language, 'txt')}"
+                    item = QListWidgetItem(f"{filename} — {language} ({len(body)} characters)")
+                    item.setData(Qt.ItemDataRole.UserRole, (filename, body))
+                    items.addItem(item)
+        if items.count() == 0:
+            items.addItem("No fenced code blocks found in this session's AI replies.")
+        buttons = QHBoxLayout()
+        save_btn = QPushButton("Save Selected As…")
+        folder_btn = QPushButton("Open Downloads Folder")
+        close_btn = QPushButton("Close")
+        buttons.addWidget(save_btn)
+        buttons.addWidget(folder_btn)
+        buttons.addStretch()
+        buttons.addWidget(close_btn)
+        layout.addLayout(buttons)
+
+        def save_selected():
+            item = items.currentItem()
+            data = item.data(Qt.ItemDataRole.UserRole) if item else None
+            if not isinstance(data, tuple):
+                return
+            filename, content = data
+            os.makedirs(self.download_dir, exist_ok=True)
+            path, _ = QFileDialog.getSaveFileName(dialog, "Save AI-created file", os.path.join(self.download_dir, filename), "All Files (*)")
+            if not path:
+                return
+            try:
+                with open(path, "w", encoding="utf-8", newline="") as handle:
+                    handle.write(content)
+                QMessageBox.information(dialog, "Download Saved", f"Saved file to:\n{path}")
+            except OSError as exc:
+                QMessageBox.warning(dialog, "Save Failed", str(exc))
+
+        def open_folder():
+            os.makedirs(self.download_dir, exist_ok=True)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(self.download_dir))
+
+        save_btn.clicked.connect(save_selected)
+        folder_btn.clicked.connect(open_folder)
+        close_btn.clicked.connect(dialog.accept)
+        dialog.exec()
+
+    # Backup helper
+    # -----------------------------------------------------------------------
+
+    def _offer_backup(self, path: str) -> bool:
+        """
+        Ask user to backup before writing. Returns True to proceed, False to cancel.
+        Remembers 'don't ask again this session' if user chose Skip.
+        """
+        if getattr(self, '_backup_skipped_this_session', False):
+            return True
+
+        reply = QMessageBox.question(
+            self, "Backup Before Writing",
+            f"Create a tar.gz backup of:\n{path}\n\n"
+            "This keeps only ONE backup (overwrites previous).\n\n"
+            "Backup now?",
+            QMessageBox.StandardButton.Yes |
+            QMessageBox.StandardButton.No |
+            QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes)
+
+        if reply == QMessageBox.StandardButton.Cancel:
+            return False
+        if reply == QMessageBox.StandardButton.No:
+            self._backup_skipped_this_session = True
+            return True
+
+        # Do backup
+        try:
+            from apps.components.Ai_Workshop.depends.session_manager import SessionManager
+            sm = SessionManager()
+            ok, result = sm.backup_directory(path)
+            if ok:
+                QMessageBox.information(self, "Backup Created", f"Backup saved:\n{result}")
+            else:
+                ret = QMessageBox.warning(
+                    self, "Backup Failed",
+                    f"Backup failed: {result}\n\nProceed anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                return ret == QMessageBox.StandardButton.Yes
+        except Exception as e:
+            QMessageBox.warning(self, "Backup Error", str(e))
+            return False
+        return True
+
+    # -----------------------------------------------------------------------
+    # Chat logic
+    # -----------------------------------------------------------------------
+
+    def _send_message(self):
+        text = self.input_box.toPlainText().strip()
+        attachments = list(self._pending_attachments)
+
+        if not text and not attachments:
+            return
+        if self.worker and self.worker.isRunning():
+            return
+
+        if self.current_session_index < 0:
+            self._new_session_action()
+
+        session = self.sessions[self.current_session_index]
+
+        # Build display text (with attachment names listed)
+        display_text = text
+        if attachments:
+            names = ", ".join(a["name"] for a in attachments)
+            display_text = f"[📎 {names}]\n{text}".strip()
+
+        # Build API content (text + file contents injected)
+        try:
+            from apps.components.Ai_Workshop.depends.file_attachments import build_message_content
+            api_content = build_message_content(text, attachments)
+        except Exception:
+            api_content = display_text
+
+        session["messages"].append({"role": "user", "content": display_text})
+        self._append_bubble("user", display_text)
+        self.input_box.clear()
+
+        # Clear attachments
+        self._pending_attachments.clear()
+        self._rebuild_attachment_chips()
+
+        # Save session after user message
+        self._save_current_session()
+        self._refresh_session_list()
+
+        # Build API messages — combine system prompt and rules
+        api_messages = []
+        system_parts = []
+        if self.system_prompt.strip():
+            system_parts.append(self.system_prompt.strip())
+        if getattr(self, 'ai_rules', '').strip():
+            system_parts.append("\n\nRules:\n" + self.ai_rules.strip())
+        if system_parts:
+            api_messages.append({"role": "system", "content": "".join(system_parts)})
+        # History (use display text for history context)
+        for msg in session["messages"][:-1]:
+            api_messages.append({"role": msg["role"], "content": msg["content"]})
+        # Latest message with full attachment content
+        api_messages.append({"role": "user", "content": api_content})
+
+        model = self.model_combo.currentText()
+        if not model:
+            QMessageBox.warning(self, "No Model", "Select a model in the Settings panel.")
+            return
+
+        base_url = self.url_input.text().rstrip("/")
+        self.send_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+        self.typing_label.setText(f"{model} is thinking…")
+
+        self._current_response = ""
+        # Add placeholder to session so _append_bubble can index it
+        session["messages"].append({"role": "assistant", "content": ""})
+        self._append_bubble("assistant", "")
+        self._begin_incremental_stream()
+
+        self.worker = OllamaWorker(model, api_messages, base_url,
+                                   self.temperature, self.max_tokens)
+        self.worker.token_received.connect(self._on_token)
+        self.worker.response_done.connect(self._on_response_done)
+        self.worker.error_occurred.connect(self._on_error)
+        self.worker.start()
+
+    def _on_token(self, token: str):
+        """Buffer streamed tokens and refresh at a steady, readable cadence."""
+        self._current_response += token
+        self._stream_buffer += token
+        if not self._stream_timer.isActive():
+            self._stream_timer.start()
+
+    def _begin_incremental_stream(self):
+        """Anchor a QTextCursor inside the new assistant bubble's content cell.
+
+        Streaming updates can then append text without replacing the document,
+        which avoids QTextEdit's setHtml/layout/scrollbar reset cycle.
+        """
+        self._stream_cursor = None
+        if not hasattr(self, "chat_display"):
+            return
+        doc = self.chat_display.document()
+        finder = QTextCursor(doc)
+        finder.movePosition(QTextCursor.MoveOperation.End)
+        label = getattr(self, "ai_name", "AI") or "AI"
+        found = doc.find(label, finder, QTextDocument.FindFlag.FindBackward)
+        if found.isNull():
+            return
+        table = found.currentTable()
+        if table is None or table.rows() < 2 or table.columns() < 2:
+            return
+        # The message HTML uses row 1 / column 1 for the content cell.
+        self._stream_cursor = table.cellAt(1, 1).lastCursorPosition()
+
+    def _flush_stream_buffer(self):
+        """Append buffered output in place, without rebuilding the chat HTML."""
+        if not self._stream_buffer:
+            self._stream_timer.stop()
+            return
+        chunk = self._stream_buffer
+        self._stream_buffer = ""
+
+        # Keep the in-memory conversation in sync with what has streamed.
+        if 0 <= self.current_session_index < len(self.sessions):
+            messages = self.sessions[self.current_session_index].get("messages", [])
+            if messages and messages[-1].get("role") == "assistant":
+                messages[-1]["content"] = self._current_response
+
+        cursor = self._stream_cursor
+        if cursor is None or cursor.isNull():
+            # Defensive fallback if the active table/cell could not be located.
+            self._refresh_last_assistant_bubble(self._current_response)
+            self._begin_incremental_stream()
+            return
+
+        scrollbar = self.chat_display.verticalScrollBar()
+        old_value = scrollbar.value()
+        was_near_bottom = scrollbar.maximum() - old_value <= 40
+
+        # Insert explicit HTML line breaks so streamed newlines retain the same
+        # compact spacing as the original bubble's <br> rendering.
+        pieces = chunk.split("\n")
+        for index, piece in enumerate(pieces):
+            if piece:
+                cursor.insertText(piece)
+            if index < len(pieces) - 1:
+                cursor.insertHtml("<br>")
+        self._stream_cursor = cursor
+
+        # Qt updates the document layout after insertion. Scroll only when the
+        # reader was already following the newest message; otherwise preserve
+        # their reading position.
+        if was_near_bottom:
+            QTimer.singleShot(0, lambda bar=scrollbar: bar.setValue(bar.maximum()))
+        else:
+            scrollbar.setValue(min(old_value, scrollbar.maximum()))
+
+    def _cleanup_worker(self):
+        """Safely stop and wait for worker thread to finish."""
+        if self.worker is not None:
+            if self.worker.isRunning():
+                self.worker.stop()          # set stop flag
+                self.worker.quit()          # ask event loop to exit
+                if not self.worker.wait(3000):  # wait up to 3s
+                    self.worker.terminate() # hard kill if still stuck
+                    self.worker.wait(1000)
+            self.worker.deleteLater()
+            self.worker = None
+
+    def _on_response_done(self, full_response: str):
+        # Flush any final buffered chunk before stopping the stream timer.
+        self._flush_stream_buffer()
+        self._stream_timer.stop()
+        self._stream_buffer = ""
+        self._stream_cursor = None
+        session = self.sessions[self.current_session_index]
+        # Update the placeholder message that was added when streaming started
+        msgs = session.get("messages", [])
+        if msgs and msgs[-1].get("role") == "assistant":
+            msgs[-1]["content"] = full_response
+        else:
+            session["messages"].append({"role": "assistant", "content": full_response})
+        # Normally the incremental document already contains this exact response.
+        # Rebuild only if the worker's final payload differs from streamed tokens.
+        if full_response != self._current_response:
+            self._refresh_last_assistant_bubble(full_response)
+        self.send_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
+        self.typing_label.setText("")
+        self._save_current_session()
+        self._refresh_session_list()
+        if self.worker:
+            self.worker.deleteLater()
+            self.worker = None
+
+    def _on_error(self, error_msg: str):
+        self._stream_timer.stop()
+        self._stream_buffer = ""
+        self._stream_cursor = None
+        session = self.sessions[self.current_session_index]
+        # Remove empty assistant placeholder if present
+        msgs = session.get("messages", [])
+        if msgs and msgs[-1].get("role") == "assistant" and not msgs[-1].get("content"):
+            msgs.pop()
+        session["messages"].append({"role": "error", "content": error_msg})
+        self.typing_label.setText("")
+        self.send_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
+        self._redraw_chat()
+        if self.worker:
+            self.worker.deleteLater()
+            self.worker = None
+
+    def _stop_generation(self):
+        self._flush_stream_buffer()
+        self._stream_timer.stop()
+        self._stream_buffer = ""
+        self._stream_cursor = None
+        if self.worker and self.worker.isRunning():
+            self._cleanup_worker()
+            self.typing_label.setText("Stopped.")
+            self.send_btn.setEnabled(True)
+            self.stop_btn.setEnabled(False)
+
+    # -----------------------------------------------------------------------
+    # Chat display helpers
+    # -----------------------------------------------------------------------
+
+    def _bubble_colors(self, role: str, index: int = 0) -> tuple:
+        """Return bubble colours from the active theme palette, never fixed RGB values."""
+        colors = self.app_settings.get_theme_colors() if self.app_settings else {}
+        palette = QApplication.palette()
+        base = colors.get("bg_secondary") or colors.get("bg_primary") or palette.color(palette.ColorRole.Base).name()
+        text = colors.get("text_primary") or palette.color(palette.ColorRole.Text).name()
+        label_col = colors.get("text_secondary") or text
+        role_key = self.chat_user_color_key if role == "user" else self.chat_ai_color_key
+        if role == "error":
+            role_key = "error"
+        accent = colors.get(role_key) or colors.get("accent_primary") or label_col
+        row_bg = colors.get("table_row_even" if index % 2 == 0 else "table_row_odd") or base
+
+        def tint(hex_col: str, factor: float) -> str:
+            try:
+                source, background = QColor(hex_col), QColor(row_bg)
+                if not source.isValid() or not background.isValid():
+                    return row_bg
+                mix = lambda a, b: round(a * (1 - factor) + b * factor)
+                return QColor(mix(background.red(), source.red()),
+                              mix(background.green(), source.green()),
+                              mix(background.blue(), source.blue())).name()
+            except Exception:
+                return row_bg
+
+        label = (getattr(self, 'user_name', 'Me') if role == 'user' else
+                 getattr(self, 'ai_name', 'AI') if role == 'assistant' else
+                 'Error' if role == 'error' else role.title())
+        factor = 0.18 if role == 'user' else 0.16 if role == 'assistant' else 0.22
+        return tint(accent, factor), text, accent if role in ('user', 'assistant', 'error') else label_col, label
+
+    def _make_bubble_html(self, role: str, content: str, idx: int,
+                           font_size: int, font_family: str,
+                           colors: dict, ts: str = "") -> str:
+        """Return the HTML string for a single message bubble.
+        Style mirrors the QGroupBox header — label sits in the top border line.
+        """
+        bg, fg, label_fg, label = self._bubble_colors(role, idx)
+        border_col = colors.get("border", colors.get("border_primary", colors.get("text_secondary", "currentColor")))
+        bg_base    = colors.get("bg_primary", QApplication.palette().color(QApplication.palette().ColorRole.Base).name())
+        meta_col   = colors.get("text_secondary", QApplication.palette().color(QApplication.palette().ColorRole.Text).name())
+
+        escaped = html.escape(content).replace("\n", "<br>")
+
+        # Build header label text
+        header_parts = []
+        if getattr(self, "show_line_numbers", True):
+            header_parts.append(f"#{idx + 1}")
+        header_parts.append(label)
+        if getattr(self, "show_timestamps", True) and ts:
+            header_parts.append(ts)
+        header_text = " &nbsp;&middot;&nbsp; ".join(header_parts)
+
+        label_fs  = max(7, font_size - 2)
+        content_fs = font_size
+
+        #    Gap between bubbles                                           
+        gap = (
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+            f'<tr><td height="10" bgcolor="{bg_base}"></td></tr>'
+            f'</table>'
+        )
+
+        #    Bubble structure                                              
+        # Outer table: rounded border look via solid border + background
+        # Header row: label text sits ON the top border (like QGroupBox title)
+        # We achieve this with a 1px top-border on the header cell itself,
+        # and a left accent stripe via a narrow coloured cell.
+        #
+        # Layout:
+        #  ┌  accent │ [  label · ts  ]                                   ┐
+        #  │  stripe  │                                                    │
+        #  │          │  message content text here                         │
+        #  └          ┴                                                    ┘
+
+        bubble = (
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+            f' style="background:{bg}; border:1px solid {label_fg};">'
+
+            # Header row — label in top-border style
+            f'<tr>'
+            f'<td width="4" bgcolor="{label_fg}" rowspan="2"></td>'
+            f'<td style="'
+            f'padding:3px 10px 3px 10px;'
+            f'font-size:{label_fs}pt;'
+            f'font-family:Arial,sans-serif;'
+            f'font-weight:bold;'
+            f'color:{label_fg};'
+            f'border-bottom:1px solid {border_col};'
+            f'">{header_text}</td>'
+            f'</tr>'
+
+            # Content row
+            f'<tr>'
+            f'<td style="'
+            f'padding:6px 12px 8px 12px;'
+            f'font-family:{font_family};'
+            f'font-size:{content_fs}pt;'
+            f'color:{fg};'
+            f'">{escaped}</td>'
+            f'</tr>'
+
+            f'</table>'
+        )
+
+        return gap + bubble
+
+    def _build_full_html(self, messages: list) -> str:
+        """Build the complete HTML document for the chat display."""
+        colors    = self.app_settings.get_theme_colors() if self.app_settings else {}
+        bg_page   = colors.get("bg_primary", QApplication.palette().color(QApplication.palette().ColorRole.Base).name())
+        font_size = self.chat_font.pointSize()
+        font_fam  = self.chat_font.family()
+
+        parts = [f'<html><body style="background:{bg_page}; margin:0; padding:0;">']
+        for i, msg in enumerate(messages):
+            ts = msg.get("ts", "")
+            parts.append(self._make_bubble_html(
+                msg["role"], msg["content"], i, font_size, font_fam, colors, ts))
+        parts.append("</body></html>")
+        return "".join(parts)
+
+    def _append_bubble(self, role: str, content: str):
+        """Store timestamp metadata for the message then refresh display."""
+        from datetime import datetime
+        fmt = getattr(self, 'date_format', '%H:%M:%S')
+        ts  = datetime.now().strftime(fmt) if getattr(self, 'show_timestamps', True) else ""
+
+        if self.current_session_index >= 0 and self.current_session_index < len(self.sessions):
+            meta = self.sessions[self.current_session_index].setdefault("messages_meta", {})
+            idx  = len(self.sessions[self.current_session_index].get("messages", []))
+            meta[str(idx)] = ts
+
+        self._redraw_chat()
+
+    def _get_ts(self, session: dict, idx: int) -> str:
+        """Get stored timestamp for a message by index."""
+        return session.get("messages_meta", {}).get(str(idx), "")
+
+    def _refresh_last_assistant_bubble(self, content: str):
+        """Update the last assistant message with current streaming content."""
+        if self.current_session_index < 0:
+            return
+        session = self.sessions[self.current_session_index]
+        msgs = session.get("messages", [])
+        if not msgs:
+            return
+        # Update the last message content in-place then redraw
+        last = msgs[-1]
+        last["content"] = content
+        self._redraw_chat()
+
+    def _redraw_chat(self):
+        """Rebuild the full chat HTML from scratch using setHtml for reliable rendering."""
+        if not hasattr(self, "chat_display") or self.current_session_index < 0:
+            return
+        if self.current_session_index >= len(self.sessions):
+            return
+        session  = self.sessions[self.current_session_index]
+        messages = session.get("messages", [])
+
+        # Inject stored timestamps into message dicts for rendering
+        meta = session.get("messages_meta", {})
+        for i, msg in enumerate(messages):
+            msg["ts"] = meta.get(str(i), "")
+
+        self.chat_display.document().setDefaultFont(self.chat_font)
+        html = self._build_full_html(messages)
+        # Suppress intermediate paints while replacing the document. Streaming is
+        # also batched, so this happens at most once per timer interval rather
+        # than once for every Ollama token.
+        sb = self.chat_display.verticalScrollBar()
+        was_near_bottom = sb.maximum() - sb.value() <= 40
+        old_value = sb.value()
+        self.chat_display.setUpdatesEnabled(False)
+        try:
+            self.chat_display.setHtml(html)
+        finally:
+            self.chat_display.setUpdatesEnabled(True)
+        sb = self.chat_display.verticalScrollBar()
+        target = sb.maximum() if was_near_bottom else min(old_value, sb.maximum())
+        # Defer scroll restoration until Qt has recalculated the document layout.
+        QTimer.singleShot(0, lambda bar=sb, value=target: bar.setValue(
+            bar.maximum() if was_near_bottom else min(value, bar.maximum())))
+
+    def _refresh_model_list(self):
+        base_url = self.url_input.text().rstrip("/") if hasattr(self, 'url_input') else OLLAMA_BASE_URL
+        models = _fetch_models(base_url)
+        if hasattr(self, 'model_combo'):
+            self.model_combo.blockSignals(True)
+            self.model_combo.clear()
+            if models:
+                self.model_combo.addItems(models)
+                if self.selected_model in models:
+                    self.model_combo.setCurrentText(self.selected_model)
+                else:
+                    self.selected_model = models[0]
+                    self.model_combo.setCurrentIndex(0)
+            else:
+                self.model_combo.addItem("(no models found)")
+            self.model_combo.blockSignals(False)
+        self._update_ollama_status()
+
+    def _on_model_changed(self, model: str):
+        self.selected_model = model
+
+    def _update_ollama_status(self):
+        """Check Ollama connection and update status labels with theme colours."""
+        base_url = self.url_input.text().rstrip("/") if hasattr(self, 'url_input') else OLLAMA_BASE_URL
+        running  = _ollama_running(base_url)
+        colors   = self.app_settings.get_theme_colors() if self.app_settings else {}
+        success_col = colors.get('success', colors.get('accent_primary', QApplication.palette().color(QApplication.palette().ColorRole.Highlight).name()))
+        error_col   = colors.get('error', colors.get('accent_secondary', QApplication.palette().color(QApplication.palette().ColorRole.Highlight).name()))
+        secondary   = colors.get('text_secondary', QApplication.palette().color(QApplication.palette().ColorRole.Text).name())
+        if hasattr(self, 'ollama_status'):
+            if running:
+                self.ollama_status.setText("● Ollama running")
+                self.ollama_status.setStyleSheet(f"color: {success_col};")
+            else:
+                self.ollama_status.setText("● Ollama offline")
+                self.ollama_status.setStyleSheet(f"color: {error_col};")
+        if hasattr(self, 'status_label'):
+            self.status_label.setStyleSheet(f"color: {secondary};")
+            self.status_label.setText(
+                f"Ollama: {'connected' if running else 'not running — start with: ollama serve'}"
+            )
+
+    def _update_web_status_label(self, label):
+        """Update a QLabel with current web server status."""
+        colors = self.app_settings.get_theme_colors() if self.app_settings else {}
+        if self._web_running:
+            h = self.web_config.get("host", "127.0.0.1")
+            p = self.web_config.get("port", 8080)
+            display = "127.0.0.1" if h == "0.0.0.0" else h
+            label.setText(f"● Running at http://{display}:{p}")
+            label.setStyleSheet(f"color: {colors.get('success', colors.get('accent_primary', QApplication.palette().color(QApplication.palette().ColorRole.Highlight).name()))};")
+        else:
+            label.setText("● Stopped")
+            label.setStyleSheet(f"color: {colors.get('text_secondary', 'palette(placeholderText)')};")
+
+    def _start_web_server(self):
+        """Start the FastAPI web server in a daemon thread."""
+        if self._web_running:
+            return
+        try:
+            import threading
+            import uvicorn
+            from apps.components.Ai_Workshop.web.server import app as fastapi_app
+
+            host = self.web_config.get("host", "127.0.0.1")
+            port = self.web_config.get("port", 8080)
+
+            config = uvicorn.Config(fastapi_app, host=host, port=port,
+                                    log_level="warning", loop="asyncio")
+            self._uvicorn_server = uvicorn.Server(config)
+
+            def _run():
+                import asyncio
+                asyncio.run(self._uvicorn_server.serve())
+
+            self._web_thread = threading.Thread(target=_run, daemon=True)
+            self._web_thread.start()
+            self._web_running = True
+
+            h = "127.0.0.1" if host == "0.0.0.0" else host
+            self.log_message(f"Web server started: http://{h}:{port}")
+
+        except ImportError as e:
+            QMessageBox.warning(self, "Web Server",
+                f"Missing dependency: {e}\n\n"
+                "Install with:\npip install fastapi uvicorn httpx python-multipart --break-system-packages")
+        except Exception as e:
+            QMessageBox.warning(self, "Web Server Error", str(e))
+
+    def _stop_web_server(self):
+        """Stop the running web server."""
+        if not self._web_running:
+            return
+        try:
+            if hasattr(self, '_uvicorn_server'):
+                self._uvicorn_server.should_exit = True
+            self._web_running = False
+            self._web_thread  = None
+            self.log_message("Web server stopped")
+        except Exception as e:
+            print(f"[AI Workshop] Web stop error: {e}")
+
+    def log_message(self, msg: str):
+        """Log to main window if available, otherwise print."""
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(msg)
+        else:
+            print(f"[AI Workshop] {msg}")
+
+    def _on_chat_size_changed(self, size: int):
+        """Live-update chat font size and redraw."""
+        self.chat_font.setPointSize(size)
+        if hasattr(self, 'chat_display'):
+            self.chat_display.setFont(self.chat_font)
+            self.chat_display.document().setDefaultFont(self.chat_font)
+        if hasattr(self, 'input_box'):
+            self.input_box.setFont(self.chat_font)
+        self._redraw_chat()
+
+    def _on_chat_font_changed(self, font):
+        """Live-update chat font family and redraw."""
+        self.chat_font.setFamily(font.family())
+        if hasattr(self, 'chat_display'):
+            self.chat_display.setFont(self.chat_font)
+            self.chat_display.document().setDefaultFont(self.chat_font)
+        if hasattr(self, 'input_box'):
+            self.input_box.setFont(self.chat_font)
+        self._redraw_chat()
+
+    # -----------------------------------------------------------------------
+    # eventFilter: Ctrl+Enter to send, Ctrl+wheel/+/- to zoom chat text
+    # -----------------------------------------------------------------------
+
+    def _adjust_chat_size(self, delta: int):
+        """Increase or decrease chat font size by delta points."""
+        new_size = max(7, min(32, self.chat_font.pointSize() + delta))
+        self.chat_font.setPointSize(new_size)
+        if hasattr(self, 'chat_display'):
+            self.chat_display.setFont(self.chat_font)
+            self.chat_display.document().setDefaultFont(self.chat_font)
+        if hasattr(self, 'input_box'):
+            self.input_box.setFont(self.chat_font)
+        if hasattr(self, 'chat_size_spin'):
+            self.chat_size_spin.blockSignals(True)
+            self.chat_size_spin.setValue(new_size)
+            self.chat_size_spin.blockSignals(False)
+        self._redraw_chat()
+
+    def eventFilter(self, obj, event):
+        from PyQt6.QtCore import QEvent
+        from PyQt6.QtGui import QKeyEvent, QWheelEvent
+
+        # Ctrl+Enter in input box → send
+        if hasattr(self, 'input_box') and obj is self.input_box:
+            if event.type() == QEvent.Type.KeyPress:
+                ke: QKeyEvent = event
+                if (ke.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and
+                        ke.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                    self._send_message()
+                    return True
+
+        # Ctrl++ / Ctrl+- anywhere in the workshop → zoom chat text
+        if event.type() == QEvent.Type.KeyPress:
+            ke: QKeyEvent = event
+            if ke.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                if ke.key() in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+                    self._adjust_chat_size(+1)
+                    return True
+                if ke.key() == Qt.Key.Key_Minus:
+                    self._adjust_chat_size(-1)
+                    return True
+                if ke.key() == Qt.Key.Key_0:
+                    # Ctrl+0 → reset to default size
+                    self.chat_font.setPointSize(10)
+                    self._adjust_chat_size(0)
+                    return True
+
+        # Ctrl+wheel over chat display → zoom chat text
+        if hasattr(self, 'chat_display') and obj is self.chat_display:
+            if event.type() == QEvent.Type.Wheel:
+                we: QWheelEvent = event
+                if we.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                    delta = 1 if we.angleDelta().y() > 0 else -1
+                    self._adjust_chat_size(delta)
+                    return True
+
+        # Drag local files from the desktop/file manager onto either chat surface.
+        if obj in (getattr(self, 'chat_display', None), getattr(self, 'input_box', None)):
+            if event.type() == QEvent.Type.DragEnter and event.mimeData().hasUrls():
+                if any(url.isLocalFile() for url in event.mimeData().urls()):
+                    event.acceptProposedAction()
+                    return True
+            if event.type() == QEvent.Type.Drop and event.mimeData().hasUrls():
+                self._handle_file_drop(event.mimeData().urls())
+                event.acceptProposedAction()
+                return True
+
+        return super().eventFilter(obj, event)
+
+    # -----------------------------------------------------------------------
+    # Settings dialog
+    # -----------------------------------------------------------------------
+
+    def _show_workshop_settings(self): #vers 1
+        from PyQt6.QtWidgets import QFileDialog as QFD
+        dialog = QDialog(self)
+        dialog.setWindowTitle(App_name + " Settings")
+        dialog.setMinimumWidth(560)
+        dialog.setMinimumHeight(480)
+
+        layout = QVBoxLayout(dialog)
+        tabs = QTabWidget()
+
+        # --- Fonts tab ---
+        fonts_tab = QWidget()
+        fl = QVBoxLayout(fonts_tab)
+        for label_text, attr in [
+            ("Chat Font",   "chat_font"),
+            ("Panel Font",  "panel_font"),
+            ("Button Font", "button_font"),
+        ]:
+            g = QGroupBox(label_text)
+            gl = QHBoxLayout(g)
+            combo = QFontComboBox()
+            combo.setCurrentFont(getattr(self, attr))
+            spin = QSpinBox(); spin.setRange(7, 20)
+            spin.setValue(getattr(self, attr).pointSize())
+            gl.addWidget(combo); gl.addWidget(spin)
+            fl.addWidget(g)
+            setattr(dialog, f"_{attr}_combo", combo)
+            setattr(dialog, f"_{attr}_spin",  spin)
+        fl.addStretch()
+        tabs.addTab(fonts_tab, "Fonts")
+
+        # --- General tab ---
+        gen_tab = QWidget()
+        gtl = QFormLayout(gen_tab)
+
+        url_edit = QLineEdit(self.url_input.text() if hasattr(self, 'url_input') else OLLAMA_BASE_URL)
+        gtl.addRow("Ollama URL:", url_edit)
+
+        # Sessions directory
+        sess_row = QHBoxLayout()
+        sess_edit = QLineEdit(self.sessions_dir)
+        sess_browse = QPushButton("…"); sess_browse.setFixedWidth(30)
+        def _browse_sess():
+            from PyQt6.QtWidgets import QFileDialog
+            d = QFileDialog.getExistingDirectory(dialog, "Sessions Directory", self.sessions_dir)
+            if d:
+                sess_edit.setText(d)
+        sess_browse.clicked.connect(_browse_sess)
+        sess_row.addWidget(sess_edit); sess_row.addWidget(sess_browse)
+        gtl.addRow("Sessions saved to:", sess_row)
+
+        tabs.addTab(gen_tab, "General")
+
+        # --- Rules tab ---
+        rules_tab = QWidget()
+        rules_layout = QVBoxLayout(rules_tab)
+
+        # System prompt
+        sp_group = QGroupBox("System Prompt")
+        sp_group.setToolTip("Sets the AI's persona and context — sent before every conversation")
+        sp_layout = QVBoxLayout(sp_group)
+        sp_edit = QTextEdit()
+        sp_edit.setFont(QFont("Courier New", 9))
+        sp_edit.setMinimumHeight(80)
+        sp_edit.setPlaceholderText("e.g. You are a helpful Python coding assistant...")
+        sp_edit.setPlainText(self.system_prompt)
+        sp_layout.addWidget(sp_edit)
+        rules_layout.addWidget(sp_group)
+
+        # Rules list
+        rules_group = QGroupBox("Rules")
+        rules_group.setToolTip(
+            "Additional rules appended to the system prompt.\n"
+            "One rule per line. These constrain the AI's behaviour.")
+        rules_vl = QVBoxLayout(rules_group)
+
+        rules_hint = QLabel(
+            "One rule per line — appended to the system prompt as a rules list.\n"
+            "Example:  - Always reply in the language the user writes in"
+        )
+        rules_hint.setStyleSheet("font-size: 10px; font-style: italic;")
+        rules_hint.setWordWrap(True)
+        rules_vl.addWidget(rules_hint)
+
+        rules_edit = QTextEdit()
+        rules_edit.setFont(QFont("Courier New", 9))
+        rules_edit.setMinimumHeight(120)
+        rules_edit.setPlaceholderText(
+            "- Always reply in the user's language\n"
+            "- Keep responses concise\n"
+            "- Use fenced code blocks with language specified"
+        )
+        rules_edit.setPlainText(getattr(self, 'ai_rules', ''))
+        rules_vl.addWidget(rules_edit)
+
+        # Quick-add preset rules
+        presets_row = QHBoxLayout()
+        presets_label = QLabel("Add preset:")
+        presets_label.setFont(self.panel_font)
+        presets_row.addWidget(presets_label)
+
+        preset_combo = QComboBox()
+        preset_combo.addItems([
+            "Select a preset…",
+            "Always reply in user's language",
+            "Keep responses concise",
+            "Always use fenced code blocks with language",
+            "Never make up library names or functions",
+            "Always explain your reasoning step by step",
+            "Reply as a GTA modding expert",
+            "Reply as a Python/PyQt6 expert",
+            "Do not add unsolicited advice",
+        ])
+        presets_row.addWidget(preset_combo, stretch=1)
+
+        add_preset_btn = QPushButton("Add")
+        add_preset_btn.setFont(self.button_font)
+        def _add_preset():
+            txt = preset_combo.currentText()
+            if txt and not txt.startswith("Select"):
+                current = rules_edit.toPlainText().rstrip()
+                prefix = "- " if not txt.startswith("-") else ""
+                rules_edit.setPlainText(
+                    (current + "\n" if current else "") + prefix + txt)
+        add_preset_btn.clicked.connect(_add_preset)
+        presets_row.addWidget(add_preset_btn)
+
+        rules_vl.addLayout(presets_row)
+        rules_layout.addWidget(rules_group)
+        rules_layout.addStretch()
+        tabs.addTab(rules_tab, "Rules")
+
+        # --- SSH tab ---
+        ssh_tab = QWidget()
+        ssh_layout = QVBoxLayout(ssh_tab)
+
+        try:
+            from apps.components.Ai_Workshop.depends.ssh_file_access import create_ssh_settings_widget
+            ssh_group = create_ssh_settings_widget(dialog, self.ssh_config)
+            ssh_layout.addWidget(ssh_group)
+        except Exception as e:
+            ssh_layout.addWidget(QLabel(f"SSH module error: {e}"))
+            ssh_group = None
+
+        # Test connection button
+        test_btn = QPushButton("Test Connection")
+        def _test_ssh():
+            if not ssh_group:
+                return
+            vals = ssh_group.get_values()
+            try:
+                from apps.components.Ai_Workshop.depends.ssh_file_access import SSHFileAccess
+                ssh = SSHFileAccess()
+                ok, msg = ssh.connect(vals["host"], vals["port"],
+                                       vals["username"], vals["password"], vals["key_path"])
+                if ok:
+                    ssh.disconnect()
+                    QMessageBox.information(dialog, "SSH Test", f"✓ {msg}")
+                else:
+                    QMessageBox.warning(dialog, "SSH Test Failed", msg)
+            except Exception as e:
+                QMessageBox.warning(dialog, "SSH Error", str(e))
+        test_btn.clicked.connect(_test_ssh)
+        ssh_layout.addWidget(test_btn)
+
+        paramiko_note = QLabel("Requires: pip install paramiko --break-system-packages")
+        paramiko_note.setStyleSheet("font-size: 10px; font-style: italic;")
+        ssh_layout.addWidget(paramiko_note)
+        ssh_layout.addStretch()
+        tabs.addTab(ssh_tab, "SSH")
+
+        # --- Web Server tab ---
+        web_tab = QWidget()
+        web_layout = QVBoxLayout(web_tab)
+
+        web_enable_group = QGroupBox("Web Interface")
+        web_enable_layout = QVBoxLayout(web_enable_group)
+
+        web_enabled_chk = QCheckBox("Enable web server")
+        web_enabled_chk.setChecked(self.web_config.get("enabled", False))
+        web_enabled_chk.setToolTip("Start a local web server so AI Workshop is accessible from a browser")
+        web_enable_layout.addWidget(web_enabled_chk)
+
+        web_form = QFormLayout()
+        web_host_edit = QLineEdit(self.web_config.get("host", "127.0.0.1"))
+        web_host_edit.setToolTip("127.0.0.1 = local only  |  0.0.0.0 = all network interfaces")
+        web_form.addRow("Host:", web_host_edit)
+
+        web_port_spin = QSpinBox()
+        web_port_spin.setRange(1024, 65535)
+        web_port_spin.setValue(self.web_config.get("port", 8080))
+        web_form.addRow("Port:", web_port_spin)
+
+        web_enable_layout.addLayout(web_form)
+        web_layout.addWidget(web_enable_group)
+
+        # Status + open button
+        web_status_label = QLabel()
+        web_status_label.setFont(QFont("Arial", 9))
+        self._update_web_status_label(web_status_label)
+        web_layout.addWidget(web_status_label)
+
+        web_btn_row = QHBoxLayout()
+        web_start_btn = QPushButton("Start Server")
+        web_stop_btn  = QPushButton("Stop Server")
+        web_open_btn  = QPushButton("Open in Browser")
+
+        def _refresh_web_btns():
+            running = self._web_running
+            web_start_btn.setEnabled(not running)
+            web_stop_btn.setEnabled(running)
+            web_open_btn.setEnabled(running)
+            self._update_web_status_label(web_status_label)
+
+        def _start_web():
+            self.web_config["enabled"] = True
+            self.web_config["host"]    = web_host_edit.text().strip()
+            self.web_config["port"]    = web_port_spin.value()
+            self._start_web_server()
+            _refresh_web_btns()
+
+        def _stop_web():
+            self._stop_web_server()
+            self.web_config["enabled"] = False
+            _refresh_web_btns()
+
+        def _open_browser():
+            import webbrowser
+            h = self.web_config.get("host", "127.0.0.1")
+            p = self.web_config.get("port", 8080)
+            display_host = "127.0.0.1" if h == "0.0.0.0" else h
+            webbrowser.open(f"http://{display_host}:{p}")
+
+        web_start_btn.clicked.connect(_start_web)
+        web_stop_btn.clicked.connect(_stop_web)
+        web_open_btn.clicked.connect(_open_browser)
+        web_btn_row.addWidget(web_start_btn)
+        web_btn_row.addWidget(web_stop_btn)
+        web_btn_row.addWidget(web_open_btn)
+        web_layout.addLayout(web_btn_row)
+
+        web_note = QLabel(
+            "Requires: pip install fastapi uvicorn httpx python-multipart --break-system-packages\n"
+            "Access from any browser at http://HOST:PORT"
+        )
+        web_note.setStyleSheet("font-size: 10px; font-style: italic;")
+        web_note.setWordWrap(True)
+        web_layout.addWidget(web_note)
+        web_layout.addStretch()
+        _refresh_web_btns()
+        tabs.addTab(web_tab, "Web")
+
+        # --- Display tab ---
+        disp_tab = QWidget()
+        disp_layout = QVBoxLayout(disp_tab)
+
+        # Names group
+        names_group = QGroupBox("Bubble Labels")
+        names_form  = QFormLayout(names_group)
+
+        user_name_edit = QLineEdit(self.user_name)
+        user_name_edit.setToolTip("Your display name shown in chat bubbles")
+        names_form.addRow("Your name:", user_name_edit)
+
+        ai_name_edit = QLineEdit(self.ai_name)
+        ai_name_edit.setToolTip("AI display name shown in chat bubbles — e.g. the model name")
+        names_form.addRow("AI name:", ai_name_edit)
+
+        disp_layout.addWidget(names_group)
+
+        # Timestamps group
+        chat_disp_group = QGroupBox("Chat Message Display")
+        chat_disp_layout = QVBoxLayout(chat_disp_group)
+
+        ts_chk = QCheckBox("Show timestamp on each message")
+        ts_chk.setChecked(self.show_timestamps)
+        ts_chk.setToolTip("Timestamp shown in bubble header — not included when copying text")
+        chat_disp_layout.addWidget(ts_chk)
+
+        ln_chk = QCheckBox("Show message number (#N)")
+        ln_chk.setChecked(self.show_line_numbers)
+        ln_chk.setToolTip("Show #N counter in bubble header — not included when copying text")
+        chat_disp_layout.addWidget(ln_chk)
+
+        date_form = QFormLayout()
+        date_fmt_edit = QLineEdit(self.date_format)
+        date_fmt_edit.setToolTip(
+            "Python strftime format — examples:\n"
+            "  %H:%M:%S  →  14:32:07\n"
+            "  %I:%M %p  →  02:32 PM\n"
+            "  %d %b %H:%M  →  14 Mar 14:32"
+        )
+        date_form.addRow("Date format:", date_fmt_edit)
+
+        # Live preview
+        preview_label = QLabel()
+        preview_label.setStyleSheet("font-size: 11px; font-style: italic;")
+
+        def _update_preview():
+            from datetime import datetime
+            try:
+                preview_label.setText("Preview: " + datetime.now().strftime(date_fmt_edit.text()))
+            except Exception:
+                preview_label.setText("Preview: (invalid format)")
+
+        date_fmt_edit.textChanged.connect(_update_preview)
+        _update_preview()
+
+        date_form.addRow("", preview_label)
+        chat_disp_layout.addLayout(date_form)
+
+        disp_layout.addWidget(chat_disp_group)
+
+        # Bubble colour roles are selected from the current IMG Factory theme palette.
+        bubble_group = QGroupBox("Theme-aware Bubble Colours")
+        bubble_form = QFormLayout(bubble_group)
+        theme_colors = self.app_settings.get_theme_colors() if self.app_settings else {}
+        palette_keys = [key for key, value in theme_colors.items()
+                        if isinstance(value, str) and QColor(value).isValid()]
+        preferred = ["accent_primary", "accent_secondary", "success", "info", "warning",
+                     "text_secondary", "bg_secondary", "bg_primary"]
+        palette_keys = list(dict.fromkeys([k for k in preferred if k in palette_keys] + palette_keys))
+        if not palette_keys:
+            palette_keys = ["accent_primary", "success", "info", "warning", "text_secondary", "bg_secondary"]
+        user_color_combo = QComboBox()
+        user_color_combo.addItems(palette_keys)
+        user_color_combo.setCurrentText(self.chat_user_color_key if self.chat_user_color_key in palette_keys else palette_keys[0])
+        user_color_combo.setToolTip("Choose a colour role from the active application theme")
+        bubble_form.addRow("User bubble accent:", user_color_combo)
+        ai_color_combo = QComboBox()
+        ai_color_combo.addItems(palette_keys)
+        ai_color_combo.setCurrentText(self.chat_ai_color_key if self.chat_ai_color_key in palette_keys else ("success" if "success" in palette_keys else palette_keys[0]))
+        ai_color_combo.setToolTip("Choose a colour role from the active application theme")
+        bubble_form.addRow("AI bubble accent:", ai_color_combo)
+        disp_layout.addWidget(bubble_group)
+        disp_layout.addStretch()
+        tabs.addTab(disp_tab, "Display")
+
+        from apps.methods.ui_sizes import add_sizes_tab       # own sizes or global
+        add_sizes_tab(self, tabs)
+        layout.addWidget(tabs)  # ← was missing, caused settings to show only Apply/Close
+
+        # Buttons
+        btns = QHBoxLayout()
+        btns.addStretch()
+
+        apply_btn = QPushButton("Apply")
+        def _apply():
+            for attr in ("chat_font", "panel_font", "button_font"):
+                combo = getattr(dialog, f"_{attr}_combo")
+                spin  = getattr(dialog, f"_{attr}_spin")
+                setattr(self, attr, QFont(combo.currentFont().family(), spin.value()))
+            if hasattr(self, 'url_input'):
+                self.url_input.setText(url_edit.text())
+            new_dir = sess_edit.text().strip()
+            if new_dir and new_dir != self.sessions_dir:
+                os.makedirs(new_dir, exist_ok=True)
+                self.sessions_dir = new_dir
+            if ssh_group:
+                self.ssh_config = ssh_group.get_values()
+                if self._ssh:
+                    try: self._ssh.disconnect()
+                    except Exception: pass
+                    self._ssh = None
+            # Rules & system prompt
+            self.system_prompt = sp_edit.toPlainText()
+            self.ai_rules      = rules_edit.toPlainText()
+            if hasattr(self, 'system_prompt_edit'):
+                self.system_prompt_edit.setPlainText(self.system_prompt)
+            # Display options
+            self.show_timestamps   = ts_chk.isChecked()
+            self.show_line_numbers = ln_chk.isChecked()
+            self.user_name         = user_name_edit.text().strip() or "Me"
+            self.ai_name           = ai_name_edit.text().strip()   or "AI"
+            self.date_format       = date_fmt_edit.text().strip()  or "%H:%M:%S"
+            self.chat_user_color_key = user_color_combo.currentText()
+            self.chat_ai_color_key = ai_color_combo.currentText()
+            # Update AI name in model combo label if a model is selected
+            if hasattr(self, 'model_combo') and self.model_combo.currentText():
+                if not ai_name_edit.text().strip():
+                    self.ai_name = self.model_combo.currentText().split(':')[0]
+            self._redraw_chat()
+            self._update_ollama_status()
+        apply_btn.clicked.connect(_apply)
+        btns.addWidget(apply_btn)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.close)
+        btns.addWidget(close_btn)
+        layout.addLayout(btns)
+
+        dialog.exec()
+
+    # -----------------------------------------------------------------------
+    # Theme / AppSettings
+    # -----------------------------------------------------------------------
+
+    def _apply_theme(self):
+        try:
+            app_settings = self.app_settings
+            if not app_settings and self.main_window:
+                app_settings = getattr(self.main_window, 'app_settings', None)
+            if app_settings:
+                self.setStyleSheet(app_settings.get_stylesheet())
+                # Apply theme colours to status labels
+                colors = app_settings.get_theme_colors()
+                secondary = colors.get('text_secondary', QApplication.palette().color(QApplication.palette().ColorRole.Text).name())
+                if hasattr(self, 'typing_label'):
+                    self.typing_label.setStyleSheet(
+                        f"color: {secondary}; font-style: italic;")
+            else:
+                self.setStyleSheet("""
+                    QWidget { background-color: palette(base); color: palette(mid); }
+                    QTextEdit, QListWidget { background-color: palette(base); border: 1px solid palette(mid); }
+                    QGroupBox { border: 1px solid palette(mid); margin-top: 6px; }
+                """)
+            # Redraw chat bubbles with updated theme colours
+            self._redraw_chat()
+            self._update_ollama_status()
+        except Exception as e:
+            print(f"[AI Workshop] Theme error: {e}")
+
+    def _refresh_icons(self):
+        SVGIconFactory.clear_cache()
+        # Re-apply theme-aware icon colour to toolbar buttons
+        color = self._get_icon_color()
+        icon_map = [
+            ('settings_btn',    'settings_icon'),
+            ('new_session_btn', 'add_icon'),
+            ('clear_btn',       'delete_icon'),
+            ('properties_btn',  'properties_icon'),
+            ('docked_settings_btn', 'settings_icon'),
+        ]
+        for attr, method in icon_map:
+            if hasattr(self, attr):
+                btn = getattr(self, attr)
+                btn.setIcon(getattr(SVGIconFactory, method)(20, color))
+        # Window control buttons
+        for attr, method in [('minimize_btn','minimize_icon'),
+                              ('maximize_btn','maximize_icon'),
+                              ('close_btn','close_icon')]:
+            if hasattr(self, attr):
+                getattr(self, attr).setIcon(getattr(SVGIconFactory, method)(20, color))
+
+    def _launch_theme_settings(self):
+        try:
+            if not APPSETTINGS_AVAILABLE:
+                return
+            dialog = SettingsDialog(self.app_settings, self)
+            dialog.themeChanged.connect(lambda _: self._apply_theme())
+            if dialog.exec():
+                self._apply_theme()
+        except Exception as e:
+            QMessageBox.warning(self, "Theme Error", str(e))
+
+    # -----------------------------------------------------------------------
+    # Window management (mirrors COL Workshop)
+    # -----------------------------------------------------------------------
+
+    def _get_icon_color(self):
+        if self.app_settings:
+            colors = self.app_settings.get_theme_colors()
+            return colors.get('text_primary', QApplication.palette().color(QApplication.palette().ColorRole.Text).name())
+        return QApplication.palette().color(QApplication.palette().ColorRole.Text).name()
+
+    def toggle_dock_mode(self):
+        if self.is_docked:
+            self._undock_from_main()
+        else:
+            self._dock_to_main()
+
+    def _dock_to_main(self): #vers 2
+        """Return a torn-off workshop to its IMG Factory tab."""
+        from apps.methods.dock_panels import redock_to_tab
+        if not redock_to_tab(self):      # no tab to return to
+            return
+        self.is_docked = True
+        self.standalone_mode = False
+        if hasattr(self, '_workshop_toolbar'):
+            self._workshop_toolbar.setVisible(False)
+        if hasattr(self, 'docked_settings_btn'):
+            self.docked_settings_btn.setVisible(True)
+        if hasattr(self, 'dock_btn'):
+            self.dock_btn.setVisible(False)
+        self.show(); self.raise_()
+
+    def _undock_from_main(self): #vers 2
+        self.standalone_mode = True
+        self.is_docked = False
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        if hasattr(self, '_workshop_toolbar'):
+            self._workshop_toolbar.setVisible(True)
+        if hasattr(self, 'docked_settings_btn'):
+            self.docked_settings_btn.setVisible(False)
+        if hasattr(self, 'settings_btn'):
+            self.settings_btn.setVisible(True)
+        if hasattr(self, 'dock_btn'):
+            self.dock_btn.setVisible(True)      # D docks back
+        self.resize(1300, 800)
+        self.show(); self.raise_()
+
+    def _toggle_tearoff(self):
+        if self.is_docked:
+            self._undock_from_main()
+        else:
+            self._dock_to_main()
+
+    def _toggle_maximize(self):
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    def closeEvent(self, event):
+        self._cleanup_worker()
+        self._stop_web_server()
+        self.window_closed.emit()
+        event.accept()
+
+    # -----------------------------------------------------------------------
+    # Corner resize + dragging (identical pattern to COL Workshop)
+    # -----------------------------------------------------------------------
+
+    def _get_resize_corner(self, pos): #vers 1
+        if not self.standalone_mode:           # docked: no corner resize
+            return None
+        size = self.corner_size; w = self.width(); h = self.height()
+        if pos.x() < size and pos.y() < size:           return "top-left"
+        if pos.x() > w - size and pos.y() < size:       return "top-right"
+        if pos.x() < size and pos.y() > h - size:       return "bottom-left"
+        if pos.x() > w - size and pos.y() > h - size:   return "bottom-right"
+        return None
+
+    def _update_cursor(self, direction):
+        cursors = {
+            "top":          Qt.CursorShape.SizeVerCursor,
+            "bottom":       Qt.CursorShape.SizeVerCursor,
+            "left":         Qt.CursorShape.SizeHorCursor,
+            "right":        Qt.CursorShape.SizeHorCursor,
+            "top-left":     Qt.CursorShape.SizeFDiagCursor,
+            "bottom-right": Qt.CursorShape.SizeFDiagCursor,
+            "top-right":    Qt.CursorShape.SizeBDiagCursor,
+            "bottom-left":  Qt.CursorShape.SizeBDiagCursor,
+        }
+        self.setCursor(cursors.get(direction, Qt.CursorShape.ArrowCursor))
+
+    def _is_on_draggable_area(self, pos):
+        if not hasattr(self, 'titlebar'):
+            return False
+        if not self.titlebar.rect().contains(pos):
+            return False
+        for w in self.titlebar.findChildren(QPushButton):
+            if w.isVisible() and w.geometry().contains(pos):
+                return False
+        return True
+
+    def mousePressEvent(self, event):
+        if event.button() != Qt.MouseButton.LeftButton:
+            return super().mousePressEvent(event)
+        pos = event.pos()
+        self.resize_corner = self._get_resize_corner(pos)
+        if self.resize_corner:
+            self.resizing = True
+            self.drag_position = event.globalPosition().toPoint()
+            self.initial_geometry = self.geometry()
+            event.accept(); return
+        if hasattr(self, 'titlebar') and self.titlebar.geometry().contains(pos):
+            tb_pos = self.titlebar.mapFromParent(pos)
+            if self._is_on_draggable_area(tb_pos):
+                handle = self.windowHandle()
+                if handle:
+                    handle.startSystemMove()
+                event.accept(); return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            if self.resizing and self.resize_corner:
+                self._handle_corner_resize(event.globalPosition().toPoint())
+                event.accept(); return
+        else:
+            corner = self._get_resize_corner(event.pos())
+            if corner != self.hover_corner:
+                self.hover_corner = corner
+                self.update()
+            self._update_cursor(corner)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = self.resizing = False
+            self.resize_corner = None
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+
+    def _handle_corner_resize(self, global_pos):
+        if not self.resize_corner or not self.drag_position:
+            return
+        delta = global_pos - self.drag_position
+        geometry = self.initial_geometry
+        min_w, min_h = 800, 500
+        if self.resize_corner == "bottom-right":
+            nw = geometry.width() + delta.x()
+            nh = geometry.height() + delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.resize(nw, nh)
+        elif self.resize_corner == "bottom-left":
+            nx = geometry.x() + delta.x()
+            nw = geometry.width() - delta.x()
+            nh = geometry.height() + delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(nx, geometry.y(), nw, nh)
+        elif self.resize_corner == "top-right":
+            ny = geometry.y() + delta.y()
+            nw = geometry.width() + delta.x()
+            nh = geometry.height() - delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(geometry.x(), ny, nw, nh)
+        elif self.resize_corner == "top-left":
+            nx = geometry.x() + delta.x()
+            ny = geometry.y() + delta.y()
+            nw = geometry.width() - delta.x()
+            nh = geometry.height() - delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(nx, ny, nw, nh)
+
+    def paintEvent(self, event): #vers 2
+        """Corner handles, COL style (methods/corner_handles.py)."""
+        super().paintEvent(event)
+        paint_corner_handles(self)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+    # -----------------------------------------------------------------------
+    # Hotkeys
+    # -----------------------------------------------------------------------
+
+    def _setup_hotkeys(self):
+        QShortcut(QKeySequence("Ctrl+N"), self).activated.connect(self._new_session_action)
+        QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(self.close)
+        QShortcut(QKeySequence.StandardKey.Preferences, self).activated.connect(self._show_workshop_settings)
+
+
+# ---------------------------------------------------------------------------
+# Public factory functions (mirrors col_workshop.py pattern)
+# ---------------------------------------------------------------------------
+
+def open_ai_workshop(main_window=None) -> AIWorkshop:
+    """Open AI Workshop standalone or embedded."""
+    try:
+        workshop = AIWorkshop(None, main_window)
+        workshop.setWindowFlags(Qt.WindowType.Window)
+        workshop.setWindowTitle(App_name)
+        workshop.resize(1300, 800)
+        workshop.show()
+        return workshop
+    except Exception as e:
+        if main_window:
+            QMessageBox.critical(main_window, "AI Workshop Error", str(e))
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Standalone entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import traceback
+
+    print(App_name + " starting…")
+    try:
+        app = QApplication(sys.argv)
+        w = AIWorkshop()
+        w.setWindowTitle(App_name + " – Standalone")
+        w.resize(1300, 800)
+        w.show()
+        sys.exit(app.exec())
+    except Exception as e:
+        print(f"ERROR: {e}")
+        traceback.print_exc()
+        sys.exit(1)

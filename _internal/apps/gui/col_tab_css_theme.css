@@ -1,0 +1,149 @@
+/* this belongs in gui/col_tab_theme.css or embed in Python - Version: 1 */
+/* X-Seti - July07 2025 - Advanced COL tab styling with light blue theme */
+
+/* Base tab widget styling */
+QTabWidget::pane {
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    background-color: #ffffff;
+    margin-top: 0px;
+}
+
+QTabBar {
+    qproperty-drawBase: 0;
+    background-color: transparent;
+}
+
+/* Default tab styling (IMG files) */
+QTabBar::tab {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #f6f6f6, stop: 1 #e8e8e8);
+    border: 1px solid #cccccc;
+    border-bottom: none;
+    padding: 8px 14px;
+    margin-right: 3px;
+    border-radius: 4px 4px 0px 0px;
+    min-width: 100px;
+    max-height: 32px;
+    font-size: 9pt;
+    font-weight: 500;
+    color: #444444;
+}
+
+/* Selected tab (active) */
+QTabBar::tab:selected {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #ffffff, stop: 1 #f8f8f8);
+    border-bottom: 2px solid #2196F3;
+    color: #000000;
+    font-weight: bold;
+}
+
+/* Hover effect for tabs */
+QTabBar::tab:hover:!selected {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #f0f0f0, stop: 1 #e0e0e0);
+}
+
+/* Non-selected tabs positioning */
+QTabBar::tab:!selected {
+    margin-top: 2px;
+}
+
+/* Enhanced COL tab styling - Light Blue Theme */
+QTabBar::tab[text*="🛡️"] {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #E3F2FD, stop: 1 #BBDEFB);
+    border: 1px solid #90CAF9;
+    color: #1976D2;
+    font-weight: 600;
+}
+
+QTabBar::tab[text*="🛡️"]:selected {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #E3F2FD, stop: 1 #E1F5FE);
+    border-bottom: 3px solid #2196F3;
+    color: #0D47A1;
+    font-weight: bold;
+}
+
+QTabBar::tab[text*="🛡️"]:hover:!selected {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #E8F4FD, stop: 1 #C5E1F7);
+    border-color: #64B5F6;
+}
+
+/* Alternative COL icons styling */
+QTabBar::tab[text*="💥"],
+QTabBar::tab[text*="🧊"],
+QTabBar::tab[text*="💎"],
+QTabBar::tab[text*="⚛️"] {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #E3F2FD, stop: 1 #BBDEFB);
+    border: 1px solid #90CAF9;
+    color: #1976D2;
+    font-weight: 600;
+}
+
+/* IMG tab styling (folder icon) */
+QTabBar::tab[text*="📁"] {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #FFF3E0, stop: 1 #FFE0B2);
+    border: 1px solid #FFCC02;
+    color: #F57C00;
+}
+
+QTabBar::tab[text*="📁"]:selected {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #FFF8E1, stop: 1 #FFECB3);
+    border-bottom: 3px solid #FF9800;
+    color: #E65100;
+}
+
+/* TXD tab styling (if implemented) */
+QTabBar::tab[text*="🖼️"] {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #F3E5F5, stop: 1 #E1BEE7);
+    border: 1px solid #CE93D8;
+    color: #7B1FA2;
+}
+
+/* Close button styling for tabs */
+QTabBar::close-button {
+    image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAA4klEQVQYV2N);
+    subcontrol-position: right;
+    subcontrol-origin: padding;
+    border-radius: 2px;
+    margin: 2px;
+}
+
+QTabBar::close-button:hover {
+    background-color: rgba(255, 0, 0, 0.3);
+}
+
+/* Scroll buttons for many tabs */
+QTabBar QToolButton {
+    background-color: #f0f0f0;
+    border: 1px solid #cccccc;
+    border-radius: 2px;
+    margin: 1px;
+}
+
+QTabBar QToolButton:hover {
+    background-color: #e0e0e0;
+}
+
+/* Dark theme overrides (if dark theme is active) */
+QTabWidget[darkTheme="true"] QTabBar::tab[text*="🛡️"] {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #1E3A8A, stop: 1 #1E40AF);
+    border: 1px solid #3B82F6;
+    color: #93C5FD;
+}
+
+QTabWidget[darkTheme="true"] QTabBar::tab[text*="🛡️"]:selected {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #1E40AF, stop: 1 #2563EB);
+    border-bottom: 3px solid #60A5FA;
+    color: #DBEAFE;
+}

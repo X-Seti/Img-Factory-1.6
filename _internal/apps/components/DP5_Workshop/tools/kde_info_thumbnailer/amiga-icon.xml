@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- this belongs in apps/components/DP5_Workshop/tools/kde_info_thumbnailer/amiga-icon.xml - Version: 1 -->
+<!-- X-Seti - October 27 2026 - IMG Factory 1.6 - Amiga .info MIME type -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-amiga-icon">
+    <comment>Amiga Workbench icon</comment>
+    <generic-icon name="image-x-generic"/>
+    <magic priority="60">
+      <match type="big16" value="0xE310" offset="0"/>
+    </magic>
+    <glob pattern="*.info"/>
+  </mime-type>
+</mime-info>

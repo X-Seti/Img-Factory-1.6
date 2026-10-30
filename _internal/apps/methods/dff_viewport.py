@@ -1,0 +1,6733 @@
+# X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
+# this belongs in apps/methods/dff_viewport.py - Version: 48
+"""
+DFFViewport - Shared OpenGL viewport for DFF model rendering.
+Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
+Standalone tools import from their own methods/dff_viewport.py.
+
+##Methods list -
+# _GizmoOverlay.__init__
+# _GizmoOverlay.paintEvent
+# DFFViewport.__init__
+# DFFViewport._anim_tick
+# DFFViewport._apply_move
+# DFFViewport._apply_rotate
+# DFFViewport._apply_selection_click
+# DFFViewport._auto_fit
+# DFFViewport._brush_tick
+# DFFViewport._build_gizmo_chips
+# DFFViewport._calc_world_matrix
+# DFFViewport._closest_point_on_ray
+# DFFViewport._constraint_axis
+# DFFViewport._cycle_constraint
+# DFFViewport._draw_assembly
+# DFFViewport._draw_axes
+# DFFViewport._draw_brush_ring
+# DFFViewport._draw_skeleton
+# DFFViewport._draw_cone
+# DFFViewport._draw_detached_wires
+# DFFViewport._draw_footprint
+# DFFViewport._draw_gizmo
+# DFFViewport._draw_grid
+# DFFViewport._draw_grid_checker
+# DFFViewport._draw_mesh_hover
+# DFFViewport._draw_reticle
+# DFFViewport._draw_rubber_band
+# DFFViewport._draw_script_markers
+# DFFViewport._draw_selection_marks
+# DFFViewport._draw_selection_overlay
+# DFFViewport._draw_snap_feedback
+# DFFViewport._draw_solid
+# DFFViewport._draw_textured
+# DFFViewport._draw_wire_hint
+# DFFViewport._draw_wireframe
+# DFFViewport._edge_snap
+# DFFViewport._emit_verts
+# DFFViewport._entry_box
+# DFFViewport._entry_for
+# DFFViewport._entry_radius
+# DFFViewport._face_color
+# DFFViewport._flush_pending_textures
+# DFFViewport._footprint
+# DFFViewport._geom_flags
+# DFFViewport._get_anim_rotation
+# DFFViewport._get_bg_color
+# DFFViewport._get_selection_count
+# DFFViewport._get_ui_color
+# DFFViewport._get_wheel_geom_data
+# DFFViewport._gizmo_axis_param
+# DFFViewport._gizmo_begin
+# DFFViewport._gizmo_cancel
+# DFFViewport._gizmo_end
+# DFFViewport._gizmo_entry
+# DFFViewport._gizmo_pick_axis
+# DFFViewport._gizmo_project
+# DFFViewport._gizmo_size
+# DFFViewport._gizmo_update
+# DFFViewport._mesh_chip_state
+# DFFViewport._mesh_render_menu
+# DFFViewport._mesh_ring
+# DFFViewport._notify_selection_changed
+# DFFViewport._pad_begin_grab
+# DFFViewport._pad_end_grab
+# DFFViewport._pad_pick_centre
+# DFFViewport._paint_scene
+# DFFViewport._pick_edge
+# DFFViewport._pick_face
+# DFFViewport._pick_ray
+# DFFViewport._pick_vertex
+# DFFViewport._place_edit_banner
+# DFFViewport._place_gizmo_chips
+# DFFViewport._place_mesh_chips
+# DFFViewport._point_seg_dist2
+# DFFViewport._project_in_paint
+# DFFViewport._quat_axis
+# DFFViewport._quat_mul
+# DFFViewport._quat_rotate
+# DFFViewport._ray_triangle_intersect
+# DFFViewport._rebuild_anim_geoms
+# DFFViewport._refresh
+# DFFViewport._ring_angle
+# DFFViewport._ring_points
+# DFFViewport._rot_axis
+# DFFViewport._rubber_select
+# DFFViewport._rw_wrap_to_gl
+# DFFViewport._seg2d_dist2
+# DFFViewport._selected_set_for_mode
+# DFFViewport._set_snap_feedback
+# DFFViewport._setup_lighting
+# DFFViewport._strip_tex_suffix
+# DFFViewport._sync_gizmo_chips
+# DFFViewport._sync_mesh_chips
+# DFFViewport._update_gizmo_ground
+# DFFViewport._update_mesh_hover
+# DFFViewport._upload_textures
+# DFFViewport._water2_arrays
+# DFFViewport.clear_textures
+# DFFViewport.cycle_render_mode
+# DFFViewport.dragEnterEvent
+# DFFViewport.dragMoveEvent
+# DFFViewport.dropEvent
+# DFFViewport.fit_to_window
+# DFFViewport.flip_horizontal
+# DFFViewport.flip_vertical
+# DFFViewport.focusNextPrevChild
+# DFFViewport.gamepad_step
+# DFFViewport.ground_z_below
+# DFFViewport.initializeGL
+# DFFViewport.load_all_geometries
+# DFFViewport.load_geometry
+# DFFViewport.load_wheels_dff
+# DFFViewport.mouseMoveEvent
+# DFFViewport.mousePressEvent
+# DFFViewport.mouseReleaseEvent
+# DFFViewport.paintGL
+# DFFViewport.refresh_world_models
+# DFFViewport.pan
+# DFFViewport.reset_camera
+# DFFViewport.reset_view
+# DFFViewport.resizeGL
+# DFFViewport.rotate_ccw
+# DFFViewport.rotate_cw
+# DFFViewport.selected_instances
+# DFFViewport.set_ambient
+# DFFViewport.set_animation
+# DFFViewport.set_animation_speed
+# DFFViewport.set_assembly_mode
+# DFFViewport.set_backface
+# DFFViewport.set_backface_cull
+# DFFViewport.set_background_color
+# DFFViewport.set_brush_tool
+# DFFViewport.set_skeleton
+# DFFViewport._pick_skeleton_joint
+# DFFViewport._pick_skeleton_ring
+# DFFViewport._skel_ring_angle
+# DFFViewport._skel_ring_pts
+# DFFViewport._skel_ring_radius
+# DFFViewport.set_checkerboard_background
+# DFFViewport.set_current_model
+# DFFViewport.set_detached_faces
+# DFFViewport.set_diffuse
+# DFFViewport.set_edit_mode_banner
+# DFFViewport.set_gamepad
+# DFFViewport.set_gizmo_constraint
+# DFFViewport.set_gizmo_mode
+# DFFViewport.set_gizmo_move_callback
+# DFFViewport.set_gizmo_rotate_callback
+# DFFViewport.set_gizmo_target
+# DFFViewport.set_light_dir
+# DFFViewport.set_mesh_face_mode
+# DFFViewport.set_mesh_face_mode_callback
+# DFFViewport.set_mesh_gizmo_mode
+# DFFViewport.set_mesh_xform_callback
+# DFFViewport.set_model_drop_callback
+# DFFViewport.set_prelight
+# DFFViewport.set_render_mode
+# DFFViewport.set_script_markers
+# DFFViewport.set_selection
+# DFFViewport.set_selection_callback
+# DFFViewport.set_show_grid
+# DFFViewport.set_show_lod
+# DFFViewport.set_show_mesh
+# DFFViewport.set_view_lock
+# DFFViewport.set_wheel_heading
+# DFFViewport.set_show_axes
+# DFFViewport.set_squares_fill_alpha
+# DFFViewport.set_wire_hint
+# DFFViewport.toggle_door
+# DFFViewport.toggle_snap_axis_constraint
+# DFFViewport.toggle_snap_target
+# DFFViewport.wheelEvent
+# DFFViewport.zoom_in
+# DFFViewport.zoom_out
+"""
+
+import ctypes
+import math
+import struct
+import numpy as np
+from typing import Dict, List, Optional
+
+from PyQt6.QtCore import Qt, QPoint, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QLabel, QFrame, QHBoxLayout, QToolButton, QButtonGroup
+from PyQt6.QtGui import QColor, QFont
+
+# Default viewport camera keybindings (Aug 16 2026)
+DEFAULT_KEY_BINDINGS = {
+    'pan_left':          {'key': int(Qt.Key.Key_Left),  'numpad': False},
+    'pan_right':         {'key': int(Qt.Key.Key_Right), 'numpad': False},
+    'pan_up':            {'key': int(Qt.Key.Key_Up),    'numpad': False},
+    'pan_down':          {'key': int(Qt.Key.Key_Down),  'numpad': False},
+    'rotate_yaw_left':   {'key': int(Qt.Key.Key_4),     'numpad': True},
+    'rotate_yaw_right':  {'key': int(Qt.Key.Key_6),     'numpad': True},
+    'rotate_pitch_up':   {'key': int(Qt.Key.Key_8),     'numpad': True},
+    'rotate_pitch_down': {'key': int(Qt.Key.Key_2),     'numpad': True},
+    'zoom_in':           {'key': int(Qt.Key.Key_Plus),  'numpad': True},
+    'zoom_out':          {'key': int(Qt.Key.Key_Minus), 'numpad': True},
+}
+# Human-readable labels for the Settings > Keybindings tab - kept
+# alongside the bindings themselves rather than duplicated there,
+# since both need to agree on exactly which actions exist.
+KEY_BINDING_LABELS = {
+    'pan_left':          "Pan Left",
+    'pan_right':         "Pan Right",
+    'pan_up':            "Pan Up",
+    'pan_down':          "Pan Down",
+    'rotate_yaw_left':   "Rotate Left (Yaw)",
+    'rotate_yaw_right':  "Rotate Right (Yaw)",
+    'rotate_pitch_up':   "Rotate Up (Pitch)",
+    'rotate_pitch_down': "Rotate Down (Pitch)",
+    'zoom_in':           "Zoom In",
+    'zoom_out':          "Zoom Out",
+}
+
+try:
+    from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+    from PyQt6.QtGui import QSurfaceFormat
+    from OpenGL.GL import *
+    from OpenGL.GLU import *
+    OPENGL_AVAILABLE = True
+    _fmt = QSurfaceFormat()
+    _fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
+    _fmt.setVersion(2, 1)
+    # Multisampling (Aug 20 2026)
+    _fmt.setSamples(4)
+    QSurfaceFormat.setDefaultFormat(_fmt)
+except Exception:
+    QOpenGLWidget = QWidget
+    OPENGL_AVAILABLE = False
+
+
+class _CRTTimeOverlay(QLabel):
+    """Retro green CRT-style clock overlaid on the 3D viewport (Aug
+    20 2026)"""
+    left_clicked = pyqtSignal()
+    right_clicked = pyqtSignal()
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        self.setText("12:00")
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        font = QFont("Courier New")
+        font.setStyleHint(QFont.StyleHint.Monospace)
+        font.setPointSize(14)
+        font.setBold(True)
+        self.setFont(font)
+        self.setStyleSheet(
+            "color: #33ff33; background-color: rgba(0, 20, 0, 180);"
+            "border: 1px solid #226622; border-radius: 3px; padding: 2px 8px;")
+        self.setFixedSize(90, 28)
+        self.setToolTip("Left-click: start/stop time flow.\nRight-click: time flow settings.")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, event): #vers 2
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.left_clicked.emit()
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.right_clicked.emit()
+
+
+class _GizmoOverlay(QWidget):
+    """Transparent layer over the GL view: draws the mesh gizmo with QPainter."""
+
+    def __init__(self, vp): #vers 1
+        super().__init__(vp)
+        self._vp = vp
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+
+    def paintEvent(self, event): #vers 1
+        data = getattr(self._vp, '_gizmo2d', None)
+        if not data:
+            return
+        from PyQt6.QtGui import QPainter
+        from apps.methods.gizmo_paint import paint_gizmo
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        paint_gizmo(p, *data)
+        p.end()
+
+
+class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
+    """OpenGL viewport for RenderWare DFF model rendering.
+    Supports wireframe, solid, and textured modes.
+    Shared base for Model Viewer, Model Workshop, Vehicle Workshop.
+    """
+
+    def __init__(self, parent=None): #vers 4
+        super().__init__(parent)
+        # Mouse tracking (Aug 19 2026)
+        self.setMouseTracking(True)
+        if OPENGL_AVAILABLE:
+            # Per-instance format, not just the module-level default (Aug 1 2026)
+            self.setFormat(_fmt)
+        self.setMinimumSize(200, 200)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        # Geometry data
+        self._vertices:  List  = []
+        self._normals:   List  = []
+        self._uvs:       List  = []
+        self._triangles: List  = []
+        self._materials: List  = []
+        self._prelit:    List  = []
+        self._tex_ids:   Dict[str,int] = {}
+        self._tex_wrap:  Dict[str,tuple] = {}
+
+        # Camera
+        self._dist  = 10.0
+        self._yaw   = 45.0
+        self._pitch = 25.0
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self._last_pos = QPoint()
+        # Configurable keyboard camera controls (Aug 16 2026) - see
+        # DEFAULT_KEY_BINDINGS' own comment above for the full story.
+        self._key_bindings = dict(DEFAULT_KEY_BINDINGS)
+
+        # Render state
+        self._mode          = 'solid'
+        self._backface_cull = False  # GTA models are often 2-sided; off by default
+        self._show_grid     = True
+        # Grid visual style (Aug 20 2026)
+        self._grid_type      = 'lines'
+        # 'squares' grid style's own real fill (Aug 20 2026)
+        self._squares_fill_mode  = 'color'
+        self._squares_color      = (51, 128, 230)
+        self._squares_texture_path = ''
+        self._squares_tile_size  = 256
+        self._squares_tex_id     = None
+        self._squares_tex_path_loaded = None   # which real path tex_id was actually loaded from
+        self._squares_texture_alpha = 0.5   # texture-fill opacity, 0.0-1.0
+        self._grid_show_lines = True   # separate from grid_type='none' - lets squares/texture fill show without outline lines on top
+        self._grid_hide_over_radar_tiles = False   # suppress grid lines within the radar tex layer's own real bounds, still shown outside
+        # Grid line/dot colour + thickness (Aug 20 2026)
+        self._grid_line_color = (76, 76, 102)   # matches old (0.3,0.3,0.4)
+        self._grid_line_size  = 4               # 1-10px range
+        self._squares_fill_alpha = 0.12         # 'squares' fill strength (solid floor near 1)
+        self._grid_spacing    = 5               # divisor of _dist -> step (zoom_relative mode)
+        self._grid_fixed_step = 200             # world units per cell (fixed mode - real map scale, not the small zoom_relative divisor)
+        self._grid_cell_count = 24               # total grid diameter in cells (replaces the old fixed *10 multiplier)
+        self._grid_origin = (0.0, 0.0, 0.0)      # grid shift (x, y slide; z height)
+        # Radar tex layer - real generated radar tiles shown at their
+        # own real world positions, as an alternative to the grid
+        self._show_radar_tex_layer = False
+        self._radar_tex_tiles = []      # list of dicts: path, min_x, min_y, max_x, max_y, tex_id
+        self._grid_scale_mode = 'zoom_relative'  # or 'fixed' or 'radar_tiles'
+        self._radar_grid_tile_size = 500.0   # world units per tile, set from RADAR_GRID_PRESETS
+        self._radar_grid_half_extent = 3000.0   # grid_size/2 for the current game
+        # Skybox/skydome background image (Aug 20 2026)
+        self._skybox_path = ''
+        self._skybox_tex_id = None
+        self._skybox_tex_path_loaded = None
+        # Timecyc file + play/stop time-of-day (Aug 20 2026)
+        self._timecyc_path = ''
+        self._timecyc_entries = []     # list of parsed weather/hour entries
+        self._timecyc_playing = False
+        self._timecyc_hour = 12.0
+        self._sky_gradient_top = None   # (r,g,b) or None - set by _apply_timecyc_hour
+        self._sky_gradient_bot = None
+        self._sky_gradient_horizon = None   # brighter horizon-glow colour (from sun_core)
+        self._sky_gradient_flipped = False   # settings toggle - swaps zenith/horizon in case the timecyc data's own real orientation turns out to be the other way
+        self._ambient_tint = (1.0, 1.0, 1.0)   # RGB multiplier, set by _apply_timecyc_hour
+        self._use_prelight  = False
+        self._ambient       = 0.4
+        self._diffuse       = 0.9
+        self._light_dir     = (0.5, 1.0, 0.7, 0.0)
+        self._paint1        = (1.0, 0.0, 0.0)
+        self._paint2        = (0.0, 0.0, 1.0)
+
+        # Assembly / LOD
+        self._all_geoms     = []
+        self._assembly_mode = False
+        self._show_lod      = False
+
+        # World instances (Aug 1 2026)
+        self._world_instances = []
+        # Display-list cache, keyed by (model_key, render mode) (Aug 1 2026)
+        self._world_display_lists = {}
+        # Dots mode's own cube shape (Aug 20 2026)
+        self._dots_cube_list_id = None
+
+        # Collision overlay toggles (Aug 14 2026)
+        self.show_col_ghosted        = False
+        self.show_col_semi_solid     = False
+        self.show_col_wireframe      = False
+        self.show_col_surface_mapped = False
+        # Separate display-list cache, keyed by (model_key, col mode) -
+        # mirrors _world_display_lists exactly but kept apart since a
+        # model's collision geometry is entirely different data
+        # (COLModel vertices/faces, not DFF) from its render mesh, and
+        # the two get cleared independently: toggling a collision
+        # checkbox never needs to touch the model's own display lists.
+        self._col_display_lists = {}
+
+        # Path visualization (Aug 14 2026)
+        self.show_paths = False
+        self._path_segments = []
+        self._path_line_color = (1.0, 0.0, 0.0)   # red
+        self._path_node_color = (1.0, 0.8, 0.0)   # amber
+        # Line thickness/node size (Aug 16 2026)
+        self._path_line_thickness = 1.2
+        self._path_node_size = 3.5
+
+        # Interactive path node editing (Aug 17 2026)
+        self._path_edit_mode = False
+        self._water_edit_mode = False      # click / drag water quads
+        self._brush_tool = None            # terrain brush: hover/press/tick/release/ring
+        self._skeleton = None              # stick-man overlay dict (set_skeleton)
+        self._skel_drag = self._skel_ring = None
+        self._brush_timer = None
+        self._water_sel = -1
+        self._water_drag = None            # (index, start x, start y, z)
+        self._water_live = (0.0, 0.0)
+        self._water_select_cb = None
+        self._water_move_cb = None
+        self._path_node_owner_map = {}
+        self._dragging_path_node_start_key = None
+        # ('cull'|'zone', index) of the box currently cycled/selected
+        # via the Cycle Zones/Cull button (Aug 21 2026)
+        self._selected_box = None
+        self._dragging_path_node_current_pos = None
+        self._path_node_drag_callback = None
+
+        # Whole-IPL-section dragging (Aug 18 2026)
+        self._ipl_drag_mode = False
+        # Multi-IPL selection/drag (Aug 19 2026)
+        self._multi_selected_ipl_names = set()
+        self._dragging_ipl_names = set()
+        self._dragging_ipl_start_state = []   # list of (inst, pos, rot, scale) at drag start
+        self._dragging_ipl_ground_start = None
+        self._dragging_ipl_delta = (0.0, 0.0, 0.0)
+        self._dragging_ipl_clicked_inst = None
+        self._dragging_ipl_clicked_start_pos = None
+        self._ipl_drag_callback = None
+        self._ipl_selection_callback = None
+        # Single-object move gizmo (Sep 23 2026)
+        self._gizmo_inst = None                 # IPLInstance being moved
+        self._gizmo_move_callback = None        # fn(inst, dx, dy, dz) on drag end
+        self._gizmo_drag = None                 # dict while dragging
+        self._gizmo_hover_axis = None
+        self._gizmo_rotate_callback = None      # fn(insts, axis, angle, pivot)
+        self._selection_callback = None         # fn(insts, primary)
+        self._model_drop_callback = None        # fn(model_id, pos)
+        self._sel_insts = []                    # multi-selection
+        self._rubber = None                     # (x0, y0, x1, y1) while box selecting
+        self._script_markers = []               # [(x, y, z, (r, g, b))] from main.scm
+        self._gizmo_mode = 'move'               # 'move' | 'rotate'
+        self._gizmo_constraint = 'xy'           # 'x' | 'y' | 'xy' | 'z'
+        self._gizmo_ground = None               # ground z under the gizmo target
+        self._gizmo_chips = None                # floating chip bar (built on first use)
+        self._footprint_cache = {}
+        self._snap_feedback = []                # [(other entry, axis, kind)] while snapped
+        self._gamepad = None                    # GamepadPoller (rumble), set by the workshop
+        self._pad_grab = False                  # controller is moving / rotating the selection
+        self._pad_fine = False
+        # Axis lock (Aug 18 2026)
+        self._ipl_drag_axis_lock = None
+        # 3-state Drag/Move/Rotate cycle (Aug 19 2026)
+        self._ipl_interaction_mode = 'drag'
+        self._ipl_click_callback = None
+
+        # Auto-highlight on hover (Aug 19 2026)
+        self._hover_highlight_enabled = False
+        self._hovered_instance_idx = None
+        self._hover_context_callback = None
+
+        # Train track waypoints (Aug 17 2026)
+        self.show_tracks = False
+        self._track_polylines = []   # list of [(x,y,z), ...] - one per track file
+        self._track_color = (0.75, 0.75, 0.8)
+        self._track_line_thickness = 1.5
+        # Airtrain/Plane path colour - settings-only for now, no
+        # confirmed data field to split these from generic paths yet
+        self._airtrain_color = (0.9, 0.6, 0.2)
+        self._airtrain_line_thickness = 1.2
+
+        # SA path node graph (Aug 19 2026)
+        self.show_sa_nodes = False
+        self._sa_node_segments = []   # list of ((x1,y1,z1),(x2,y2,z2))
+        self._sa_node_color = (0.3, 0.9, 0.5)   # green, distinct from tracks' own silver-grey
+
+        # SA audio zones (Aug 20 2026)
+        self.show_auzo_zones = False
+        self._auzo_zones = []
+        self._auzo_icon_tex_id = None   # lazy-loaded once, cached (see _ensure_auzo_icon_texture)
+
+        # Water shapes (Aug 20 2026)
+        self.show_water = False
+        self._water_shapes = []
+        self._waterpro_cells = []   # list of (min_x, min_y, max_x, max_y, height) - flat, pre-resolved from map_workshop.py
+        self._water_display_style = 'fill'   # 'fill'/'lines'/'dots'/'hexagons'
+        self._water_texture_path = ''
+        self._water_texture_tex_id = None
+        self._water_texture_tex_path_loaded = None
+        self._water_tile_size = 256
+        self._water_hide_outside_map = False
+        self._water_map_half_extent = 3000.0   # grid_size/2 for the currently loaded game
+
+        # New, simpler water (Aug 20 2026)
+        self._water2_cells = []   # list of (min_x, min_y, max_x, max_y, height)
+        self._water2_texture_path = ''
+        self._water2_tex_id = None
+        self._water2_tex_path_loaded = None
+        # Real, in-game texture source (Aug 20 2026)
+        self._water2_rgba = None
+        self._water2_rgba_wh = (0, 0)
+        self._water2_rgba_loaded = None
+        # Style toggle (Aug 20 2026)
+        self._water2_use_texture = False
+        # Height/transparency adjustments (Aug 20 2026)
+        # transparency values.
+        self._water2_height_offset = 0.0
+        self._water2_alpha = 0.45
+        # X/Y offsets (Aug 20 2026)
+        self._water2_x_offset = 0.0
+        self._water2_y_offset = 0.0
+        # VC-only gate (Aug 20 2026)
+        self._water2_game = ''
+        self._water2_offset_vc_only = True
+        self._water2_offset_mode = 'vc'
+        self._water2_fix_override = None   # per-game True/False, None = mode
+        self._water2_nudge = (0.0, 0.0)
+        self._radar_tex_offset = (0.0, 0.0)
+        self._radar_tex_scale = 1.0          # per-game radar layer scale
+        self._radar_tex_rotation = 0.0       # degrees about the world origin
+
+        # Cull zone boxes (Aug 16 2026)
+        self.show_cull_boxes = False
+        self._cull_boxes = []
+        self._cull_box_color = (1.0, 0.85, 0.2)   # amber-yellow, distinct from paths' red
+
+        # Zone boxes (Aug 16 2026)
+        self.show_zone_boxes = False
+        self._zone_boxes = []
+        self._zone_box_color = (0.3, 0.7, 1.0)   # sky blue, distinct from cull's amber and paths' red
+        # Zon render style (Aug 16 2026)
+        self._zone_render_style = 'ghosted'
+
+        # Occlusion zones (Aug 16 2026)
+        self.show_occl_boxes = False
+        self._occl_boxes = []
+        self._occl_box_color = (1.0, 0.4, 0.8)   # pink, distinct from cull/zone/paths
+        # Garage boxes (Aug 21 2026)
+        self.show_grge_boxes = False
+        self._grge_boxes = []
+        self._grge_box_owners = []
+        self._grge_box_color = (1.0, 0.65, 0.0)   # orange, distinct from cull/zone/occl/paths
+        # Axis-colored box faces (Aug 18 2026)
+        self._box_axis_colors = False
+
+        # Unique colour per box (Aug 19 2026)
+        self._box_unique_colors = False
+        self._box_color_palette = [
+            (1.0, 0.55, 0.0),   # orange
+            (0.2, 0.8, 0.2),    # green
+            (1.0, 0.2, 0.8),    # magenta/pink
+            (0.85, 0.15, 0.15), # red
+            (0.25, 0.45, 1.0),  # blue
+            (0.95, 0.85, 0.1),  # yellow
+            (0.6, 0.25, 0.85),  # purple
+            (0.1, 0.75, 0.75),  # teal
+        ]
+
+        # Box corner resize (Aug 19 2026)
+        self._box_edit_mode = False
+        self._pickable_box_corners = {}
+        self._dragging_box_corner_key = None
+        self._dragging_box_corner_info = None   # (box_type, box_ref, fixed_opposite_xy, z1, z2)
+        self._dragging_box_corner_current_pos = None
+        self._dragging_box_corner_live_z = None
+        self._box_resize_callback = None
+        self._no_clip_boxes = False
+
+
+        # Wheels
+        self._wheels_model      = None
+        self._wheels_model_path = ''
+        self._wheel_type        = 'wheel_saloon_l0'
+
+        # App settings ref (optional — set by host tool)
+        self.app_settings = None
+        # Explicit background override (R,G,B 0-255) — None means use theme colour
+        self._bg_color_override = None
+
+        # Sub-object selection state (vertex / edge / face / poly / object)
+        self._selected_verts = set()    # set of vertex indices
+        self._selected_edges = set()    # set of (vi, vj) tuples, vi < vj
+        self._selected_faces = set()    # set of triangle indices
+        self._hidden_faces = set()      # triangle indices not drawn or picked
+        self._selection_locked = False  # Space: selection can't change
+        self._lock_key_callback = None  # workshop toggles its lock button
+        self._mesh_region = None        # [x0, y0, x1, y1, add] sub-object region drag
+        self._region_circle = False     # region shape: circle, else rectangle
+        self._region_crossing = True    # faces: any corner inside, else all
+        self._select_mode    = 'object'  # 'vertex'|'edge'|'face'|'poly'|'object'
+
+        # Snap target toggles (Aug 19 2026)
+        self._snap_targets = {'edge': False, 'centre': False}
+        self._snap_axis_constraint = False   # "Enable Axis Constraints in Snaps"
+
+        # Multi-pane view lock (3ds Max style Top/Front/Side/Perspective panes)
+        self._view_locked = False
+        # Right button orbits; no context menu from parent panels (Linux fires on press)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
+        self._view_label  = ""
+        self._projection  = 'perspective'   # 'perspective' or 'ortho'
+        self._capture_ortho = None           # (l, r, b, t) during radar capture
+        self._on_geometry_loaded = None     # optional callback, set by host tool
+
+        self._label_widget = QLabel(self)
+        self._label_widget.setStyleSheet(
+            "color: rgba(255,255,255,190); background: transparent; font-size: 10px;")
+        self._label_widget.move(4, 2)
+        self._label_widget.hide()
+        self._edit_banner = QLabel(self)          # "Edit Mode" at top middle (mesh edit)
+        self._edit_banner.setStyleSheet(
+            "color: white; background: rgba(190, 50, 50, 190); font-size: 12px; "
+            "font-weight: bold; padding: 2px 12px; border-radius: 4px;")
+        self._edit_banner.hide()
+        self._gizmo2d = None
+        self._gizmo_overlay = _GizmoOverlay(self)  # mesh gizmo drawn with QPainter
+        self._mesh_hover = None                   # hovered vertex / edge / face (mesh edit)
+        self._mesh_gizmo_hover = None             # hovered gizmo axis (gold)
+        self._mesh_gizmo_mode = 'move'            # 'move' | 'rotate' | 'scale'
+        self._mesh_xform_cb = None                # fn(kind, vert_ids, axis, value, pivot)
+        self._mesh_face_mode = 'connected'        # face move: 'connected' | 'detach' | 'extrude'
+        self._detached_faces = set()              # drawn with orange edges
+        self._wire_hint = True                    # wireframe over solid / textured
+        self._mesh_chips = None                   # render / gizmo chip bar (model view)
+        self._mesh_info = QLabel(self)            # face / vertex counts, bottom left
+        self._mesh_info.setStyleSheet("color: rgba(150,230,150,220); background: transparent; font-size: 10px;")
+        self._mesh_info.hide()
+
+        # Retro CRT time overlay (Aug 20 2026)
+        self._crt_time_overlay = _CRTTimeOverlay(self)
+        self._crt_time_overlay.hide()
+        self._position_crt_time_overlay()
+
+    def resizeEvent(self, event): #vers 1
+        """Keep the CRT time overlay anchored to the top-right corner
+        as the viewport itself resizes (Aug 20 2026)."""
+        super().resizeEvent(event)
+        self._position_crt_time_overlay()
+
+    def _position_crt_time_overlay(self): #vers 1
+        overlay = getattr(self, '_crt_time_overlay', None)
+        if overlay is None:
+            return
+        margin = 8
+        overlay.move(self.width() - overlay.width() - margin, margin)
+
+    def set_crt_time_visible(self, visible): #vers 1
+        """Show/hide the on-viewport CRT time overlay (Aug 20 2026)"""
+        overlay = getattr(self, '_crt_time_overlay', None)
+        if overlay is None:
+            return
+        overlay.setVisible(bool(visible))
+
+    def set_crt_time_text(self, text): #vers 1
+        """Update the CRT overlay's own displayed time (Aug 20 2026)"""
+        overlay = getattr(self, '_crt_time_overlay', None)
+        if overlay is None:
+            return
+        overlay.setText(text)
+
+    def connect_crt_time_clicks(self, on_left=None, on_right=None): #vers 1
+        """Wire the CRT overlay's own left/right-click signals to real
+        map_workshop.py handlers (Aug 20 2026)"""
+        overlay = getattr(self, '_crt_time_overlay', None)
+        if overlay is None:
+            return
+        if on_left is not None:
+            overlay.left_clicked.connect(on_left)
+        if on_right is not None:
+            overlay.right_clicked.connect(on_right)
+
+    def _get_ui_color(self, key): #vers 2
+        """Get theme color — tries app_settings, falls back to defaults."""
+        defaults = {
+            'bg_panel': (25, 25, 35),
+            'text_primary': (220, 220, 220),
+            'border': (60, 60, 80),
+        }
+        if self.app_settings:
+            try:
+                colors = self.app_settings.get_theme_colors()
+                val = colors.get(key, '')
+                if val and val.startswith('#'):
+                    r = int(val[1:3], 16)
+                    g = int(val[3:5], 16)
+                    b = int(val[5:7], 16)
+                    return QColor(r, g, b)
+            except Exception:
+                pass
+        rgb = defaults.get(key, (40, 40, 50))
+        return QColor(*rgb)
+
+    def _get_bg_color(self): #vers 1
+        """Resolve actual background colour — explicit override takes priority over theme."""
+        if self._bg_color_override is not None:
+            return QColor(*self._bg_color_override)
+        return self._get_ui_color('bg_panel')
+
+    # - Sub-object picking (vertex / edge / face)
+    # Replicates paintGL's camera transform so a ray can be cast from a
+    # mouse click even though picking happens outside the paint cycle.
+
+    def _pick_ray(self, mx: float, my: float): #vers 1
+        """Return (origin, direction) as two (x,y,z) tuples for a world-space
+        ray through the given widget-space pixel, or None if GL/picking
+        isn't available right now (e.g. widget not yet shown)."""
+        if not OPENGL_AVAILABLE or not self.isValid():
+            return None
+        try:
+            self.makeCurrent()
+            glMatrixMode(GL_PROJECTION); glLoadIdentity()
+            w = max(1, self.width()); h = max(1, self.height())
+            gluPerspective(45.0, w / h, 0.01, 100000.0)
+            glMatrixMode(GL_MODELVIEW); glLoadIdentity()
+            gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
+            glRotatef(-self._pitch, 1, 0, 0)
+            glRotatef(self._yaw, 0, 0, 1)
+            glTranslatef(self._pan_x, self._pan_y, 0)
+
+            model_mat = glGetDoublev(GL_MODELVIEW_MATRIX)
+            proj_mat  = glGetDoublev(GL_PROJECTION_MATRIX)
+            viewport  = glGetIntegerv(GL_VIEWPORT)
+            # Qt widget Y is top-down; GL viewport Y is bottom-up
+            wy = h - my
+
+            near = gluUnProject(mx, wy, 0.0, model_mat, proj_mat, viewport)
+            far  = gluUnProject(mx, wy, 1.0, model_mat, proj_mat, viewport)
+            self.doneCurrent()
+        except Exception:
+            try: self.doneCurrent()
+            except Exception: pass
+            return None
+
+        ox, oy, oz = near
+        dx, dy, dz = far[0]-near[0], far[1]-near[1], far[2]-near[2]
+        ln = math.sqrt(dx*dx + dy*dy + dz*dz) or 1.0
+        return (ox, oy, oz), (dx/ln, dy/ln, dz/ln)
+
+    @staticmethod
+    def _point_seg_dist2(p, a, b): #vers 1
+        """Squared distance from point p to segment a-b (3D)."""
+        abx, aby, abz = b[0]-a[0], b[1]-a[1], b[2]-a[2]
+        apx, apy, apz = p[0]-a[0], p[1]-a[1], p[2]-a[2]
+        ab2 = abx*abx + aby*aby + abz*abz
+        t = 0.0 if ab2 < 1e-12 else max(0.0, min(1.0, (apx*abx+apy*aby+apz*abz)/ab2))
+        cx, cy, cz = a[0]+abx*t, a[1]+aby*t, a[2]+abz*t
+        ddx, ddy, ddz = p[0]-cx, p[1]-cy, p[2]-cz
+        return ddx*ddx + ddy*ddy + ddz*ddz
+
+    def _closest_point_on_ray(self, origin, direction, point): #vers 1
+        """Param t (distance along ray) of the closest approach to `point`,
+        and the squared distance from the ray to that point at that t."""
+        ox, oy, oz = origin; dx, dy, dz = direction
+        px, py, pz = point[0]-ox, point[1]-oy, point[2]-oz
+        t = px*dx + py*dy + pz*dz
+        cx, cy, cz = ox+dx*t, oy+dy*t, oz+dz*t
+        ddx, ddy, ddz = point[0]-cx, point[1]-cy, point[2]-cz
+        return t, ddx*ddx + ddy*ddy + ddz*ddz
+
+    def _pick_vertex(self, mx: float, my: float): #vers 1
+        """Return index of the closest vertex to the ray through (mx,my)
+        within a small screen-space-equivalent tolerance, or None."""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._vertices:
+            return None
+        origin, direction = ray
+        # Tolerance scales with camera distance so it stays roughly
+        # constant in screen pixels regardless of zoom.
+        tol2 = (self._dist * 0.02) ** 2
+        best_i, best_t, best_d2 = None, None, tol2
+        for i, v in enumerate(self._vertices):
+            t, d2 = self._closest_point_on_ray(origin, direction, v)
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_i is not None and d2 <= best_d2 and t < best_t):
+                best_i, best_t, best_d2 = i, t, d2
+        return best_i
+
+    def _pick_edge(self, mx: float, my: float): #vers 1
+        """Return (vi, vj) (vi<vj) of the closest triangle edge to the ray,
+        or None. Edges are derived from triangle sides, deduplicated."""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._vertices or not self._triangles:
+            return None
+        origin, direction = ray
+        tol2 = (self._dist * 0.02) ** 2
+        edges = set()
+        for tri in self._triangles:
+            a, b, c = tri[0], tri[1], tri[2]
+            for i, j in ((a, b), (b, c), (c, a)):
+                edges.add((i, j) if i < j else (j, i))
+        best_key, best_t, best_d2 = None, None, tol2
+        verts = self._vertices
+        for (i, j) in edges:
+            try:
+                va, vb = verts[i], verts[j]
+            except IndexError:
+                continue
+            mid = ((va[0]+vb[0])/2, (va[1]+vb[1])/2, (va[2]+vb[2])/2)
+            t, d2 = self._closest_point_on_ray(origin, direction, mid)
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_key is not None and d2 <= best_d2 and t < best_t):
+                best_key, best_t, best_d2 = (i, j), t, d2
+        return best_key
+
+    def _pick_world_instance(self, mx: float, my: float): #vers 1
+        """Return the index into self._world_instances closest to the
+        ray through (mx,my), within a tolerance that scales with
+        camera distance (same pattern as _pick_vertex/_pick_edge just
+        above - reuses the exact same _pick_ray/_closest_point_on_ray
+        infrastructure, just testing against each instance's world
+        position instead of mesh vertices/edges). Picks by distance
+        from the instance's origin point to the ray, not full
+        per-triangle mesh intersection (_ray_triangle_intersect exists
+        and would be more precise, but re-testing every triangle of
+        every instance on every click would be considerably slower for
+        a whole loaded map - this is fast and good enough for clicking
+        roughly on/near an object). Aug 1 2026"""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._world_instances:
+            return None
+        origin, direction = ray
+        tol2 = (self._dist * 0.05) ** 2
+        best_i, best_t, best_d2 = None, None, tol2
+        for i, entry in enumerate(self._world_instances):
+            pos = entry.get('pos')
+            if pos is None:
+                continue
+            t, d2 = self._closest_point_on_ray(origin, direction, pos)
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_i is not None and d2 <= best_d2 and t < best_t):
+                best_i, best_t, best_d2 = i, t, d2
+        return best_i
+
+    def mouseDoubleClickEvent(self, event): #vers 3
+        """Double-clicking a world instance opens its edit dialog (Aug
+        1 2026)"""
+        if self._world_instances or self._path_node_owner_map or self._cull_boxes or self._zone_boxes:
+            pos = event.position()
+            ws = getattr(self, '_workshop_ref', None)
+
+            if getattr(self, 'show_paths', False):
+                node_pos = self._pick_path_node(pos.x(), pos.y())
+                if node_pos is not None:
+                    if ws is not None and hasattr(ws, '_on_path_node_picked'):
+                        owner = self._path_node_owner_map.get(node_pos)
+                        ws._on_path_node_picked(node_pos, owner)
+                        return
+
+            if getattr(self, 'show_cull_boxes', False) or getattr(self, 'show_zone_boxes', False):
+                box_hit = self._pick_cull_or_zone_box(pos.x(), pos.y())
+                if box_hit is not None:
+                    if ws is not None and hasattr(ws, '_on_cull_or_zone_box_picked'):
+                        kind, box_index = box_hit
+                        ws._on_cull_or_zone_box_picked(kind, box_index)
+                        return
+
+            idx = self._pick_world_instance(pos.x(), pos.y())
+            if idx is not None:
+                if ws is not None and hasattr(ws, '_on_world_instance_picked'):
+                    ws._on_world_instance_picked(idx)
+                    return
+
+            # None of the currently-active overlay types (if any) were
+            # hit, and neither was an instance - try the ones that
+            # weren't already tried above as a last resort, same real
+            # "at least try everything once" fallback the original,
+            # unconditional order already gave for free.
+            if not getattr(self, 'show_paths', False):
+                node_pos = self._pick_path_node(pos.x(), pos.y())
+                if node_pos is not None:
+                    if ws is not None and hasattr(ws, '_on_path_node_picked'):
+                        owner = self._path_node_owner_map.get(node_pos)
+                        ws._on_path_node_picked(node_pos, owner)
+                        return
+            if not (getattr(self, 'show_cull_boxes', False) or getattr(self, 'show_zone_boxes', False)):
+                box_hit = self._pick_cull_or_zone_box(pos.x(), pos.y())
+                if box_hit is not None:
+                    if ws is not None and hasattr(ws, '_on_cull_or_zone_box_picked'):
+                        kind, box_index = box_hit
+                        ws._on_cull_or_zone_box_picked(kind, box_index)
+                        return
+        super().mouseDoubleClickEvent(event)
+
+    def _ray_triangle_intersect(self, origin, direction, v0, v1, v2): #vers 2
+        """Möller–Trumbore ray/triangle test. Returns t (distance along the
+        ray) on hit, or None. Backface-tolerant (tests both winding orders)."""
+        eps = 1e-9
+        e1 = (v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2])
+        e2 = (v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2])
+        dx, dy, dz = direction
+        px = dy*e2[2] - dz*e2[1]
+        py = dz*e2[0] - dx*e2[2]
+        pz = dx*e2[1] - dy*e2[0]
+        det = e1[0]*px + e1[1]*py + e1[2]*pz
+        if -eps < det < eps:
+            return None
+        inv_det = 1.0 / det
+        tx, ty, tz = origin[0]-v0[0], origin[1]-v0[1], origin[2]-v0[2]
+        u = (tx*px + ty*py + tz*pz) * inv_det
+        if u < -1e-6 or u > 1 + 1e-6:
+            return None
+        qx = ty*e1[2] - tz*e1[1]
+        qy = tz*e1[0] - tx*e1[2]
+        qz = tx*e1[1] - ty*e1[0]
+        v = (dx*qx + dy*qy + dz*qz) * inv_det
+        if v < -1e-6 or u + v > 1 + 1e-6:
+            return None
+        t = (e2[0]*qx + e2[1]*qy + e2[2]*qz) * inv_det     # distance: e2 . q
+        if t < 1e-6:
+            return None
+        return t
+
+    def _pick_face(self, mx: float, my: float): #vers 2
+        """Return index of the closest triangle hit by the ray through
+        (mx,my), or None. Picks the nearest intersection along the ray
+        (i.e. respects depth — front-most triangle wins)."""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._vertices or not self._triangles:
+            return None
+        origin, direction = ray
+        verts = self._vertices
+        best_i, best_t = None, None
+        for i, tri in enumerate(self._triangles):
+            if i in self._hidden_faces:
+                continue
+            a, b, c = tri[0], tri[1], tri[2]
+            try:
+                v0, v1, v2 = verts[a], verts[b], verts[c]
+            except IndexError:
+                continue
+            t = self._ray_triangle_intersect(origin, direction, v0, v1, v2)
+            if t is not None and (best_t is None or t < best_t):
+                best_i, best_t = i, t
+        return best_i
+
+    def _visible_tris(self): #vers 1
+        """Triangles to draw: hidden faces (Model Workshop mesh edit) left out."""
+        hidden = self._hidden_faces
+        if not hidden:
+            return self._triangles
+        return [t for i, t in enumerate(self._triangles) if i not in hidden]
+
+    def _selected_set_for_mode(self, mode=None): #vers 1
+        """Return the live selection set for the given (or current) mode."""
+        mode = mode or getattr(self, '_select_mode', 'object')
+        if mode == 'vertex':
+            return self._selected_verts
+        if mode == 'edge':
+            return self._selected_edges
+        return self._selected_faces   # 'face' and 'poly' share one set
+
+    def _apply_selection_click(self, mode, key, modifiers): #vers 2
+        """Apply a single click selection. Ctrl+click toggles the item;
+        Shift+click adds without replacing; plain click replaces selection.
+        Nothing changes while the selection is locked."""
+        if self._selection_locked:
+            return
+        sel = self._selected_set_for_mode(mode)
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            if key in sel:
+                sel.discard(key)
+            else:
+                sel.add(key)
+        elif modifiers & Qt.KeyboardModifier.ShiftModifier:
+            sel.add(key)
+        else:
+            sel.clear()
+            sel.add(key)
+        self._notify_selection_changed()
+
+    def toggle_snap_target(self, target: str): #vers 1
+        """Flip one snap target on/off (independently toggleable, not
+        single-select - matches 3ds Max's snap ribbon where Vertex+Endpoint+
+        Midpoint etc. can all be active together). No-op for unknown keys
+        rather than raising, since this is called from button clicks."""
+        if target in self._snap_targets:
+            self._snap_targets[target] = not self._snap_targets[target]
+
+    def toggle_snap_axis_constraint(self): #vers 1
+        self._snap_axis_constraint = not self._snap_axis_constraint
+
+    def _get_selection_count(self): #vers 1
+        """Count of currently selected items in the active sub-object mode.
+        Mirrors COL3DViewport's identically-named method - see note in
+        toolbar_layout_manager.py session about consolidating the two
+        viewport classes' duplicated selection logic into methods/."""
+        mode = getattr(self, '_select_mode', 'face')
+        if mode == 'vertex':
+            return len(self._selected_verts)
+        if mode == 'edge':
+            return len(self._selected_edges)
+        return len(self._selected_faces)   # 'face' and 'poly' both live here
+
+    def _notify_selection_changed(self): #vers 3
+        """Tell the parent ModelWorkshop panel the selection set changed,
+        so it can refresh the 'N Vertices/Edges/Faces/Polygons Selected'
+        label. Uses _workshop_ref (set at construction in model_workshop.py)
+        rather than walking the Qt parent chain - more reliable since this
+        widget is set up with a direct back-reference already."""
+        ws = getattr(self, '_workshop_ref', None)
+        if ws is not None and hasattr(ws, '_update_selection_count_label'):
+            ws._update_selection_count_label()
+        if ws is not None and hasattr(ws, '_sync_selection_to_other_viewports'):
+            ws._sync_selection_to_other_viewports(self)
+
+    def initializeGL(self): #vers 2
+        if not OPENGL_AVAILABLE: return
+        bg = self._get_bg_color()
+        glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        self._setup_lighting()
+
+    def _setup_lighting(self): #vers 6
+        if not OPENGL_AVAILABLE: return
+        import ctypes
+
+        _GL_LIGHTING             = 0x0B50
+        _GL_LIGHT0               = 0x4000
+        _GL_POSITION             = 0x1203
+        _GL_AMBIENT              = 0x1200
+        _GL_DIFFUSE              = 0x1201
+        _GL_SPECULAR             = 0x1202
+        _GL_COLOR_MATERIAL       = 0x0B57
+        _GL_FRONT_AND_BACK       = 0x0408
+        _GL_AMBIENT_AND_DIFFUSE  = 0x1602
+
+        _libGL = None
+        for _name in ('libGL.so.1', 'libGL.so', '/usr/lib/libGL.so.1',
+                      '/usr/lib/libGL.so', '/usr/lib64/libGL.so.1',
+                      'libOpenGL.so.0', '/usr/lib/x86_64-linux-gnu/libGL.so.1'):
+            try:
+                _libGL = ctypes.CDLL(_name)
+                break
+            except OSError:
+                _libGL = None
+
+        if _libGL is None:
+            import glob
+            for _p in glob.glob('/usr/lib*/**/libGL.so*', recursive=True):
+                try:
+                    _libGL = ctypes.CDLL(_p)
+                    break
+                except OSError:
+                    _libGL = None
+
+        if _libGL is None:
+            print("[DFFViewport] libGL not found — lighting disabled")
+            return
+
+        _f4 = ctypes.c_float * 4
+        _libGL.glEnable(_GL_LIGHTING)
+        _libGL.glEnable(_GL_LIGHT0)
+        ld = self._light_dir
+        a, d = self._ambient, self._diffuse
+        tr, tg, tb = getattr(self, '_ambient_tint', (1.0, 1.0, 1.0))
+        _libGL.glLightfv(_GL_LIGHT0, _GL_POSITION, _f4(ld[0], ld[1], ld[2], ld[3]))
+        _libGL.glLightfv(_GL_LIGHT0, _GL_AMBIENT,  _f4(a * tr, a * tg, a * tb, 1.0))
+        _libGL.glLightfv(_GL_LIGHT0, _GL_DIFFUSE,  _f4(d * tr, d * tg, d * tb, 1.0))
+        _libGL.glLightfv(_GL_LIGHT0, _GL_SPECULAR, _f4(0.3, 0.3, 0.3, 1.0))
+        _libGL.glEnable(_GL_COLOR_MATERIAL)
+        _libGL.glColorMaterial(_GL_FRONT_AND_BACK, _GL_AMBIENT_AND_DIFFUSE)
+
+    def set_edit_mode_banner(self, text): #vers 2
+        """Show text centred at the top of the view ('' hides it); chips follow the mode."""
+        self._edit_banner.setText(text)
+        self._edit_banner.setVisible(bool(text))
+        self._place_edit_banner()
+        self._mesh_hover = None
+        self._sync_mesh_chips()
+
+    def _place_edit_banner(self): #vers 1
+        b = self._edit_banner
+        if b.isVisible():
+            b.adjustSize()
+            b.move(max(0, (self.width() - b.width()) // 2), 6)
+            b.raise_()
+
+    def resizeGL(self, w, h): #vers 6
+        self._gizmo_overlay.resize(self.size())
+        self._place_edit_banner()
+        self._place_mesh_chips()
+        if not OPENGL_AVAILABLE: return
+        glViewport(0, 0, max(1, w), max(1, h))
+        glMatrixMode(GL_PROJECTION); glLoadIdentity()
+        aspect = max(1, w) / max(1, h)
+        if self._capture_ortho is not None:          # pixel-exact radar tile
+            l, r, b, t = self._capture_ortho
+            glOrtho(l, r, b, t, -100000.0, 100000.0)
+        elif self._projection == 'ortho':
+            half_h = max(0.01, self._dist * 0.5)
+            glOrtho(-half_h*aspect, half_h*aspect, -half_h, half_h, -100000.0, 100000.0)
+        else:
+            gluPerspective(45.0, aspect, 0.01, 100000.0)
+        glMatrixMode(GL_MODELVIEW)
+        self._label_widget.move(4, 2)
+
+    def paintGL(self): #vers 16
+        """Draw the scene, then force alpha 1 so translucent windows don't show through."""
+        if not OPENGL_AVAILABLE: return
+        self._paint_scene()
+        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE)
+        glClearColor(0.0, 0.0, 0.0, 1.0)
+        glClear(GL_COLOR_BUFFER_BIT)
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE)
+
+    def _paint_scene(self): #vers 3
+        """Scene body of paintGL (was paintGL vers 15)."""
+        self._gizmo2d = None                     # mesh gizmo screen data, set by _draw_mesh_gizmo
+        self._gizmo_overlay.update()
+        bg = self._get_bg_color()
+        glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glLoadIdentity()
+        gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
+        glRotatef(-self._pitch, 1, 0, 0)
+        glRotatef(self._yaw, 0, 0, 1)
+        # Sky drawn here - after yaw/pitch rotate the scene, before pan
+        # translates it (Aug 20 2026)
+        if self._skybox_path or (self._timecyc_playing and self._sky_gradient_top
+                                 and self._sky_gradient_bot):
+            glPushMatrix()                      # camera-centred: rotate only, no zoom/pan
+            glLoadIdentity()
+            glRotatef(-self._pitch, 1, 0, 0)
+            glRotatef(self._yaw, 0, 0, 1)
+            if self._skybox_path:
+                self._draw_skybox()
+            else:
+                self._draw_sky_gradient()
+            glPopMatrix()
+        glTranslatef(self._pan_x, self._pan_y, 0)
+        if self._backface_cull:
+            glEnable(GL_CULL_FACE); glCullFace(GL_BACK)
+        else:
+            glDisable(GL_CULL_FACE)
+        self._setup_lighting()
+
+        has_world = bool(
+            getattr(self, '_world_instances', None)
+            or getattr(self, '_path_segments', None)
+            or getattr(self, '_track_polylines', None)
+            or getattr(self, '_cull_boxes', None)
+            or getattr(self, '_zone_boxes', None)
+            or getattr(self, '_occl_boxes', None)
+            or getattr(self, '_auzo_zones', None)
+            or getattr(self, '_water2_cells', None))
+        has_geoms = bool(getattr(self, '_all_geoms', None))
+        has_verts = bool(self._vertices)
+        if has_world:
+            if self._show_radar_tex_layer:
+                self._draw_radar_tex_layer()
+            self._draw_world_instances()
+            self._draw_2dfx_lights()
+            if self.show_paths:
+                self._draw_paths()
+
+            self._pickable_box_corners = {}
+            if self.show_cull_boxes:
+                self._draw_cull_boxes()
+            if self.show_zone_boxes:
+                self._draw_zone_boxes()
+            if self.show_occl_boxes:
+                self._draw_occl_boxes()
+            if self.show_grge_boxes:
+                self._draw_grge_boxes()
+            if self.show_tracks:
+                self._draw_tracks()
+            if self.show_sa_nodes:
+                self._draw_sa_nodes()
+            if self.show_auzo_zones:
+                self._draw_auzo_zones()
+            if getattr(self, '_hovered_instance_idx', None) is not None:
+                self._draw_hover_highlight()
+            if getattr(self, '_selected_box', None) is not None:
+                self._draw_selected_box_highlight()
+            if getattr(self, '_lod_test_center', None) is not None:
+                self._draw_lod_test_circle()
+            if self._script_markers:
+                self._draw_script_markers()
+            if self._sel_insts:
+                self._draw_selection_marks()
+            if self._snap_feedback and self._gizmo_drag is not None:
+                self._draw_snap_feedback()
+            if self._gizmo_inst is not None:
+                self._draw_gizmo()
+            if self._gamepad is not None:
+                self._draw_reticle()
+            if self._rubber is not None:
+                self._draw_rubber_band()
+            if self._mesh_region is not None:
+                self._draw_mesh_region()
+            if self._show_grid: self._draw_grid()
+            # Water drawn after the grid now (Aug 20 2026)
+            if self.show_water:
+                self._draw_water2()
+            if self._brush_tool is not None:
+                self._draw_brush_ring()
+            self._draw_axes()
+            return
+        if not has_geoms and not has_verts:
+            if self._show_grid: self._draw_grid()
+            self._draw_skeleton()
+            self._draw_axes()
+            return
+        if self._mesh_chip_state() != getattr(self, '_mesh_chip_shown', None):
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, self._sync_mesh_chips)
+        if has_geoms:
+            self._draw_assembly()
+        elif has_verts:
+            if   self._mode == 'wireframe': self._draw_wireframe()
+            elif self._mode == 'solid':     self._draw_solid()
+            elif self._mode == 'semi_solid': self._draw_solid(alpha_multiplier=0.5)
+            elif self._mode == 'textured':  self._draw_textured()
+            self._draw_wire_hint()
+            self._draw_detached_wires()
+            self._draw_selection_overlay()
+            self._draw_mesh_gizmo()
+        if self._show_grid: self._draw_grid()
+        self._draw_skeleton()
+        self._draw_axes()
+
+    def _draw_paths(self): #vers 4
+        """Draw every real path link (red by default."""
+        if not OPENGL_AVAILABLE or not self._path_segments: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)   # paths read clearer drawn on top, same as 2DFX lights
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        r, g, b = self._path_line_color
+        glLineWidth(self._path_line_thickness)
+        glColor4f(r, g, b, 0.75)
+        glBegin(GL_LINES)
+        for (x1, y1, z1), (x2, y2, z2) in self._path_segments:
+            glVertex3f(x1, y1, z1)
+            glVertex3f(x2, y2, z2)
+        glEnd()
+        nr, ng, nb = self._path_node_color
+        glColor4f(nr, ng, nb, 0.75)
+        glPointSize(self._path_node_size)
+        # Round points instead of the default squares (Aug 16 2026)
+        glEnable(GL_POINT_SMOOTH)
+        glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
+        glBegin(GL_POINTS)
+        seen = set()
+        for a, b_pt in self._path_segments:
+            for pt in (a, b_pt):
+                if pt not in seen:
+                    seen.add(pt)
+                    glVertex3f(*pt)
+        glEnd()
+        glDisable(GL_POINT_SMOOTH)
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+        # Highlight the currently held/dragged node, if any (Aug 18 2026)
+        held_pos = getattr(self, '_dragging_path_node_current_pos', None)
+        if held_pos is not None and OPENGL_AVAILABLE:
+            glDisable(GL_LIGHTING)
+            glDisable(GL_DEPTH_TEST)
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            glEnable(GL_POINT_SMOOTH)
+            glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
+            glColor4f(1.0, 1.0, 1.0, 0.95)
+            glPointSize(self._path_node_size * 1.8)
+            glBegin(GL_POINTS)
+            glVertex3f(*held_pos)
+            glEnd()
+            glDisable(GL_POINT_SMOOTH)
+            glDisable(GL_BLEND)
+            glEnable(GL_DEPTH_TEST)
+            glEnable(GL_LIGHTING)
+
+    def _draw_cull_boxes(self): #vers 3
+        """Draw every loaded cull zone as a ghosted (semi-transparent
+        filled + outlined) box, corner-to-corner (Aug 16 2026)"""
+        self._draw_ghosted_boxes(self._cull_boxes, self._cull_box_color)
+
+    def _draw_zone_boxes(self): #vers 4
+        """Draw every loaded map zone, style selectable via self.
+        _zone_render_style (Aug 16 2026) Per-box unique colouring (Aug 19 2026)"""
+        if not OPENGL_AVAILABLE or not self._zone_boxes: return
+        style = self._zone_render_style
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        r, g, b = self._zone_box_color
+        axis_colored = getattr(self, '_box_axis_colors', False)
+        unique_colors = getattr(self, '_box_unique_colors', False)
+        owners = getattr(self, '_zone_box_owners', [])
+        if style == 'wireframe':
+            glLineWidth(1.5)
+            for i, (x1, y1, z1, x2, y2, z2) in enumerate(self._zone_boxes):
+                box_r, box_g, box_b = self._palette_color_for_index(i) \
+                    if (unique_colors and not axis_colored) else (r, g, b)
+                glColor3f(box_r, box_g, box_b)
+                corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+                self._draw_box_wireframe_from_corners(corners_xy, z1, z2)
+                self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+                if i < len(owners):
+                    self._register_pickable_box_corners('zone', i, corners_xy, z1, z2, owners[i])
+        else:
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            fill_alpha = 0.16 if style == 'translucent' else 0.32
+            draw_outline = style != 'translucent'
+            for i, (x1, y1, z1, x2, y2, z2) in enumerate(self._zone_boxes):
+                box_r, box_g, box_b = self._palette_color_for_index(i) \
+                    if (unique_colors and not axis_colored) else (r, g, b)
+                corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+                self._draw_ghosted_box_from_corners(
+                    corners_xy, z1, z2, box_r, box_g, box_b,
+                    fill_alpha=fill_alpha, draw_outline=draw_outline,
+                    axis_colored=axis_colored)
+                self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+                if i < len(owners):
+                    self._register_pickable_box_corners('zone', i, corners_xy, z1, z2, owners[i])
+            glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _register_pickable_box_corners(self, box_type, box_index, corners_xy, z1, z2, box_ref): #vers 1
+        """Register one box's own 8 corners as pickable for resizing
+        (Aug 19 2026)"""
+        if box_ref is None:
+            return
+        for ci, (cx, cy) in enumerate(corners_xy):
+            ox, oy = corners_xy[(ci + 2) % 4]   # diagonally opposite XY corner
+            for cz, oz in ((z1, z2), (z2, z1)):
+                key = (box_type, box_index, ci, cz)
+                self._pickable_box_corners[key] = {
+                    'pos': (cx, cy, cz),
+                    'opposite': (ox, oy, oz),
+                    'box_type': box_type,
+                    'box_ref': box_ref,
+                }
+
+    def _draw_ghosted_boxes(self, boxes, color): #vers 2
+        """Shared ghosted axis-aligned-box drawing helper for cull (Aug 16 2026)
+        TODO, same class of feature)."""
+        if not OPENGL_AVAILABLE or not boxes: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        r, g, b = color
+        axis_colored = getattr(self, '_box_axis_colors', False)
+        unique_colors = getattr(self, '_box_unique_colors', False)
+        owners = getattr(self, '_cull_box_owners', [])
+        for i, (x1, y1, z1, x2, y2, z2) in enumerate(boxes):
+            box_r, box_g, box_b = self._palette_color_for_index(i) \
+                if (unique_colors and not axis_colored) else (r, g, b)
+            corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
+                axis_colored=axis_colored)
+            self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+
+            if i < len(owners):
+                self._register_pickable_box_corners('cull', i, corners_xy, z1, z2, owners[i])
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_ghosted_box_from_corners(self, corners_xy, z1, z2, r, g, b,
+                                        fill_alpha=0.32, edge_alpha=0.85,
+                                        draw_outline=True, axis_colored=False): #vers 3
+        """Draw one ghosted (semi-transparent filled faces + an
+        optional, more opaque wireframe outline for definition) box
+        from 4 already-computed (x,y) corner points in loop order and
+        a z1/z2 extrusion range (Aug 16 2026)
+
+        axis_colored=True (Aug 19 2026)"""
+        def _face_color(default_alpha, side_index=None):
+            if not axis_colored:
+                return (r, g, b, default_alpha)
+            if side_index is None:
+                return (0.2, 0.4, 1.0, default_alpha)   # Z (top/bottom caps) - blue
+            return (1.0, 0.25, 0.25, default_alpha) if side_index % 2 == 0 \
+                else (0.25, 1.0, 0.25, default_alpha)    # Y (red) / X (green)
+
+        cr, cg, cb, ca = _face_color(fill_alpha)
+        glColor4f(cr, cg, cb, ca)
+        glBegin(GL_QUADS)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1)
+        glEnd()
+        glBegin(GL_QUADS)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z2)
+        glEnd()
+        for i in range(4):
+            cx0, cy0 = corners_xy[i]
+            cx1, cy1 = corners_xy[(i + 1) % 4]
+            fr, fg, fb, fa = _face_color(fill_alpha, side_index=i)
+            glColor4f(fr, fg, fb, fa)
+            glBegin(GL_QUADS)
+            glVertex3f(cx0, cy0, z1); glVertex3f(cx1, cy1, z1)
+            glVertex3f(cx1, cy1, z2); glVertex3f(cx0, cy0, z2)
+            glEnd()
+        if not draw_outline:
+            return
+        glColor4f(r, g, b, edge_alpha)
+        glLineWidth(1.2)
+        glBegin(GL_LINE_LOOP)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1)
+        glEnd()
+        glBegin(GL_LINE_LOOP)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z2)
+        glEnd()
+        glBegin(GL_LINES)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
+        glEnd()
+
+    def _draw_selected_box_highlight(self): #vers 2
+        """Highlight whichever cull/zone/occlusion box is currently
+        cycled to via the Cycle Zones/Cull button (Aug 21 2026)"""
+        sel = getattr(self, '_selected_box', None)
+        if sel is None:
+            return
+        kind, index = sel
+        pad = 0.15
+        if kind == 'occl':
+            if not (0 <= index < len(self._occl_boxes)):
+                return
+            mid_x, mid_y, bottom_z, width_x, width_y, height, rotation = self._occl_boxes[index]
+            hw, hh = width_x / 2.0 + pad, width_y / 2.0 + pad
+            rad = math.radians(rotation)
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            corners_xy = []
+            for dx, dy in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+                corners_xy.append((mid_x + dx * cos_r - dy * sin_r,
+                                    mid_y + dx * sin_r + dy * cos_r))
+            z1, z2 = bottom_z, bottom_z + height
+        else:
+            boxes = {'cull': self._cull_boxes, 'zone': self._zone_boxes,
+                     'grge': self._grge_boxes}.get(kind, [])
+            if not (0 <= index < len(boxes)):
+                return
+            x1, y1, z1, x2, y2, z2 = boxes[index]
+            corners_xy = [
+                (x1 - pad, y1 - pad), (x2 + pad, y1 - pad),
+                (x2 + pad, y2 + pad), (x1 - pad, y2 + pad),
+            ]
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glColor4f(1.0, 1.0, 0.2, 0.95)
+        glLineWidth(3.0)
+        self._draw_box_wireframe_from_corners(corners_xy, z1 - pad, z2 + pad)
+        glEnable(GL_TEXTURE_2D)
+        glEnable(GL_LIGHTING)
+
+    def _draw_box_wireframe_from_corners(self, corners_xy, z1, z2): #vers 1
+        """Edges-only box drawing from 4 already-computed (x,y)
+        corner points and a z1/z2 extrusion range (Aug 16 2026)"""
+        glBegin(GL_LINE_LOOP)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1)
+        glEnd()
+        glBegin(GL_LINE_LOOP)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z2)
+        glEnd()
+        glBegin(GL_LINES)
+        for cx, cy in corners_xy:
+            glVertex3f(cx, cy, z1); glVertex3f(cx, cy, z2)
+        glEnd()
+
+    def _draw_box_corner_spheres(self, corners_xy, z1, z2, r, g, b, radius=0.35): #vers 1
+        """Draw a small solid sphere at each of a box's 8 corners
+        (Aug 16 2026)"""
+        quadric = getattr(self, '_corner_sphere_quadric', None)
+        if quadric is None:
+            quadric = gluNewQuadric()
+            self._corner_sphere_quadric = quadric
+        glColor4f(r, g, b, 1.0)
+        for cx, cy in corners_xy:
+            for cz in (z1, z2):
+                glPushMatrix()
+                glTranslatef(cx, cy, cz)
+                gluSphere(quadric, radius, 6, 4)
+                glPopMatrix()
+
+    def _draw_occl_boxes(self): #vers 3
+        """Draw every loaded occlusion zone as a ghosted (semi-
+        transparent filled + outlined) box (Aug 16 2026)"""
+        if not OPENGL_AVAILABLE or not self._occl_boxes: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        r, g, b = self._occl_box_color
+        axis_colored = getattr(self, '_box_axis_colors', False)
+        unique_colors = getattr(self, '_box_unique_colors', False)
+        for i, (mid_x, mid_y, bottom_z, width_x, width_y, height, rotation) in enumerate(self._occl_boxes):
+            box_r, box_g, box_b = self._palette_color_for_index(i) \
+                if (unique_colors and not axis_colored) else (r, g, b)
+            hw, hh = width_x / 2.0, width_y / 2.0
+            rad = math.radians(rotation)
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            corners_xy = []
+            for dx, dy in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+                rx = dx * cos_r - dy * sin_r
+                ry = dx * sin_r + dy * cos_r
+                corners_xy.append((mid_x + rx, mid_y + ry))
+            z1, z2 = bottom_z, bottom_z + height
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
+                axis_colored=axis_colored)
+            self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_grge_boxes(self): #vers 1
+        """Draw every loaded garage as a ghosted (semi-transparent
+        filled + outlined) box, same real style as occlusion (Aug 21 2026)"""
+        if not OPENGL_AVAILABLE or not self._grge_boxes: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        r, g, b = self._grge_box_color
+        axis_colored = getattr(self, '_box_axis_colors', False)
+        unique_colors = getattr(self, '_box_unique_colors', False)
+        owners = getattr(self, '_grge_box_owners', [])
+        for i, (x1, y1, z1, x2, y2, z2) in enumerate(self._grge_boxes):
+            box_r, box_g, box_b = self._palette_color_for_index(i) \
+                if (unique_colors and not axis_colored) else (r, g, b)
+            corners_xy = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+            self._draw_ghosted_box_from_corners(corners_xy, z1, z2, box_r, box_g, box_b,
+                axis_colored=axis_colored)
+            self._draw_box_corner_spheres(corners_xy, z1, z2, box_r, box_g, box_b)
+            if i < len(owners):
+                self._register_pickable_box_corners('grge', i, corners_xy, z1, z2, owners[i])
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _nice_grid_step(self, raw_step): #vers 1
+        """Snap to the nearest value in a 1-2-5-10-20-50... sequence
+        instead of every raw integer (Aug 20 2026)"""
+        raw_step = max(1.0, raw_step)
+        import math
+        magnitude = 10 ** math.floor(math.log10(raw_step))
+        for mult in (1, 2, 5, 10):
+            candidate = magnitude * mult
+            if raw_step <= candidate * 1.3:
+                return int(candidate)
+        return int(magnitude * 10)
+
+    def _draw_grid(self): #vers 5
+        """Draw the viewport's own reference grid, in whichever real
+        visual style self._grid_type currently selects (Aug 20 2026)"""
+        if not OPENGL_AVAILABLE: return
+        glDisable(GL_LIGHTING)
+        if self._grid_scale_mode == 'radar_tiles':
+            step = max(1, int(self._radar_grid_tile_size))
+        elif self._grid_scale_mode == 'fixed':
+            step = max(1, int(self._grid_fixed_step))
+        else:
+            step = self._nice_grid_step(self._dist / self._grid_spacing)
+        cell_radius = max(1, self._grid_cell_count // 2)
+        if self._grid_scale_mode == 'radar_tiles':
+            rng = int(self._radar_grid_half_extent)
+        elif self._grid_scale_mode == 'fixed':
+
+            rng = max(step * cell_radius, int(self._dist * 2))
+        else:
+            rng = step * cell_radius
+
+        if self._grid_scale_mode == 'radar_tiles':
+
+            cx = 0
+            cy = 0
+        else:
+            cx = round(-self._pan_x / step) * step
+            cy = round(-self._pan_y / step) * step
+        grid_type = getattr(self, '_grid_type', 'lines')
+        if grid_type == 'none':
+            glEnable(GL_LIGHTING)
+            return
+
+        was_depth_test = glIsEnabled(GL_DEPTH_TEST)
+        ox, oy, oz = self._grid_origin
+        if oz == 0.0:                                   # ground grid under a model: keep depth
+            glDisable(GL_DEPTH_TEST)
+        glPushMatrix()
+        glTranslatef(ox % step, oy % step, oz)          # slide within one cell, set height
+        if grid_type == 'squares':
+            self._draw_grid_squares(step, rng, cx, cy)
+        elif grid_type == 'checker':
+            self._draw_grid_checker(step, rng, cx, cy)
+        elif grid_type == 'dashed':
+            self._draw_grid_dashed(step, rng, cx, cy)
+        elif grid_type == 'dots':
+            self._draw_grid_dots(step, rng, cx, cy)
+        elif grid_type == 'honeycomb':
+            self._draw_grid_honeycomb(step, rng, cx, cy)
+        elif grid_type == 'honeycomb_dashed':
+            self._draw_grid_honeycomb(step, rng, cx, cy, dashed=True)
+        else:
+            self._draw_grid_lines(step, rng, cx, cy)
+        glPopMatrix()
+        if was_depth_test:
+            glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_grid_lines(self, step, rng, cx=0, cy=0): #vers 3
+        """'lines' grid style - the original, only style this feature
+        ever had before john M's own request for real alternatives:
+        open grid lines, no fill, no dashing. cx/cy: the real, step-
+        aligned world centre this grid's own visible range is
+        currently built around (see _draw_grid's own docstring for
+        the full "why camera-relative, not fixed" reasoning)."""
+        was_blend = glIsEnabled(GL_BLEND)
+        glEnable(GL_LINE_SMOOTH)
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glLineWidth(self._grid_line_size)
+        r, g, b = self._grid_line_color
+        glColor4f(r / 255, g / 255, b / 255, 0.4)
+
+        # Hide-over-radar-tiles (Aug 20 2026)
+        hide_over_radar = self._grid_hide_over_radar_tiles and self._show_radar_tex_layer
+        half = self._radar_grid_half_extent if hide_over_radar else 0
+
+        def draw_segment(x1, y1, x2, y2): #vers 1
+            glVertex3f(x1, y1, 0); glVertex3f(x2, y2, 0)
+
+        glBegin(GL_LINES)
+        for i in range(cx - rng, cx + rng + 1, step):
+            if hide_over_radar and -half < i < half:
+                if cy - rng < -half:
+                    draw_segment(i, cy - rng, i, -half)
+                if cy + rng > half:
+                    draw_segment(i, half, i, cy + rng)
+            else:
+                draw_segment(i, cy - rng, i, cy + rng)
+        for i in range(cy - rng, cy + rng + 1, step):
+            if hide_over_radar and -half < i < half:
+                if cx - rng < -half:
+                    draw_segment(cx - rng, i, -half, i)
+                if cx + rng > half:
+                    draw_segment(half, i, cx + rng, i)
+            else:
+                draw_segment(cx - rng, i, cx + rng, i)
+        glEnd()
+        glDisable(GL_LINE_SMOOTH)
+        if not was_blend:
+            glDisable(GL_BLEND)
+
+    def _draw_grid_squares(self, step, rng, cx=0, cy=0): #vers 5
+        """'squares' grid style - colour fill (default) or a tiled
+        user image/texture, per fill_mode. Outline lines on top are
+        now gated on self._grid_show_lines (Aug 20 2026)"""
+        if self._squares_fill_mode == 'texture' and self._squares_texture_path:
+            tex_id = self._ensure_squares_texture()
+            if tex_id:
+                glEnable(GL_TEXTURE_2D)
+                glBindTexture(GL_TEXTURE_2D, tex_id)
+                glEnable(GL_BLEND)
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+                glColor4f(1, 1, 1, self._squares_texture_alpha)
+                ts = self._squares_tile_size
+                glBegin(GL_QUADS)
+                for gy in range(cy - rng, cy + rng, step):
+                    for gx in range(cx - rng, cx + rng, step):
+                        u0, v0 = gx / ts, gy / ts
+                        u1, v1 = (gx + step) / ts, (gy + step) / ts
+                        glTexCoord2f(u0, v0); glVertex3f(gx, gy, 0)
+                        glTexCoord2f(u1, v0); glVertex3f(gx + step, gy, 0)
+                        glTexCoord2f(u1, v1); glVertex3f(gx + step, gy + step, 0)
+                        glTexCoord2f(u0, v1); glVertex3f(gx, gy + step, 0)
+                glEnd()
+                glDisable(GL_BLEND)
+                glBindTexture(GL_TEXTURE_2D, 0)
+                glDisable(GL_TEXTURE_2D)
+                if self._grid_show_lines:
+                    self._draw_grid_lines(step, rng, cx, cy)
+                return
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        r, g, b = self._squares_color
+        glColor4f(r / 255, g / 255, b / 255, self._squares_fill_alpha)
+        glBegin(GL_QUADS)
+        for gy in range(cy - rng, cy + rng, step):
+            for gx in range(cx - rng, cx + rng, step):
+                glVertex3f(gx, gy, 0)
+                glVertex3f(gx + step, gy, 0)
+                glVertex3f(gx + step, gy + step, 0)
+                glVertex3f(gx, gy + step, 0)
+        glEnd()
+        glDisable(GL_BLEND)
+        if self._grid_show_lines:
+            self._draw_grid_lines(step, rng, cx, cy)
+
+    def _draw_grid_checker(self, step, rng, cx=0, cy=0): #vers 1
+        """'checker' grid style - alternate cells in fill and line colour."""
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        cols = (self._squares_color, self._grid_line_color)
+        glBegin(GL_QUADS)
+        for gy in range(cy - rng, cy + rng, step):
+            for gx in range(cx - rng, cx + rng, step):
+                r, g, b = cols[((gx // step) + (gy // step)) % 2]
+                glColor4f(r / 255, g / 255, b / 255, 0.55)
+                glVertex3f(gx, gy, 0)
+                glVertex3f(gx + step, gy, 0)
+                glVertex3f(gx + step, gy + step, 0)
+                glVertex3f(gx, gy + step, 0)
+        glEnd()
+        glDisable(GL_BLEND)
+
+    def _ensure_squares_texture(self): #vers 1
+        """Lazily load self._squares_texture_path as a repeating GL
+        texture, re-loading only if the path changed since last time."""
+        if self._squares_tex_id and self._squares_tex_path_loaded == self._squares_texture_path:
+            return self._squares_tex_id
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(self._squares_texture_path).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                self._squares_tex_id = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            if self._squares_tex_id and self._squares_tex_id is not False:
+                glDeleteTextures([self._squares_tex_id])
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self._squares_tex_id = gl_id
+            self._squares_tex_path_loaded = self._squares_texture_path
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load grid texture: {e}")
+            self._squares_tex_id = False
+        return self._squares_tex_id
+
+    def set_squares_fill(self, mode, color=None, path=None, tile_size=None): #vers 1
+        """mode: 'color' or 'texture'."""
+        self._squares_fill_mode = mode
+        if color is not None:
+            self._squares_color = color
+        if path is not None and path != self._squares_texture_path:
+            self._squares_texture_path = path
+            self._squares_tex_id = None   # force reload
+        if tile_size is not None:
+            self._squares_tile_size = tile_size
+        self.update()
+
+    def set_squares_texture_alpha(self, alpha): #vers 1
+        self._squares_texture_alpha = max(0.0, min(1.0, alpha))
+        self.update()
+
+    def set_grid_show_lines(self, show): #vers 1
+        """Separate from grid_type='none' (Aug 20 2026)"""
+        self._grid_show_lines = bool(show)
+        self.update()
+
+    def set_grid_hide_over_radar_tiles(self, hide): #vers 1
+        """Suppress grid lines specifically within the radar tex
+        layer's own real bounds, while still drawing them outside
+        that area (Aug 20 2026)"""
+        self._grid_hide_over_radar_tiles = bool(hide)
+        self.update()
+
+    def _ensure_skybox_texture(self): #vers 1
+        """Lazily load self._skybox_path as a GL texture."""
+        if self._skybox_tex_id and self._skybox_tex_path_loaded == self._skybox_path:
+            return self._skybox_tex_id
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(self._skybox_path).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                self._skybox_tex_id = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            if self._skybox_tex_id and self._skybox_tex_id is not False:
+                glDeleteTextures([self._skybox_tex_id])
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self._skybox_tex_id = gl_id
+            self._skybox_tex_path_loaded = self._skybox_path
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load skybox texture: {e}")
+            self._skybox_tex_id = False
+        return self._skybox_tex_id
+
+    def _draw_skybox(self): #vers 3
+        """Real, world-space "box sky" - same real technique _draw_
+        sky_gradient now uses (Aug 20 2026)"""
+        if not self._skybox_path:
+            return
+        tex_id = self._ensure_skybox_texture()
+        if not tex_id:
+            return
+        was_cull = glIsEnabled(GL_CULL_FACE)
+        glDisable(GL_CULL_FACE)
+        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_LIGHTING)
+        glEnable(GL_TEXTURE_2D)
+        glBindTexture(GL_TEXTURE_2D, tex_id)
+        glColor4f(1, 1, 1, 1)
+        radius = 1000.0                     # camera-centred box, depth test off
+        top_z = radius
+        bottom_z = 0.0   # kept at the real horizon line, not below it - same real fix _draw_sky_gradient's own docstring explains (Aug 20 2026)
+        glBegin(GL_QUADS)
+        for i, (x1, y1, x2, y2) in enumerate((
+            (-radius, radius, radius, radius),      # north
+            (radius, -radius, -radius, -radius),    # south
+            (radius, radius, radius, -radius),      # east
+            (-radius, -radius, -radius, radius),    # west
+        )):
+            u0, u1 = i * 0.25, (i + 1) * 0.25
+            glTexCoord2f(u0, 0); glVertex3f(x1, y1, bottom_z)
+            glTexCoord2f(u1, 0); glVertex3f(x2, y2, bottom_z)
+            glTexCoord2f(u1, 1); glVertex3f(x2, y2, top_z)
+            glTexCoord2f(u0, 1); glVertex3f(x1, y1, top_z)
+        glEnd()
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_TEXTURE_2D)
+        glEnable(GL_DEPTH_TEST)
+        if was_cull:
+            glEnable(GL_CULL_FACE)
+
+    def _draw_sky_gradient(self): #vers 4
+        """Real, world-space "box sky" - 4 large vertical quads (N/S/
+        E/W) forming a box around the origin, each with the same real
+        3-stop blend (sky_top at the zenith, sky_bot lower, sun_core
+        as a brighter horizon-glow band near the bottom) rather than
+        a flat single colour or a plain 2-colour linear blend (Aug 20
+        2026)"""
+        was_cull = glIsEnabled(GL_CULL_FACE)
+        glDisable(GL_CULL_FACE)
+        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_LIGHTING)
+        top_color, bot_color, horizon_color = (
+            self._sky_gradient_top, self._sky_gradient_bot,
+            self._sky_gradient_horizon or self._sky_gradient_bot)
+        if self._sky_gradient_flipped:
+            # Settings toggle - swaps zenith/horizon (Aug 20 2026)
+            top_color, horizon_color = horizon_color, top_color
+        tr, tg, tb = top_color
+        mr, mg, mb = bot_color
+        hr, hg, hb = horizon_color
+        radius = 1000.0                     # camera-centred box, depth test off
+        top_z = radius
+        mid_z = radius * 0.35
+        horizon_z = 0.0
+        glBegin(GL_QUADS)
+        for x1, y1, x2, y2 in (
+            (-radius, radius, radius, radius),      # north
+            (radius, -radius, -radius, -radius),    # south
+            (radius, radius, radius, -radius),      # east
+            (-radius, -radius, -radius, radius),    # west
+        ):
+            # Upper: zenith (top) down to sky_bot at mid_z
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, mid_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x2, y2, mid_z)
+            glColor3f(tr / 255, tg / 255, tb / 255); glVertex3f(x2, y2, top_z)
+            glColor3f(tr / 255, tg / 255, tb / 255); glVertex3f(x1, y1, top_z)
+            # Lower: horizon-glow at the real horizon line (Z=0) up to sky_bot at mid_z
+            glColor3f(hr / 255, hg / 255, hb / 255); glVertex3f(x1, y1, horizon_z)
+            glColor3f(hr / 255, hg / 255, hb / 255); glVertex3f(x2, y2, horizon_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x2, y2, mid_z)
+            glColor3f(mr / 255, mg / 255, mb / 255); glVertex3f(x1, y1, mid_z)
+        glEnd()
+        glEnable(GL_DEPTH_TEST)
+        if was_cull:
+            glEnable(GL_CULL_FACE)
+
+    def set_sky_gradient_flipped(self, flipped): #vers 1
+        self._sky_gradient_flipped = bool(flipped)
+        self.update()
+
+    def set_skybox_path(self, path): #vers 1
+        if path != self._skybox_path:
+            self._skybox_path = path or ''
+            self._skybox_tex_id = None
+        self.update()
+
+    def set_timecyc_path(self, path, known_game=None): #vers 2
+        """Load a timecyc.dat file."""
+        self._timecyc_path = path or ''
+        self._timecyc_entries = []
+        if not path:
+            return
+        try:
+            from apps.components.Timecyc_Editor.timecyc_workshop import TimecycParser
+            parser = TimecycParser()
+            if parser.load(path, known_game=known_game):
+                self._timecyc_entries = list(parser.rows)
+                self._timecyc_game = parser.game
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load timecyc file: {e}")
+
+    def _timecyc_colors_for_hour(self, hour): #vers 4
+        """Nearest row's sky-top/sky-bottom/ambient/sun-core colours
+        for the given real-world hour (0-23), weather 0 (default
+        slot) - same field offsets already confirmed in Timecyc_
+        Editor's own _update_preview (ambient at [0-2] for every
+        game; sky_top/sky_bot/sun_core differ per game - SA [9-11]/
+        [12-14]/[15-17], GTA3 [6-8]/[9-11]/[12-14], VC [15-17]/
+        [18-20]/[21-23])."""
+        if not self._timecyc_entries:
+            return None
+        game = getattr(self, '_timecyc_game', 'VC')
+        offsets = {
+            'SA':   {'sky_top': 9,  'sky_bot': 12, 'ambient': 0, 'sun_core': 15},
+            'GTA3': {'sky_top': 6,  'sky_bot': 9,  'ambient': 0, 'sun_core': 12},
+            'VC':   {'sky_top': 15, 'sky_bot': 18, 'ambient': 0, 'sun_core': 21},
+        }.get(game, {'sky_top': 15, 'sky_bot': 18, 'ambient': 0, 'sun_core': 21})
+        sa_slot_hours = [0, 5, 6, 7, 12, 19, 20, 22]
+        def real_hour_for_slot(time_index): #vers 1
+            if game == 'SA':
+                return sa_slot_hours[time_index] if 0 <= time_index < len(sa_slot_hours) else time_index
+            if game == 'GTA3':
+                return time_index * 2
+            return time_index   # VC: slot index already is the real hour
+        best = min(self._timecyc_entries,
+                   key=lambda r: (r.weather != 0, abs(real_hour_for_slot(r.time) - hour)))
+        vals = best.values
+        def rgb_at(idx): #vers 1
+            if idx + 2 >= len(vals):
+                return None
+            r = max(0, min(255, int(float(vals[idx]))))
+            g = max(0, min(255, int(float(vals[idx + 1]))))
+            b = max(0, min(255, int(float(vals[idx + 2]))))
+            return (r, g, b)
+        sky_top = rgb_at(offsets['sky_top'])
+        sky_bot = rgb_at(offsets['sky_bot'])
+        ambient = rgb_at(offsets['ambient'])
+        sun_core = rgb_at(offsets['sun_core'])
+        if sky_top is None or sky_bot is None or ambient is None or sun_core is None:
+            return None
+        return (sky_top, sky_bot, ambient, sun_core)
+
+    def set_timecyc_playing(self, playing): #vers 3
+        """ fix (Aug 20 2026)"""
+        self._timecyc_playing = bool(playing)
+        if playing:
+            self._apply_timecyc_hour()
+        else:
+            self._sky_gradient_top = None
+            self._sky_gradient_bot = None
+            self._sky_gradient_horizon = None
+            self._bg_color_override = None
+            self._ambient_tint = (1.0, 1.0, 1.0)
+            if OPENGL_AVAILABLE and self.isVisible():
+                self.makeCurrent(); self._setup_lighting(); self.doneCurrent()
+            self.update()
+
+    def set_timecyc_hour(self, hour): #vers 1
+        """Real, external hour source (Aug 20 2026)"""
+        self._timecyc_hour = hour % 24
+        if self._timecyc_playing:
+            self._apply_timecyc_hour()
+
+    def _apply_timecyc_hour(self): #vers 1
+        """Real, more accurate fix (Aug 20 2026)"""
+        colors = self._timecyc_colors_for_hour(self._timecyc_hour)
+        if colors:
+            sky_top, sky_bot, ambient, sun_core = colors
+            self._sky_gradient_top = sky_top
+            self._sky_gradient_bot = sky_bot
+            self._sky_gradient_horizon = sun_core
+            self._bg_color_override = sky_bot
+            # Ambient tint as a 0-1 multiplier per channel, normalised
+            # against its own max channel so it tints without also
+            # darkening everything to near-black on a dim timecyc row
+            # (a raw /255 per channel would do that whenever the
+            # brightest channel itself is well under 255).
+            peak = max(ambient) or 1
+            self._ambient_tint = tuple(c / peak for c in ambient)
+            self.update()
+
+    def _draw_grid_dashed(self, step, rng, cx=0, cy=0): #vers 2
+        """'dashed' grid style"""
+        glEnable(GL_LINE_STIPPLE)
+        glLineStipple(2, 0x00FF)   # a real, standard short-dash pattern
+        self._draw_grid_lines(step, rng, cx, cy)
+        glDisable(GL_LINE_STIPPLE)
+
+    def _draw_grid_dots(self, step, rng, cx=0, cy=0): #vers 3
+        """'dots' grid style"""
+        was_blend = glIsEnabled(GL_BLEND)
+        glEnable(GL_POINT_SMOOTH)
+        glHint(GL_POINT_SMOOTH_HINT, GL_NICEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glPointSize(self._grid_line_size)
+        glBegin(GL_POINTS)
+        r, g, b = self._grid_line_color
+        glColor4f(r / 255, g / 255, b / 255, 0.6)
+        for gy in range(cy - rng, cy + rng + 1, step):
+            for gx in range(cx - rng, cx + rng + 1, step):
+                glVertex3f(gx, gy, 0)
+        glEnd()
+        glDisable(GL_POINT_SMOOTH)
+        if not was_blend:
+            glDisable(GL_BLEND)
+
+    def _draw_grid_honeycomb(self, step, rng, cx=0, cy=0, dashed=False): #vers 2
+        """'honeycomb' grid style, plus a dashed ("marching ants
+        honeycomb") variant (Aug 20 2026)"""
+        import math
+        s = step
+        hex_w = math.sqrt(3) * s
+        hex_h = 1.5 * s
+        was_blend = glIsEnabled(GL_BLEND)
+        glEnable(GL_LINE_SMOOTH)
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glLineWidth(self._grid_line_size)
+        if dashed:
+            glEnable(GL_LINE_STIPPLE)
+            glLineStipple(2, 0x00FF)
+        r, g, b = self._grid_line_color
+        glColor4f(r / 255, g / 255, b / 255, 0.4)
+        row = int((cy - rng) / hex_h) - 1
+        max_row = int((cy + rng) / hex_h) + 1
+        while row <= max_row:
+            row_y = row * hex_h
+            row_offset = (hex_w / 2.0) if (row % 2) else 0.0
+            col = int((cx - rng - row_offset) / hex_w) - 1
+            max_col = int((cx + rng - row_offset) / hex_w) + 1
+            while col <= max_col:
+                hx = col * hex_w + row_offset
+                hy = row_y
+                glBegin(GL_LINE_LOOP)
+                for i in range(6):
+                    ang = math.radians(60 * i - 30)
+                    glVertex3f(hx + s * math.cos(ang), hy + s * math.sin(ang), 0)
+                glEnd()
+                col += 1
+            row += 1
+        if dashed:
+            glDisable(GL_LINE_STIPPLE)
+        glDisable(GL_LINE_SMOOTH)
+        if not was_blend:
+            glDisable(GL_BLEND)
+
+    def _draw_axes(self): #vers 2
+        if not OPENGL_AVAILABLE or not getattr(self, '_show_axes', True): return
+        glDisable(GL_LIGHTING); glLineWidth(1.5)
+        s = max(1.0, self._dist * 0.1)
+        glBegin(GL_LINES)
+        glColor3f(1,0,0); glVertex3f(0,0,0); glVertex3f(s,0,0)
+        glColor3f(0,1,0); glVertex3f(0,0,0); glVertex3f(0,s,0)
+        glColor3f(0,0,1); glVertex3f(0,0,0); glVertex3f(0,0,s)
+        glEnd()
+        glEnable(GL_LIGHTING)
+
+    def _face_color(self, mat_id): #vers 5
+        """Return (r,g,b,a) 0-1 for a material including alpha."""
+        mats = self._materials
+        if mats and 0 <= mat_id < len(mats):
+            mat  = mats[mat_id]
+            c    = mat.colour
+            r = getattr(c,'r',180); g = getattr(c,'g',180)
+            b = getattr(c,'b',180); a = getattr(c,'a',255)
+            has_tex = bool(getattr(mat,'texture_name',''))
+            if r==0 and g==0 and b==0 and not has_tex:
+                return 0.55, 0.55, 0.55, 1.0
+            if g==255 and r<100 and b<50:
+                return self._paint1[0], self._paint1[1], self._paint1[2], a/255
+            if r==255 and g<50 and b>100:
+                return self._paint2[0], self._paint2[1], self._paint2[2], a/255
+            return r/255, g/255, b/255, a/255
+        return 0.7, 0.7, 0.7, 1.0
+
+    def _emit_verts(self, v1, v2, v3, use_prelit=False, use_uv=False): #vers 1
+        verts = self._vertices; norms = self._normals
+        uvs   = self._uvs;      prelit = self._prelit
+        has_n = len(norms)  == len(verts)
+        has_u = len(uvs)    == len(verts) and use_uv
+        has_p = len(prelit) == len(verts) and use_prelit
+        for vi in (v1, v2, v3):
+            if vi >= len(verts): continue
+            if has_p:
+                p = prelit[vi]
+                glColor3f(p[0]/255, p[1]/255, p[2]/255)
+            if has_n:
+                n = norms[vi]; glNormal3f(n[0], n[1], n[2])
+            if has_u:
+                u = uvs[vi]; glTexCoord2f(u[0], u[1])
+            v = verts[vi]; glVertex3f(v[0], v[1], v[2])
+
+    def _draw_collision_faces(self, mode): #vers 1
+        """Draw self._col_vertices/self._col_triangles as a ghost
+        overlay on top of whatever's already been drawn for this
+        instance (Aug 14 2026)"""
+        if not OPENGL_AVAILABLE: return
+        verts = getattr(self, '_col_vertices', None)
+        tris  = getattr(self, '_col_triangles', None)
+        if not verts or not tris: return
+        glDisable(GL_LIGHTING)
+        if mode == 'wireframe':
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glColor3f(1.0, 0.3, 0.3); glLineWidth(1.0)
+            glBegin(GL_TRIANGLES)
+            for v1, v2, v3, r, g, b in tris:
+                for vi in (v1, v2, v3):
+                    if vi < len(verts):
+                        v = verts[vi]; glVertex3f(v[0], v[1], v[2])
+            glEnd()
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        else:
+            alpha = {'ghosted': 0.25, 'semi_solid': 0.5, 'surface_mapped': 0.45}.get(mode, 0.3)
+            glEnable(GL_BLEND); glDepthMask(False)
+            glBegin(GL_TRIANGLES)
+            for v1, v2, v3, r, g, b in tris:
+                if mode == 'surface_mapped':
+                    glColor4f(r, g, b, alpha)
+                else:
+                    glColor4f(1.0, 0.55, 0.15, alpha)
+                for vi in (v1, v2, v3):
+                    if vi < len(verts):
+                        v = verts[vi]; glVertex3f(v[0], v[1], v[2])
+            glEnd()
+            glDepthMask(True); glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
+
+    def _draw_wireframe(self): #vers 2
+        if not OPENGL_AVAILABLE: return
+        glDisable(GL_LIGHTING)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        glColor3f(0.65, 0.75, 1.0); glLineWidth(0.8)
+        glBegin(GL_TRIANGLES)
+        for v1,v2,v3,mid in self._visible_tris():
+            self._emit_verts(v1,v2,v3)
+        glEnd()
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        glEnable(GL_LIGHTING)
+
+    def _draw_selection_overlay(self): #vers 3
+        """Highlight the active sub-object selection (vertex/edge/face/poly)
+        and the hovered element on top of the mesh. No-op in 'object' mode."""
+        if not OPENGL_AVAILABLE: return
+        mode = getattr(self, '_select_mode', 'object')
+        if mode == 'object':
+            return
+        verts = self._vertices
+        if not verts:
+            return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        if getattr(self, '_show_verts', False):              # all vertex dots (Show Vertices)
+            glColor3f(0.95, 0.25, 0.25)
+            glPointSize(4.0)
+            glBegin(GL_POINTS)
+            for v in verts:
+                glVertex3f(*v)
+            glEnd()
+        self._draw_mesh_hover(mode)
+
+        if mode == 'vertex' and self._selected_verts:
+            glColor3f(1.0, 0.8, 0.1)
+            glPointSize(max(4.0, min(10.0, self._dist * 0.03)))
+            glBegin(GL_POINTS)
+            for vi in self._selected_verts:
+                if 0 <= vi < len(verts):
+                    v = verts[vi]; glVertex3f(v[0], v[1], v[2])
+            glEnd()
+
+        elif mode == 'edge' and self._selected_edges:
+            glColor3f(1.0, 0.8, 0.1)
+            glLineWidth(3.0)
+            glBegin(GL_LINES)
+            for (vi, vj) in self._selected_edges:
+                if 0 <= vi < len(verts) and 0 <= vj < len(verts):
+                    a, b = verts[vi], verts[vj]
+                    glVertex3f(*a); glVertex3f(*b)
+            glEnd()
+
+        elif mode in ('face', 'poly') and self._selected_faces:
+            glColor4f(1.0, 0.8, 0.1, 0.45)
+            glEnable(GL_BLEND); glDepthMask(False)
+            glBegin(GL_TRIANGLES)
+            for fi in self._selected_faces:
+                if 0 <= fi < len(self._triangles):
+                    v1, v2, v3, _ = self._triangles[fi]
+                    self._emit_verts(v1, v2, v3)
+            glEnd()
+            glDepthMask(True)
+            # Outline on top so the selection reads clearly in solid mode
+            glColor3f(1.0, 0.9, 0.2); glLineWidth(2.0)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glBegin(GL_TRIANGLES)
+            for fi in self._selected_faces:
+                if 0 <= fi < len(self._triangles):
+                    v1, v2, v3, _ = self._triangles[fi]
+                    self._emit_verts(v1, v2, v3)
+            glEnd()
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_solid(self, alpha_multiplier=1.0): #vers 5
+        if not OPENGL_AVAILABLE: return
+        flags = self._geom_flags()
+        use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and bool(self._normals)
+        use_prelit   = bool(flags & self.rpGEOMETRYPRELIT) and bool(self._prelit)
+        use_modulate = bool(flags & self.rpGEOMETRYMODULATEMATERIALCOLOR)
+        if use_lighting:
+            glEnable(GL_LIGHTING)
+        else:
+            glDisable(GL_LIGHTING)
+        use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
+        opaque = []; transparent = []
+        # alpha_multiplier < 1.0 (Aug 1 2026)
+        force_transparent = alpha_multiplier < 0.999
+        for tri in self._visible_tris():
+            fc = self._face_color(tri[3])
+            is_transparent = force_transparent or (len(fc) > 3 and fc[3] < 0.99)
+            (transparent if is_transparent else opaque).append((tri, fc))
+        glBegin(GL_TRIANGLES)
+        for (v1,v2,v3,mid),(r,g,b,*rest) in opaque:
+            a = rest[0] if rest else 1.0
+            if not use_p:
+                if use_modulate: glColor4f(r,g,b,a)
+                else: glColor4f(1.0,1.0,1.0,1.0)
+            self._emit_verts(v1,v2,v3, use_prelit=use_p)
+        glEnd()
+        if transparent:
+            glEnable(GL_BLEND); glDepthMask(False)
+            glBegin(GL_TRIANGLES)
+            for (v1,v2,v3,mid),fc in transparent:
+                r, g, b = fc[0], fc[1], fc[2]
+                a = (fc[3] if len(fc) > 3 else 1.0) * alpha_multiplier
+                if not use_p:
+                    if use_modulate: glColor4f(r,g,b,a)
+                    else: glColor4f(1.0,1.0,1.0,a)
+                self._emit_verts(v1,v2,v3, use_prelit=use_p)
+            glEnd()
+            glDepthMask(True); glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        glColor4f(0,0,0,0.18); glLineWidth(0.5)
+        glEnable(GL_POLYGON_OFFSET_LINE); glPolygonOffset(-1,-1)
+        glBegin(GL_TRIANGLES)
+        for v1,v2,v3,mid in self._visible_tris():
+            self._emit_verts(v1,v2,v3)
+        glEnd()
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        glDisable(GL_POLYGON_OFFSET_LINE)
+
+    def _draw_textured(self): #vers 5
+        if not OPENGL_AVAILABLE: return
+        flags = self._geom_flags()
+        use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and bool(self._normals)
+        use_prelit   = bool(flags & self.rpGEOMETRYPRELIT) and bool(self._prelit)
+        use_modulate = bool(flags & self.rpGEOMETRYMODULATEMATERIALCOLOR)
+        if use_lighting:
+            glEnable(GL_LIGHTING)
+        else:
+            glDisable(GL_LIGHTING)
+        glEnable(GL_TEXTURE_2D)
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE,
+                  GL_MODULATE if use_modulate else GL_REPLACE)
+        # Alpha-textured objects (Aug 1 2026)
+        glEnable(GL_ALPHA_TEST)
+        glAlphaFunc(GL_GREATER, 0.5)
+        use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
+        mats  = self._materials
+        batches: Dict[tuple,list] = {}
+        no_tex = []
+        for tri in self._visible_tris():
+            v1,v2,v3,mid = tri
+            tname = ''
+            if mats and 0 <= mid < len(mats):
+                tname = getattr(mats[mid],'texture_name','') or ''
+            gl_id = self._tex_ids.get(tname.lower(), 0)
+            if gl_id:
+                r,g,b,a = self._face_color(mid)
+                key = (gl_id, round(r,2), round(g,2), round(b,2), round(a,2))
+                batches.setdefault(key,[]).append(tri)
+            else:
+                no_tex.append(tri)
+        opaque_b = {k:v for k,v in batches.items() if k[4]>=0.99}
+        transp_b = {k:v for k,v in batches.items() if k[4]<0.99}
+        for batch_dict, use_blend in [(opaque_b,False),(transp_b,True)]:
+            if use_blend: glEnable(GL_BLEND); glDepthMask(False)
+            for key, tris in batch_dict.items():
+                gl_id=key[0]; r=key[1]; g=key[2]; b=key[3]; a=key[4]
+                glBindTexture(GL_TEXTURE_2D, gl_id)
+                if not use_p:
+                    if use_modulate: glColor4f(r,g,b,a)
+                    else: glColor4f(1.0,1.0,1.0,a)
+                glBegin(GL_TRIANGLES)
+                for v1,v2,v3,mid in tris:
+                    self._emit_verts(v1,v2,v3, use_prelit=use_p, use_uv=True)
+                glEnd()
+            if use_blend: glDepthMask(True); glDisable(GL_BLEND)
+        glBindTexture(GL_TEXTURE_2D, 0); glDisable(GL_TEXTURE_2D)
+        glDisable(GL_ALPHA_TEST)
+        no_opaque = [t for t in no_tex if self._face_color(t[3])[3]>=0.99]
+        no_transp = [t for t in no_tex if self._face_color(t[3])[3]<0.99]
+        for tri_list, use_blend in [(no_opaque,False),(no_transp,True)]:
+            if use_blend: glEnable(GL_BLEND); glDepthMask(False)
+            for v1,v2,v3,mid in tri_list:
+                r,g,b,a = self._face_color(mid)
+                if not use_p:
+                    if use_modulate: glColor4f(r,g,b,a)
+                    else: glColor4f(1.0,1.0,1.0,a)
+                glBegin(GL_TRIANGLES)
+                self._emit_verts(v1,v2,v3, use_prelit=use_p)
+                glEnd()
+            if use_blend: glDepthMask(True); glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
+
+    # RW geometry flags
+    rpGEOMETRYTRISTRIP          = 0x0001
+    rpGEOMETRYPOSITIONS         = 0x0002
+    rpGEOMETRYTEXTURED          = 0x0004
+    rpGEOMETRYPRELIT            = 0x0008
+    rpGEOMETRYNORMALS           = 0x0010
+    rpGEOMETRYLIGHT             = 0x0020
+    rpGEOMETRYMODULATEMATERIALCOLOR = 0x0040
+    rpGEOMETRYTEXTURED2         = 0x0080
+
+    def _geom_flags(self): #vers 1
+        """Return geometry flags from current model, or sensible defaults."""
+        return getattr(self, '_current_geom_flags',
+               self.rpGEOMETRYLIGHT | self.rpGEOMETRYMODULATEMATERIALCOLOR | self.rpGEOMETRYNORMALS)
+
+    def _strip_tex_suffix(self, name: str) -> str: #vers 2
+        """Strip GTA texture suffix.
+        Handles: buildrt4_fehihwm (alpha suffix) and vehiclegeneric256 (numeric size suffix)."""
+        import re as _re
+        n = _re.sub(r'_[a-z]{4,8}$', '', name)
+        n = _re.sub(r'\d+$', '', n)
+        return n
+
+    def _rw_wrap_to_gl(self, rw: int) -> int: #vers 1
+        """Convert RW addressing mode to GL wrap constant.
+        0=NONE 1=WRAP 2=CLAMP 3=MIRROR"""
+        if not OPENGL_AVAILABLE: return 0
+        if rw == 2: return GL_CLAMP_TO_EDGE
+        if rw == 3: return GL_MIRRORED_REPEAT
+        return GL_REPEAT
+
+    def _upload_textures(self, textures: list, additive: bool = False): #vers 7
+        if not OPENGL_AVAILABLE: return
+        # Guard: don't attempt upload if GL context not initialized
+        try:
+            if hasattr(self, 'isValid') and not self.isValid():
+                self._pending_textures = getattr(self, '_pending_textures', []) + textures
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(200, lambda: self._flush_pending_textures())
+                return
+        except Exception:
+            pass
+        self.makeCurrent()
+        if not additive:
+            self.clear_textures()
+        for tex in textures:
+            name = tex.get('name','').lower()
+            # Skip re-uploading an already-loaded texture before reading pixels
+            if not name or name in self._tex_ids:
+                continue
+            if dict.get(tex, 'dxt_levels'):
+                self._upload_dxt_texture(name, tex)     # compressed, GPU decodes
+                continue
+            rgba = tex.get('rgba_data', b'')
+            w    = tex.get('width', 0); h = tex.get('height', 0)
+            if not (rgba and w > 0 and h > 0): continue
+            if getattr(self, '_texture_downscale_enabled', False) and '_group' not in tex:   # cache limits own
+                threshold = getattr(self, '_texture_downscale_threshold', 512)
+                if w > threshold or h > threshold:
+                    target = getattr(self, '_texture_downscale_target', 256)
+                    rgba, w, h = self._downscale_rgba(rgba, w, h, target)
+            wrap_u = tex.get('wrap_u', 1)
+            wrap_v = tex.get('wrap_v', 1)
+            gl_wrap_s = self._rw_wrap_to_gl(wrap_u)
+            gl_wrap_t = self._rw_wrap_to_gl(wrap_v)
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, gl_wrap_s)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, gl_wrap_t)
+            try:
+                glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba)
+                glGenerateMipmap(GL_TEXTURE_2D)
+                self._tex_ids[name] = gl_id
+                self._tex_wrap[name] = (wrap_u, wrap_v)
+            except Exception as e:
+                print(f"[DFFViewport] Tex upload fail '{name}': {e}")
+                glDeleteTextures(1,[gl_id])
+        glBindTexture(GL_TEXTURE_2D, 0); self.doneCurrent()
+
+    def _upload_dxt_texture(self, name, tex): #vers 1
+        """Upload DXT1/3/5 levels as-is (S3TC); no CPU decode."""
+        fmt = {'DXT1': 0x83F1, 'DXT3': 0x83F2, 'DXT5': 0x83F3}.get(tex.get('format'))
+        levels = dict.get(tex, 'dxt_levels')
+        if fmt is None or not levels:
+            return
+        wrap_u, wrap_v = tex.get('wrap_u', 1), tex.get('wrap_v', 1)
+        gl_id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, gl_id)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                        GL_LINEAR_MIPMAP_LINEAR if len(levels) > 1 else GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, self._rw_wrap_to_gl(wrap_u))
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, self._rw_wrap_to_gl(wrap_v))
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, len(levels) - 1)
+        try:
+            for i, (w, h, data) in enumerate(levels):
+                glCompressedTexImage2D(GL_TEXTURE_2D, i, fmt, w, h, 0, data)
+            self._tex_ids[name] = gl_id
+            self._tex_wrap[name] = (wrap_u, wrap_v)
+        except Exception as e:
+            print(f"[DFFViewport] DXT upload fail '{name}': {e}")
+            glDeleteTextures(1, [gl_id])
+
+    def _flush_pending_textures(self): #vers 2
+        """Upload any textures that were queued before GL context was ready."""
+        pending = getattr(self, '_pending_textures', [])
+        if not pending: return
+        if hasattr(self, 'isValid') and not self.isValid():
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(200, self._flush_pending_textures)
+            return
+        self._pending_textures = []
+        self._upload_textures(pending, additive=True)
+        self.update()
+
+    def set_texture_downscale_settings(self, enabled, threshold=512, target=256): #vers 1
+        """Configure texture downscaling"""
+        self._texture_downscale_enabled = enabled
+        self._texture_downscale_threshold = threshold
+        self._texture_downscale_target = target
+
+    def _downscale_rgba(self, rgba, w, h, target): #vers 1
+        """Downsample RGBA8888 pixel data to target x target using numpy"""
+        arr = np.frombuffer(rgba, dtype=np.uint8)
+        expected = w * h * 4
+        if arr.size != expected:
+            arr = np.resize(arr, expected)   # defensive - malformed input shouldn't crash the upload
+        arr = arr.reshape(h, w, 4)
+        if w % target == 0 and h % target == 0:
+            block_w = w // target
+            block_h = h // target
+            arr = arr.reshape(target, block_h, target, block_w, 4)
+            downsampled = arr.mean(axis=(1, 3)).astype(np.uint8)
+        else:
+            row_idx = (np.arange(target) * h // target)
+            col_idx = (np.arange(target) * w // target)
+            downsampled = arr[row_idx][:, col_idx]
+        return downsampled.tobytes(), target, target
+
+    def clear_textures(self): #vers 2
+        if OPENGL_AVAILABLE and self._tex_ids:
+            try: glDeleteTextures(len(self._tex_ids), list(self._tex_ids.values()))
+            except Exception: pass
+        self._tex_ids.clear()
+        self._tex_wrap.clear()
+
+    def load_geometry(self, geometry, materials: list, fit: bool = True): #vers 5
+        if len(geometry.triangles) != len(getattr(self, '_triangles', None) or []):
+            self._hidden_faces = set()          # face ids no longer match
+        self._all_geoms  = []  # clear multi-geom data
+        self._current_geom_flags = getattr(geometry, 'flags', 0)
+        self._vertices  = [(v.x,v.y,v.z) for v in geometry.vertices]
+        self._normals   = [(n.x,n.y,n.z) for n in geometry.normals] if geometry.normals else []
+        self._uvs       = [(u.u,u.v) for u in geometry.uv_layers[0]] if geometry.uv_layers else []
+        self._triangles = [(t.v1,t.v2,t.v3,t.material_id) for t in geometry.triangles]
+        self._materials = materials
+        self._prelit    = [(c.r,c.g,c.b,c.a) for c in getattr(geometry,'colors',[])] if geometry.colors else []
+        if fit:                                 # mesh edits keep the camera
+            self._auto_fit()
+        self.update()
+        if self._on_geometry_loaded:
+            try: self._on_geometry_loaded()
+            except Exception: pass
+
+    def _auto_fit(self): #vers 1
+        if not self._vertices: return
+        xs=[v[0] for v in self._vertices]; ys=[v[1] for v in self._vertices]; zs=[v[2] for v in self._vertices]
+        diag = math.sqrt((max(xs)-min(xs))**2+(max(ys)-min(ys))**2+(max(zs)-min(zs))**2)
+        self._dist  = max(diag*1.5, 2.0)
+        self._pan_x = -(max(xs)+min(xs))/2
+        self._pan_y = -(max(ys)+min(ys))/2
+        self.update()
+
+    def set_render_mode(self, mode: str): #vers 2
+        self._mode = mode
+        self._sync_mesh_chips()
+        self.update()
+
+    def set_backface_cull(self, v: bool): #vers 1
+        self._backface_cull = v; self.update()
+
+    def set_show_grid(self, v: bool): #vers 1
+        self._show_grid = v; self.update()
+
+    def set_grid_type(self, grid_type: str): #vers 1
+        """Real, direct setter for self._grid_type (Aug 20 2026)"""
+        self._grid_type = grid_type; self.update()
+
+    def set_grid_colors(self, bg_rgb, line_rgb): #vers 1
+        """Set squares-fill (bg) and line/dot colour, each an (r,g,b) 0-255 tuple."""
+        self._squares_color = bg_rgb
+        self._grid_line_color = line_rgb
+        self.update()
+
+    def set_grid_line_size(self, size): #vers 2
+        """1-10px range for grid lines/dots."""
+        self._grid_line_size = max(1, min(10, size))
+        self.update()
+
+    def set_squares_fill_alpha(self, alpha: float): #vers 1
+        """Fill strength of the 'squares' grid (0.12 tint, 0.9 solid floor)."""
+        self._squares_fill_alpha = max(0.0, min(1.0, float(alpha)))
+        self.update()
+
+    def set_grid_spacing(self, spacing): #vers 1
+        self._grid_spacing = max(1, spacing)
+        self.update()
+
+    def set_grid_fixed_step(self, step): #vers 1
+        """World units per cell for 'fixed' (resize-with-models) mode
+        - separate from _grid_spacing (that one's a divisor for
+        'zoom_relative' mode, a real map-scale value like 200 would
+        be much too large used the same way there)."""
+        self._grid_fixed_step = max(1, step)
+        self.update()
+
+    def set_grid_cell_count(self, count): #vers 1
+        """Total grid diameter in cells (Aug 20 2026)
+        "number of cells, hex 12, 24, 36, 48, 60, 72 etc") - replaces
+        the old fixed *10 multiplier in _draw_grid's own rng
+        computation, applies to every grid style (not just honeycomb),
+        since all styles share the same rng/step-based coverage."""
+        self._grid_cell_count = max(2, count)
+        self.update()
+
+    def set_radar_tex_layer(self, enabled, tile_textures=None, game_key='sa'): #vers 2
+        """Show the real radar tile textures (read directly from the
+        game's own loaded IMG archive - radarNN.txd entries"""
+        for tile in self._radar_tex_tiles:
+            if tile.get('tex_id'):
+                try:
+                    self.makeCurrent()
+                    glDeleteTextures([tile['tex_id']])
+                    self.doneCurrent()
+                except Exception:
+                    pass
+        self._radar_tex_tiles = []
+        self._show_radar_tex_layer = enabled
+        if not enabled or not tile_textures:
+            self.update()
+            return
+        from apps.methods.gta_dat_parser import compute_radar_grid, RADAR_GRID_PRESETS
+        preset = RADAR_GRID_PRESETS.get(game_key, RADAR_GRID_PRESETS['sa'])
+        grid_tiles = compute_radar_grid(**preset)
+        for i, tex in enumerate(tile_textures):
+            if i >= len(grid_tiles) or tex is None:
+                continue
+            rgba_bytes, w, h = tex
+            gt = grid_tiles[i]
+            self._radar_tex_tiles.append({
+                'rgba': rgba_bytes, 'width': w, 'height': h, 'tex_id': None,
+                'min_x': gt.min_x, 'min_y': gt.min_y,
+                'max_x': gt.max_x, 'max_y': gt.max_y,
+            })
+        self.update()
+
+    def _ensure_radar_tex_tile(self, tile): #vers 2
+        """Lazily upload one radar tile's own raw RGBA bytes (already
+        decoded by the caller via ModelCache.get_textures/parse_txd -
+        this method only uploads, it never reads a file itself)."""
+        if tile['tex_id']:
+            return tile['tex_id']
+        try:
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tile['width'], tile['height'],
+                         0, GL_RGBA, GL_UNSIGNED_BYTE, tile['rgba'])
+            glBindTexture(GL_TEXTURE_2D, 0)
+            tile['tex_id'] = gl_id
+        except Exception as e:
+            print(f"[DFFViewport] Failed to upload radar tile texture: {e}")
+            tile['tex_id'] = False
+        return tile['tex_id']
+
+    def _draw_radar_tex_layer(self): #vers 5
+        """V-coordinates: row 0 of the saved PNG is north (capture_
+        radar_tile uses grabFramebuffer's own display-ready, already-
+        correctly-oriented output), which uploads as V=0 - so V=0
+        must map to the quad's own north (max_y) edge, not min_y, or
+        every tile would render upside-down (Aug 20 2026, caught
+        before commit rather than shipped and found later)."""
+        if not self._radar_tex_tiles:
+            return
+        glDisable(GL_LIGHTING)
+
+        was_depth_test = glIsEnabled(GL_DEPTH_TEST)
+        glDisable(GL_DEPTH_TEST)
+        glDepthMask(GL_FALSE)
+        glEnable(GL_TEXTURE_2D)
+        glColor4f(1, 1, 1, 1)
+        glPushMatrix()
+        glTranslatef(self._radar_tex_offset[0], self._radar_tex_offset[1], 0.0)
+        glRotatef(self._radar_tex_rotation, 0.0, 0.0, 1.0)
+        glScalef(self._radar_tex_scale, self._radar_tex_scale, 1.0)
+        for tile in self._radar_tex_tiles:
+            tex_id = self._ensure_radar_tex_tile(tile)
+            if not tex_id:
+                continue
+            glBindTexture(GL_TEXTURE_2D, tex_id)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 1); glVertex3f(tile['min_x'], tile['min_y'], 0)
+            glTexCoord2f(1, 1); glVertex3f(tile['max_x'], tile['min_y'], 0)
+            glTexCoord2f(1, 0); glVertex3f(tile['max_x'], tile['max_y'], 0)
+            glTexCoord2f(0, 0); glVertex3f(tile['min_x'], tile['max_y'], 0)
+            glEnd()
+        glPopMatrix()
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_TEXTURE_2D)
+        glDepthMask(GL_TRUE)
+        if was_depth_test:
+            glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def set_grid_scale_mode(self, mode): #vers 2
+        """'zoom_relative' (default - grid stays same on-screen size
+        regardless of zoom), 'fixed' (constant world-unit cell size,
+        scales with zoom like models), or 'radar_tiles' (matches the
+        real, game-specific radar tile grid - see set_radar_grid_
+        extent)."""
+        valid = ('zoom_relative', 'fixed', 'radar_tiles')
+        self._grid_scale_mode = mode if mode in valid else 'zoom_relative'
+        self.update()
+
+    def set_radar_grid_extent(self, tile_size, half_extent): #vers 1
+        """ world-unit tile size + half the total grid extent for
+        the currently loaded game, per RADAR_GRID_PRESETS (Aug 20
+        2026)"""
+        self._radar_grid_tile_size = tile_size
+        self._radar_grid_half_extent = half_extent
+        self.update()
+
+    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 5
+        self._all_geoms = []
+        self._vertices  = []  # clear single-geom data
+        # Use flags from first geometry as representative
+        if geometries:
+            self._current_geom_flags = getattr(geometries[0], 'flags', 0)
+        fname = {i: (f.name.lower() if f.name else '') for i,f in enumerate(frames)}
+        shown, lods = [], []
+        for i, geom in enumerate(geometries):
+            atomic = next((a for a in atomics if a.geometry_index == i), None)
+            if not atomic: continue
+            fi   = atomic.frame_index
+            name = fname.get(fi, '')
+            is_dam = name.endswith('_dam')
+            is_ok  = name.endswith('_ok')
+            is_lod = name.endswith('_vlo') or name.endswith('_lo')
+            if is_dam and not damaged: continue
+            if is_ok  and damaged: continue
+            # Skip frames hidden by the frame tree
+            if name and name in getattr(self, '_hidden_frames', set()): continue
+            (lods if is_lod and not getattr(self, '_show_lod', False) else shown).append((geom, fi))
+        for geom, fi in shown or lods:          # LOD-only model (e.g. air_vlo): show its LOD
+            rot, tx, ty, tz = self._calc_world_matrix(frames, fi)
+            verts = [(rot[0]*v.x+rot[1]*v.y+rot[2]*v.z+tx,
+                      rot[3]*v.x+rot[4]*v.y+rot[5]*v.z+ty,
+                      rot[6]*v.x+rot[7]*v.y+rot[8]*v.z+tz) for v in geom.vertices]
+            norms = [(rot[0]*n.x+rot[1]*n.y+rot[2]*n.z,
+                      rot[3]*n.x+rot[4]*n.y+rot[5]*n.z,
+                      rot[6]*n.x+rot[7]*n.y+rot[8]*n.z) for n in geom.normals] if geom.normals else []
+            uvs   = [(u.u,u.v) for u in geom.uv_layers[0]] if geom.uv_layers else []
+            tris  = [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles]
+            prelit= [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
+            geom_flags = getattr(geom, 'flags', 0)
+            self._all_geoms.append((verts,norms,uvs,tris,geom.materials,prelit,geom_flags))
+
+        # Place wheels at dummy frames using wheels.DFF — only when _show_wheels is set
+        if getattr(self, '_show_wheels', False):
+            wheel_data = self._get_wheel_geom_data()
+            if wheel_data:
+                wv,wn,wu,wt,wm,wp = wheel_data[:6]
+                wflags = wheel_data[6] if len(wheel_data) > 6 else 0
+                front_scale = getattr(self, '_wheel_front_scale', 1.0)
+                rear_scale  = getattr(self, '_wheel_rear_scale',  1.0)
+                mult        = getattr(self, '_wheel_scale_mult', 1.0)
+                front_scale *= mult
+                rear_scale  *= mult
+                for fi2, fn2 in fname.items():
+                    if 'dummy' not in fn2: continue
+                    if not any(w in fn2 for w in ('wheel_lf','wheel_rf','wheel_lb','wheel_rb',
+                                                   'wheel_lm','wheel_rm')): continue
+                    r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
+                    is_left  = 'wheel_l' in fn2
+                    is_front = 'wheel_lf' in fn2 or 'wheel_rf' in fn2
+                    scale    = front_scale if is_front else rear_scale
+                    v2 = []
+                    for vx,vy,vz in wv:
+                        # Scale wheel geometry around its local origin
+                        svx, svy, svz = vx*scale, vy*scale, vz*scale
+                        wx = r2[0]*svx+r2[1]*svy+r2[2]*svz+tx2
+                        wy = r2[3]*svx+r2[4]*svy+r2[5]*svz+ty2
+                        wz = r2[6]*svx+r2[7]*svy+r2[8]*svz+tz2
+                        if is_left:
+                            wx = tx2 - (r2[0]*svx+r2[1]*svy+r2[2]*svz)
+                        v2.append((wx,wy,wz))
+                    n2 = [(r2[0]*nx+r2[1]*ny+r2[2]*nz,
+                           r2[3]*nx+r2[4]*ny+r2[5]*nz,
+                           r2[6]*nx+r2[7]*ny+r2[8]*nz) for nx,ny,nz in wn] if wn else []
+                    self._all_geoms.append((v2,n2,wu,wt,wm,wp,wflags))
+        all_pts=[p for g in self._all_geoms for p in g[0]]
+        if all_pts:
+            xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
+            diag=math.sqrt(max(1,(max(xs)-min(xs))**2+(max(ys)-min(ys))**2))
+            self._dist=max(diag*2.0,2.0)
+            self._pan_x=-(max(xs)+min(xs))/2; self._pan_y=-(max(ys)+min(ys))/2
+        self.update()
+        if self._on_geometry_loaded:
+            try: self._on_geometry_loaded()
+            except Exception: pass
+
+    def _calc_world_matrix(self, frames, frame_idx): #vers 1
+        r=[1,0,0,0,1,0,0,0,1]; tx=ty=tz=0.0
+        visited=set(); idx=frame_idx; chain=[]
+        while 0<=idx<len(frames) and idx not in visited:
+            visited.add(idx); chain.append(frames[idx]); idx=frames[idx].parent_index
+        for frame in reversed(chain):
+            fr=frame.rotation; fp=frame.position
+            nr=[r[0]*fr[0]+r[1]*fr[3]+r[2]*fr[6],r[0]*fr[1]+r[1]*fr[4]+r[2]*fr[7],r[0]*fr[2]+r[1]*fr[5]+r[2]*fr[8],
+                r[3]*fr[0]+r[4]*fr[3]+r[5]*fr[6],r[3]*fr[1]+r[4]*fr[4]+r[5]*fr[7],r[3]*fr[2]+r[4]*fr[5]+r[5]*fr[8],
+                r[6]*fr[0]+r[7]*fr[3]+r[8]*fr[6],r[6]*fr[1]+r[7]*fr[4]+r[8]*fr[7],r[6]*fr[2]+r[7]*fr[5]+r[8]*fr[8]]
+            r=nr; tx+=fp.x; ty+=fp.y; tz+=fp.z
+        return r, tx, ty, tz
+
+    def load_wheels_dff(self, path: str, wheel_type: str = 'wheel_saloon_l0'): #vers 1
+        try:
+            from apps.methods.dff_parser import load_dff
+            self._wheels_model = load_dff(path)
+            self._wheel_type   = wheel_type
+        except Exception as e:
+            print(f"[DFFViewport] Wheel DFF load fail: {e}")
+
+    def _get_wheel_geom_data(self): #vers 2
+        """Return geometry data for the current wheel type from wheels.DFF.
+        Matches _wheel_type exactly (e.g. wheel_saloon_l0), falls back to first wheel."""
+        m = self._wheels_model
+        if not m or not m.geometries: return None
+        fname = {i: (f.name.lower() if f.name else '') for i,f in enumerate(m.frames)}
+        wtype = getattr(self, '_wheel_type', 'wheel_saloon_l0').lower()
+
+        def _geom_data(geom):
+            return (
+                [(v.x,v.y,v.z) for v in geom.vertices],
+                [(n.x,n.y,n.z) for n in geom.normals] if geom.normals else [],
+                [(u.u,u.v) for u in geom.uv_layers[0]] if geom.uv_layers else [],
+                [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles],
+                geom.materials,
+                [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else [],
+                getattr(geom,'flags',0)
+            )
+
+        # Pass 1: exact match on full wheel type name
+        for i, geom in enumerate(m.geometries):
+            atomic = next((a for a in m.atomics if a.geometry_index==i), None)
+            if not atomic: continue
+            name = fname.get(atomic.frame_index,'')
+            if name == wtype:
+                return _geom_data(geom)
+
+        # Pass 2: wheel type contained in frame name (e.g. wheel_saloon_l0 in wheel_saloon_l0_dam)
+        for i, geom in enumerate(m.geometries):
+            atomic = next((a for a in m.atomics if a.geometry_index==i), None)
+            if not atomic: continue
+            name = fname.get(atomic.frame_index,'')
+            if wtype in name and not name.endswith('_dam'):
+                return _geom_data(geom)
+
+        # Pass 3: base type without _l0 suffix
+        base = wtype.replace('_l0','').replace('_lo','')
+        for i, geom in enumerate(m.geometries):
+            atomic = next((a for a in m.atomics if a.geometry_index==i), None)
+            if not atomic: continue
+            name = fname.get(atomic.frame_index,'')
+            if base in name and not name.endswith('_dam'):
+                return _geom_data(geom)
+
+        # Pass 4: first non-damaged wheel geometry as fallback
+        for i, geom in enumerate(m.geometries):
+            atomic = next((a for a in m.atomics if a.geometry_index==i), None)
+            if not atomic: continue
+            name = fname.get(atomic.frame_index,'')
+            if 'wheel' in name and not name.endswith('_dam'):
+                return _geom_data(geom)
+        return None
+
+    def set_assembly_mode(self, enabled: bool): #vers 1
+        self._assembly_mode = enabled; self.update()
+
+    def set_show_col_ghosted(self, enabled: bool): #vers 1
+        self.show_col_ghosted = enabled; self.update()
+
+    def set_show_col_semi_solid(self, enabled: bool): #vers 1
+        self.show_col_semi_solid = enabled; self.update()
+
+    def set_show_col_wireframe(self, enabled: bool): #vers 1
+        self.show_col_wireframe = enabled; self.update()
+
+    def set_show_col_surface_mapped(self, enabled: bool): #vers 1
+        self.show_col_surface_mapped = enabled; self.update()
+
+    def set_show_paths(self, enabled: bool): #vers 1
+        self.show_paths = enabled; self.update()
+
+    def set_path_segments(self, segments): #vers 2
+        """Replace the path data drawn when show_paths is on. Each
+        entry is a pair of (x,y,z) endpoint tuples, one real graph
+        edge (Aug 16 2026)"""
+        self._path_segments = segments or []
+        self.update()
+
+    def set_path_node_owners(self, owner_map): #vers 1
+        """Set the (position -> (group_ref, node_index)) mapping used
+        to resolve a picked/dragged node back to its real, live
+        PathGroup/PathNode data (Aug 17 2026)"""
+        self._path_node_owner_map = owner_map or {}
+
+    def set_path_edit_mode(self, enabled: bool): #vers 1
+        """Toggle click-to-select-and-drag path node editing (Aug 17
+        2026)"""
+        self._path_edit_mode = enabled
+        if not enabled:
+            self._dragging_path_node_start_key = None
+            self._dragging_path_node_current_pos = None
+        self.update()
+
+    def set_box_edit_mode(self, enabled: bool): #vers 1
+        """Toggle click-to-select-and-drag box corner resizing (Aug
+        19 2026)"""
+        self._box_edit_mode = enabled
+        if not enabled:
+            self._dragging_box_corner_key = None
+            self._dragging_box_corner_info = None
+            self._dragging_box_corner_current_pos = None
+        self.update()
+
+    def set_box_resize_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called when a box
+        corner drag completes: callback(box_type, box_ref, new_x1,
+        new_y1, new_x2, new_y2). map_workshop.py applies this to the
+        real, live CullEntry/zone dict and triggers a refresh -
+        mirrors set_path_node_drag_callback's own widget-owns-
+        interaction, caller-owns-data split exactly."""
+        self._box_resize_callback = callback
+
+    def set_no_clip_boxes(self, enabled: bool): #vers 1
+        """Toggle no-clip during box resizing (Aug 19 2026)"""
+        self._no_clip_boxes = enabled
+
+    def set_path_node_drag_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called when a path
+        node drag completes: callback(group_ref, node_index, new_x,
+        new_y, new_z). map_workshop.py wires this once to a method
+        that mutates the real PathNode and refreshes - mirrors the
+        existing set_lod_test_callback pattern (a widget-owns-
+        interaction, caller-owns-data split already established
+        elsewhere in this file, not a new convention)."""
+        self._path_node_drag_callback = callback
+
+    def set_ipl_drag_mode(self, enabled: bool): #vers 1
+        """Toggle click-drag whole-IPL-section moving (Aug 18 2026)"""
+        self._ipl_drag_mode = enabled
+        if not enabled:
+            self._dragging_ipl_names = set()
+            self._dragging_ipl_start_state = []
+            self._dragging_ipl_ground_start = None
+            self._dragging_ipl_clicked_inst = None
+            self._dragging_ipl_clicked_start_pos = None
+            self._multi_selected_ipl_names = set()
+        self.update()
+
+    def set_ipl_drag_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called when a whole-
+        IPL drag completes: callback(ipl_name, dx, dy, dz). map_
+        workshop.py wires this once to a method that calls the
+        already-existing _shift_ipl_coordinates (the same one the
+        dialog-based Shift Coordinates tool already uses) - mirrors
+        set_path_node_drag_callback/set_lod_test_callback's own
+        widget-owns-interaction, caller-owns-data split."""
+        self._ipl_drag_callback = callback
+
+    def set_ipl_drag_axis_lock(self, axis): #vers 1
+        """Set the axis-lock mode for whole-IPL dragging (Aug 18
+        2026)"""
+        self._ipl_drag_axis_lock = axis if axis in ('x', 'y') else None
+
+    def set_ipl_interaction_mode(self, mode): #vers 1
+        """Set which of the 3-state Drag/Move/Rotate cycle is active
+        for whole-IPL interaction (Aug 19 2026)"""
+        self._ipl_interaction_mode = mode if mode in ('drag', 'move', 'rotate') else 'drag'
+
+    def set_ipl_click_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called when an
+        instance is picked while in Move or Rotate mode: callback(
+        ipl_name). Never called in Drag mode - that one still goes
+        through the existing set_ipl_drag_callback on release instead.
+        map_workshop.py wires this once to a method that opens the
+        corresponding numeric dialog - mirrors every other widget-
+        owns-interaction, caller-owns-data callback in this file."""
+        self._ipl_click_callback = callback
+
+    def set_ipl_selection_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called whenever the
+        Shift+click multi-IPL selection changes: callback(set_of_ipl_
+        names) - see the fuller multi-select workflow explanation
+        where self._multi_selected_ipl_names is first declared in
+        __init__. map_workshop.py wires this once to a method that
+        shows the current selection in the status bar - mirrors every
+        other widget-owns-interaction, caller-owns-data callback in
+        this file."""
+        self._ipl_selection_callback = callback
+
+    def set_multi_selected_ipl_names(self, names): #vers 1
+        """Directly set the current multi-IPL selection from outside
+        (Aug 19 2026)"""
+        self._multi_selected_ipl_names = set(names) if names else set()
+        self.update()
+
+    def set_hover_highlight_enabled(self, enabled: bool): #vers 1
+        """Toggle auto-highlight-on-hover (Aug 19 2026)"""
+        self._hover_highlight_enabled = enabled
+        if not enabled:
+            self._hovered_instance_idx = None
+        self.update()
+
+    def set_hover_context_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called on a right-
+        click while something is currently hovered: callback(inst).
+        map_workshop.py wires this once to open a context menu for
+        that instance - mirrors every other widget-owns-interaction,
+        caller-owns-data callback in this file."""
+        self._hover_context_callback = callback
+
+    def set_middle_click_cycle_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called on a plain
+        middle-click (not a pan drag) anywhere in the viewport: a
+        real, no-argument callback(). map_workshop.py wires this to
+        the same _cycle_selected_box the Cycle Zones button's own
+        left-click already uses (Aug 21 2026)"""
+        self._middle_click_cycle_callback = callback
+
+    def set_show_tracks(self, enabled: bool): #vers 1
+        self.show_tracks = enabled; self.update()
+
+    def set_track_polylines(self, polylines): #vers 1
+        """Replace the track data drawn when show_tracks is on. Each
+        entry is an ordered list of (x,y,z) waypoints forming one
+        continuous track (Aug 17 2026)"""
+        self._track_polylines = polylines or []
+        self.update()
+
+    def set_track_color(self, r: float, g: float, b: float): #vers 1
+        self._track_color = (r, g, b)
+        self.update()
+
+    def _draw_tracks(self): #vers 1
+        """Draw every loaded train track as one continuous line strip
+        per track (Aug 17 2026)"""
+        if not OPENGL_AVAILABLE or not self._track_polylines: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        r, g, b = self._track_color
+        glColor3f(r, g, b)
+        glLineWidth(self._track_line_thickness)
+        for polyline in self._track_polylines:
+            if len(polyline) < 2:
+                continue
+            glBegin(GL_LINE_STRIP)
+            for x, y, z in polyline:
+                glVertex3f(x, y, z)
+            glEnd()
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def set_track_line_thickness(self, thickness): #vers 1
+        self._track_line_thickness = thickness; self.update()
+
+    def set_airtrain_color(self, r, g, b): #vers 1
+        self._airtrain_color = (r, g, b); self.update()
+
+    def set_airtrain_line_thickness(self, thickness): #vers 1
+        self._airtrain_line_thickness = thickness; self.update()
+
+    def set_show_sa_nodes(self, enabled: bool): #vers 1
+        self.show_sa_nodes = enabled; self.update()
+
+    def set_sa_node_segments(self, segments): #vers 1
+        """Replace the SA path-node graph data drawn when show_sa_
+        nodes is on. Each entry is a plain ((x1,y1,z1),(x2,y2,z2))
+        segment pair - one per real link between two nodes (Aug 19
+        2026)"""
+        self._sa_node_segments = segments or []
+        self.update()
+
+    def set_sa_node_color(self, r: float, g: float, b: float): #vers 1
+        self._sa_node_color = (r, g, b)
+        self.update()
+
+    def set_show_auzo_zones(self, enabled: bool): #vers 1
+        self.show_auzo_zones = enabled; self.update()
+
+    def set_auzo_zones(self, zones): #vers 1
+        """Replace the audio zone data drawn when show_auzo_zones is
+        on. Each entry is a plain (center_x, center_y, center_z, name,
+        sound_id, environment_type, music_description) tuple -
+        conversion from the real AuzoEntry dataclass (cube-vs-sphere
+        center resolution, AUZO_TYPES lookup) happens in map_
+        workshop.py's own refresh method, this widget only ever deals
+        in plain, already-resolved data."""
+        self._auzo_zones = zones or []
+        self.update()
+
+    def _ensure_auzo_icon_texture(self): #vers 1
+        """Lazily load a sound-icon SVG into a real OpenGL texture the
+        first time an audio zone actually needs to be drawn, caching
+        the result so this only ever happens once per session (Aug 20
+        2026)"""
+        if self._auzo_icon_tex_id is not None:
+            return self._auzo_icon_tex_id
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            from PyQt6.QtGui import QImage
+            icon = SVGIconFactory.volume_up_icon(size=64, color='#ffcc33')
+            pixmap = icon.pixmap(64, 64)
+            image = pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+            w, h = image.width(), image.height()
+            ptr = image.bits()
+            ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self._auzo_icon_tex_id = gl_id
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load auzo sound icon texture: {e}")
+            self._auzo_icon_tex_id = False   # tried and failed - don't keep retrying every frame
+        return self._auzo_icon_tex_id
+
+    def _draw_auzo_zones(self): #vers 1
+        """Draw a billboarded (always facing the camera) sound-icon
+        quad at each real audio zone's own center position (Aug 20
+        2026)"""
+        if not OPENGL_AVAILABLE or not self._auzo_zones:
+            return
+        tex_id = self._ensure_auzo_icon_texture()
+        if not tex_id:
+            return
+        mv = glGetFloatv(GL_MODELVIEW_MATRIX)
+        # Column-major: right = row 0 of the rotation part, up = row 1
+        right = (mv[0][0], mv[1][0], mv[2][0])
+        up    = (mv[0][1], mv[1][1], mv[2][1])
+        half = 1.5   # world-unit half-size of the billboard quad
+        glDisable(GL_LIGHTING)
+        glEnable(GL_TEXTURE_2D)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glBindTexture(GL_TEXTURE_2D, tex_id)
+        glColor4f(1.0, 1.0, 1.0, 1.0)
+        for cx, cy, cz, name, sound_id, env_type, music in self._auzo_zones:
+            corners = []
+            for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+                corners.append((
+                    cx + (right[0]*su + up[0]*sv) * half,
+                    cy + (right[1]*su + up[1]*sv) * half,
+                    cz + (right[2]*su + up[2]*sv) * half,
+                ))
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 1); glVertex3f(*corners[0])
+            glTexCoord2f(1, 1); glVertex3f(*corners[1])
+            glTexCoord2f(1, 0); glVertex3f(*corners[2])
+            glTexCoord2f(0, 0); glVertex3f(*corners[3])
+            glEnd()
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_BLEND)
+        glDisable(GL_TEXTURE_2D)
+        glEnable(GL_LIGHTING)
+
+    def set_show_water(self, enabled: bool): #vers 1
+        self.show_water = enabled; self.update()
+
+    def set_water_shapes(self, shapes): #vers 1
+        """Replace the water shape data drawn when show_water is on.
+        Each entry is a plain (corners, water_type) tuple - corners a
+        list of 3 or 4 (x,y,z) tuples, water_type the real 0-3 flag
+        value (see WaterShape's own docstring in gta_dat_parser.py).
+        Resolution from the real WaterShape/WaterCorner dataclasses
+        happens in map_workshop.py - this widget only ever deals in
+        plain, already-resolved data."""
+        self._water_shapes = shapes or []
+        self.update()
+
+    def _draw_water_shapes(self): #vers 2
+        """Draw real water.dat shapes as flat, translucent polygons
+        (Aug 20 2026)"""
+        if not OPENGL_AVAILABLE or not self._water_shapes:
+            return
+        glDisable(GL_LIGHTING)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glDisable(GL_CULL_FACE)
+        # Depth writes off, test still on (Aug 20 2026)
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LESS)
+        glDepthMask(GL_FALSE)
+        for corners, water_type in self._water_shapes:
+            is_shallow = bool(water_type & 2)
+            is_visible = bool(water_type & 1)
+            if is_shallow:
+                r, g, b = 0.3, 0.75, 0.85   # pool - lighter cyan
+            else:
+                r, g, b = 0.1, 0.25, 0.65   # ocean - deep blue
+            alpha = 0.45 if is_visible else 0.2
+            glColor4f(r, g, b, alpha)
+            glBegin(GL_TRIANGLE_FAN)
+            for cx, cy, cz in corners:
+                glVertex3f(cx, cy, cz)
+            glEnd()
+            glColor4f(r, g, b, min(alpha + 0.35, 1.0))
+            glLineWidth(1.2)
+            glBegin(GL_LINE_LOOP)
+            for cx, cy, cz in corners:
+                glVertex3f(cx, cy, cz)
+            glEnd()
+        glEnable(GL_CULL_FACE)
+        glDepthMask(GL_TRUE)
+        glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
+
+    def set_waterpro_cells(self, cells): #vers 1
+        """Replace the waterpro.dat grid drawn when show_water is on
+        (Aug 20 2026)"""
+        self._waterpro_cells = cells or []
+        self.update()
+
+    def set_water_display_style(self, style): #vers 1
+        valid = ('fill', 'lines', 'dots', 'hexagons', 'texture')
+        self._water_display_style = style if style in valid else 'fill'
+        self.update()
+
+    def set_water_texture(self, path, tile_size=None): #vers 1
+        if path != self._water_texture_path:
+            self._water_texture_path = path or ''
+            self._water_texture_tex_id = None
+        if tile_size is not None:
+            self._water_tile_size = tile_size
+        self.update()
+
+    def set_water_hide_outside_map(self, hide): #vers 1
+        self._water_hide_outside_map = bool(hide)
+        self.update()
+
+    def set_water_map_extent(self, half_extent): #vers 1
+        self._water_map_half_extent = half_extent
+        self.update()
+
+    def _draw_waterpro_water(self): #vers 2
+        """Draw waterpro.dat's own real grid, one per real grid cell,
+        at that cell's own real height (Aug 20 2026)"""
+        if not OPENGL_AVAILABLE or not self._waterpro_cells:
+            return
+        cells = self._waterpro_cells
+        if self._water_hide_outside_map:
+            half = self._water_map_half_extent
+            cells = [c for c in cells
+                     if abs((c[0] + c[2]) / 2) <= half and abs((c[1] + c[3]) / 2) <= half]
+            if not cells:
+                return
+        glDisable(GL_LIGHTING)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        # Depth writes off, test still on.  fix (Aug 20 2026)
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LESS)
+        glDepthMask(GL_FALSE)
+        style = self._water_display_style
+
+        if style == 'texture' and self._water_texture_path:
+            tex_id = self._ensure_water_texture()
+            if tex_id:
+                glEnable(GL_TEXTURE_2D)
+                glBindTexture(GL_TEXTURE_2D, tex_id)
+                glColor4f(1, 1, 1, 0.6)
+                ts = self._water_tile_size
+                glBegin(GL_QUADS)
+                for min_x, min_y, max_x, max_y, height in cells:
+                    glTexCoord2f(min_x / ts, min_y / ts); glVertex3f(min_x, min_y, height)
+                    glTexCoord2f(max_x / ts, min_y / ts); glVertex3f(max_x, min_y, height)
+                    glTexCoord2f(max_x / ts, max_y / ts); glVertex3f(max_x, max_y, height)
+                    glTexCoord2f(min_x / ts, max_y / ts); glVertex3f(min_x, max_y, height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+                glDisable(GL_TEXTURE_2D)
+                glDepthMask(GL_TRUE)
+                glDisable(GL_BLEND)
+                glEnable(GL_LIGHTING)
+                return
+
+        glColor4f(0.1, 0.25, 0.65, 0.45)
+        if style == 'fill':
+            glBegin(GL_QUADS)
+            for min_x, min_y, max_x, max_y, height in cells:
+                glVertex3f(min_x, min_y, height)
+                glVertex3f(max_x, min_y, height)
+                glVertex3f(max_x, max_y, height)
+                glVertex3f(min_x, max_y, height)
+            glEnd()
+        elif style == 'lines':
+            glLineWidth(1.2)
+            for min_x, min_y, max_x, max_y, height in cells:
+                glBegin(GL_LINE_LOOP)
+                glVertex3f(min_x, min_y, height)
+                glVertex3f(max_x, min_y, height)
+                glVertex3f(max_x, max_y, height)
+                glVertex3f(min_x, max_y, height)
+                glEnd()
+        elif style == 'dots':
+            glPointSize(4.0)
+            glBegin(GL_POINTS)
+            for min_x, min_y, max_x, max_y, height in cells:
+                glVertex3f((min_x + max_x) / 2, (min_y + max_y) / 2, height)
+            glEnd()
+        elif style == 'hexagons':
+            import math
+            for min_x, min_y, max_x, max_y, height in cells:
+                cx, cy = (min_x + max_x) / 2, (min_y + max_y) / 2
+                s = (max_x - min_x) / 2
+                glBegin(GL_LINE_LOOP)
+                for i in range(6):
+                    ang = math.radians(60 * i - 30)
+                    glVertex3f(cx + s * math.cos(ang), cy + s * math.sin(ang), height)
+                glEnd()
+        glDepthMask(GL_TRUE)
+        glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
+
+    def _ensure_water_texture(self): #vers 1
+        """Lazily load self._water_texture_path as a GL texture, same
+        real pattern _ensure_squares_texture already uses - no self.
+        makeCurrent()/doneCurrent() here since this is always called
+        from within an already-active paintGL, same real reasoning
+        that fixed the earlier real segfault (Aug 20 2026)."""
+        if self._water_texture_tex_id and self._water_texture_tex_path_loaded == self._water_texture_path:
+            return self._water_texture_tex_id
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(self._water_texture_path).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                self._water_texture_tex_id = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            if self._water_texture_tex_id and self._water_texture_tex_id is not False:
+                glDeleteTextures([self._water_texture_tex_id])
+            gl_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, gl_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            self._water_texture_tex_id = gl_id
+            self._water_texture_tex_path_loaded = self._water_texture_path
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load water texture: {e}")
+            self._water_texture_tex_id = False
+        return self._water_texture_tex_id
+
+    def set_water2_data(self, cells, texture_path=''): #vers 2
+        """New, simple water data setter (Aug 20 2026)"""
+        self._water2_cells = cells or []
+        self._water2_zrange = None
+        if texture_path:
+            self._water2_texture_path = texture_path
+        self.update()
+
+    def set_water2_texture_path(self, path): #vers 1
+        """Set the file-path water texture independently of cells
+        (Aug 20 2026)"""
+        self._water2_texture_path = path or ''
+        self.update()
+
+    def set_water2_use_texture(self, enabled): #vers 1
+        """Style toggle (Aug 20 2026)"""
+        self._water2_use_texture = bool(enabled)
+        self.update()
+
+    def set_water2_height_offset(self, offset): #vers 1
+        """ Z adjustment (Aug 20 2026)"""
+        self._water2_height_offset = float(offset)
+        self.update()
+
+    def set_water2_alpha(self, alpha): #vers 1
+        """ transparency adjustment (Aug 20 2026)"""
+        self._water2_alpha = max(0.0, min(1.0, float(alpha)))
+        self.update()
+
+    def set_water2_x_offset(self, offset): #vers 1
+        """ X adjustment (Aug 20 2026)"""
+        self._water2_x_offset = float(offset)
+        self.update()
+
+    def set_water2_y_offset(self, offset): #vers 1
+        """ Y adjustment (Aug 20 2026)"""
+        self._water2_y_offset = float(offset)
+        self.update()
+
+    def set_water2_game(self, game_key): #vers 1
+        """Track which real game the current water2 data actually
+        belongs to (Aug 20 2026)"""
+        self._water2_game = (game_key or '').lower()
+        self.update()
+
+    def set_water2_offset_vc_only(self, enabled): #vers 2
+        """ toggle (Aug 20 2026, same real request as
+        set_water2_game above) - on (default) restricts the X/Y
+        offset to VC only; off applies it regardless of which game
+        is loaded, for a future game that might turn out to need the
+        same kind of correction."""
+        self._water2_offset_vc_only = bool(enabled)
+        self._water2_offset_mode = 'vc' if enabled else 'all'
+        self.update()
+
+    def set_water2_fix_override(self, value): #vers 1
+        """Per-game water fix: True/False forces, None uses mode."""
+        self._water2_fix_override = None if value is None else bool(value)
+        self.update()
+
+    def set_water2_nudge(self, x, y): #vers 1
+        """Per-game water nudge, always applied."""
+        self._water2_nudge = (float(x), float(y))
+        self.update()
+
+    def set_radar_tex_offset(self, x, y): #vers 1
+        """Per-game radar tile layer offset in world units."""
+        self._radar_tex_offset = (float(x), float(y))
+        self.update()
+
+    def set_show_axes(self, on: bool): #vers 1
+        """Show / hide the red-green-blue axis gizmo at the origin."""
+        self._show_axes = bool(on)
+        self.update()
+
+    def set_grid_origin(self, x: float, y: float, z: float): #vers 1
+        """Grid slide (x, y) and height (z), e.g. ground under a ped."""
+        self._grid_origin = (float(x), float(y), float(z))
+        self.update()
+
+    def set_radar_tex_rotation(self, degrees): #vers 1
+        """Radar tile layer rotation in degrees about the world origin."""
+        self._radar_tex_rotation = float(degrees)
+        self.update()
+
+    def set_radar_tex_scale(self, scale): #vers 1
+        """Per-game radar tile layer scale about the world origin."""
+        self._radar_tex_scale = max(0.01, float(scale))
+        self.update()
+
+    def set_water2_offset_mode(self, mode): #vers 1
+        """Radar/water fix: 'vc' VC only, 'all' every game, 'off'."""
+        self._water2_offset_mode = mode if mode in ('vc', 'all', 'off') else 'vc'
+        self._water2_offset_vc_only = self._water2_offset_mode == 'vc'
+        self.update()
+
+    def _ensure_water2_texture(self): #vers 2
+        """Lazily load a water2 texture as a real GL texture - no
+        makeCurrent()/doneCurrent() here, always called from within an
+        already-active paintGL."""
+        if self._water2_rgba is not None:
+            if self._water2_tex_id and self._water2_rgba_loaded is self._water2_rgba:
+                return self._water2_tex_id
+            try:
+                w, h = self._water2_rgba_wh
+                self._upload_water2_gl_texture(self._water2_rgba, w, h)
+                self._water2_rgba_loaded = self._water2_rgba
+                self._water2_tex_path_loaded = None
+            except Exception as e:
+                print(f"[DFFViewport] Failed to load water2 in-game texture: {e}")
+                self._water2_tex_id = False
+            return self._water2_tex_id
+        if self._water2_tex_id and self._water2_tex_path_loaded == self._water2_texture_path:
+            return self._water2_tex_id
+        try:
+            from PyQt6.QtGui import QImage
+            image = QImage(self._water2_texture_path).convertToFormat(QImage.Format.Format_RGBA8888)
+            if image.isNull():
+                self._water2_tex_id = False
+                return False
+            w, h = image.width(), image.height()
+            ptr = image.bits(); ptr.setsize(image.sizeInBytes())
+            rgba = bytes(ptr)
+            self._upload_water2_gl_texture(rgba, w, h)
+            self._water2_tex_path_loaded = self._water2_texture_path
+            self._water2_rgba_loaded = None
+        except Exception as e:
+            print(f"[DFFViewport] Failed to load water2 texture: {e}")
+            self._water2_tex_id = False
+        return self._water2_tex_id
+
+    def _upload_water2_gl_texture(self, rgba, w, h): #vers 1
+        """Shared GL upload for either water2 texture source (Aug 20
+        2026) - extracted from _ensure_water2_texture's own earlier,
+        single-source version so both the file-path and in-game-
+        extracted paths use the exact same real upload code, not two
+        near-duplicate copies of it."""
+        if self._water2_tex_id and self._water2_tex_id is not False:
+            glDeleteTextures([self._water2_tex_id])
+        gl_id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, gl_id)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        self._water2_tex_id = gl_id
+
+    def set_water2_texture_rgba(self, rgba, width, height): #vers 1
+        """Set a real, in-game water texture directly from already-
+        decoded RGBA bytes (Aug 20 2026)"""
+        self._water2_rgba = rgba
+        self._water2_rgba_wh = (width, height)
+        self.update()
+
+    def _water2_arrays(self, x_offset, y_offset, z_offset): #vers 2
+        """Water quad vertices (N*4, 3) wrapped into the map, plus depth colours; cached."""
+        cells = self._water2_cells
+        half = self._water_map_half_extent
+        key = (id(cells), len(cells), x_offset, y_offset, z_offset, half)
+        cached = getattr(self, '_water2_va', None)
+        if cached is not None and cached[0] == key + (self._water2_alpha,):
+            return cached[1]
+        c = np.asarray(cells, dtype=np.float64).reshape(-1, 5)
+        w, h = c[:, 2] - c[:, 0], c[:, 3] - c[:, 1]
+        cx = (c[:, 0] + c[:, 2]) / 2.0 + x_offset
+        cy = (c[:, 1] + c[:, 3]) / 2.0 + y_offset
+        span = half * 2.0
+        if span > 0:
+            cx = np.mod(cx + half, span) - half
+            cy = np.mod(cy + half, span) - half
+        x0, x1, y0, y1 = cx - w / 2.0, cx + w / 2.0, cy - h / 2.0, cy + h / 2.0
+        z = c[:, 4] + z_offset
+        v = np.empty((len(c), 4, 3), dtype=np.float32)
+        v[:, 0] = np.stack([x0, y0, z], 1); v[:, 1] = np.stack([x1, y0, z], 1)
+        v[:, 2] = np.stack([x1, y1, z], 1); v[:, 3] = np.stack([x0, y1, z], 1)
+        v = np.ascontiguousarray(v.reshape(-1, 3))
+        from apps.methods.ui_color import depth_range
+        lo, hi = self._water2_zrange = depth_range(c[:, 4].tolist())
+        t = np.clip((c[:, 4] - lo) / max(1e-6, hi - lo), 0.0, 1.0)    # depth gang shades
+        col = np.stack([8 + 112 * t, 30 + 170 * t, 80 + 175 * t], 1) / 255.0
+        self._water2_col = np.ascontiguousarray(
+            np.repeat(np.hstack([col, np.full((len(c), 1), self._water2_alpha)]), 4, 0).astype(np.float32))
+        self._water2_va = (key + (self._water2_alpha,), v)
+        return v
+
+    def _draw_water2(self): #vers 8
+        """Water cells as one vertex-array draw (SOL has 140k cells)."""
+        if not OPENGL_AVAILABLE or not self._water2_cells:
+            return
+        glDisable(GL_LIGHTING)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LESS)
+        glDepthMask(GL_FALSE)
+        tex_id = None
+        if self._water2_use_texture and self._water2_texture_path:
+            tex_id = self._ensure_water2_texture()
+        mode = self._water2_offset_mode
+        gate_ok = mode == 'all' or (mode == 'vc' and self._water2_game == 'vc')
+        if self._water2_fix_override is not None:
+            gate_ok = self._water2_fix_override
+        nx, ny = self._water2_nudge
+        x_offset = (self._water2_x_offset if gate_ok else 0.0) + nx
+        y_offset = (self._water2_y_offset if gate_ok else 0.0) + ny
+        verts = self._water2_arrays(x_offset, y_offset, self._water2_height_offset)
+        n = len(verts)
+        alpha = self._water2_alpha
+        # raw pointer calls: PyOpenGL's pointer store needs a GLX context (fails on EGL/Wayland)
+        from OpenGL.raw.GL.VERSION.GL_1_1 import (glColorPointer as raw_color_ptr,
+                                                  glTexCoordPointer as raw_tex_ptr,
+                                                  glVertexPointer as raw_vertex_ptr)
+        glEnableClientState(GL_VERTEX_ARRAY)
+        raw_vertex_ptr(3, GL_FLOAT, 0, verts.ctypes.data_as(ctypes.c_void_p))
+        if tex_id:
+            uv = getattr(self, '_water2_uv', None)
+            if uv is None or len(uv) != n:
+                uv = self._water2_uv = np.ascontiguousarray(
+                    np.tile(np.array([[0, 0], [1, 0], [1, 1], [0, 1]], np.float32), (n // 4, 1)))
+            glEnable(GL_TEXTURE_2D)
+            glBindTexture(GL_TEXTURE_2D, tex_id)
+            glEnableClientState(GL_TEXTURE_COORD_ARRAY)
+            raw_tex_ptr(2, GL_FLOAT, 0, uv.ctypes.data_as(ctypes.c_void_p))
+            glColor4f(1.0, 1.0, 1.0, alpha)
+            glDrawArrays(GL_QUADS, 0, n)
+            glDisableClientState(GL_TEXTURE_COORD_ARRAY)
+            glBindTexture(GL_TEXTURE_2D, 0)
+            glDisable(GL_TEXTURE_2D)
+        else:                                            # shaded by Z, same scale as the gauge
+            glEnableClientState(GL_COLOR_ARRAY)
+            raw_color_ptr(4, GL_FLOAT, 0, self._water2_col.ctypes.data_as(ctypes.c_void_p))
+            glDrawArrays(GL_QUADS, 0, n)
+            glDisableClientState(GL_COLOR_ARRAY)
+        glDisableClientState(GL_VERTEX_ARRAY)
+        glDepthMask(GL_TRUE)
+        glDisable(GL_BLEND)
+        self._draw_water_selection(verts)
+        glEnable(GL_LIGHTING)
+
+    def _draw_water_selection(self, verts): #vers 1
+        """Outline of the selected water quad, following a live drag."""
+        i = self._water_sel
+        if not self._water_edit_mode or not 0 <= i < len(verts) // 4:
+            return
+        dx, dy = self._water_live
+        glDisable(GL_DEPTH_TEST)
+        glColor3f(1.0, 0.85, 0.1)
+        glLineWidth(2.0)
+        glBegin(GL_LINE_LOOP)
+        for x, y, z in verts[i * 4:i * 4 + 4]:
+            glVertex3f(float(x) + dx, float(y) + dy, float(z) + 0.2)
+        glEnd()
+        glLineWidth(1.0)
+        glEnable(GL_DEPTH_TEST)
+
+    def set_skeleton(self, joints=None, bones=None, selected=-1, pick_cb=None, drag_cb=None,
+                     ring_axes=None, ring_cb=None, ghosts=None): #vers 2
+        """Stick-man overlay: joints, (a, b) bones, onion-skin ghosts (joint lists);
+        pick_cb(i, mods), drag_cb(i, dx, dy, mods); rotate rings on the selected
+        joint (3 world axes): ring_cb(axis, degrees)."""
+        self._skeleton = dict(joints=joints, bones=bones or [], sel=selected, pick=pick_cb,
+                              drag=drag_cb, axes=ring_axes, ring=ring_cb,
+                              ghosts=ghosts or []) if joints else None
+        if not joints:
+            self._skel_drag = self._skel_ring = None
+        self.update()
+
+    def _skel_ring_radius(self): #vers 1
+        return max(0.05, self._dist * 0.05)
+
+    def _skel_ring_pts(self, c, axis, r, n=32): #vers 1
+        """Circle of n points around unit axis at c."""
+        ax = [float(v) for v in axis]
+        ref = (1.0, 0.0, 0.0) if abs(ax[0]) < 0.9 else (0.0, 1.0, 0.0)
+        u = (ax[1] * ref[2] - ax[2] * ref[1], ax[2] * ref[0] - ax[0] * ref[2], ax[0] * ref[1] - ax[1] * ref[0])
+        ul = math.sqrt(sum(v * v for v in u)) or 1.0
+        u = tuple(v / ul for v in u)
+        v = (ax[1] * u[2] - ax[2] * u[1], ax[2] * u[0] - ax[0] * u[2], ax[0] * u[1] - ax[1] * u[0])
+        return [tuple(c[i] + r * (math.cos(2 * math.pi * k / n) * u[i] + math.sin(2 * math.pi * k / n) * v[i])
+                      for i in range(3)) for k in range(n)]
+
+    def _draw_skeleton(self): #vers 2
+        """Ghost poses, bones, joints, and rotate rings on the selected joint."""
+        sk = self._skeleton
+        if not OPENGL_AVAILABLE or not sk:
+            return
+        joints, bones, sel = sk['joints'], sk['bones'], sk['sel']
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glLineWidth(1.5)
+        for gi, ghost in enumerate(sk['ghosts']):
+            before = gi < len(sk['ghosts']) // 2
+            glColor4f(0.4, 0.6, 1.0, 0.45) if before else glColor4f(1.0, 0.45, 0.45, 0.45)
+            glBegin(GL_LINES)
+            for a, b in bones:
+                glVertex3f(*ghost[a])
+                glVertex3f(*ghost[b])
+            glEnd()
+        glLineWidth(2.5)
+        glColor3f(1.0, 0.75, 0.1)
+        glBegin(GL_LINES)
+        for a, b in bones:
+            glVertex3f(*joints[a])
+            glVertex3f(*joints[b])
+        glEnd()
+        glPointSize(7.0)
+        glBegin(GL_POINTS)
+        used = {i for pair in bones for i in pair} if bones else set(range(len(joints)))
+        for i, p in enumerate(joints):
+            if i not in used:
+                continue
+            if i == sel:
+                glColor3f(1.0, 0.2, 0.2)
+            else:
+                glColor3f(0.2, 0.8, 1.0)
+            glVertex3f(*p)
+        glEnd()
+        if sk['axes'] and 0 <= sel < len(joints):
+            active = getattr(self, '_skel_ring', None)
+            r = self._skel_ring_radius()
+            for ai, axis in enumerate(sk['axes']):
+                col = [(1.0, 0.25, 0.25), (0.3, 1.0, 0.3), (0.35, 0.55, 1.0)][ai]
+                glLineWidth(3.5 if active and active['axis'] == ai else 2.0)
+                glColor3f(*col)
+                glBegin(GL_LINE_LOOP)
+                for q in self._skel_ring_pts(joints[sel], axis, r):
+                    glVertex3f(*q)
+                glEnd()
+        glLineWidth(1.0)
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _pick_skeleton_ring(self, mx, my): #vers 1
+        """Axis index of the rotate ring under the mouse (8 px), or None."""
+        sk = self._skeleton
+        if not sk or not sk['axes'] or not sk['ring'] or not 0 <= sk['sel'] < len(sk['joints']):
+            return None
+        c, r = sk['joints'][sk['sel']], self._skel_ring_radius()
+        best, best_d = None, 8.0
+        for ai, axis in enumerate(sk['axes']):
+            pts = self._gizmo_project(self._skel_ring_pts(c, axis, r, 48))
+            if not pts:
+                return None
+            for x, y, _z in pts:
+                d = math.hypot(x - mx, y - my)
+                if d < best_d:
+                    best, best_d = ai, d
+        return best
+
+    def _skel_ring_angle(self, mx, my): #vers 1
+        """Screen angle (degrees) of the mouse round the selected joint."""
+        c = self._gizmo_project([self._skeleton['joints'][self._skeleton['sel']]])
+        if not c:
+            return 0.0
+        return math.degrees(math.atan2(-(my - c[0][1]), mx - c[0][0]))
+
+    def _pick_skeleton_joint(self, mx, my): #vers 2
+        """Joint index within 10 px of the mouse, nearest first; None if none."""
+        ray = self._pick_ray(mx, my)
+        if ray is None:
+            return None
+        best, best_d2 = None, None
+        for i, p in enumerate(self._skeleton['joints']):
+            t, d2 = self._closest_point_on_ray(ray[0], ray[1], p)
+            px = self._dist * 0.012
+            if t > 0 and d2 < px * px and (best_d2 is None or d2 < best_d2):
+                best, best_d2 = i, d2
+        return best
+
+    def set_brush_tool(self, tool): #vers 1
+        """Terrain brush on (tool) or off (None); left mouse goes to the tool."""
+        if self._brush_timer is None:
+            from PyQt6.QtCore import QTimer
+            self._brush_timer = QTimer(self)
+            self._brush_timer.setInterval(33)
+            self._brush_timer.timeout.connect(self._brush_tick)
+        self._brush_timer.stop()
+        self._brush_tool = tool
+        self.update()
+
+    def _brush_tick(self): #vers 1
+        """Repeat the held brush while the left button is down."""
+        if self._brush_tool is not None:
+            self._brush_tool.tick()
+            self.update()
+
+    def _draw_brush_ring(self): #vers 1
+        """Brush circle (and ramp line) from the tool's ring() data."""
+        ring = self._brush_tool.ring()
+        if not ring:
+            return
+        (cx, cy, cz), radius, colour, line = ring
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glDisable(GL_DEPTH_TEST)
+        glColor3f(*colour)
+        glLineWidth(2.0)
+        glBegin(GL_LINE_LOOP)
+        for k in range(64):
+            a = k * math.tau / 64
+            glVertex3f(cx + radius * math.cos(a), cy + radius * math.sin(a), cz + 0.3)
+        glEnd()
+        glPointSize(5.0)
+        glBegin(GL_POINTS)
+        glVertex3f(cx, cy, cz + 0.3)
+        glEnd()
+        if line:
+            glBegin(GL_LINES)
+            for x, y, z in line:
+                glVertex3f(x, y, z + 0.3)
+            glEnd()
+        glLineWidth(1.0)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def refresh_world_models(self, model_keys): #vers 1
+        """Drop cached display lists of these models so edits redraw."""
+        keys = set(model_keys)
+        inst_ids = {('inst', id(e)) for e in self._world_instances or []
+                    if e.get('model_key') in keys}
+        if OPENGL_AVAILABLE and self.isValid():
+            self.makeCurrent()
+            for cache in (self._world_display_lists, self._col_display_lists):
+                for ck in [k for k in cache if k[0] in keys or k[0] in inst_ids]:
+                    glDeleteLists(cache.pop(ck), 1)
+            self.doneCurrent()
+        self.update()
+
+    def set_water_edit_mode(self, enabled, select_cb=None, move_cb=None): #vers 1
+        """Water quad editing: select_cb(index), move_cb(index, dx, dy) on drop."""
+        self._water_edit_mode = bool(enabled)
+        self._water_select_cb, self._water_move_cb = select_cb, move_cb
+        self._water_drag, self._water_live = None, (0.0, 0.0)
+        if not enabled:
+            self._water_sel = -1
+        self.update()
+
+    def set_water_selection(self, index): #vers 1
+        """Highlight one water quad (-1 for none)."""
+        self._water_sel = index
+        self.update()
+
+    def _pick_water_cell(self, mx, my): #vers 1
+        """Topmost drawn water quad under the mouse: (index, x, y, z) or None."""
+        va = getattr(self, '_water2_va', None)
+        ray = self._pick_ray(mx, my)
+        if va is None or ray is None:
+            return None
+        v = va[1].reshape(-1, 4, 3)
+        (ox, oy, oz), (dx, dy, dz) = ray
+        if abs(dz) < 1e-9:
+            return None
+        z = v[:, 0, 2]
+        t = (z - oz) / dz
+        px, py = ox + dx * t, oy + dy * t
+        x0, x1 = v[:, :, 0].min(1), v[:, :, 0].max(1)
+        y0, y1 = v[:, :, 1].min(1), v[:, :, 1].max(1)
+        hit = (t > 0) & (px >= x0) & (px <= x1) & (py >= y0) & (py <= y1)
+        if not hit.any():
+            return None
+        i = int(np.argmin(np.where(hit, t, np.inf)))
+        return i, float(px[i]), float(py[i]), float(z[i])
+
+    def _draw_sa_nodes(self): #vers 1
+        """Draw SA's real vehicle/ped path node graph as disconnected
+        line segments (Aug 19 2026)"""
+        if not OPENGL_AVAILABLE or not self._sa_node_segments: return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_DEPTH_TEST)
+        r, g, b = self._sa_node_color
+        glColor3f(r, g, b)
+        glLineWidth(1.0)
+        glBegin(GL_LINES)
+        for (x1, y1, z1), (x2, y2, z2) in self._sa_node_segments:
+            glVertex3f(x1, y1, z1)
+            glVertex3f(x2, y2, z2)
+        glEnd()
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_hover_highlight(self): #vers 2
+        """Highlight whatever instance is currently hovered (Aug 19
+        2026)"""
+        idx = getattr(self, '_hovered_instance_idx', None)
+        if idx is None or idx >= len(self._world_instances):
+            return
+        entry = self._world_instances[idx]
+        verts = entry.get('vertices', [])
+        triangles = entry.get('triangles', [])
+        if not verts or not triangles:
+            return
+        px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
+        rx, ry, rz, rw = entry.get('rot', (0.0, 0.0, 0.0, 1.0))
+        sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glEnable(GL_POLYGON_OFFSET_LINE)
+        glPolygonOffset(-1.0, -1.0)
+        glPushMatrix()
+        glTranslatef(px, py, pz)
+        glMultMatrixf(self._quat_to_gl_matrix(rx, ry, rz, rw))
+        glScalef(sx, sy, sz)
+        glColor4f(1.0, 1.0, 0.2, 0.85)
+        glLineWidth(2.0)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        glBegin(GL_TRIANGLES)
+        for v1, v2, v3, mid in triangles:
+            for vi in (v1, v2, v3):
+                if vi < len(verts):
+                    v = verts[vi]
+                    glVertex3f(v[0], v[1], v[2])
+        glEnd()
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        glPopMatrix()
+        glDisable(GL_POLYGON_OFFSET_LINE)
+        glDisable(GL_BLEND)
+        glEnable(GL_TEXTURE_2D)
+        glEnable(GL_LIGHTING)
+
+    def _pick_path_node(self, mx: float, my: float): #vers 1
+        """Return the (x,y,z) position of the closest path node to
+        the ray through (mx,my)"""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._path_node_owner_map:
+            return None
+        origin, direction = ray
+        tol2 = (self._dist * 0.02) ** 2
+        best_pos, best_t, best_d2 = None, None, tol2
+        for pos in self._path_node_owner_map.keys():
+            t, d2 = self._closest_point_on_ray(origin, direction, pos)
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_pos is not None and d2 <= best_d2 and t < best_t):
+                best_pos, best_t, best_d2 = pos, t, d2
+        return best_pos
+
+    def _pick_cull_or_zone_box(self, mx: float, my: float): #vers 3
+        """Return ('cull'|'zone'|'occl'|'grge', index) of the closest
+        box whose own bounds the ray through (mx,my) actually enters,
+        or None (Aug 21 2026)"""
+        ray = self._pick_ray(mx, my)
+        if ray is None:
+            return None
+        origin, direction = ray
+        best_kind, best_index, best_t = None, None, None
+
+        def test_box(kind, i, x1, y1, z1, x2, y2, z2):
+            nonlocal best_kind, best_index, best_t
+            lo = (min(x1, x2), min(y1, y2), min(z1, z2))
+            hi = (max(x1, x2), max(y1, y2), max(z1, z2))
+            t_enter, t_exit = 0.0, float('inf')
+            for axis in range(3):
+                d = direction[axis]
+                if abs(d) < 1e-9:
+                    if origin[axis] < lo[axis] or origin[axis] > hi[axis]:
+                        return
+                    continue
+                t1 = (lo[axis] - origin[axis]) / d
+                t2 = (hi[axis] - origin[axis]) / d
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                t_enter = max(t_enter, t1)
+                t_exit = min(t_exit, t2)
+                if t_enter > t_exit:
+                    return
+            if t_enter >= 0 and (best_t is None or t_enter < best_t):
+                best_kind, best_index, best_t = kind, i, t_enter
+
+        for kind, boxes in (('cull', self._cull_boxes), ('zone', self._zone_boxes),
+                            ('grge', self._grge_boxes)):
+            for i, box in enumerate(boxes):
+                x1, y1, z1, x2, y2, z2 = box
+                test_box(kind, i, x1, y1, z1, x2, y2, z2)
+
+        for i, (mid_x, mid_y, bottom_z, width_x, width_y, height, rotation) in enumerate(self._occl_boxes):
+            hw, hh = width_x / 2.0, width_y / 2.0
+            rad = math.radians(rotation)
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            xs, ys = [], []
+            for dx, dy in ((-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)):
+                xs.append(mid_x + dx * cos_r - dy * sin_r)
+                ys.append(mid_y + dx * sin_r + dy * cos_r)
+            test_box('occl', i, min(xs), min(ys), bottom_z, max(xs), max(ys), bottom_z + height)
+
+        if best_kind is None:
+            return None
+        return (best_kind, best_index)
+
+    def _pick_box_corner(self, mx: float, my: float): #vers 1
+        """Return the key (into self._pickable_box_corners) of the
+        closest box corner to the ray through (mx,my), within a small
+        screen-space-equivalent tolerance, or None (Aug 19 2026)"""
+        ray = self._pick_ray(mx, my)
+        if ray is None or not self._pickable_box_corners:
+            return None
+        origin, direction = ray
+        tol2 = (self._dist * 0.02) ** 2
+        best_key, best_t, best_d2 = None, None, tol2
+        for key, info in self._pickable_box_corners.items():
+            t, d2 = self._closest_point_on_ray(origin, direction, info['pos'])
+            if t < 0:
+                continue
+            if d2 < best_d2 or (best_key is not None and d2 <= best_d2 and t < best_t):
+                best_key, best_t, best_d2 = key, t, d2
+        return best_key
+
+    def _box_resize_would_overlap(self, box_type, box_index, x1, y1, x2, y2, z1, z2): #vers 1
+        """Standard AABB-vs-AABB overlap test: would a box with these
+        new proposed extents intersect any OTHER currently-loaded
+        cull or zone box (Aug 19 2026)"""
+        def overlaps(other):
+            ox1, oy1, oz1, ox2, oy2, oz2 = other
+            return (x1 < ox2 and x2 > ox1 and
+                    y1 < oy2 and y2 > oy1 and
+                    z1 < oz2 and z2 > oz1)
+
+        for i, box in enumerate(self._cull_boxes):
+            if box_type == 'cull' and i == box_index:
+                continue
+            if overlaps(box):
+                return True
+        for i, box in enumerate(self._zone_boxes):
+            if box_type == 'zone' and i == box_index:
+                continue
+            if overlaps(box):
+                return True
+        return False
+
+    def set_path_line_color(self, r: float, g: float, b: float): #vers 1
+        """a way to change the colour of the path lines in settings" - r/g/b as 0-1 floats,
+        matching every other colour this widget already works in (glColor3f etc)."""
+        self._path_line_color = (r, g, b)
+        self.update()
+
+    def set_path_node_color(self, r: float, g: float, b: float): #vers 1
+        """color change option."""
+        self._path_node_color = (r, g, b)
+        self.update()
+
+    def set_path_line_thickness(self, px: float): #vers 1
+        """under rander in settings, line thinkness..." - px is the raw glLineWidth value."""
+        self._path_line_thickness = max(0.1, px)
+        self.update()
+
+    def set_path_node_size(self, px: float): #vers 1
+        """and node circle size..." - px is the raw glPointSize value."""
+        self._path_node_size = max(0.1, px)
+        self.update()
+
+    def set_show_cull_boxes(self, enabled: bool): #vers 1
+        self.show_cull_boxes = enabled; self.update()
+
+    def set_cull_boxes(self, boxes): #vers 1
+        """Replace the cull-zone boxes drawn when show_cull_boxes is
+        on. Each entry is a plain (x1,y1,z1,x2,y2,z2) corner-pair
+        tuple - conversion from the real CullEntry dataclass happens
+        in map_workshop.py's _refresh_cull_box_visualization, this
+        widget only ever deals in plain coordinates."""
+        self._cull_boxes = boxes or []
+        self.update()
+
+    def set_cull_box_owners(self, owners): #vers 1
+        """Set the real CullEntry object for each entry in self.
+        _cull_boxes, same index/order (Aug 19 2026, for box-corner
+        resizing - see the fuller explanation where self._pickable_
+        box_corners is first declared in __init__). Mirrors set_path_
+        node_owners' own already-proven pattern: this widget still
+        never imports CullEntry itself or deals in it directly for
+        drawing - the plain-tuple set_cull_boxes call is completely
+        unchanged - this is purely a parallel identity list so a
+        resize commit can be applied to the real, live object it
+        actually came from."""
+        self._cull_box_owners = owners or []
+
+    def set_cull_box_color(self, r: float, g: float, b: float): #vers 1
+        self._cull_box_color = (r, g, b)
+        self.update()
+
+    def set_show_zone_boxes(self, enabled: bool): #vers 1
+        self.show_zone_boxes = enabled; self.update()
+
+    def set_zone_boxes(self, boxes): #vers 1
+        """Replace the map-zone boxes drawn when show_zone_boxes is
+        on. Each entry is a plain (x1,y1,z1,x2,y2,z2) corner-pair
+        tuple - conversion from the parsed zone dict (Name/Type/
+        Min/Max/Island fields) happens in map_workshop.py's
+        _refresh_zone_box_visualization, this widget only ever deals
+        in plain coordinates."""
+        self._zone_boxes = boxes or []
+        self.update()
+
+    def set_zone_box_owners(self, owners): #vers 1
+        """Set the real zone dict for each entry in self._zone_boxes,
+        same index/order (Aug 19 2026) - mirrors set_cull_box_owners'
+        own docstring exactly, just for zones' own plain-dict
+        representation instead of a CullEntry dataclass."""
+        self._zone_box_owners = owners or []
+
+    def set_zone_box_color(self, r: float, g: float, b: float): #vers 1
+        self._zone_box_color = (r, g, b)
+        self.update()
+
+    def set_zone_render_style(self, style: str): #vers 1
+        """Render dropdown could show, Zon - Ghosted, Zon - Wireframe, Zon -
+        translucent" - style is one of 'ghosted'/'wireframe'/ 'translucent',
+        see _draw_zone_boxes for what each looks like. Falls back to 'ghosted'
+        for an unrecognised value rather than silently drawing nothing."""
+        self._zone_render_style = style if style in (
+            'ghosted', 'wireframe', 'translucent') else 'ghosted'
+        self.update()
+
+    def set_show_occl_boxes(self, enabled: bool): #vers 1
+        self.show_occl_boxes = enabled; self.update()
+
+    def set_occl_boxes(self, boxes): #vers 1
+        """Replace the occlusion-zone boxes drawn when show_occl_
+        boxes is on. Each entry is a plain (mid_x, mid_y, bottom_z,
+        width_x, width_y, height, rotation) tuple - conversion from
+        the real OcclEntry dataclass happens in map_workshop.py's
+        _refresh_occl_box_visualization, this widget only ever deals
+        in plain coordinates."""
+        self._occl_boxes = boxes or []
+        self.update()
+
+    def set_occl_box_color(self, r: float, g: float, b: float): #vers 1
+        self._occl_box_color = (r, g, b)
+        self.update()
+
+    def set_show_grge_boxes(self, enabled: bool): #vers 1
+        self.show_grge_boxes = enabled; self.update()
+
+    def set_grge_boxes(self, boxes): #vers 1
+        """Replace the garage boxes drawn when show_grge_boxes is on.
+        Each entry is a plain (x1,y1,z1,x2,y2,z2) tuple (Aug 21 2026)"""
+        self._grge_boxes = boxes or []
+        self.update()
+
+    def set_grge_box_owners(self, owners): #vers 1
+        """Set (or clear) the real GrgeEntry objects _grge_boxes'
+        own entries came from, parallel-indexed - lets a picked
+        garage's own real name/door_type/garage_type be reported
+        (Aug 21 2026), same real pattern zone's own owners list uses."""
+        self._grge_box_owners = owners or []
+
+    def set_grge_box_color(self, r: float, g: float, b: float): #vers 1
+        self._grge_box_color = (r, g, b)
+        self.update()
+
+    def set_box_axis_colors(self, enabled: bool): #vers 1
+        """Toggle axis-colored box faces (Aug 18 2026)"""
+        self._box_axis_colors = enabled
+        self.update()
+
+    def set_box_unique_colors(self, enabled: bool): #vers 1
+        """Toggle unique-colour-per-box (Aug 19 2026)"""
+        self._box_unique_colors = enabled
+        self.update()
+
+    def _palette_color_for_index(self, idx: int): #vers 1
+        """Deterministic colour lookup for unique-per-box colouring -
+        cycles through self._box_color_palette by index, so the same
+        box (same position within its own loaded list) always gets
+        the same colour within a session rather than a true random
+        colour that would flicker differently on every reload."""
+        palette = self._box_color_palette
+        return palette[idx % len(palette)]
+
+    def _clear_col_display_lists(self): #vers 1
+        """Same reasoning as _clear_world_display_lists, kept as its
+        own method since collision lists live in a separate cache -
+        call when the world/IPL set genuinely changes (a model's
+        collision data can't change without that)."""
+        if OPENGL_AVAILABLE and self._col_display_lists and self.isValid():
+            try:
+                self.makeCurrent()
+                for list_id in self._col_display_lists.values():
+                    glDeleteLists(list_id, 1)
+                self.doneCurrent()
+            except Exception:
+                pass
+        self._col_display_lists = {}
+
+    def set_show_lod(self, enabled: bool): #vers 1
+        self._show_lod = enabled; self.update()
+
+    def _draw_assembly(self): #vers 3
+        if not OPENGL_AVAILABLE: return
+        for entry in getattr(self,'_all_geoms',[]):
+            verts,norms,uvs,tris,mats,prelit = entry[:6]
+            geom_flags = entry[6] if len(entry) > 6 else self._current_geom_flags
+            old_v,old_n,old_u,old_t,old_m,old_p,old_f = (
+                self._vertices,self._normals,self._uvs,
+                self._triangles,self._materials,self._prelit,
+                getattr(self,'_current_geom_flags',0))
+            self._vertices=verts; self._normals=norms; self._uvs=uvs
+            self._triangles=tris; self._materials=mats; self._prelit=prelit
+            self._current_geom_flags=geom_flags
+            if   self._mode=='wireframe': self._draw_wireframe()
+            elif self._mode=='solid':     self._draw_solid()
+            elif self._mode=='semi_solid': self._draw_solid(alpha_multiplier=0.5)
+            elif self._mode=='textured':  self._draw_textured()
+            self._draw_wire_hint()
+            (self._vertices,self._normals,self._uvs,
+             self._triangles,self._materials,self._prelit,
+             self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
+
+    def set_world_instances(self, entries, auto_fit=True, clear_display_lists=True): #vers 4
+        """Load a whole set of positioned instances for a full
+        multi-instance world view (Aug 1 2026)"""
+        if clear_display_lists:
+            self._clear_world_display_lists()
+            self._clear_col_display_lists()
+        self._world_instances = entries or []
+        if self._world_instances and auto_fit:
+            self._auto_fit_world()
+        self.update()
+
+    def update_instance_transform(self, inst, pos, rot, scale): #vers 1
+        """Update just one already-rendered instance's position/
+        rotation/scale in place, without touching any other entry or
+        rebuilding the world-instances list at all."""
+        for entry in getattr(self, '_world_instances', None) or []:
+            if entry.get('instance') is inst:
+                entry['pos'] = pos
+                entry['rot'] = rot
+                entry['scale'] = scale
+                self.update()
+                return True
+        return False
+
+    def clear_world_instances(self): #vers 2
+        self._clear_world_display_lists()
+        self._clear_col_display_lists()
+        self._world_instances = []
+        self.update()
+
+    def _clear_world_display_lists(self): #vers 1
+        if OPENGL_AVAILABLE and self._world_display_lists and self.isValid():
+            try:
+                self.makeCurrent()
+                for list_id in self._world_display_lists.values():
+                    glDeleteLists(list_id, 1)
+                self.doneCurrent()
+            except Exception:
+                pass
+        self._world_display_lists = {}
+
+    @staticmethod
+    def _quat_to_gl_matrix(x, y, z, w): #vers 1
+        """Quaternion -> 16-float column-major 4x4 rotation matrix,
+        the layout glMultMatrixf expects directly. Standard formula -
+        each group of 4 below is one column, not one row."""
+        xx, yy, zz = x*x, y*y, z*z
+        xy, xz, yz = x*y, x*z, y*z
+        wx, wy, wz = w*x, w*y, w*z
+        return [
+            1.0-2.0*(yy+zz), 2.0*(xy+wz),     2.0*(xz-wy),     0.0,
+            2.0*(xy-wz),     1.0-2.0*(xx+zz), 2.0*(yz+wx),     0.0,
+            2.0*(xz+wy),     2.0*(yz-wx),     1.0-2.0*(xx+yy), 0.0,
+            0.0,              0.0,             0.0,             1.0,
+        ]
+
+    def _ensure_dots_cube_display_list(self): #vers 1
+        """Lazily build (once, cached) a display list for the small,
+        axis-coloured cube Dots mode draws at every instance's own
+        position (Aug 20 2026)"""
+        if self._dots_cube_list_id is not None:
+            return self._dots_cube_list_id
+        h = 0.5   # half-size
+        # 8 corners of a cube centred on the origin
+        corners = [
+            (-h, -h, -h), (h, -h, -h), (h, h, -h), (-h, h, -h),   # bottom (z1)
+            (-h, -h,  h), (h, -h,  h), (h, h,  h), (-h, h,  h),   # top (z2)
+        ]
+        # Each face as (indices into corners, colour) - X faces green,
+        # Y faces red, Z (top/bottom) faces blue, matching _draw_
+        # ghosted_box_from_corners' own scheme exactly.
+        green = (0.25, 1.0, 0.25)
+        red   = (1.0, 0.25, 0.25)
+        blue  = (0.2, 0.4, 1.0)
+        faces = [
+            ([0, 1, 2, 3], blue),    # bottom (Z-)
+            ([4, 5, 6, 7], blue),    # top (Z+)
+            ([0, 1, 5, 4], red),     # Y- side (normal along Y)
+            ([2, 3, 7, 6], red),     # Y+ side (normal along Y)
+            ([1, 2, 6, 5], green),   # X+ side (normal along X)
+            ([3, 0, 4, 7], green),   # X- side (normal along X)
+        ]
+        list_id = glGenLists(1)
+        glNewList(list_id, GL_COMPILE)
+        glBegin(GL_QUADS)
+        for indices, (fr, fg, fb) in faces:
+            glColor3f(fr, fg, fb)
+            for idx in indices:
+                glVertex3f(*corners[idx])
+        glEnd()
+        glEndList()
+        self._dots_cube_list_id = list_id
+        return list_id
+
+    def _draw_world_instances(self): #vers 6
+        """Per instance: glPushMatrix/translate/rotate/scale, then
+        replay a pre-compiled display list (Aug 1 2026)"""
+        if not OPENGL_AVAILABLE: return
+        # Dots render mode (Aug 20 2026)
+        col_modes = []
+        if self.show_col_ghosted:        col_modes.append('ghosted')
+        if self.show_col_semi_solid:     col_modes.append('semi_solid')
+        if self.show_col_wireframe:      col_modes.append('wireframe')
+        if self.show_col_surface_mapped: col_modes.append('surface_mapped')
+
+        if self._mode == 'dots':
+            list_id = self._ensure_dots_cube_display_list()
+            glDisable(GL_LIGHTING)
+            glDisable(GL_TEXTURE_2D)
+            for entry in self._world_instances:
+                px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
+                glPushMatrix()
+                glTranslatef(px, py, pz)
+                glCallList(list_id)
+                if col_modes and entry.get('col_vertices') and entry.get('col_triangles'):
+                    self._col_vertices  = entry.get('col_vertices')
+                    self._col_triangles = entry.get('col_triangles')
+                    model_key = entry.get('model_key', id(entry))
+                    for mode in col_modes:
+                        col_cache_key = (model_key, mode)
+                        col_list_id = self._col_display_lists.get(col_cache_key)
+                        if col_list_id is None:
+                            col_list_id = glGenLists(1)
+                            glNewList(col_list_id, GL_COMPILE)
+                            self._draw_collision_faces(mode)
+                            glEndList()
+                            self._col_display_lists[col_cache_key] = col_list_id
+                        glCallList(col_list_id)
+                glPopMatrix()
+            glEnable(GL_LIGHTING)
+            return
+
+        if self._mode is None:
+            # No model render style selected (Sep 5 2026)
+            if not col_modes:
+                return
+            for entry in self._world_instances:
+                if not (entry.get('col_vertices') and entry.get('col_triangles')):
+                    continue
+                model_key = entry.get('model_key', id(entry))
+                glPushMatrix()
+                px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
+                glTranslatef(px, py, pz)
+                rx, ry, rz, rw = entry.get('rot', (0.0, 0.0, 0.0, 1.0))
+                glMultMatrixf(self._quat_to_gl_matrix(rx, ry, rz, rw))
+                sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
+                glScalef(sx, sy, sz)
+                self._col_vertices  = entry.get('col_vertices')
+                self._col_triangles = entry.get('col_triangles')
+                for mode in col_modes:
+                    col_cache_key = (model_key, mode)
+                    col_list_id = self._col_display_lists.get(col_cache_key)
+                    if col_list_id is None:
+                        col_list_id = glGenLists(1)
+                        glNewList(col_list_id, GL_COMPILE)
+                        self._draw_collision_faces(mode)
+                        glEndList()
+                        self._col_display_lists[col_cache_key] = col_list_id
+                    glCallList(col_list_id)
+                glPopMatrix()
+            return
+
+        old_v,old_n,old_u,old_t,old_m,old_p,old_f = (
+            self._vertices,self._normals,self._uvs,
+            self._triangles,self._materials,self._prelit,
+            getattr(self,'_current_geom_flags',0))
+        old_cv, old_ct = (getattr(self, '_col_vertices', None),
+                          getattr(self, '_col_triangles', None))
+        for entry in self._world_instances:
+            model_key = entry.get('model_key', id(entry))
+            inst_p = entry.get('inst_prelit')          # generated world prelighting, per instance
+            cache_key = (('inst', id(entry)) if inst_p else model_key, self._mode)
+            list_id = self._world_display_lists.get(cache_key)
+            if list_id is None:
+                list_id = glGenLists(1)
+                self._vertices  = entry.get('vertices', [])
+                self._normals   = entry.get('normals', [])
+                self._uvs       = entry.get('uvs', [])
+                self._triangles = entry.get('triangles', [])
+                self._materials = entry.get('materials', [])
+                self._prelit    = inst_p or entry.get('prelit', [])
+                self._current_geom_flags = entry.get(
+                    'geom_flags',
+                    self.rpGEOMETRYLIGHT | self.rpGEOMETRYMODULATEMATERIALCOLOR | self.rpGEOMETRYNORMALS)
+                if inst_p:                              # baked colours replace real-time lighting
+                    self._current_geom_flags = ((self._current_geom_flags | self.rpGEOMETRYPRELIT
+                                                 | self.rpGEOMETRYMODULATEMATERIALCOLOR)
+                                                & ~self.rpGEOMETRYLIGHT)
+                glNewList(list_id, GL_COMPILE)
+                if   self._mode=='wireframe': self._draw_wireframe()
+                elif self._mode=='solid':     self._draw_solid()
+                elif self._mode=='semi_solid': self._draw_solid(alpha_multiplier=0.5)
+                elif self._mode=='textured':  self._draw_textured()
+                glEndList()
+                self._world_display_lists[cache_key] = list_id
+            glPushMatrix()
+            px, py, pz = entry.get('pos', (0.0, 0.0, 0.0))
+            glTranslatef(px, py, pz)
+            rx, ry, rz, rw = entry.get('rot', (0.0, 0.0, 0.0, 1.0))
+            glMultMatrixf(self._quat_to_gl_matrix(rx, ry, rz, rw))
+            sx, sy, sz = entry.get('scale', (1.0, 1.0, 1.0))
+            glScalef(sx, sy, sz)
+            glCallList(list_id)
+            # Collision overlay (Aug 14 2026)
+            if col_modes and entry.get('col_vertices') and entry.get('col_triangles'):
+                self._col_vertices  = entry.get('col_vertices')
+                self._col_triangles = entry.get('col_triangles')
+                for mode in col_modes:
+                    col_cache_key = (model_key, mode)
+                    col_list_id = self._col_display_lists.get(col_cache_key)
+                    if col_list_id is None:
+                        col_list_id = glGenLists(1)
+                        glNewList(col_list_id, GL_COMPILE)
+                        self._draw_collision_faces(mode)
+                        glEndList()
+                        self._col_display_lists[col_cache_key] = col_list_id
+                    glCallList(col_list_id)
+            glPopMatrix()
+        (self._vertices,self._normals,self._uvs,
+         self._triangles,self._materials,self._prelit,
+         self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
+        self._col_vertices, self._col_triangles = old_cv, old_ct
+
+    def set_2dfx_lights(self, lights): #vers 1
+        """Store the current set of 2DFX light points to render"""
+        self._2dfx_lights = lights or []
+        self.update()
+
+    def _draw_2dfx_lights(self): #vers 1
+        """Render every current 2DFX light as a glowing point"""
+        if not OPENGL_AVAILABLE: return
+        lights = getattr(self, '_2dfx_lights', None)
+        if not lights:
+            return
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE)   # additive - glow, not a flat dot
+        glDepthMask(False)
+        glPointSize(8.0)
+        for x, y, z, r, g, b, a, size in lights:
+            glPointSize(max(2.0, 8.0 * size))
+            glBegin(GL_POINTS)
+            glColor4f(r / 255.0, g / 255.0, b / 255.0, a / 255.0)
+            glVertex3f(x, y, z)
+            glEnd()
+        glDepthMask(True)
+        glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
+
+    def _auto_fit_world(self): #vers 1
+        """Frame the camera around every instance's WORLD position
+        (not vertex-level detail like _auto_fit - map-scale distances
+        make individual meshes irrelevant to the initial framing)."""
+        if not self._world_instances: return
+        xs = [e.get('pos', (0,0,0))[0] for e in self._world_instances]
+        ys = [e.get('pos', (0,0,0))[1] for e in self._world_instances]
+        zs = [e.get('pos', (0,0,0))[2] for e in self._world_instances]
+        diag = math.sqrt((max(xs)-min(xs))**2+(max(ys)-min(ys))**2+(max(zs)-min(zs))**2)
+        self._dist  = max(diag*0.75, 10.0)
+        self._pan_x = -(max(xs)+min(xs))/2
+        self._pan_y = -(max(ys)+min(ys))/2
+        self.update()
+
+    def set_prelight(self, v: bool): #vers 1
+        self._use_prelight = v; self.update()
+
+    def set_light_dir(self, x, y, z): #vers 1
+        self._light_dir = (x, y, z, 0.0)
+        if OPENGL_AVAILABLE and self.isVisible():
+            self.makeCurrent(); self._setup_lighting(); self.doneCurrent()
+        self.update()
+
+    def set_ambient(self, v: float): #vers 1
+        self._ambient = v
+        if OPENGL_AVAILABLE and self.isVisible():
+            self.makeCurrent(); self._setup_lighting(); self.doneCurrent()
+        self.update()
+
+    def set_diffuse(self, v: float): #vers 1
+        self._diffuse = v
+        if OPENGL_AVAILABLE and self.isVisible():
+            self.makeCurrent(); self._setup_lighting(); self.doneCurrent()
+        self.update()
+
+    def reset_camera(self): #vers 1
+        self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0
+        self._auto_fit(); self.update()
+
+    def capture_radar_tile(self, center_x: float, center_y: float, tile_size: float,
+                           show_grid: bool = False): #vers 3
+        """Top-down ortho snapshot of one radar tile, square and pixel-exact.
+        Ortho spans the whole framebuffer at one world scale; the tile is the
+        centred square crop, so non-square or HiDPI views no longer stretch."""
+        saved = (self._yaw, self._pitch, self._dist, self._pan_x,
+                 self._pan_y, self._projection, self._show_grid)
+        dpr = self.devicePixelRatioF()
+        fw, fh = round(self.width() * dpr), round(self.height() * dpr)
+        try:
+            self._yaw = 0.0
+            self._pitch = 0.0
+            self._dist = tile_size
+            self._pan_x = -center_x
+            self._pan_y = -center_y
+            self._projection = 'ortho'
+            self._show_grid = show_grid
+            image = None
+            for _ in range(2):                           # retry once if FBO size differs
+                side = min(fw, fh)
+                x0, y0 = (fw - side) // 2, (fh - side) // 2
+                px = tile_size / side                    # world units per pixel
+                left = -tile_size * 0.5 - x0 * px
+                bottom = -tile_size * 0.5 - (fh - y0 - side) * px
+                self._capture_ortho = (left, left + fw * px, bottom, bottom + fh * px)
+                self.makeCurrent()
+                self.resizeGL(self.width(), self.height())
+                image = self.grabFramebuffer()
+                if (image.width(), image.height()) == (fw, fh):
+                    break
+                fw, fh = image.width(), image.height()
+            image = image.copy(x0, y0, side, side)
+        finally:
+            self._capture_ortho = None
+            self._yaw, self._pitch, self._dist, self._pan_x, \
+                self._pan_y, self._projection, self._show_grid = saved
+            self.makeCurrent()
+            self.resizeGL(self.width(), self.height())
+            self.update()
+        return image
+
+    def set_view_lock(self, locked: bool, label: str = "", yaw: float = None,
+                       pitch: float = None, projection: str = 'perspective'): #vers 1
+        """Lock/unlock this pane to a fixed preset view (3ds Max style Top/
+        Front/Side/Perspective panes). Locked panes cannot rotate-drag and
+        use parallel (ortho) projection; unlocked/perspective panes behave
+        as before (free rotate)."""
+        self._view_locked = locked
+        self._view_label  = label
+        self._projection  = projection
+        if yaw   is not None: self._yaw   = yaw
+        if pitch is not None: self._pitch = pitch
+        if label:
+            self._label_widget.setText(label)
+            self._label_widget.adjustSize()
+            self._label_widget.show()
+        else:
+            self._label_widget.hide()
+        try:
+            if not hasattr(self, 'isValid') or self.isValid():
+                self.resizeGL(self.width(), self.height())
+        except Exception:
+            pass
+        self.update()
+
+    def event(self, e): #vers 1
+        """Mouse buttons remapped per the tool's buttons json (select / orbit / pan)."""
+        from PyQt6.QtCore import QEvent
+        if e.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease,
+                        QEvent.Type.MouseMove, QEvent.Type.MouseButtonDblClick):
+            from apps.methods.input_bindings import mouse_remap
+            remap = mouse_remap(self)
+            if remap:
+                from PyQt6.QtGui import QMouseEvent
+                btn = remap.get(e.button(), e.button())
+                btns = Qt.MouseButton.NoButton
+                for b in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton, Qt.MouseButton.MiddleButton):
+                    if e.buttons() & b:
+                        btns |= remap.get(b, b)
+                e = QMouseEvent(e.type(), e.position(), e.globalPosition(), btn, btns, e.modifiers())
+        return super().event(e)
+
+    def mousePressEvent(self, event): #vers 11
+        self._last_pos = event.pos()
+        if self._skeleton and event.button() == Qt.MouseButton.LeftButton:
+            mx, my = event.pos().x(), event.pos().y()
+            ai = self._pick_skeleton_ring(mx, my)
+            if ai is not None:                                  # rotate ring drag
+                axis = self._skeleton['axes'][ai]
+                ray = self._pick_ray(mx, my)
+                facing = ray is not None and sum(a * b for a, b in zip(axis, ray[1])) > 0
+                self._skel_ring = {'axis': ai, 'angle': self._skel_ring_angle(mx, my),
+                                   'sign': 1.0 if facing else -1.0}
+                self.update()
+                return
+            j = self._pick_skeleton_joint(mx, my) if self._skeleton['pick'] else None
+            if j is not None:
+                self._skeleton['pick'](j, event.modifiers())
+                self._skel_drag = j
+                return
+        if self._brush_tool is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._brush_tool.press(event.pos().x(), event.pos().y(), event.modifiers())
+            self._brush_timer.start()
+            self.update()
+            return
+        if event.button() == Qt.MouseButton.RightButton:
+            # Tracks where a right-click started (Aug 19 2026)
+            self._right_press_pos = event.pos()
+        if event.button() == Qt.MouseButton.MiddleButton:
+            # Tracks where a middle-click started (Aug 21 2026)
+            self._middle_press_pos = event.pos()
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._water_edit_mode and self.show_water:          # water quad select / drag
+                hit = self._pick_water_cell(event.pos().x(), event.pos().y())
+                if hit is not None:
+                    self._water_sel = hit[0]
+                    self._water_drag, self._water_live = hit, (0.0, 0.0)
+                    if self._water_select_cb is not None:
+                        self._water_select_cb(hit[0])
+                    self.update()
+                    return
+            # Path node editing (Aug 17 2026)
+            if getattr(self, '_path_edit_mode', False):
+                mx, my = event.pos().x(), event.pos().y()
+                pos = self._pick_path_node(mx, my)
+                if pos is not None:
+                    self._dragging_path_node_start_key = pos
+                    self._dragging_path_node_current_pos = pos
+                    #  UX gap found (Aug 18 2026)
+                    self.update()
+                return
+            mx, my = event.pos().x(), event.pos().y()
+            key = self._pick_box_corner(mx, my)
+            if key is not None:
+                info = self._pickable_box_corners[key]
+                self._dragging_box_corner_key = key
+                self._dragging_box_corner_info = info
+                self._dragging_box_corner_current_pos = info['pos']
+                # Live, mutable Z for this drag (Aug 21 2026)
+                self._dragging_box_corner_live_z = info['pos'][2]
+                self.update()
+                return
+            # Object gizmo / selection: handles, Ctrl+click drag, Shift+click toggle, Shift+drag box
+            if self._gizmo_move_callback is not None and not getattr(self, '_ipl_drag_mode', False):
+                mods = event.modifiers()
+                if self._gizmo_begin(mx, my, mods):
+                    return
+                if mods & Qt.KeyboardModifier.ShiftModifier:
+                    idx = self._pick_world_instance(mx, my)
+                    inst = self._world_instances[idx].get('instance') if idx is not None else None
+                    if inst is not None:
+                        sel = [i for i in self._sel_insts if i is not inst]
+                        if len(sel) == len(self._sel_insts):
+                            sel.append(inst)
+                        self.set_selection(sel, sel[-1] if sel else None)
+                    else:
+                        self._rubber = (mx, my, mx, my)
+                    return
+            # Whole-IPL-section dragging (Aug 18 2026)
+            if getattr(self, '_ipl_drag_mode', False):
+                mx, my = event.pos().x(), event.pos().y()
+                idx = self._pick_world_instance(mx, my)
+                if idx is not None:
+                    entry = self._world_instances[idx]
+                    inst = entry.get('instance')
+                    ipl_name = getattr(inst, 'source_ipl', None) if inst is not None else None
+                    if ipl_name:
+                        interaction_mode = getattr(self, '_ipl_interaction_mode', 'drag')
+                        if interaction_mode != 'drag':
+                            # Move/Rotate mode (Aug 19 2026)
+                            callback = getattr(self, '_ipl_click_callback', None)
+                            if callback is not None:
+                                callback(ipl_name)
+                            return
+
+                        # Multi-IPL selection/drag workflow (Aug 19 2026)
+                        modifiers = event.modifiers()
+                        if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                            # Shift+click: toggle this IPL into/out of
+                            # the multi-selection, don't start a drag
+                            # at all - building the selection is its
+                            # own, separate gesture from actually
+                            # dragging it.
+                            if ipl_name in self._multi_selected_ipl_names:
+                                self._multi_selected_ipl_names.discard(ipl_name)
+                            else:
+                                self._multi_selected_ipl_names.add(ipl_name)
+                            callback = getattr(self, '_ipl_selection_callback', None)
+                            if callback is not None:
+                                callback(set(self._multi_selected_ipl_names))
+                            self.update()
+                            return
+                        elif modifiers & Qt.KeyboardModifier.ControlModifier:
+                            drag_names = set(self._multi_selected_ipl_names) \
+                                if self._multi_selected_ipl_names else {ipl_name}
+                        else:
+                            # No modifier at all: does nothing.
+                            return
+
+
+                        self._dragging_ipl_names = drag_names
+                        # A list of (inst, pos, rot, scale) tuples, NOT
+                        # a dict keyed by inst - IPLInstance is a plain
+                        # @dataclass (eq=True by default), which makes
+                        # it UNHASHABLE, so using it as a dict key
+                        # would crash the very first time this actually
+                        # ran. Caught by directly verifying this exact
+                        # logic against real IPLInstance objects before
+                        # trusting it, not just reasoning about it.
+                        self._dragging_ipl_start_state = [
+                            (e['instance'], e['pos'], e['rot'], e['scale'])
+                            for e in self._world_instances
+                            if getattr(e.get('instance'), 'source_ipl', None) in drag_names
+                        ]
+                        # The specific instance actually clicked (Aug
+                        # 19 2026)
+                        self._dragging_ipl_clicked_inst = inst
+                        self._dragging_ipl_clicked_start_pos = entry['pos']
+                        self._dragging_ipl_ground_start = self._screen_to_ground_position(
+                            mx, my, ground_z=entry['pos'][2])
+                        self._dragging_ipl_delta = (0.0, 0.0, 0.0)
+                        self.update()
+                return
+            mode = getattr(self, '_select_mode', 'object')
+            if mode == 'object':
+                return
+            mx, my = event.pos().x(), event.pos().y()
+            if self._mesh_gizmo_begin(mx, my):          # mesh gizmo arrow grabbed
+                return
+            if mode == 'vertex':
+                key = self._pick_vertex(mx, my)
+            elif mode == 'edge':
+                key = self._pick_edge(mx, my)
+            else:  # 'face' or 'poly'
+                key = self._pick_face(mx, my)
+            if key is not None:
+                self._apply_selection_click(mode, key, event.modifiers())
+                self.update()
+            elif not self._selection_locked:
+                add = bool(event.modifiers() & (Qt.KeyboardModifier.ControlModifier
+                                                | Qt.KeyboardModifier.ShiftModifier))
+                self._mesh_region = [mx, my, mx, my, add]   # empty space: region drag
+
+    def mouseMoveEvent(self, event): #vers 13
+        ring = getattr(self, '_skel_ring', None)
+        if ring is not None and self._skeleton and event.buttons() & Qt.MouseButton.LeftButton:
+            ang = self._skel_ring_angle(event.pos().x(), event.pos().y())
+            delta = (ang - ring['angle'] + 180.0) % 360.0 - 180.0
+            ring['angle'] = ang
+            if delta and self._skeleton['ring']:
+                self._skeleton['ring'](ring['axis'], delta * ring['sign'])
+            self._last_pos = event.pos()
+            return
+        if getattr(self, '_skel_drag', None) is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            if self._skeleton and self._skeleton['drag']:
+                self._skeleton['drag'](self._skel_drag, event.pos().x() - self._last_pos.x(),
+                                       event.pos().y() - self._last_pos.y(), event.modifiers())
+            self._last_pos = event.pos()
+            return
+        if self._brush_tool is not None:
+            self._brush_tool.hover(event.pos().x(), event.pos().y())
+            if event.buttons() & Qt.MouseButton.LeftButton:
+                self._last_pos = event.pos()
+                self.update()
+                return
+            if not event.buttons():
+                self.update()
+        if getattr(self, '_mesh_drag', None) is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self._mesh_gizmo_update(event.pos().x(), event.pos().y())
+            self._last_pos = event.pos()
+            return
+        if self._mesh_region is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self._mesh_region[2:4] = [event.pos().x(), event.pos().y()]
+            self._last_pos = event.pos()
+            self.update()
+            return
+        dx = event.pos().x() - self._last_pos.x()
+        dy = event.pos().y() - self._last_pos.y()
+        sens = getattr(self, '_mouse_sensitivity', 1.0)
+        if event.buttons() & Qt.MouseButton.RightButton and not self._view_locked:
+            self._yaw   += dx * 0.5 * sens
+            self._pitch += dy * 0.5 * sens
+        elif event.buttons() & Qt.MouseButton.MiddleButton:
+            # Yaw-compensated pan (Aug 1 2026)
+            scale = self._dist * 0.002 * sens
+            self._apply_pan_step(dx * scale, -dy * scale)
+        elif event.buttons() & Qt.MouseButton.LeftButton and self._water_drag is not None:
+            _i, sx, sy, sz = self._water_drag                       # water quad drag
+            p = self._screen_to_ground_position(event.pos().x(), event.pos().y(), ground_z=sz)
+            if p is not None:
+                self._water_live = (p[0] - sx, p[1] - sy)
+                self.update()
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and getattr(self, '_dragging_path_node_start_key', None) is not None):
+            # Path node drag in progress (Aug 17 2026)
+            start_z = self._dragging_path_node_start_key[2]
+            new_pos = self._screen_to_ground_position(
+                event.pos().x(), event.pos().y(), ground_z=start_z)
+            if new_pos is not None:
+                old_pos = self._dragging_path_node_current_pos
+                self._path_segments = [
+                    (new_pos if a == old_pos else a, new_pos if b == old_pos else b)
+                    for a, b in self._path_segments]
+                self._dragging_path_node_current_pos = new_pos
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and getattr(self, '_dragging_box_corner_key', None) is not None):
+            # Box corner resize drag in progress
+            info = self._dragging_box_corner_info
+            box_type, box_index, corner_idx, start_z = self._dragging_box_corner_key
+            live_z = getattr(self, '_dragging_box_corner_live_z', start_z)
+
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                live_z -= dy * (self._dist * 0.01)
+                self._dragging_box_corner_live_z = live_z
+                cx, cy = self._dragging_box_corner_current_pos[0], self._dragging_box_corner_current_pos[1]
+                new_pos = (cx, cy, live_z)
+            else:
+                new_pos = self._screen_to_ground_position(
+                    event.pos().x(), event.pos().y(), ground_z=live_z)
+
+            if new_pos is not None:
+                ox, oy, oz = info['opposite']
+                x1, x2 = sorted((new_pos[0], ox))
+                y1, y2 = sorted((new_pos[1], oy))
+                z1, z2 = sorted((live_z, oz))
+                box_list = self._cull_boxes if box_type == 'cull' else self._zone_boxes
+                if (not self._no_clip_boxes or not self._box_resize_would_overlap(
+                        box_type, box_index, x1, y1, x2, y2, z1, z2)):
+                    if 0 <= box_index < len(box_list):
+                        box_list[box_index] = (x1, y1, z1, x2, y2, z2)
+                    self._dragging_box_corner_current_pos = new_pos
+
+                self.update()
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and self._gizmo_drag is not None):
+            self._gizmo_update(event.pos().x(), event.pos().y(), event.modifiers())
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and self._rubber is not None):
+            self._rubber = (self._rubber[0], self._rubber[1], event.pos().x(), event.pos().y())
+        elif (event.buttons() & Qt.MouseButton.LeftButton
+              and getattr(self, '_dragging_ipl_names', None)):
+
+            start_ground = self._dragging_ipl_ground_start
+            if start_ground is not None:
+                cur_ground = self._screen_to_ground_position(
+                    event.pos().x(), event.pos().y(), ground_z=start_ground[2])
+                if cur_ground is not None:
+                    ddx = cur_ground[0] - start_ground[0]
+                    ddy = cur_ground[1] - start_ground[1]
+                    ddz = cur_ground[2] - start_ground[2]
+
+                    axis_lock = getattr(self, '_ipl_drag_axis_lock', None)
+                    if axis_lock == 'x':
+                        ddx = 0.0
+                    elif axis_lock == 'y':
+                        ddy = 0.0
+                    if self._snap_targets.get('centre'):
+
+                        clicked_start = getattr(self, '_dragging_ipl_clicked_start_pos', None)
+                        dragged_names = getattr(self, '_dragging_ipl_names', set())
+                        if clicked_start is not None:
+                            wx = clicked_start[0] + ddx
+                            wy = clicked_start[1] + ddy
+                            wz = clicked_start[2] + ddz
+                            best_dist2, best_pos = None, None
+                            for e in self._world_instances:
+                                other_inst = e.get('instance')
+                                if other_inst is None or other_inst.source_ipl in dragged_names:
+                                    continue
+                                ox, oy, oz = e['pos']
+                                d2 = (ox-wx)**2 + (oy-wy)**2 + (oz-wz)**2
+                                if best_dist2 is None or d2 < best_dist2:
+                                    best_dist2, best_pos = d2, (ox, oy, oz)
+                            if best_pos is not None and best_dist2 < 9.0:   # within 3 units
+                                ddx = best_pos[0] - clicked_start[0]
+                                ddy = best_pos[1] - clicked_start[1]
+                                ddz = best_pos[2] - clicked_start[2]
+                    self._dragging_ipl_delta = (ddx, ddy, ddz)
+                    for inst, opos, orot, oscale in self._dragging_ipl_start_state:
+                        new_pos = (opos[0] + ddx, opos[1] + ddy, opos[2] + ddz)
+                        self.update_instance_transform(inst, new_pos, orot, oscale)
+        elif (event.buttons() == Qt.MouseButton.NoButton
+              and getattr(self, '_hover_highlight_enabled', False)):
+
+            idx = self._pick_world_instance(event.pos().x(), event.pos().y())
+            self._hovered_instance_idx = idx
+        if event.buttons() == Qt.MouseButton.NoButton and self._gizmo_inst is not None:
+            self._gizmo_hover_axis = self._gizmo_pick_axis(event.pos().x(), event.pos().y())
+        if event.buttons() == Qt.MouseButton.NoButton and getattr(self, '_select_mode', 'object') != 'object':
+            self._update_mesh_hover(event.pos().x(), event.pos().y())
+            self._mesh_gizmo_hover = (self._mesh_gizmo_pick(event.pos().x(), event.pos().y())
+                                      if self._mesh_drag is None else None)
+        self._last_pos = event.pos(); self.update()
+
+        callback = getattr(self, '_lod_test_callback', None)
+        if callback is not None and not getattr(self, '_dragging_path_node_start_key', None):
+            ground_pos = self._screen_to_ground_position(event.pos().x(), event.pos().y())
+            if ground_pos is not None:
+                self.set_lod_test_center(ground_pos)
+                callback(ground_pos)
+
+    # -- object gizmo: move arrows, rotate rings, multi-select (Sep 23 2026)
+    def set_gizmo_move_callback(self, callback): #vers 2
+        """fn(insts, dx, dy, dz) after a move drag; None disables gizmo and selection."""
+        self._gizmo_move_callback = callback
+        if callback is None:
+            self._gizmo_inst = None
+            self._sel_insts = []
+            self.update()
+
+    def set_gizmo_rotate_callback(self, callback): #vers 1
+        """fn(insts, axis, angle_deg, pivot) after a rotate drag."""
+        self._gizmo_rotate_callback = callback
+
+    def set_selection_callback(self, callback): #vers 1
+        """fn(insts, primary) whenever the object selection changes."""
+        self._selection_callback = callback
+
+    def set_model_drop_callback(self, callback): #vers 1
+        """fn(model_id, (x, y, z)) when a model is dropped from the Object Browser."""
+        self._model_drop_callback = callback
+        self.setAcceptDrops(callback is not None)
+
+    def set_gizmo_target(self, inst): #vers 2
+        """Select one instance and show the gizmo on it (None clears)."""
+        self.set_selection([inst] if inst is not None else [], inst, notify=False)
+
+    def set_selection(self, insts, primary=None, notify=True): #vers 2
+        """Replace the object selection; primary carries the gizmo."""
+        if self._gizmo_move_callback is None:
+            insts, primary = [], None
+        self._sel_insts = [i for i in insts if i is not None]
+        if primary is None and self._sel_insts:
+            primary = self._sel_insts[-1]
+        self._gizmo_inst = primary
+        self._gizmo_drag = None
+        self._update_gizmo_ground()
+        self._sync_gizmo_chips()
+        if notify and self._selection_callback is not None:
+            self._selection_callback(list(self._sel_insts), primary)
+        self.update()
+
+    def selected_instances(self): #vers 1
+        return list(self._sel_insts)
+
+    def _entry_for(self, inst): #vers 1
+        for e in getattr(self, '_world_instances', None) or []:
+            if e.get('instance') is inst:
+                return e
+        return None
+
+    def _gizmo_entry(self): #vers 2
+        """World-instance entry of the gizmo target, or None."""
+        return self._entry_for(self._gizmo_inst) if self._gizmo_inst is not None else None
+
+    def _gizmo_size(self, pos): #vers 2
+        """Arrow length: scales with camera distance (gizmo size setting applied)."""
+        from apps.methods.gizmo_paint import gizmo_style
+        return max(0.5, self._dist * 0.12) * gizmo_style()['size']
+
+    def _project_in_paint(self, pts): #vers 1
+        """World points -> widget (x, y) with the current GL matrices (inside paintGL only)."""
+        mm = glGetDoublev(GL_MODELVIEW_MATRIX)
+        pm = glGetDoublev(GL_PROJECTION_MATRIX)
+        vpt = glGetIntegerv(GL_VIEWPORT)
+        dpr = self.devicePixelRatioF() or 1.0
+        out = []
+        for p in pts:
+            x, y, _z = gluProject(p[0], p[1], p[2], mm, pm, vpt)
+            out.append((x / dpr, (vpt[3] - y) / dpr))
+        return out
+
+    def _gizmo_project(self, pts): #vers 1
+        """World points -> widget pixels using the pick camera; None on failure."""
+        if not OPENGL_AVAILABLE or not self.isValid():
+            return None
+        try:
+            self.makeCurrent()
+            glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+            w = max(1, self.width()); h = max(1, self.height())
+            gluPerspective(45.0, w / h, 0.01, 100000.0)
+            glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
+            gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
+            glRotatef(-self._pitch, 1, 0, 0)
+            glRotatef(self._yaw, 0, 0, 1)
+            glTranslatef(self._pan_x, self._pan_y, 0)
+            mm = glGetDoublev(GL_MODELVIEW_MATRIX)
+            pm = glGetDoublev(GL_PROJECTION_MATRIX)
+            vp = (0, 0, w, h)
+            out = [gluProject(p[0], p[1], p[2], mm, pm, vp) for p in pts]
+            glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
+            self.doneCurrent()
+        except Exception:
+            try: self.doneCurrent()
+            except Exception: pass
+            return None
+        return [(x, h - y, z) for x, y, z in out]
+
+    _RING_SEGS = 32
+
+    def _ring_points(self, c, axis, r): #vers 1
+        """Points of a rotate ring around axis at centre c."""
+        pts = []
+        for k in range(self._RING_SEGS):
+            a = 2 * math.pi * k / self._RING_SEGS
+            ca, sa = math.cos(a) * r, math.sin(a) * r
+            if axis == 'z':
+                pts.append((c[0] + ca, c[1] + sa, c[2]))
+            elif axis == 'x':
+                pts.append((c[0], c[1] + ca, c[2] + sa))
+            else:
+                pts.append((c[0] + ca, c[1], c[2] + sa))
+        return pts
+
+    def _gizmo_pick_axis(self, mx, my): #vers 3
+        """Handle under the mouse: 'x'/'y'/'z' arrow or 'free' centre (move), 'r?' ring (rotate)."""
+        e = self._gizmo_entry()
+        if e is None:
+            return None
+        px, py, pz = e['pos']
+        L = self._gizmo_size(e['pos'])
+        rot_mode = self._gizmo_mode == 'rotate'
+        rax = self._rot_axis()
+        world = [(px, py, pz), (px + L, py, pz), (px, py + L, pz), (px, py, pz + L)]
+        if rot_mode:
+            world += self._ring_points((px, py, pz), rax, L * 0.8)
+        pts = self._gizmo_project(world)
+        if not pts:
+            return None
+        c = pts[0]
+        if (mx - c[0]) ** 2 + (my - c[1]) ** 2 <= 64:
+            return 'r' + rax if rot_mode else 'free'
+        best, best_d = None, 49.0                       # within 7 px
+        if rot_mode:
+            rp = pts[4:]
+            for k in range(len(rp)):
+                d = self._seg2d_dist2(mx, my, rp[k], rp[(k + 1) % len(rp)])
+                if d < best_d:
+                    best, best_d = 'r' + rax, d
+            return best
+        for axis, tip in zip('xyz', pts[1:4]):
+            ax, ay = tip[0] - c[0], tip[1] - c[1]
+            l2 = ax * ax + ay * ay
+            if l2 < 1:
+                continue
+            t = max(0.0, min(1.0, ((mx - c[0]) * ax + (my - c[1]) * ay) / l2))
+            d = (mx - c[0] - ax * t) ** 2 + (my - c[1] - ay * t) ** 2
+            if t > 0.15 and d < best_d:
+                best, best_d = axis, d
+        return best
+
+    # -- mesh gizmo (Oct 12 2026): drag selected vertices / faces along X, Y or Z
+    def set_mesh_gizmo_callback(self, callback): #vers 1
+        """fn(vertex_ids, dx, dy, dz) after a mesh gizmo drag; None hides it."""
+        self._mesh_gizmo_cb = callback
+        self._mesh_drag = None
+        self.update()
+
+    def _mesh_gizmo_ids(self): #vers 1
+        """Vertex ids the mesh gizmo moves (selection in the current sub-object mode)."""
+        mode = getattr(self, '_select_mode', 'object')
+        if getattr(self, '_mesh_gizmo_cb', None) is None or mode == 'object' or not self._vertices:
+            return set()
+        if mode == 'vertex':
+            ids = set(self._selected_verts)
+        elif mode == 'edge':
+            ids = {i for e in self._selected_edges for i in e}
+        else:
+            ids = {i for f in self._selected_faces if f < len(self._triangles) for i in self._triangles[f][:3]}
+        return {i for i in ids if 0 <= i < len(self._vertices)}
+
+    def _mesh_gizmo_pivot(self, ids): #vers 1
+        pts = [self._vertices[i] for i in ids]
+        return tuple(sum(p[k] for p in pts) / len(pts) for k in range(3))
+
+    def _mesh_gizmo_pick(self, mx, my): #vers 3
+        """Handle under the mouse: 'x'/'y'/'z' (arrow, ring or scale bar), 'u' (uniform scale), else None."""
+        ids = self._mesh_gizmo_ids()
+        if not ids:
+            return None
+        c = self._mesh_gizmo_pivot(ids)
+        L = self._gizmo_size(c)
+        mode = self._mesh_gizmo_mode
+        if mode == 'rotate':
+            best, best_d = None, 49.0
+            for axis in 'xyz':
+                pts = self._gizmo_project(self._mesh_ring(c, L * 0.8, axis))
+                if not pts:
+                    return None
+                for p0, p1 in zip(pts, pts[1:] + pts[:1]):
+                    d = self._seg2d_dist2(mx, my, p0, p1)
+                    if d < best_d:
+                        best, best_d = axis, d
+            return best
+        pts = self._gizmo_project([c, (c[0] + L, c[1], c[2]), (c[0], c[1] + L, c[2]), (c[0], c[1], c[2] + L)])
+        if not pts:
+            return None
+        if mode == 'scale' and (mx - pts[0][0]) ** 2 + (my - pts[0][1]) ** 2 < 81:
+            return 'u'
+        best, best_d = None, 100.0                     # 10 px round the shaft
+        for axis, tip in zip('xyz', pts[1:]):
+            d = min(self._seg2d_dist2(mx, my, pts[0], tip),
+                    ((mx - tip[0]) ** 2 + (my - tip[1]) ** 2) * 0.5)   # arrow head: ~14 px
+            if d < best_d:
+                best, best_d = axis, d
+        return best
+
+    @staticmethod
+    def _mesh_ring(c, r, axis, n=40): #vers 1
+        """Circle points round c in the plane normal to axis."""
+        out = []
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            u, v = r * math.cos(a), r * math.sin(a)
+            out.append({'x': (c[0], c[1] + u, c[2] + v), 'y': (c[0] + u, c[1], c[2] + v),
+                        'z': (c[0] + u, c[1] + v, c[2])}[axis])
+        return out
+
+    def _mesh_gizmo_begin(self, mx, my): #vers 2
+        """Start a move / rotate / scale drag of the selected vertices; True if a handle was hit."""
+        axis = self._mesh_gizmo_pick(mx, my)
+        if axis is None:
+            return False
+        ids = self._mesh_gizmo_ids()
+        pivot = self._mesh_gizmo_pivot(ids)
+        ref = None
+        if self._mesh_gizmo_mode == 'move':
+            ray = self._pick_ray(mx, my)
+            ref = self._gizmo_axis_param(ray, pivot, axis) if ray else None
+            if ref is None:
+                return False
+        self._mesh_drag = {'axis': axis, 'pivot': pivot, 'ref': ref, 'delta': 0.0, 'mx': mx,
+                           'mode': self._mesh_gizmo_mode, 'orig': {i: self._vertices[i] for i in ids}}
+        return True
+
+    def _mesh_gizmo_update(self, mx, my): #vers 2
+        """Live preview: move along the axis, rotate 0.5 deg per pixel, scale 1% per pixel."""
+        d = self._mesh_drag
+        axis, c = d['axis'], d['pivot']
+        if d['mode'] == 'move':
+            ray = self._pick_ray(mx, my)
+            t = self._gizmo_axis_param(ray, c, axis) if ray else None
+            if t is None:
+                return
+            d['delta'] = t - d['ref']
+            k = 'xyz'.index(axis)
+            for i, p in d['orig'].items():
+                q = list(p); q[k] += d['delta']
+                self._vertices[i] = tuple(q)
+        elif d['mode'] == 'rotate':
+            d['delta'] = round((mx - d['mx']) * 0.5, 1)
+            q = self._quat_axis(axis, d['delta'])
+            for i, p in d['orig'].items():
+                r = self._quat_rotate(q, (p[0] - c[0], p[1] - c[1], p[2] - c[2]))
+                self._vertices[i] = (r[0] + c[0], r[1] + c[1], r[2] + c[2])
+        else:
+            f = max(0.05, 1.0 + (mx - d['mx']) * 0.01)
+            d['delta'] = round(f, 3)
+            ks = (0, 1, 2) if axis == 'u' else ('xyz'.index(axis),)
+            for i, p in d['orig'].items():
+                self._vertices[i] = tuple(c[k] + (p[k] - c[k]) * (f if k in ks else 1.0) for k in range(3))
+        self.update()
+
+    def _mesh_gizmo_end(self): #vers 2
+        """Restore preview positions and hand the edit to the workshop (undo, save)."""
+        d, self._mesh_drag = self._mesh_drag, None
+        for i, p in d['orig'].items():
+            self._vertices[i] = p
+        changed = d['delta'] != (1.0 if d['mode'] == 'scale' else 0.0)
+        if changed and d['mode'] == 'move':
+            v = [0.0, 0.0, 0.0]; v['xyz'.index(d['axis'])] = d['delta']
+            self._mesh_gizmo_cb(set(d['orig']), *v)
+        elif changed and self._mesh_xform_cb is not None:
+            self._mesh_xform_cb(d['mode'], set(d['orig']), d['axis'], d['delta'], d['pivot'])
+        self.update()
+
+    def _draw_mesh_gizmo(self): #vers 5
+        """COL Workshop style gizmo: screen data for the overlay painter (gizmo_paint)."""
+        ids = self._mesh_gizmo_ids()
+        if not ids:
+            return
+        c = self._mesh_gizmo_pivot(ids)
+        L = self._gizmo_size(c)
+        mode = {'move': 'translate'}.get(self._mesh_gizmo_mode, self._mesh_gizmo_mode)
+        pts = self._project_in_paint([c, (c[0] + L, c[1], c[2]), (c[0], c[1] + L, c[2]), (c[0], c[1], c[2] + L)])
+        tips = dict(zip('XYZ', pts[1:]))
+        rings = {}
+        if mode == 'rotate':
+            for axis in 'xyz':
+                rings[axis.upper()] = self._project_in_paint(self._mesh_ring(c, L * 0.8, axis))
+        active = ((self._mesh_drag or {}).get('axis') or self._mesh_gizmo_hover or '').upper() or None
+        order = sorted('XYZ', key=lambda k: tips[k][1], reverse=True)
+        self._gizmo2d = (mode, pts[0], tips, rings, active, order)
+
+    def set_mesh_face_mode(self, mode, notify=True): #vers 2
+        """How a face move drag applies: 'connected', 'detach' or 'extrude'."""
+        self._mesh_face_mode = mode if mode in ('connected', 'detach', 'extrude') else 'connected'
+        self._sync_mesh_chips()
+        cb = getattr(self, '_mesh_face_mode_cb', None)
+        if notify and cb:
+            cb(self._mesh_face_mode)                # workshop syncs ribbon + other panes
+
+    def set_mesh_face_mode_callback(self, callback): #vers 1
+        """fn(mode) when the Faces chip changes the face move mode."""
+        self._mesh_face_mode_cb = callback
+
+    def set_detached_faces(self, faces): #vers 1
+        """Face ids drawn with orange edges (detached parts)."""
+        self._detached_faces = set(faces or ())
+        self.update()
+
+    def _draw_detached_wires(self): #vers 1
+        """Orange edges on detached faces, over any render mode."""
+        if not self._detached_faces or self._world_instances:
+            return
+        glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT | GL_POLYGON_BIT | GL_DEPTH_BUFFER_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D)
+        glDepthFunc(GL_LEQUAL)
+        glEnable(GL_POLYGON_OFFSET_LINE); glPolygonOffset(-2.0, -2.0)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        glLineWidth(1.6)
+        glColor3f(1.0, 0.55, 0.15)
+        glBegin(GL_TRIANGLES)
+        for fi in self._detached_faces:
+            if fi < len(self._triangles) and fi not in self._hidden_faces:
+                v1, v2, v3, _m = self._triangles[fi]
+                self._emit_verts(v1, v2, v3)
+        glEnd()
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        glPopAttrib()
+
+    def set_mesh_xform_callback(self, callback): #vers 1
+        """fn(kind, vert_ids, axis, value, pivot) after a rotate (deg) or scale (factor) drag."""
+        self._mesh_xform_cb = callback
+
+    def set_mesh_gizmo_mode(self, mode): #vers 1
+        """'move' | 'rotate' | 'scale' for the mesh edit gizmo."""
+        self._mesh_gizmo_mode = mode if mode in ('move', 'rotate', 'scale') else 'move'
+        self._mesh_drag = None
+        self._sync_mesh_chips()
+        self.update()
+
+    def cycle_render_mode(self): #vers 1
+        """V: wireframe -> solid -> semi -> textured."""
+        modes = ['wireframe', 'solid', 'semi_solid', 'textured']
+        self.set_render_mode(modes[(modes.index(self._mode) + 1) % 4] if self._mode in modes else 'solid')
+
+    def set_wire_hint(self, on): #vers 1
+        """Thin wireframe drawn over solid / semi / textured models."""
+        self._wire_hint = bool(on)
+        self._sync_mesh_chips()
+        self.update()
+
+    def _draw_wire_hint(self): #vers 1
+        """Faint edges over the shaded model (not in wireframe mode)."""
+        if not OPENGL_AVAILABLE or not self._wire_hint or self._mode == 'wireframe' or self._world_instances:
+            return
+        glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT | GL_POLYGON_BIT | GL_DEPTH_BUFFER_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D)
+        glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glDepthFunc(GL_LEQUAL); glDepthMask(GL_FALSE)
+        glEnable(GL_POLYGON_OFFSET_LINE); glPolygonOffset(-1.0, -1.0)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        glLineWidth(1.0)
+        glColor4f(0.05, 0.05, 0.08, 0.45) if self._mode == 'textured' else glColor4f(0.75, 0.85, 1.0, 0.35)
+        glBegin(GL_TRIANGLES)
+        for v1, v2, v3, _m in self._visible_tris():
+            self._emit_verts(v1, v2, v3)
+        glEnd()
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        glPopAttrib()
+
+    def _update_mesh_hover(self, mx, my): #vers 1
+        """Hovered vertex / edge / face for the current select mode (mesh edit)."""
+        mode = getattr(self, '_select_mode', 'object')
+        hit = None
+        if mode != 'object' and self._vertices and not self._world_instances:
+            if mode == 'vertex':
+                hit = self._pick_vertex(mx, my)
+            elif mode == 'edge':
+                hit = self._pick_edge(mx, my)
+            else:
+                hit = self._pick_face(mx, my)
+        if hit != self._mesh_hover:
+            self._mesh_hover = hit
+            self.update()
+
+    def _draw_mesh_hover(self, mode): #vers 1
+        """Cyan highlight of the hovered element."""
+        h, verts = self._mesh_hover, self._vertices
+        if h is None or self._mesh_drag is not None:
+            return
+        glColor4f(0.3, 0.95, 1.0, 0.9)
+        if mode == 'vertex' and isinstance(h, int) and h < len(verts):
+            glPointSize(max(6.0, min(12.0, self._dist * 0.04)))
+            glBegin(GL_POINTS); glVertex3f(*verts[h]); glEnd()
+        elif mode == 'edge' and isinstance(h, tuple) and max(h) < len(verts):
+            glLineWidth(3.0)
+            glBegin(GL_LINES); glVertex3f(*verts[h[0]]); glVertex3f(*verts[h[1]]); glEnd()
+        elif mode in ('face', 'poly') and isinstance(h, int) and h < len(self._triangles):
+            v1, v2, v3, _m = self._triangles[h]
+            glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            glColor4f(0.3, 0.95, 1.0, 0.30)
+            glBegin(GL_TRIANGLES); self._emit_verts(v1, v2, v3); glEnd()
+            glColor4f(0.3, 0.95, 1.0, 0.9); glLineWidth(2.0)
+            glBegin(GL_LINE_LOOP); self._emit_verts(v1, v2, v3); glEnd()
+
+    def _mesh_chip_state(self): #vers 2
+        """(render chip shown, gizmo chip shown, mode, gizmo mode, wire hint, counts)."""
+        model = bool(self._vertices or getattr(self, '_all_geoms', None)) and not self._world_instances
+        edit = model and getattr(self, '_select_mode', 'object') != 'object'
+        tris = len(self._triangles) if self._vertices else sum(len(e[3]) for e in getattr(self, '_all_geoms', []) or [])
+        verts = len(self._vertices) if self._vertices else sum(len(e[0]) for e in getattr(self, '_all_geoms', []) or [])
+        return (model, edit and getattr(self, '_mesh_gizmo_cb', None) is not None, self._mode,
+                self._mesh_gizmo_mode, self._wire_hint, tris, verts,
+                self._mesh_face_mode, getattr(self, '_select_mode', 'object'))
+
+    def _sync_mesh_chips(self): #vers 2
+        """Build / refresh the render and gizmo chips and the count label."""
+        state = self._mesh_chip_state()
+        self._mesh_chip_shown = state
+        model, gizmo, mode, gmode, wire, tris, verts = state[:7]
+        if self._mesh_chips is None and model:
+            bar = QFrame(self)
+            bar.setStyleSheet(
+                "QFrame{background:rgba(20,30,40,200);border:1px solid rgba(90,200,220,160);border-radius:4px;}"
+                "QToolButton{color:#e8f4f8;background:transparent;border:1px solid transparent;"
+                "border-radius:3px;padding:1px 6px;font-weight:bold;}"
+                "QToolButton:hover{border-color:#9fe8f5;}")
+            lay = QHBoxLayout(bar)
+            lay.setContentsMargins(3, 2, 3, 2); lay.setSpacing(2)
+            self._chip_render = QToolButton(bar)
+            self._chip_render.setToolTip("Render mode (V to cycle, right-click for wire hint)")
+            self._chip_render.clicked.connect(self.cycle_render_mode)
+            self._chip_render.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            self._chip_render.customContextMenuRequested.connect(self._mesh_render_menu)
+            self._chip_gizmo = QToolButton(bar)
+            self._chip_gizmo.setToolTip("Gizmo: Move G, Rotate R, Scale S (click to cycle)")
+            self._chip_gizmo.clicked.connect(lambda: self.set_mesh_gizmo_mode(
+                {'move': 'rotate', 'rotate': 'scale', 'scale': 'move'}[self._mesh_gizmo_mode]))
+            self._chip_faces = QToolButton(bar)
+            self._chip_faces.setToolTip("Face move: keep connected, detach, or extrude (click to cycle)")
+            self._chip_faces.clicked.connect(lambda: self.set_mesh_face_mode(
+                {'connected': 'detach', 'detach': 'extrude', 'extrude': 'connected'}[self._mesh_face_mode]))
+            lay.addWidget(self._chip_render); lay.addWidget(self._chip_gizmo); lay.addWidget(self._chip_faces)
+            self._mesh_chips = bar
+        if self._mesh_chips is not None:
+            names = {'wireframe': "Wire", 'solid': "Solid", 'semi_solid': "Semi", 'textured': "Textured"}
+            self._chip_render.setText(f"[V] {names.get(mode, mode)}" + (" +Wire" if wire and mode != 'wireframe' else ""))
+            self._chip_gizmo.setText({'move': "Move [G]", 'rotate': "Rotate [R]", 'scale': "Scale [S]"}[gmode])
+            self._chip_gizmo.setVisible(gizmo)
+            self._chip_faces.setText({'connected': "Faces: Connected", 'detach': "Faces: Detach",
+                                      'extrude': "Faces: Extrude"}[self._mesh_face_mode])
+            self._chip_faces.setVisible(gizmo and getattr(self, '_select_mode', 'object') in ('face', 'poly'))
+            self._mesh_chips.setVisible(model)
+            self._mesh_chips.adjustSize()
+        self._mesh_info.setText(f"Faces {tris}   Verts {verts}" if model else "")
+        self._mesh_info.setVisible(model)
+        self._mesh_info.adjustSize()
+        self._place_mesh_chips()
+
+    def _place_mesh_chips(self): #vers 1
+        if self._mesh_chips is not None and self._mesh_chips.isVisible():
+            self._mesh_chips.move(max(0, self.width() - self._mesh_chips.width() - 8), 8)
+            self._mesh_chips.raise_()
+        if self._mesh_info.isVisible():
+            self._mesh_info.move(6, max(0, self.height() - self._mesh_info.height() - 4))
+
+    def _mesh_render_menu(self, pos): #vers 1
+        """Chip right-click: pick a render mode, toggle the wire hint."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        for mode, label in (('wireframe', "Wireframe"), ('solid', "Solid"),
+                            ('semi_solid', "Semi-transparent"), ('textured', "Textured")):
+            act = menu.addAction(label, lambda m=mode: self.set_render_mode(m))
+            act.setCheckable(True); act.setChecked(self._mode == mode)
+        menu.addSeparator()
+        act = menu.addAction("Wire Hint (Shift+V)", lambda: self.set_wire_hint(not self._wire_hint))
+        act.setCheckable(True); act.setChecked(self._wire_hint)
+        menu.exec(self._chip_render.mapToGlobal(pos))
+
+    @staticmethod
+    def _seg2d_dist2(mx, my, a, b): #vers 1
+        ax, ay = b[0] - a[0], b[1] - a[1]
+        l2 = ax * ax + ay * ay
+        t = 0.0 if l2 < 1e-9 else max(0.0, min(1.0, ((mx - a[0]) * ax + (my - a[1]) * ay) / l2))
+        return (mx - a[0] - ax * t) ** 2 + (my - a[1] - ay * t) ** 2
+
+    def _gizmo_axis_param(self, ray, origin, axis): #vers 1
+        """Parameter along a world axis line nearest the mouse ray, or None if parallel."""
+        a = {'x': (1.0, 0.0, 0.0), 'y': (0.0, 1.0, 0.0), 'z': (0.0, 0.0, 1.0)}[axis]
+        (ox, oy, oz), d = ray
+        w0 = (origin[0] - ox, origin[1] - oy, origin[2] - oz)
+        b = a[0] * d[0] + a[1] * d[1] + a[2] * d[2]
+        den = 1.0 - b * b
+        if abs(den) < 1e-6:
+            return None
+        dw = d[0] * w0[0] + d[1] * w0[1] + d[2] * w0[2]
+        aw = a[0] * w0[0] + a[1] * w0[1] + a[2] * w0[2]
+        return (b * dw - aw) / den
+
+    @staticmethod
+    def _quat_axis(axis, deg): #vers 1
+        """Quaternion (x, y, z, w) for a rotation about a world axis."""
+        h = math.radians(deg) * 0.5
+        s = math.sin(h)
+        v = {'x': (s, 0.0, 0.0), 'y': (0.0, s, 0.0), 'z': (0.0, 0.0, s)}[axis]
+        return (v[0], v[1], v[2], math.cos(h))
+
+    @staticmethod
+    def _quat_mul(a, b): #vers 1
+        """Hamilton product a*b of (x, y, z, w) quaternions."""
+        ax, ay, az, aw = a; bx, by, bz, bw = b
+        return (aw * bx + ax * bw + ay * bz - az * by,
+                aw * by - ax * bz + ay * bw + az * bx,
+                aw * bz + ax * by - ay * bx + az * bw,
+                aw * bw - ax * bx - ay * by - az * bz)
+
+    @classmethod
+    def _quat_rotate(cls, q, v): #vers 1
+        """Rotate vector v by quaternion q."""
+        x, y, z, w = q
+        r = cls._quat_mul(cls._quat_mul(q, (v[0], v[1], v[2], 0.0)), (-x, -y, -z, w))
+        return (r[0], r[1], r[2])
+
+    def _ring_angle(self, mx, my, axis): #vers 1
+        """Screen angle of the mouse round the pivot, signed for the axis direction."""
+        c = self._gizmo_drag['screen_c']
+        ang = math.degrees(math.atan2(-(my - c[1]), mx - c[0]))
+        return ang * self._gizmo_drag['sign']
+
+    def _rot_axis(self): #vers 1
+        """Rotate axis from the constraint chip (XY means Z)."""
+        return self._gizmo_constraint if self._gizmo_constraint in 'xyz' and len(self._gizmo_constraint) == 1 else 'z'
+
+    def _constraint_axis(self): #vers 1
+        """Drag kind for a body / centre drag under the current mode and chip."""
+        if self._gizmo_mode == 'rotate':
+            return 'r' + self._rot_axis()
+        return 'free' if self._gizmo_constraint == 'xy' else self._gizmo_constraint
+
+    def _gizmo_begin(self, mx, my, modifiers): #vers 3
+        """Start a drag from a handle, from the selected object's body, or Ctrl+click another object."""
+        axis = self._gizmo_pick_axis(mx, my) if self._gizmo_inst is not None else None
+        if axis == 'free':
+            axis = self._constraint_axis()
+        if axis is None:
+            idx = self._pick_world_instance(mx, my)
+            inst = self._world_instances[idx].get('instance') if idx is not None else None
+            if inst is None:
+                return False
+            if inst in self._sel_insts:
+                self._gizmo_inst = inst
+            elif modifiers & Qt.KeyboardModifier.ControlModifier:
+                if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                    self.set_selection(self._sel_insts + [inst], inst)
+                else:
+                    self.set_selection([inst], inst)
+            else:
+                return False
+            axis = self._constraint_axis()
+        e = self._gizmo_entry()
+        if e is None:
+            return False
+        ray = self._pick_ray(mx, my)
+        if ray is None:
+            return False
+        pivot = tuple(e['pos'])
+        states = []
+        for inst in (self._sel_insts or [self._gizmo_inst]):
+            se = self._entry_for(inst)
+            if se is not None:
+                states.append((inst, tuple(se['pos']), tuple(se['rot']), se['scale']))
+        drag = {'axis': axis, 'pivot': pivot, 'states': states,
+                'delta': (0.0, 0.0, 0.0), 'angle': 0.0}
+        self._gizmo_drag = drag
+        if axis == 'free':
+            drag['ref'] = self._screen_to_ground_position(mx, my, ground_z=pivot[2])
+        elif axis in ('x', 'y', 'z'):
+            drag['ref'] = self._gizmo_axis_param(ray, pivot, axis)
+        else:
+            sc = self._gizmo_project([pivot])
+            if not sc:
+                self._gizmo_drag = None
+                return False
+            drag['screen_c'] = sc[0]
+            a = {'rx': (1, 0, 0), 'ry': (0, 1, 0), 'rz': (0, 0, 1)}[axis]
+            d = ray[1]
+            drag['sign'] = 1.0 if (a[0] * d[0] + a[1] * d[1] + a[2] * d[2]) < 0 else -1.0
+            drag['ref'] = self._ring_angle(mx, my, axis)
+        if drag['ref'] is None:
+            self._gizmo_drag = None
+            return False
+        self.update()
+        return True
+
+    def _gizmo_update(self, mx, my, modifiers=None): #vers 4
+        """Mouse drag: work out the raw move / angle, then apply with snapping."""
+        d = self._gizmo_drag
+        axis = d['axis']
+        sx, sy, sz = d['pivot']
+        if axis in ('rx', 'ry', 'rz'):
+            ang = self._ring_angle(mx, my, axis) - d['ref']
+            ang = (ang + 180.0) % 360.0 - 180.0
+            if modifiers is not None and modifiers & Qt.KeyboardModifier.ControlModifier:
+                ang = round(ang / 15.0) * 15.0              # Ctrl: 15 degree steps
+            self._apply_rotate(d, ang)
+            return
+        if axis == 'free':
+            cur = self._screen_to_ground_position(mx, my, ground_z=sz)
+            if cur is None:
+                return
+            dx, dy, dz = cur[0] - d['ref'][0], cur[1] - d['ref'][1], 0.0
+        else:
+            ray = self._pick_ray(mx, my)
+            t = self._gizmo_axis_param(ray, d['pivot'], axis) if ray else None
+            if t is None:
+                return
+            m = t - d['ref']
+            dx, dy, dz = (m if axis == 'x' else 0.0, m if axis == 'y' else 0.0, m if axis == 'z' else 0.0)
+        self._apply_move(d, dx, dy, dz)
+
+    def _apply_rotate(self, d, ang): #vers 1
+        """Rotate every dragged instance about the pivot by ang degrees (live)."""
+        axis = d['axis']
+        sx, sy, sz = d['pivot']
+        d['angle'] = ang
+        q = self._quat_axis(axis[1], ang)
+        for inst, pos, rot, scale in d['states']:
+            off = self._quat_rotate(q, (pos[0] - sx, pos[1] - sy, pos[2] - sz))
+            self.update_instance_transform(inst, (sx + off[0], sy + off[1], sz + off[2]),
+                                           self._quat_mul(q, rot), scale)
+
+    def _apply_move(self, d, dx, dy, dz): #vers 1
+        """Snap (centre, then edge / side / middle) and move every dragged instance (live)."""
+        sx, sy, sz = d['pivot']
+        moving = {id(st[0]) for st in d['states']}
+        snapped = False
+        if self._snap_targets.get('centre'):                     # pivot onto nearest other pivot
+            wx, wy, wz = sx + dx, sy + dy, sz + dz
+            best = None
+            for e in self._world_instances:
+                other = e.get('instance')
+                if other is None or id(other) in moving:
+                    continue
+                ox, oy, oz = e['pos']
+                d2 = (ox - wx) ** 2 + (oy - wy) ** 2 + (oz - wz) ** 2
+                if d2 < 9.0 and (best is None or d2 < best[0]):
+                    best = (d2, e)
+            if best is not None:
+                ox, oy, oz = best[1]['pos']
+                dx, dy, dz = ox - sx, oy - sy, oz - sz
+                self._set_snap_feedback([(best[1], 'xyz', 'centre')])
+                snapped = True
+        if not snapped and self._snap_targets.get('edge'):
+            allowed = {'free': 'xy', 'x': 'x', 'y': 'y', 'z': 'z'}.get(d['axis'], 'xy')
+            if d.get('pad'):
+                allowed = {'xy': 'xy', 'x': 'x', 'y': 'y', 'z': 'z'}[self._gizmo_constraint] + 'z'
+            cx, cy, cz, fb = self._edge_snap(self._gizmo_entry(), (sx + dx, sy + dy, sz + dz), moving, allowed)
+            dx, dy, dz = cx - sx, cy - sy, cz - sz
+            self._set_snap_feedback(fb)
+        elif not snapped:
+            self._set_snap_feedback([])
+        d['delta'] = (dx, dy, dz)
+        for inst, pos, rot, scale in d['states']:
+            self.update_instance_transform(inst, (pos[0] + dx, pos[1] + dy, pos[2] + dz), rot, scale)
+        import time as _t
+        if _t.monotonic() - d.get('ground_t', 0.0) > 0.08:      # throttled height refresh
+            d['ground_t'] = _t.monotonic()
+            self._update_gizmo_ground()
+            self._sync_gizmo_chips()
+
+    def _entry_box(self, e): #vers 1
+        """Local (minx, maxx, miny, maxy, minz, maxz) of an entry's model, cached with the footprint."""
+        fp = self._footprint(e)
+        return fp[2] if fp else None
+
+    def _edge_snap(self, e, pos, moving, allowed): #vers 1
+        """Snap the moving box to touch sides (X / Y), stack on top (Z) or line up centres
+        with nearby objects. Returns (x, y, z, feedback)."""
+        if e is None:
+            return pos[0], pos[1], pos[2], []
+        box = self._entry_box(e)
+        if box is None:
+            return pos[0], pos[1], pos[2], []
+        T = max(0.3, self._dist * 0.012)
+        b = [pos[0] + box[0], pos[0] + box[1], pos[1] + box[2], pos[1] + box[3], pos[2] + box[4], pos[2] + box[5]]
+        rp = self._entry_radius(e)
+        best = {}                                     # axis -> (|gap|, correction, entry, kind)
+
+        def offer(ax, gap, other, kind):
+            if ax in allowed and abs(gap) < T and (ax not in best or abs(gap) < best[ax][0]):
+                best[ax] = (abs(gap), gap, other, kind)
+
+        def ov(a0, a1, b0, b1):
+            return a0 < b1 - 1e-4 and b0 < a1 - 1e-4
+        for o in self._world_instances:
+            inst = o.get('instance')
+            if inst is None or id(inst) in moving:
+                continue
+            ox, oy, oz = o['pos']
+            r = rp + self._entry_radius(o) + T
+            if abs(ox - pos[0]) > r or abs(oy - pos[1]) > r or abs(oz - pos[2]) > r:
+                continue
+            ob = self._entry_box(o)
+            if ob is None:
+                continue
+            q = [ox + ob[0], ox + ob[1], oy + ob[2], oy + ob[3], oz + ob[4], oz + ob[5]]
+            oxy, oyy, ozz = ov(b[0], b[1], q[0], q[1]), ov(b[2], b[3], q[2], q[3]), ov(b[4], b[5], q[4], q[5])
+            if oyy and ozz:
+                offer('x', q[0] - b[1], o, 'side')
+                offer('x', q[1] - b[0], o, 'side')
+            if oxy and ozz:
+                offer('y', q[2] - b[3], o, 'side')
+                offer('y', q[3] - b[2], o, 'side')
+            if oxy and oyy:
+                offer('z', q[5] - b[4], o, 'top')
+                offer('z', q[4] - b[5], o, 'under')
+            if oyy or oxy:
+                offer('x', (q[0] + q[1] - b[0] - b[1]) / 2, o, 'middle') if oyy else None
+                offer('y', (q[2] + q[3] - b[2] - b[3]) / 2, o, 'middle') if oxy else None
+        x, y, z = pos
+        fb = []
+        for ax, (_g, gap, other, kind) in best.items():
+            if ax == 'x':
+                x += gap
+            elif ax == 'y':
+                y += gap
+            else:
+                z += gap
+            fb.append((other, ax, kind))
+        return x, y, z, fb
+
+    def _set_snap_feedback(self, fb): #vers 1
+        """Store what is snapped; rumble the pad when a new contact is made."""
+        old = {(id(o), a, k) for o, a, k in self._snap_feedback}
+        new = {(id(o), a, k) for o, a, k in fb}
+        self._snap_feedback = fb
+        if new - old and self._gamepad is not None:
+            self._gamepad.rumble(0.25, 0.55, 70)
+
+    def _draw_snap_feedback(self): #vers 1
+        """Green footprint on snapped neighbours."""
+        glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        for other, _ax, _kind in self._snap_feedback:
+            fp = self._footprint(other)
+            if fp is None:
+                continue
+            ox, oy, oz = other['pos']
+            glColor3f(0.2, 1.0, 0.35); glLineWidth(3.0)
+            glBegin(GL_LINE_LOOP)
+            for x, y in fp[0]:
+                glVertex3f(ox + x, oy + y, oz + fp[1] + 0.06)
+            glEnd()
+        glPopAttrib()
+
+    def _gizmo_cancel(self): #vers 1
+        """Put the dragged selection back where it started."""
+        d, self._gizmo_drag = self._gizmo_drag, None
+        for inst, pos, rot, scale in d['states']:
+            self.update_instance_transform(inst, pos, rot, scale)
+
+    def _gizmo_end(self): #vers 3
+        """Finish a drag: restore, then hand the move / rotate to the workshop (undo, tracking)."""
+        d = self._gizmo_drag
+        self._gizmo_cancel()
+        self._snap_feedback = []
+        insts = [s[0] for s in d['states']]
+        if d['axis'] in ('rx', 'ry', 'rz'):
+            if d['angle'] and self._gizmo_rotate_callback is not None:
+                self._gizmo_rotate_callback(insts, d['axis'][1], d['angle'], d['pivot'])
+        else:
+            dx, dy, dz = d['delta']
+            if (dx or dy or dz) and self._gizmo_move_callback is not None:
+                self._gizmo_move_callback(insts, dx, dy, dz)
+        self._update_gizmo_ground()
+        self._sync_gizmo_chips()
+        self.update()
+
+    def _rubber_select(self, rect, add): #vers 1
+        """Select every instance whose centre projects inside the screen rect."""
+        x0, y0, x1, y1 = rect
+        x0, x1 = sorted((x0, x1)); y0, y1 = sorted((y0, y1))
+        entries = [e for e in self._world_instances if e.get('instance') is not None]
+        pts = self._gizmo_project([e['pos'] for e in entries]) or []
+        hit = [e['instance'] for e, p in zip(entries, pts)
+               if x0 <= p[0] <= x1 and y0 <= p[1] <= y1 and 0.0 <= p[2] <= 1.0]
+        base = list(self._sel_insts) if add else []
+        seen = {id(i) for i in base}
+        base += [i for i in hit if id(i) not in seen]
+        self.set_selection(base, base[-1] if base else None)
+
+    def _draw_selection_marks(self): #vers 1
+        """Yellow markers on every selected instance."""
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_POINT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        glColor3f(1.0, 0.85, 0.1)
+        glPointSize(7.0)
+        glBegin(GL_POINTS)
+        for inst in self._sel_insts:
+            e = self._entry_for(inst)
+            if e is not None:
+                glVertex3f(*e['pos'])
+        glEnd()
+        glPopAttrib()
+
+    def set_script_markers(self, markers): #vers 1
+        """[(x, y, z, (r, g, b))] - script placements drawn as pins; [] clears."""
+        self._script_markers = list(markers or [])
+        self.update()
+
+    def _draw_script_markers(self): #vers 1
+        """Coloured pins (point + short upright line) for script placements."""
+        h = max(2.0, self._dist * 0.02)
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_POINT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D)
+        glLineWidth(2.0)
+        glBegin(GL_LINES)
+        for x, y, z, c in self._script_markers:
+            glColor3f(*c); glVertex3f(x, y, z); glVertex3f(x, y, z + h)
+        glEnd()
+        glPointSize(8.0)
+        glBegin(GL_POINTS)
+        for x, y, z, c in self._script_markers:
+            glColor3f(*c); glVertex3f(x, y, z + h)
+        glEnd()
+        glPopAttrib()
+
+    def _mesh_region_select(self): #vers 1
+        """Select vertices, edges or faces inside the region drag (rect or circle)."""
+        import math
+        x0, y0, x1, y1, add = self._mesh_region
+        self._mesh_region = None
+        mode = self._select_mode
+        sel = self._selected_set_for_mode(mode)
+        if abs(x1 - x0) <= 3 and abs(y1 - y0) <= 3:      # plain click on empty space
+            if not add:
+                sel.clear()
+                self._notify_selection_changed()
+            self.update()
+            return
+        pts = self._gizmo_project(self._vertices) or []
+        if self._region_circle:
+            rad = math.hypot(x1 - x0, y1 - y0)
+            vin = [p[2] <= 1.0 and math.hypot(p[0] - x0, p[1] - y0) <= rad for p in pts]
+        else:
+            xa, xb = sorted((x0, x1)); ya, yb = sorted((y0, y1))
+            vin = [p[2] <= 1.0 and xa <= p[0] <= xb and ya <= p[1] <= yb for p in pts]
+        n = len(vin)
+        test = any if self._region_crossing else all
+        if mode == 'vertex':
+            hit = {i for i, ok in enumerate(vin) if ok}
+        elif mode == 'edge':
+            hit = set()
+            for t in self._visible_tris():
+                for i, j in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+                    if i < n and j < n and test((vin[i], vin[j])):
+                        hit.add((i, j) if i < j else (j, i))
+        else:
+            hit = {f for f, t in enumerate(self._triangles) if f not in self._hidden_faces
+                   and all(k < n for k in t[:3]) and test(vin[k] for k in t[:3])}
+        if not add:
+            sel.clear()
+        sel |= hit
+        self._notify_selection_changed()
+        self.update()
+
+    def _draw_mesh_region(self): #vers 1
+        """Region select outline (rectangle or circle) in screen space."""
+        import math
+        x0, y0, x1, y1, _add = self._mesh_region
+        w = max(1, self.width()); h = max(1, self.height())
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+        glOrtho(0, w, h, 0, -1, 1)
+        glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
+        glColor3f(1.0, 0.82, 0.24); glLineWidth(1.0)
+        glBegin(GL_LINE_LOOP)
+        if self._region_circle:
+            r = math.hypot(x1 - x0, y1 - y0)
+            for k in range(48):
+                a = k * math.tau / 48
+                glVertex2f(x0 + r * math.cos(a), y0 + r * math.sin(a))
+        else:
+            glVertex2f(x0, y0); glVertex2f(x1, y0); glVertex2f(x1, y1); glVertex2f(x0, y1)
+        glEnd()
+        glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
+        glPopAttrib()
+
+    def _draw_rubber_band(self): #vers 1
+        """Screen-space selection rectangle."""
+        x0, y0, x1, y1 = self._rubber
+        w = max(1, self.width()); h = max(1, self.height())
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+        glOrtho(0, w, h, 0, -1, 1)
+        glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
+        glColor3f(1.0, 0.85, 0.1); glLineWidth(1.0)
+        glBegin(GL_LINE_LOOP)
+        glVertex2f(x0, y0); glVertex2f(x1, y0); glVertex2f(x1, y1); glVertex2f(x0, y1)
+        glEnd()
+        glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
+        glPopAttrib()
+
+    def _draw_gizmo(self): #vers 4
+        """Move: solid arrows + centre. Rotate: one ring. Plus footprint, height line, chip bar."""
+        e = self._gizmo_entry()
+        if e is None:
+            self._place_gizmo_chips(None)
+            return
+        px, py, pz = e['pos']
+        L = self._gizmo_size(e['pos'])
+        active = self._gizmo_drag['axis'] if self._gizmo_drag else self._gizmo_hover_axis
+        cols = {'x': (1.0, 0.2, 0.2), 'y': (0.2, 1.0, 0.2), 'z': (0.3, 0.5, 1.0)}
+        hi = (1.0, 0.9, 0.1)
+        glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT | GL_POINT_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_CULL_FACE)
+        for inst in (self._sel_insts or [self._gizmo_inst]):
+            self._draw_footprint(self._entry_for(inst))
+        glDisable(GL_DEPTH_TEST)
+        g = self._gizmo_ground
+        if g is not None and g < pz - 0.01:                     # height line to ground
+            glColor3f(1.0, 0.95, 0.3); glLineWidth(2.0)
+            glBegin(GL_LINES); glVertex3f(px, py, pz); glVertex3f(px, py, g); glEnd()
+        from apps.methods.gizmo_paint import gizmo_style
+        st = gizmo_style()
+        if self._gizmo_mode == 'move':
+            con = self._gizmo_constraint
+            for axis, v in (('x', (1, 0, 0)), ('y', (0, 1, 0)), ('z', (0, 0, 1))):
+                on = active == axis or (active == 'free' and axis in con) or (not active and axis in con and con != 'xy')
+                glColor3f(*(hi if on else cols[axis]))
+                glLineWidth(st['line_active'] if on else st['line'])
+                tip = (px + v[0] * L, py + v[1] * L, pz + v[2] * L)
+                glBegin(GL_LINES); glVertex3f(px, py, pz); glVertex3f(*tip); glEnd()
+                self._draw_cone(tip, v, L * 0.22 * st['arrow'], L * 0.08 * st['arrow'])
+        else:
+            ax = self._rot_axis()
+            on = active == 'r' + ax
+            glColor3f(*(hi if on else (0.1, 0.85, 0.35)))
+            glLineWidth(st['line_active'] if on else st['line'] + 0.5)
+            glBegin(GL_LINE_LOOP)
+            for p in self._ring_points((px, py, pz), ax, L * 0.8):
+                glVertex3f(*p)
+            glEnd()
+        glColor3f(*(hi if active == 'free' else (1.0, 1.0, 1.0)))
+        glPointSize(9.0)
+        glBegin(GL_POINTS); glVertex3f(px, py, pz); glEnd()
+        glPopAttrib()
+        try:                                                # chip bar follows the gizmo on screen
+            mm = glGetDoublev(GL_MODELVIEW_MATRIX)
+            pm = glGetDoublev(GL_PROJECTION_MATRIX)
+            vpt = glGetIntegerv(GL_VIEWPORT)
+            sx, sy, sz = gluProject(px, py, pz, mm, pm, vpt)
+            dpr = self.devicePixelRatioF() or 1.0
+            self._place_gizmo_chips((sx / dpr, (vpt[3] - sy) / dpr) if 0.0 <= sz <= 1.0 else None)
+        except Exception:
+            self._place_gizmo_chips(None)
+
+    def _draw_cone(self, tip, v, length, radius): #vers 1
+        """Solid arrowhead pointing along unit axis v, apex at tip."""
+        base = (tip[0] - v[0] * length, tip[1] - v[1] * length, tip[2] - v[2] * length)
+        u = (0, 1, 0) if v[0] else (1, 0, 0)
+        w = (v[1] * u[2] - v[2] * u[1], v[2] * u[0] - v[0] * u[2], v[0] * u[1] - v[1] * u[0])
+        glBegin(GL_TRIANGLE_FAN)
+        glVertex3f(*tip)
+        for k in range(13):
+            a = 2 * math.pi * k / 12
+            ca, sa = math.cos(a) * radius, math.sin(a) * radius
+            glVertex3f(base[0] + u[0] * ca + w[0] * sa, base[1] + u[1] * ca + w[1] * sa,
+                       base[2] + u[2] * ca + w[2] * sa)
+        glEnd()
+
+    def _footprint(self, e): #vers 2
+        """(hull points relative to pos, min z offset, local box) of an entry's model, cached."""
+        verts = e.get('col_vertices') or e.get('vertices') or []
+        if not verts:
+            return None
+        key = (e.get('model_key'), tuple(round(c, 4) for c in e['rot']), tuple(e['scale']))
+        hit = self._footprint_cache.get(key)
+        if hit is not None:
+            return hit
+        q, sc = e['rot'], e['scale']
+        pts, zs = [], []
+        step = max(1, len(verts) // 4000)
+        for v in verts[::step]:
+            r = self._quat_rotate(q, (v[0] * sc[0], v[1] * sc[1], v[2] * sc[2]))
+            pts.append((r[0], r[1]))
+            zs.append(r[2])
+        minz = min(zs)
+        box = (min(p_[0] for p_ in pts), max(p_[0] for p_ in pts),
+               min(p_[1] for p_ in pts), max(p_[1] for p_ in pts), minz, max(zs))
+        pts = sorted(set((round(x, 3), round(y, 3)) for x, y in pts))
+        if len(pts) < 3:
+            return None
+
+        def cross(o, a, b):
+            return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+        lower, upper = [], []
+        for p_ in pts:
+            while len(lower) >= 2 and cross(lower[-2], lower[-1], p_) <= 0:
+                lower.pop()
+            lower.append(p_)
+        for p_ in reversed(pts):
+            while len(upper) >= 2 and cross(upper[-2], upper[-1], p_) <= 0:
+                upper.pop()
+            upper.append(p_)
+        hit = (lower[:-1] + upper[:-1], minz, box)
+        if len(self._footprint_cache) > 500:
+            self._footprint_cache.clear()
+        self._footprint_cache[key] = hit
+        return hit
+
+    def _draw_footprint(self, e): #vers 2
+        """Dashed white outline of the model's ground footprint."""
+        if e is None:
+            return
+        fp = self._footprint(e)
+        if fp is None:
+            return
+        hull, minz, _box = fp
+        px, py, pz = e['pos']
+        glEnable(GL_LINE_STIPPLE)
+        glLineStipple(2, 0x3333)
+        glColor3f(1.0, 1.0, 1.0); glLineWidth(2.0)
+        glBegin(GL_LINE_LOOP)
+        for x, y in hull:
+            glVertex3f(px + x, py + y, pz + minz + 0.05)
+        glEnd()
+        glDisable(GL_LINE_STIPPLE)
+
+    def _update_gizmo_ground(self): #vers 1
+        """Refresh the ground z under the gizmo target (height line / label)."""
+        e = self._gizmo_entry()
+        if e is None:
+            self._gizmo_ground = None
+            return
+        x, y, z = e['pos']
+        moving = self._sel_insts or [self._gizmo_inst]
+        self._gizmo_ground = self.ground_z_below(x, y, z + 0.05, exclude=moving)
+
+    def _build_gizmo_chips(self): #vers 1
+        """Floating chip bar: Move / Rotate, then X / Y / XY / Z."""
+        bar = QFrame(self)
+        bar.setStyleSheet(
+            "QFrame{background:rgba(20,30,40,200);border:1px solid rgba(90,200,220,160);border-radius:4px;}"
+            "QToolButton{color:#e8f4f8;background:transparent;border:1px solid transparent;"
+            "border-radius:3px;padding:1px 6px;font-weight:bold;}"
+            "QToolButton:checked{background:rgba(60,170,190,200);border-color:#9fe8f5;}"
+            "QToolButton:hover{border-color:#9fe8f5;}")
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(3, 2, 3, 2)
+        lay.setSpacing(2)
+        self._chip_mode_grp = QButtonGroup(bar)
+        self._chip_con_grp = QButtonGroup(bar)
+        self._chip_btns = {}
+        for key, text, tip in (('move', "Move", "Move mode (W)"), ('rotate', "Rot", "Rotate mode (E)")):
+            b = QToolButton(bar); b.setText(text); b.setToolTip(tip); b.setCheckable(True)
+            b.clicked.connect(lambda _c=False, k=key: self.set_gizmo_mode(k))
+            self._chip_mode_grp.addButton(b); lay.addWidget(b); self._chip_btns[key] = b
+        sep = QLabel("|", bar); sep.setStyleSheet("color:rgba(160,200,210,160);border:none;")
+        lay.addWidget(sep)
+        for key in ('x', 'y', 'xy', 'z'):
+            b = QToolButton(bar); b.setText(key.upper()); b.setCheckable(True)
+            b.setToolTip("Constraint (Tab / Shift+Tab to cycle)")
+            b.clicked.connect(lambda _c=False, k=key: self.set_gizmo_constraint(k))
+            self._chip_con_grp.addButton(b); lay.addWidget(b); self._chip_btns[key] = b
+        self._chip_height = QLabel("", bar)
+        self._chip_height.setStyleSheet("color:#ffe97a;border:none;padding-left:4px;")
+        lay.addWidget(self._chip_height)
+        bar.hide()
+        self._gizmo_chips = bar
+        self._sync_gizmo_chips()
+
+    def _sync_gizmo_chips(self): #vers 1
+        if self._gizmo_chips is None:
+            return
+        self._chip_btns[self._gizmo_mode].setChecked(True)
+        self._chip_btns['xy'].setVisible(self._gizmo_mode == 'move')
+        self._chip_btns[self._gizmo_constraint if (self._gizmo_mode == 'move' or self._gizmo_constraint != 'xy')
+                        else 'z'].setChecked(True)
+        e = self._gizmo_entry()
+        g = self._gizmo_ground
+        self._chip_height.setText(f"H {e['pos'][2] - g:.2f}" if e is not None and g is not None else "")
+        self._gizmo_chips.adjustSize()
+
+    def _place_gizmo_chips(self, pos): #vers 1
+        """Keep the chip bar beside the gizmo; hide when off screen or no target."""
+        if pos is None:
+            if self._gizmo_chips is not None and self._gizmo_chips.isVisible():
+                self._gizmo_chips.hide()
+            return
+        if self._gizmo_chips is None:
+            self._build_gizmo_chips()
+        bar = self._gizmo_chips
+        x = int(min(max(4, pos[0] - bar.width() // 2), self.width() - bar.width() - 4))
+        y = int(min(max(4, pos[1] + 18), self.height() - bar.height() - 4))
+        if abs(bar.x() - x) > 1 or abs(bar.y() - y) > 1:
+            bar.move(x, y)
+        if not bar.isVisible():
+            bar.show()
+
+    def set_gizmo_mode(self, mode): #vers 1
+        """'move' or 'rotate'."""
+        self._gizmo_mode = mode
+        if mode == 'rotate' and self._gizmo_constraint == 'xy':
+            self._gizmo_constraint = 'z'
+        self._sync_gizmo_chips()
+        self.update()
+
+    def set_gizmo_constraint(self, con): #vers 1
+        """'x' / 'y' / 'xy' / 'z' (rotate mode uses x / y / z)."""
+        self._gizmo_constraint = con
+        self._sync_gizmo_chips()
+        self.update()
+
+    def _cycle_constraint(self, step): #vers 1
+        order = ['x', 'y', 'xy', 'z'] if self._gizmo_mode == 'move' else ['x', 'y', 'z']
+        cur = self._gizmo_constraint if self._gizmo_constraint in order else order[0]
+        self.set_gizmo_constraint(order[(order.index(cur) + step) % len(order)])
+
+    def focusNextPrevChild(self, next_): #vers 1
+        """Tab / Shift+Tab cycle gizmo constraints while an object is selected."""
+        if self._gizmo_inst is not None:
+            return False
+        return super().focusNextPrevChild(next_)
+
+    # -- drop to ground / model drops (Sep 23 2026)
+    def _entry_radius(self, e): #vers 1
+        """Cached XY bounding radius of an entry's model (scaled)."""
+        cache = self.__dict__.setdefault('_radius_cache', {})
+        key = e.get('model_key')
+        r = cache.get(key)
+        if r is None:
+            verts = e.get('col_vertices') or e.get('vertices') or []
+            r = max((math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) for v in verts), default=1.0)
+            cache[key] = r
+        sc = e.get('scale') or (1, 1, 1)
+        return r * max(abs(sc[0]), abs(sc[1]), abs(sc[2]), 1e-3)
+
+    def ground_z_below(self, x, y, z_from, exclude=()): #vers 1
+        """Highest collision / mesh surface at (x, y) at or below z_from; None if nothing."""
+        excl = {id(i) for i in exclude}
+        origin, down = (x, y, z_from), (0.0, 0.0, -1.0)
+        best = None
+        for e in getattr(self, '_world_instances', None) or []:
+            inst = e.get('instance')
+            if inst is not None and id(inst) in excl:
+                continue
+            px, py, pz = e['pos']
+            r = self._entry_radius(e)
+            if (px - x) ** 2 + (py - y) ** 2 > r * r or pz - r > z_from:
+                continue
+            verts = e.get('col_vertices') or e.get('vertices')
+            tris = e.get('col_triangles') if e.get('col_vertices') else e.get('triangles')
+            if not verts or not tris:
+                continue
+            q = e.get('rot') or (0, 0, 0, 1)
+            sc = e.get('scale') or (1, 1, 1)
+            wv = []
+            for v in verts:
+                rv = self._quat_rotate(q, (v[0] * sc[0], v[1] * sc[1], v[2] * sc[2]))
+                wv.append((rv[0] + px, rv[1] + py, rv[2] + pz))
+            for t in tris:
+                try:
+                    a, b, c = wv[t[0]], wv[t[1]], wv[t[2]]
+                except (IndexError, TypeError):
+                    continue
+                hit = self._ray_triangle_intersect(origin, down, a, b, c)
+                if hit is not None:
+                    hz = z_from - hit if isinstance(hit, (int, float)) else hit[2]
+                    if best is None or hz > best:
+                        best = hz
+        return best
+
+    def dragEnterEvent(self, event): #vers 1
+        if self._model_drop_callback is not None and event.mimeData().hasFormat('application/x-imgfactory-model-id'):
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event): #vers 1
+        if self._model_drop_callback is not None and event.mimeData().hasFormat('application/x-imgfactory-model-id'):
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event): #vers 1
+        md = event.mimeData()
+        if self._model_drop_callback is None or not md.hasFormat('application/x-imgfactory-model-id'):
+            super().dropEvent(event)
+            return
+        model_id = int(bytes(md.data('application/x-imgfactory-model-id')).decode())
+        p = event.position()
+        ground = self._screen_to_ground_position(p.x(), p.y(), ground_z=0.0)
+        if ground is None:
+            return
+        z = self.ground_z_below(ground[0], ground[1], 5000.0)
+        self._model_drop_callback(model_id, (ground[0], ground[1], z if z is not None else 0.0))
+        event.acceptProposedAction()
+
+    # -- game controller (Sep 24 2026)
+    def set_gamepad(self, poller): #vers 1
+        """Attach a GamepadPoller (None detaches); its state drives camera and editing."""
+        if self._gamepad is not None:
+            try:
+                self._gamepad.state.disconnect(self.gamepad_step)
+            except TypeError:
+                pass
+        self._gamepad = poller
+        if poller is not None:
+            poller.state.connect(self.gamepad_step)
+        self.update()
+
+    def _draw_reticle(self): #vers 1
+        """Centre crosshair: what Cross / Square pick."""
+        w = max(1, self.width()); h = max(1, self.height())
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT)
+        glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D); glDisable(GL_DEPTH_TEST)
+        glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
+        glOrtho(0, w, h, 0, -1, 1)
+        glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
+        glColor3f(0.6, 0.95, 1.0); glLineWidth(2.0)
+        cx, cy = w / 2, h / 2
+        glBegin(GL_LINES)
+        for a, b in (((cx - 12, cy), (cx - 4, cy)), ((cx + 4, cy), (cx + 12, cy)),
+                     ((cx, cy - 12), (cx, cy - 4)), ((cx, cy + 4), (cx, cy + 12))):
+            glVertex2f(*a); glVertex2f(*b)
+        glEnd()
+        glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW)
+        glPopAttrib()
+
+    def _pad_pick_centre(self): #vers 1
+        idx = self._pick_world_instance(self.width() / 2, self.height() / 2)
+        return self._world_instances[idx].get('instance') if idx is not None else None
+
+    def _pad_begin_grab(self): #vers 1
+        """Start moving / rotating the selection with the sticks."""
+        e = self._gizmo_entry()
+        if e is None:
+            return
+        states = []
+        for inst in (self._sel_insts or [self._gizmo_inst]):
+            se = self._entry_for(inst)
+            if se is not None:
+                states.append((inst, tuple(se['pos']), tuple(se['rot']), se['scale']))
+        axis = 'r' + self._rot_axis() if self._gizmo_mode == 'rotate' else \
+            ('free' if self._gizmo_constraint == 'xy' else self._gizmo_constraint)
+        self._gizmo_drag = {'axis': axis, 'pivot': tuple(e['pos']), 'states': states, 'pad': True,
+                            'delta': (0.0, 0.0, 0.0), 'angle': 0.0, 'raw': [0.0, 0.0, 0.0], 'raw_ang': 0.0}
+        self._pad_grab = True
+        if self._gamepad is not None:
+            self._gamepad.rumble(0.2, 0.2, 40)
+
+    def _pad_end_grab(self, commit): #vers 1
+        self._pad_grab = False
+        if self._gizmo_drag is None:
+            return
+        if commit:
+            self._gizmo_end()
+        else:
+            self._gizmo_cancel()
+            self._snap_feedback = []
+        self.update()
+
+    def gamepad_step(self, st): #vers 1
+        """One controller frame. Right stick orbits, L2/R2 zoom, left stick pans or moves the grab.
+        Cross select / grab / drop, Square add to selection, Circle cancel / clear, Triangle Move/Rotate,
+        L1/R1 constraint, D-pad Z / 15 deg, Options edge snap, Create duplicate, touchpad drop to ground,
+        L3 fine speed."""
+        if self._gizmo_move_callback is None:
+            return
+        dt, pr = st['dt'], st['pressed']
+        ws = getattr(self, '_workshop_ref', None)
+        if 'l3' in pr:
+            self._pad_fine = not self._pad_fine
+        fine = 0.2 if self._pad_fine else 1.0
+        # camera
+        if st['rx'] or st['ry']:
+            self._yaw += st['rx'] * 120.0 * dt
+            self._pitch = max(-89.0, min(89.0, self._pitch + st['ry'] * 90.0 * dt))
+        if st['lt'] or st['rt']:
+            self._dist = max(0.5, min(50000.0, self._dist * (1.0 + (st['lt'] - st['rt']) * 1.5 * dt)))
+            if self._projection == 'ortho':
+                self.makeCurrent(); self.resizeGL(self.width(), self.height())
+        # buttons
+        if 'y' in pr:
+            self.set_gizmo_mode('rotate' if self._gizmo_mode == 'move' else 'move')
+            if self._pad_grab:
+                self._pad_end_grab(True); self._pad_begin_grab()
+        if 'l1' in pr or 'r1' in pr:
+            self._cycle_constraint(-1 if 'l1' in pr else 1)
+            if self._pad_grab:
+                self._pad_end_grab(True); self._pad_begin_grab()
+        if 'start' in pr:
+            self._snap_targets['edge'] = not self._snap_targets.get('edge')
+            if ws is not None and hasattr(ws, '_on_pad_snap_toggled'):
+                ws._on_pad_snap_toggled(self._snap_targets['edge'])
+        if 'b' in pr:
+            if self._pad_grab:
+                self._pad_end_grab(False)
+            else:
+                self.set_selection([], None)
+        if 'a' in pr:
+            if self._pad_grab:
+                self._pad_end_grab(True)
+            else:
+                inst = self._pad_pick_centre()
+                if inst is not None and inst in self._sel_insts:
+                    self._gizmo_inst = inst
+                    self._pad_begin_grab()
+                elif inst is not None:
+                    self.set_selection([inst], inst)
+        if 'x' in pr and not self._pad_grab:
+            inst = self._pad_pick_centre()
+            if inst is not None:
+                sel = [i for i in self._sel_insts if i is not inst]
+                if len(sel) == len(self._sel_insts):
+                    sel.append(inst)
+                self.set_selection(sel, sel[-1] if sel else None)
+        if 'back' in pr and not self._pad_grab and ws is not None and hasattr(ws, '_duplicate_selected'):
+            ws._duplicate_selected()
+        if 'touchpad' in pr and not self._pad_grab and ws is not None and hasattr(ws, '_drop_selected_to_ground'):
+            ws._drop_selected_to_ground()
+        # left stick: move the grab, or pan the camera
+        if self._pad_grab and self._gizmo_drag is not None:
+            d = self._gizmo_drag
+            if d['axis'].startswith('r'):
+                step = st['lx'] * 90.0 * dt * fine
+                if 'left' in pr:
+                    step -= 15.0
+                if 'right' in pr:
+                    step += 15.0
+                if step:
+                    d['raw_ang'] += step
+                    self._apply_rotate(d, d['raw_ang'])
+            else:
+                spd = max(1.0, self._dist * 0.5) * dt * fine
+                rad = math.radians(-self._yaw)
+                rx_, ry_ = math.cos(rad), math.sin(rad)          # screen right in world
+                ux, uy = -math.sin(rad), math.cos(rad)           # screen up in world
+                mx_ = st['lx'] * spd
+                my_ = -st['ly'] * spd
+                ddx, ddy = mx_ * rx_ + my_ * ux, mx_ * ry_ + my_ * uy
+                ddz = 0.0
+                con = self._gizmo_constraint
+                if con == 'x':
+                    ddy = 0.0
+                elif con == 'y':
+                    ddx = 0.0
+                elif con == 'z':
+                    ddx = ddy = 0.0
+                    ddz = my_
+                if 'up' in st['held']:
+                    ddz += spd
+                if 'down' in st['held']:
+                    ddz -= spd
+                if ddx or ddy or ddz:
+                    raw = d['raw']
+                    raw[0] += ddx; raw[1] += ddy; raw[2] += ddz
+                    self._apply_move(d, *raw)
+        elif st['lx'] or st['ly']:
+            spd = max(1.0, self._dist * 0.8) * dt * fine
+            self._apply_pan_step(-st['lx'] * spd, st['ly'] * spd)
+        self.update()
+
+    def _screen_to_ground_position(self, mx, my, ground_z=0.0): #vers 1
+        """Cast a ray from the camera through the given widget-space
+        pixel (via the already-existing _pick_ray, which replicates
+        paintGL's exact camera transform) and intersect it with the
+        horizontal plane z=ground_z - DFFViewport works in GTA's
+        native Z-up space directly (unlike MapViewport, which converts
+        to Y-up), so the ground plane is a fixed Z here rather than Y.
+        Returns None if the ray is parallel to the ground plane or
+        points away from it."""
+        ray = self._pick_ray(mx, my)
+        if ray is None:
+            return None
+        (ox, oy, oz), (dx, dy, dz) = ray
+        if abs(dz) < 1e-9:
+            return None
+        t = (ground_z - oz) / dz
+        if t < 0:
+            return None
+        return (ox + dx * t, oy + dy * t, oz + dz * t)
+
+    def set_lod_test_callback(self, callback): #vers 1
+        """Set (or clear, with None) the function called with the
+        current ground-position world point on every mouse move while
+        LOD test mode is active - mirrors MapViewport's identical
+        method (see its own docstring for the full feature context)."""
+        self._lod_test_callback = callback
+
+    def set_lod_test_center(self, world_pos): #vers 1
+        """Set (or clear, with None) the LOD test circle's center in
+        world space - mirrors MapViewport's identical method."""
+        self._lod_test_center = world_pos
+        self.update()
+
+    def _draw_lod_test_circle(self): #vers 1
+        """Draw a flat circle outline on the ground plane (z=center_z)
+        at self._lod_test_center, radius self._lod_test_radius -
+        mirrors MapViewport's identical method, adapted for this
+        class's native Z-up convention (circle drawn in the XY plane
+        here, XZ plane there)."""
+        if not OPENGL_AVAILABLE:
+            return
+        cx, cy, cz = self._lod_test_center
+        radius = getattr(self, '_lod_test_radius', 300.0)
+        segments = 64
+        glColor3f(0.2, 1.0, 0.3)
+        glLineWidth(2.0)
+        glPushMatrix()
+        glTranslatef(cx, cy, cz)
+        glBegin(GL_LINE_LOOP)
+        for i in range(segments):
+            angle = 2 * math.pi * i / segments
+            glVertex3f(radius * math.cos(angle), radius * math.sin(angle), 0.0)
+        glEnd()
+        glPopMatrix()
+        glLineWidth(1.0)
+
+    def mouseReleaseEvent(self, event): #vers 13
+        self._last_pos = event.pos()
+        if getattr(self, '_skel_ring', None) is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._skel_ring = None
+            self.update()
+            return
+        if getattr(self, '_skel_drag', None) is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._skel_drag = None
+            return
+        if self._brush_tool is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._brush_timer.stop()
+            self._brush_tool.release()
+            self.update()
+            return
+        if self._water_drag is not None and event.button() == Qt.MouseButton.LeftButton:
+            idx, (dx, dy) = self._water_drag[0], self._water_live
+            self._water_drag, self._water_live = None, (0.0, 0.0)
+            if (dx or dy) and self._water_move_cb is not None:
+                self._water_move_cb(idx, dx, dy)
+            self.update()
+            return
+        if getattr(self, '_mesh_drag', None) is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._mesh_gizmo_end()
+            return
+        if self._mesh_region is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._mesh_region_select()
+            return
+        if event.button() == Qt.MouseButton.RightButton:
+            # Right-click for options on a hovered instance (Aug 19 2026)
+            press_pos = getattr(self, '_right_press_pos', None)
+            self._right_press_pos = None
+            if press_pos is not None:
+                moved = (event.pos() - press_pos).manhattanLength()
+                hovered_idx = getattr(self, '_hovered_instance_idx', None)
+                callback = getattr(self, '_hover_context_callback', None)
+                if moved <= 4 and hovered_idx is not None and callback is not None:
+                    entry = self._world_instances[hovered_idx]
+                    inst = entry.get('instance')
+                    if inst is not None:
+                        callback(inst)
+                elif moved <= 4 and getattr(self, '_select_mode', 'object') != 'object':
+                    mesh_cb = getattr(self, '_mesh_context_callback', None)   # Model Workshop mesh menu
+                    if mesh_cb is not None:
+                        mesh_cb()
+        if event.button() == Qt.MouseButton.MiddleButton:
+            # Middle-click to cycle (Aug 21 2026)
+            press_pos = getattr(self, '_middle_press_pos', None)
+            self._middle_press_pos = None
+            if press_pos is not None:
+                moved = (event.pos() - press_pos).manhattanLength()
+                callback = getattr(self, '_middle_click_cycle_callback', None)
+                if moved <= 4 and callback is not None:
+                    callback()
+        # Commit a completed path node drag (Aug 17 2026)
+        start_key = getattr(self, '_dragging_path_node_start_key', None)
+        if start_key is not None:
+            final_pos = getattr(self, '_dragging_path_node_current_pos', None)
+            owner = self._path_node_owner_map.get(start_key)
+            callback = getattr(self, '_path_node_drag_callback', None)
+            if owner is not None and final_pos is not None and callback is not None:
+                group_ref, node_index = owner
+                fx, fy, fz = final_pos
+                callback(group_ref, node_index, fx, fy, fz)
+            self._dragging_path_node_start_key = None
+            self._dragging_path_node_current_pos = None
+            # Explicit repaint here too (Aug 18 2026)
+            self.update()
+
+        # Commit a completed box corner resize (Aug 19 2026)
+        corner_key = getattr(self, '_dragging_box_corner_key', None)
+        if corner_key is not None:
+            box_type, box_index, corner_idx, start_z = corner_key
+            info = getattr(self, '_dragging_box_corner_info', None)
+            callback = getattr(self, '_box_resize_callback', None)
+            box_list = self._cull_boxes if box_type == 'cull' else self._zone_boxes
+            if (info is not None and callback is not None
+                    and 0 <= box_index < len(box_list)):
+                x1, y1, z1, x2, y2, z2 = box_list[box_index]
+                callback(box_type, info['box_ref'], x1, y1, x2, y2, z1, z2)
+            self._dragging_box_corner_key = None
+            self._dragging_box_corner_info = None
+            self._dragging_box_corner_current_pos = None
+            self._dragging_box_corner_live_z = None
+            self.update()
+
+        # Commit a completed gizmo move / rotate, or box selection (Sep 23 2026)
+        if self._gizmo_drag is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._gizmo_end()
+        if self._rubber is not None and event.button() == Qt.MouseButton.LeftButton:
+            rect, self._rubber = self._rubber, None
+            if abs(rect[2] - rect[0]) > 3 or abs(rect[3] - rect[1]) > 3:
+                self._rubber_select(rect, add=True)
+            self.update()
+
+        # Commit a completed whole-IPL drag (Aug 18 2026)
+        dragged_names = getattr(self, '_dragging_ipl_names', None)
+        if dragged_names:
+            dx, dy, dz = getattr(self, '_dragging_ipl_delta', (0.0, 0.0, 0.0))
+            callback = getattr(self, '_ipl_drag_callback', None)
+            if callback is not None and (dx or dy or dz):
+                for ipl_name in dragged_names:
+                    callback(ipl_name, dx, dy, dz)
+            self._dragging_ipl_names = set()
+            self._dragging_ipl_start_state = []
+            self._dragging_ipl_ground_start = None
+            self._dragging_ipl_delta = (0.0, 0.0, 0.0)
+            self._dragging_ipl_clicked_inst = None
+            self._dragging_ipl_clicked_start_pos = None
+            self.update()
+
+    def wheelEvent(self, event): #vers 4
+        """Zoom in/out, optionally toward the mouse cursor rather than
+        the current pan centre (Aug 18 2026)"""
+        zoom_to_cursor = getattr(self, '_zoom_to_cursor', False)
+        before_pos = None
+        if zoom_to_cursor:
+            pos = event.position()
+            before_pos = self._screen_to_ground_position(pos.x(), pos.y())
+
+        f = 0.85 if event.angleDelta().y() > 0 else 1.15
+        self._dist = max(0.1, min(50000.0, self._dist*f))
+
+        if before_pos is not None:
+            pos = event.position()
+            after_pos = self._screen_to_ground_position(pos.x(), pos.y())
+            if after_pos is not None:
+                self._pan_x += after_pos[0] - before_pos[0]
+                self._pan_y += after_pos[1] - before_pos[1]
+
+        if self._projection == 'ortho':
+            try:
+                self.resizeGL(self.width(), self.height())
+            except Exception:
+                pass
+        self.update()
+
+    def set_zoom_to_cursor(self, enabled: bool): #vers 1
+        """Toggle zoom-toward-mouse-cursor (Aug 18 2026)"""
+        self._zoom_to_cursor = enabled
+
+    def keyPressEvent(self, event): #vers 7
+        """Configurable camera controls, held keys giving continuous motion.
+        Esc cancels a gizmo drag, or drops the gizmo; Space toggles selection lock."""
+        key = event.key()
+        if key == Qt.Key.Key_Space and self._lock_key_callback and self._select_mode != 'object':
+            self._lock_key_callback(); return
+        model_view = bool(self._vertices or getattr(self, '_all_geoms', None)) and not self._world_instances
+        if model_view and not event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
+            if key == Qt.Key.Key_V:
+                if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    self.set_wire_hint(not self._wire_hint)
+                else:
+                    self.cycle_render_mode()
+                return
+            gm = {Qt.Key.Key_G: 'move', Qt.Key.Key_R: 'rotate', Qt.Key.Key_S: 'scale'}.get(key)
+            if gm and self._select_mode != 'object':
+                self.set_mesh_gizmo_mode(gm); return
+        if self._gizmo_inst is not None and not event.modifiers() & (Qt.KeyboardModifier.ControlModifier
+                                                                    | Qt.KeyboardModifier.AltModifier):
+            if key == Qt.Key.Key_W:
+                self.set_gizmo_mode('move'); return
+            if key == Qt.Key.Key_E:
+                self.set_gizmo_mode('rotate'); return
+            if key in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
+                self._cycle_constraint(-1 if key == Qt.Key.Key_Backtab else 1); return
+        if key == Qt.Key.Key_Escape and (self._gizmo_inst is not None or self._sel_insts):
+            if self._gizmo_drag is not None:
+                self._gizmo_cancel()
+            else:
+                self.set_selection([], None)
+            self.update()
+            return
+        is_numpad = bool(event.modifiers() & Qt.KeyboardModifier.KeypadModifier)
+        bindings = getattr(self, '_key_bindings', None) or DEFAULT_KEY_BINDINGS
+        for action, spec in bindings.items():
+            if spec['key'] == key and spec['numpad'] == is_numpad:
+                held = getattr(self, '_camera_keys_held', None)
+                if held is None:
+                    held = self._camera_keys_held = {}
+                held[key] = action
+                self._ensure_camera_key_timer()
+                return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event): #vers 1
+        held = getattr(self, '_camera_keys_held', None)
+        if held is not None and event.key() in held and not event.isAutoRepeat():
+            del held[event.key()]
+        super().keyReleaseEvent(event)
+
+    def set_key_bindings(self, bindings: dict): #vers 1
+        """Replace the viewport's camera keybindings (Aug 16 2026)"""
+        merged = dict(DEFAULT_KEY_BINDINGS)
+        merged.update(bindings or {})
+        self._key_bindings = merged
+
+    def _apply_pan_step(self, screen_dx, screen_dy): #vers 1
+        """Apply one yaw-compensated pan step, in already-scaled
+        screen-space units (positive screen_dx = pan right, positive
+        screen_dy = pan up) - shared by mouseMoveEvent's middle-drag
+        pan and keyPressEvent's keyboard pan (Aug 16 2026)"""
+        rad = math.radians(-self._yaw)
+        cos_a, sin_a = math.cos(rad), math.sin(rad)
+        self._pan_x += screen_dx * cos_a - screen_dy * sin_a
+        self._pan_y += screen_dx * sin_a + screen_dy * cos_a
+
+    def _ensure_camera_key_timer(self): #vers 1
+        """Start the repeating camera-control timer if it isn't
+        already running - stops itself automatically once no camera
+        keys are held anymore, rather than running an idle timer
+        permanently for every viewport instance regardless of
+        whether it's ever used."""
+        timer = getattr(self, '_camera_key_timer', None)
+        if timer is None:
+            from PyQt6.QtCore import QTimer
+            timer = self._camera_key_timer = QTimer(self)
+            timer.timeout.connect(self._on_camera_key_tick)
+        if not timer.isActive():
+            timer.start(16)   # ~60fps
+
+    def _on_camera_key_tick(self): #vers 1
+        """One tick of continuous keyboard camera control - dispatches
+        each currently-held action to the matching pan/rotate/zoom
+        delta. Several actions can be held at once (e.g. panning
+        diagonally by holding two arrow keys), each applied
+        independently per tick."""
+        held = getattr(self, '_camera_keys_held', None)
+        if not held:
+            timer = getattr(self, '_camera_key_timer', None)
+            if timer is not None:
+                timer.stop()
+            return
+        sens = getattr(self, '_mouse_sensitivity', 1.0)
+        rotate_step = 2.0 * sens
+        pan_step = self._dist * 0.016 * sens
+        for action in held.values():
+            if action == 'rotate_yaw_left' and not self._view_locked:
+                self._yaw -= rotate_step
+            elif action == 'rotate_yaw_right' and not self._view_locked:
+                self._yaw += rotate_step
+            elif action == 'rotate_pitch_up' and not self._view_locked:
+                self._pitch -= rotate_step
+            elif action == 'rotate_pitch_down' and not self._view_locked:
+                self._pitch += rotate_step
+            elif action == 'pan_left':
+                self._apply_pan_step(-pan_step, 0)
+            elif action == 'pan_right':
+                self._apply_pan_step(pan_step, 0)
+            elif action == 'pan_up':
+                self._apply_pan_step(0, pan_step)
+            elif action == 'pan_down':
+                self._apply_pan_step(0, -pan_step)
+            elif action == 'zoom_in':
+                self._dist = max(0.1, self._dist * 0.985)
+            elif action == 'zoom_out':
+                self._dist = min(50000.0, self._dist * 1.015)
+        self.update()
+
+    # - Model Workshop compatibility methods
+    # These map COL3DViewport API onto DFFViewport equivalents
+
+    def zoom_in(self): #vers 3
+        self._dist = max(0.1, self._dist * 0.8)
+        if self._projection == 'ortho':
+            try: self.resizeGL(self.width(), self.height())
+            except Exception: pass
+        self.update()
+
+    def zoom_out(self): #vers 3
+        self._dist = min(50000.0, self._dist * 1.25)
+        if self._projection == 'ortho':
+            try: self.resizeGL(self.width(), self.height())
+            except Exception: pass
+        self.update()
+
+    def reset_view(self): #vers 1
+        self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0
+        self._auto_fit(); self.update()
+
+    def fit_to_window(self): #vers 1
+        self._auto_fit(); self.update()
+
+    def snap_to_center(self): #vers 1
+        """Re-centre the pan only (Aug 20 2026)"""
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self.update()
+
+    def set_camera_state(self, dist=None, pan_x=None, pan_y=None,
+                          yaw=None, pitch=None): #vers 1
+        """Restore a previously-saved camera state (Aug 20 2026)"""
+        if dist is not None:
+            self._dist = float(dist)
+        if pan_x is not None:
+            self._pan_x = float(pan_x)
+        if pan_y is not None:
+            self._pan_y = float(pan_y)
+        if yaw is not None:
+            self._yaw = float(yaw)
+        if pitch is not None:
+            self._pitch = float(pitch)
+        self.update()
+
+    def pan(self, dx, dy): #vers 1
+        scale = self._dist * 0.002
+        self._pan_x += dx * scale; self._pan_y -= dy * scale; self.update()
+
+    def set_show_mesh(self, v: bool): #vers 1
+        # DFFViewport always shows mesh — no-op for compatibility
+        self.update()
+
+    def set_backface(self, v: bool): #vers 1
+        self._backface_cull = not v; self.update()
+
+    def flip_vertical(self): #vers 1
+        self._vertices = [(x, -y, z) for x, y, z in self._vertices]; self.update()
+
+    def flip_horizontal(self): #vers 1
+        self._vertices = [(-x, y, z) for x, y, z in self._vertices]; self.update()
+
+    def rotate_cw(self): #vers 1
+        self._yaw = (self._yaw + 90) % 360; self.update()
+
+    def rotate_ccw(self): #vers 1
+        self._yaw = (self._yaw - 90) % 360; self.update()
+
+    def set_current_model(self, model, index=0): #vers 1
+        """Load a DFFModel directly — compatibility with COL3DViewport API."""
+        if not model or not model.geometries: return
+        g = model.geometries[min(index, len(model.geometries)-1)]
+        self.load_geometry(g, g.materials)
+
+    def set_checkerboard_background(self): #vers 2
+        """No checkerboard rendering in GL mode — clear any colour override back to theme."""
+        self._bg_color_override = None
+        self.update()
+
+    def set_background_color(self, color): #vers 2
+        """Set an explicit background colour, overriding the theme colour.
+
+        color: (r, g, b) tuple 0-255, or a QColor.
+        """
+        if hasattr(color, 'getRgb'):
+            r, g, b, _ = color.getRgb()
+            self._bg_color_override = (r, g, b)
+        else:
+            self._bg_color_override = tuple(color[:3])
+        self.update()
+
+    def _refresh(self): #vers 1
+        self.update()
+
+
+class VehicleViewport(DFFViewport):
+    """DFFViewport + vehicle animation (doors, rotors, wheels)."""
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        self._anim_enabled      = False
+        self._anim_timer        = None
+        self._anim_speed        = 1.0
+        self._anim_rates        = {'moving_rotor': 360.0, 'moving_rotor2': 360.0,
+                                   'prop': 360.0, 'misc_a': 180.0, 'misc_b': 180.0}
+        self._anim_frame_angles = {}
+        self._anim_door_open    = {}
+        self._wheel_heading     = 0.0
+        self._dragging          = False
+        from PyQt6.QtCore import Qt
+        self._drag_btn          = Qt.MouseButton.NoButton
+
+    def set_animation(self, enabled: bool): #vers 1
+        self._anim_enabled = enabled
+        if enabled:
+            if self._anim_timer is None:
+                from PyQt6.QtCore import QTimer
+                self._anim_timer = QTimer(self)
+                self._anim_timer.timeout.connect(self._anim_tick)
+            self._anim_timer.start(33)
+        else:
+            if self._anim_timer: self._anim_timer.stop()
+            self.update()
+
+    def _anim_tick(self): #vers 1
+        if not self._anim_enabled or not self._assembly_mode: return
+        for fname, rate in self._anim_rates.items():
+            cur = self._anim_frame_angles.get(fname, 0.0)
+            self._anim_frame_angles[fname] = (cur + rate * self._anim_speed / 30.0) % 360.0
+        self._rebuild_anim_geoms()
+
+    def _rebuild_anim_geoms(self): #vers 1
+        m = getattr(self, '_dff_model', None)
+        if not m: return
+        self.load_all_geometries(
+            m.geometries, [g.materials for g in m.geometries],
+            m.frames, m.atomics,
+            damaged=getattr(self, '_damaged', False))
+
+    def toggle_door(self, door_name: str): #vers 1
+        self._anim_door_open[door_name] = not self._anim_door_open.get(door_name, False)
+        self._rebuild_anim_geoms()
+
+    def _get_anim_rotation(self, frame_name: str): #vers 1
+        name = frame_name.lower()
+        for key in ('moving_rotor', 'moving_rotor2', 'prop', 'misc_a', 'misc_b'):
+            if key in name:
+                angle = self._anim_frame_angles.get(key, 0.0)
+                ca=math.cos(math.radians(angle)); sa=math.sin(math.radians(angle))
+                return [ca,-sa,0, sa,ca,0, 0,0,1]
+        for key in ('door_lf','door_rf','door_lr','door_rr','bonnet','boot'):
+            if key in name:
+                is_open = self._anim_door_open.get(name, False)
+                angle = 70.0 if is_open else 0.0
+                ca=math.cos(math.radians(angle)); sa=math.sin(math.radians(angle))
+                return [1,0,0, 0,ca,-sa, 0,sa,ca]
+        return None
+
+    def set_animation_speed(self, speed: float): #vers 1
+        self._anim_speed = max(0.1, speed)
+
+    def set_wheel_heading(self, angle_deg: float): #vers 1
+        self._wheel_heading = angle_deg
+        if getattr(self,'_assembly_mode',False) and getattr(self,'_dff_model',None):
+            m = self._dff_model
+            self.load_all_geometries(m.geometries,[g.materials for g in m.geometries],
+                                     m.frames, m.atomics, getattr(self,'_damaged',False))
+
+    def load_wheels_dff(self, path: str, wheel_type: str = 'wheel_saloon_l0'): #vers 1
+        try:
+            from apps.methods.dff_parser import load_dff
+            self._wheels_model = load_dff(path)
+            self._wheel_type   = wheel_type
+        except Exception as e:
+            print(f'[VehicleViewport] wheels.DFF load fail: {e}')
+
+    def _get_wheel_geom_data(self): #vers 1
+        m = getattr(self, '_wheels_model', None)
+        if not m: return None
+        wtype = getattr(self, '_wheel_type', 'wheel_saloon_l0').lower()
+        for a in m.atomics:
+            fi = a.frame_index
+            fname = (m.frames[fi].name or '').lower() if fi < len(m.frames) else ''
+            if fname == wtype:
+                g = m.geometries[a.geometry_index]
+                return (
+                    [(v.x,v.y,v.z) for v in g.vertices],
+                    [(n.x,n.y,n.z) for n in g.normals] if g.normals else [],
+                    [(u.u,u.v) for u in g.uv_layers[0]] if g.uv_layers else [],
+                    [(t.v1,t.v2,t.v3,t.material_id) for t in g.triangles],
+                    g.materials,
+                    [(c.r,c.g,c.b,c.a) for c in g.colors] if g.colors else []
+                )
+        return None
+
+    def mousePressEvent(self, event): #vers 1
+        from PyQt6.QtCore import Qt
+        self._last_pos = event.pos(); self._dragging=True; self._drag_btn=event.button()
+
+    def mouseMoveEvent(self, event): #vers 2
+        """Right: rotate, middle: pan (same buttons as Model Workshop)."""
+        from PyQt6.QtCore import Qt
+        if not self._dragging: return
+        dx = event.pos().x()-self._last_pos.x()
+        dy = event.pos().y()-self._last_pos.y()
+        if self._drag_btn == Qt.MouseButton.RightButton:
+            self._yaw   += dx*0.5
+            self._pitch  = max(-89, min(89, self._pitch+dy*0.5))
+        elif self._drag_btn == Qt.MouseButton.MiddleButton:
+            s = self._dist/500.0
+            self._pan_x += dx*s; self._pan_y -= dy*s
+        self._last_pos = event.pos(); self.update()
+
+    def mouseReleaseEvent(self, event): #vers 1
+        from PyQt6.QtCore import Qt
+        self._dragging=False; self._drag_btn=Qt.MouseButton.NoButton
+
+    def wheelEvent(self, event): #vers 1
+        f = 0.88 if event.angleDelta().y()>0 else 1.13
+        self._dist = max(0.1, min(50000.0, self._dist*f)); self.update()

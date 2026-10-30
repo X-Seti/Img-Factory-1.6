@@ -1,0 +1,12 @@
+# this belongs in apps/components/DP5_Workshop/tools/kde_info_thumbnailer/amiga-info-details.desktop.in - Version: 1
+# X-Seti - October 27 2026 - IMG Factory 1.6 - Dolphin service menu template, install.sh fills @DIR@
+[Desktop Entry]
+Type=Service
+MimeType=application/x-amiga-icon;
+Actions=amigaInfoDetails;
+X-KDE-ServiceTypes=KonqPopupMenu/Plugin
+
+[Desktop Action amigaInfoDetails]
+Name=View .info details
+Icon=dialog-information
+Exec=python3 @DIR@/amiga_info_thumb.py details %f --dialog

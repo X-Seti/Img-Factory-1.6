@@ -1,0 +1,6 @@
+# this belongs in apps/components/DP5_Workshop/tools/kde_info_thumbnailer/amiga-info.thumbnailer.in - Version: 1
+# X-Seti - October 27 2026 - IMG Factory 1.6 - template, install.sh fills @DIR@
+[Thumbnailer Entry]
+TryExec=python3
+Exec=python3 @DIR@/amiga_info_thumb.py thumb %i %o %s
+MimeType=application/x-amiga-icon;

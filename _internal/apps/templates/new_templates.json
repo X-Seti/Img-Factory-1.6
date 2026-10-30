@@ -1,0 +1,19 @@
+{
+  "user_templates": [
+    {
+      "name": "My GTA SA Mod Template",
+      "game_type": "gtasa",
+      "settings": {
+        "initial_size_mb": 200,
+        "platform": "PC",
+        "compression_enabled": true,
+        "create_structure": true
+      },
+      "created": 1703123456.789,
+      "created_readable": "2024-12-21 10:30:56"
+    }
+  ],
+  "recent_settings": [...],
+  "favorites": [],
+  "version": "1.0"
+}

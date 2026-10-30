@@ -1,0 +1,32 @@
+{
+  "name": "Test Theme Light",
+  "description": "Modified version of template",
+  "category": "☀️ Light Themes",
+  "author": "X-Seti",
+  "version": "1.0",
+  "colors": {
+    "bg_primary": "#f0f8f0",
+    "bg_secondary": "#e8f4e8",
+    "bg_tertiary": "#d8ead8",
+    "panel_bg": "#e0f0e0",
+    "accent_primary": "#008800",
+    "accent_secondary": "#00aa00",
+    "text_primary": "#000000",
+    "text_secondary": "#2d2d2d",
+    "text_accent": "#15803d",
+    "button_normal": "#cceecc",
+    "button_hover": "#aaddaa",
+    "button_pressed": "#99cc99",
+    "button_text_color": "#000000",
+    "border": "#88cc88",
+    "success": "#00aa00",
+    "warning": "#cc8800",
+    "error": "#cc3333",
+    "action_import": "#008800",
+    "action_export": "#00aa00",
+    "action_remove": "#cc3333",
+    "action_update": "#cc8800",
+    "action_convert": "#8844cc"
+  },
+  "created": "2025-08-11 21:45"
+}

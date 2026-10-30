@@ -1,0 +1,6 @@
+{
+    "Id": "AmigaInfoExtractor",
+    "Name": "Amiga Workbench icon",
+    "MimeTypes": { "application/x-amiga-icon": { "Version": "0.0" } },
+    "Version": "0.1"
+}

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Workshop</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- TOOLBAR -->
+  <header id="toolbar">
+    <div class="toolbar-left">
+      <button id="btn-settings" class="tb-btn icon-text" title="Settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+        <span>Settings</span>
+      </button>
+    </div>
+    <div class="toolbar-center">
+      <svg class="ai-logo" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+        <line x1="12" y1="2" x2="12" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="12" x2="5" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="19" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="4.9" y1="4.9" x2="7.1" y2="7.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="16.9" y1="16.9" x2="19.1" y2="19.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="4.9" y1="19.1" x2="7.1" y2="16.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="16.9" y1="7.1" x2="19.1" y2="4.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="toolbar-title">AI Workshop</span>
+    </div>
+    <div class="toolbar-right">
+      <button id="btn-new-session" class="tb-btn icon-text" title="New Session (Ctrl+N)">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        <span>New Session</span>
+      </button>
+      <button id="btn-clear" class="tb-btn icon-text" title="Clear current session">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" fill="none"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Clear</span>
+      </button>
+      <div id="ollama-dot" class="status-dot" title="Ollama status"></div>
+    </div>
+  </header>
+
+  <!-- MAIN LAYOUT -->
+  <div id="main">
+
+    <!-- LEFT: Sessions -->
+    <aside id="sessions-panel">
+      <div class="panel-header">
+        <span>Sessions</span>
+        <button id="btn-new-session-side" class="icon-btn" title="New Session">＋</button>
+      </div>
+      <input id="session-search" type="search" placeholder="Search sessions…" autocomplete="off">
+      <ul id="session-list"></ul>
+    </aside>
+
+    <!-- CENTRE: Chat -->
+    <main id="chat-panel">
+      <div id="chat-messages"></div>
+      <div id="typing-indicator" class="hidden">Thinking…</div>
+      <div id="attachments-bar" class="hidden"></div>
+      <div id="input-row">
+        <textarea id="chat-input" placeholder="Type your message… (Enter to send, Shift+Enter for new line)" rows="3"></textarea>
+        <div id="input-btns">
+          <button id="btn-send" class="primary-btn">Send</button>
+          <button id="btn-stop" class="danger-btn" disabled>Stop</button>
+          <button id="btn-attach-local" class="icon-btn" title="Attach local file">📎</button>
+          <button id="btn-attach-ssh" class="icon-btn" title="Attach via SSH">🔗</button>
+          <input id="file-input" type="file" multiple style="display:none">
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT: Settings -->
+    <aside id="settings-panel">
+      <div class="panel-header"><span>Settings</span></div>
+
+      <section class="settings-section">
+        <label class="settings-label">Model</label>
+        <select id="model-select"></select>
+        <button id="btn-refresh-models" class="sm-btn">Refresh</button>
+      </section>
+
+      <section class="settings-section">
+        <label class="settings-label">Temperature</label>
+        <div class="slider-row">
+          <input type="range" id="temp-slider" min="0" max="2" step="0.05" value="0.7">
+          <span id="temp-val">0.70</span>
+        </div>
+        <label class="settings-label">Max Tokens</label>
+        <input type="number" id="max-tokens" value="2048" min="128" max="16384" step="256">
+      </section>
+
+      <section class="settings-section">
+        <label class="settings-label">Chat Display</label>
+        <div class="chat-size-row">
+          <label>Text size</label>
+          <input type="range" id="chat-size-slider" min="9" max="22" step="1" value="13">
+          <span id="chat-size-val">13px</span>
+        </div>
+        <div class="chat-size-row">
+          <label>Font</label>
+          <select id="chat-font-select">
+            <option value="'Courier New', monospace">Courier New</option>
+            <option value="'Fira Mono', monospace">Fira Mono</option>
+            <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+            <option value="'Consolas', monospace">Consolas</option>
+            <option value="'Arial', sans-serif">Arial</option>
+            <option value="'Segoe UI', sans-serif">Segoe UI</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <label class="settings-label">System Prompt</label>
+        <textarea id="system-prompt" rows="5">You are a helpful coding assistant specialising in Python, PyQt6, and GTA modding tools. Be concise and practical.</textarea>
+      </section>
+
+      <section class="settings-section">
+        <label class="settings-label">Ollama URL</label>
+        <input type="text" id="ollama-url" value="http://localhost:11434">
+      </section>
+
+      <div id="ollama-status-text" class="status-text"></div>
+    </aside>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="modal-settings" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>AI Workshop Settings</span>
+      <button class="modal-close" data-modal="modal-settings">✕</button>
+    </div>
+    <div class="modal-tabs">
+      <button class="tab-btn active" data-tab="tab-general">General</button>
+      <button class="tab-btn" data-tab="tab-ssh">SSH</button>
+      <button class="tab-btn" data-tab="tab-theme">Theme</button>
+    </div>
+    <div id="tab-general" class="tab-content active">
+      <label>Sessions Directory</label>
+      <input type="text" id="cfg-sessions-dir" placeholder="~/.config/imgfactory/ai_sessions">
+      <label>Server Port</label>
+      <input type="number" id="cfg-port" min="1024" max="65535">
+      <label>Ollama URL</label>
+      <input type="text" id="cfg-ollama-url">
+    </div>
+    <div id="tab-ssh" class="tab-content hidden">
+      <label>Host</label>
+      <input type="text" id="cfg-ssh-host" value="127.0.0.1">
+      <label>Port</label>
+      <input type="number" id="cfg-ssh-port" value="22">
+      <label>Username</label>
+      <input type="text" id="cfg-ssh-user">
+      <label>Password</label>
+      <input type="password" id="cfg-ssh-pass">
+      <label>SSH Key Path (optional)</label>
+      <input type="text" id="cfg-ssh-key" placeholder="/home/user/.ssh/id_rsa">
+      <label>Remote Root Path</label>
+      <input type="text" id="cfg-ssh-root" value="/home">
+      <div class="btn-row">
+        <button id="btn-ssh-connect" class="primary-btn">Connect</button>
+        <span id="ssh-status-text" class="status-text"></span>
+      </div>
+    </div>
+    <div id="tab-theme" class="tab-content hidden">
+      <p class="hint">Theme is pulled from app_settings_system.py automatically.<br>Change theme in the desktop app and refresh.</p>
+      <div id="theme-preview"></div>
+      <button id="btn-reload-theme" class="primary-btn">Reload Theme</button>
+    </div>
+    <div class="modal-footer">
+      <button id="btn-save-settings" class="primary-btn">Save</button>
+      <button class="modal-close" data-modal="modal-settings">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- SSH FILE BROWSER MODAL -->
+<div id="modal-ssh" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>SSH File Browser</span>
+      <button class="modal-close" data-modal="modal-ssh">✕</button>
+    </div>
+    <div id="ssh-path-bar" class="path-bar">/</div>
+    <ul id="ssh-file-list"></ul>
+    <div class="modal-footer">
+      <button id="btn-ssh-attach" class="primary-btn" disabled>Attach Selected</button>
+      <button class="modal-close" data-modal="modal-ssh">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

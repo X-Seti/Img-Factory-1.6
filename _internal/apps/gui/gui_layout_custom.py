@@ -1,0 +1,3031 @@
+#this belongs in apps/gui/gui_layout_custom.py - Version: 33
+# X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget, QFrame,
+    QGroupBox, QPushButton, QLabel, QCheckBox, QSizePolicy, QMenu
+)
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QSize, QTimer
+from PyQt6.QtGui import QIcon
+from .gui_layout import IMGFactoryGUILayout
+from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.imgfactory_svg_icons import (
+    get_add_icon, get_open_icon, get_refresh_icon, get_close_icon,
+    get_save_icon, get_export_icon, get_import_icon, get_remove_icon,
+    get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
+    get_rebuild_icon, get_undobar_icon, get_undo_icon, get_redo_icon
+)
+
+
+
+# Add root directory to path
+App_name = "Img Factory"
+vers = "1.6"
+DEBUG_STANDALONE = False
+
+class TitleBarEventFilter(QObject):
+    """Event filter for custom title bar to handle dragging"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.start_pos = None
+    
+    def eventFilter(self, obj, event):
+        # Implement drag functionality if needed
+        # For now, just return False to let events pass through normally
+        return False
+
+# Import AppSettings
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    APPSETTINGS_AVAILABLE = False
+    print("Warning: AppSettings not available")
+
+
+def _get_left_stack(mw):
+    """Return (left_stack, splitter) from gui_layout, or (None, None)."""
+    gl = getattr(mw, 'gui_layout', None)
+    return getattr(gl, 'left_stack', None), getattr(gl, 'content_splitter', None)
+
+
+def _ensure_left_panel_visible(mw, splitter, left_stack, wide=False): #vers 2
+    """Show left_stack in splitter if currently hidden."""
+    sizes = splitter.sizes()
+    total = sum(sizes) or 10000
+    left_size = sizes[0] if len(sizes) > 1 else 0
+    if left_size < total * 0.10:
+        want = min(450 if wide else total // 3, total * 2 // 3)
+        splitter.setSizes([want, total - want])
+    left_stack.show()
+    # Force repaint both sides — right panel may have been squashed to 0 by intro
+    right = splitter.widget(1)
+    if right:
+        right.update()
+        right.repaint()
+    splitter.update()
+
+
+def _show_dir_tree(mw): #vers 3
+    """Show dir tree in left stack — toggle collapse if already active."""
+    try:
+        left_stack, splitter = _get_left_stack(mw)
+        if left_stack is None or splitter is None:
+            return
+
+        # Build dir tree first time
+        if not getattr(mw, 'directory_tree', None):
+            from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+            integrate_directory_tree_browser(mw)
+            root = getattr(mw, 'game_root', None)
+            if root and hasattr(mw.directory_tree, 'browse_directory'):
+                mw.directory_tree.browse_directory(root)
+
+        dt = getattr(mw, 'directory_tree', None)
+        if dt is None:
+            return
+
+        # Insert dir tree into page 0 of left_stack
+        if left_stack.widget(0) is not dt:
+            old = left_stack.widget(0)
+            left_stack.removeWidget(old)
+            left_stack.insertWidget(0, dt)
+
+        # Toggle: if already showing dir tree — collapse; else show it
+        currently_dir = (left_stack.currentIndex() == 0 and left_stack.isVisible()
+                         and splitter.sizes()[0] > 20)
+        if currently_dir:
+            # Collapse
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([0, total])
+            left_stack.hide()
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar.set_active('dirtree', False)
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Dir Tree hidden")
+        else:
+            left_stack.setCurrentIndex(0)
+            left_stack.repaint()
+            _ensure_left_panel_visible(mw, splitter, left_stack)
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar._set_exclusive_active('dirtree')
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Dir Tree")
+    except Exception as e:
+        if hasattr(mw, 'log_message'):
+            mw.log_message(f"Dir tree show error: {e}")
+
+
+def _show_dat_browser(mw): #vers 5
+    """Show DAT Browser in left stack — toggle collapse if already active."""
+    try:
+        left_stack, splitter = _get_left_stack(mw)
+        if left_stack is None or splitter is None:
+            return
+
+        # dat_browser is created at startup by integrate_dat_browser in imgfactory.py
+        # Never recreate it here — just use the existing widget
+        widget = getattr(mw, 'dat_browser', None)
+        if widget is None:
+            if hasattr(mw, 'log_message'):
+                mw.log_message("DAT Browser not yet initialised")
+            return
+
+        # Ensure it's in page 1 of left_stack (startup already does this,
+        # but guard in case of reparenting)
+        if left_stack.widget(1) is not widget:
+            old = left_stack.widget(1)
+            left_stack.removeWidget(old)
+            left_stack.insertWidget(1, widget)
+
+        # Toggle: if already showing DAT — collapse; else show it
+        currently_dat = (left_stack.currentIndex() == 1 and left_stack.isVisible()
+                         and splitter.sizes()[0] > 20)
+        if currently_dat:
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([0, total])
+            left_stack.hide()
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar.set_active('dat', False)
+            if hasattr(mw, 'log_message'):
+                mw.log_message("DAT Browser hidden")
+        else:
+            left_stack.setCurrentIndex(1)
+            left_stack.repaint()
+            _ensure_left_panel_visible(mw, splitter, left_stack)
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar._set_exclusive_active('dat')
+            if hasattr(mw, 'log_message'):
+                mw.log_message("DAT Browser")
+    except Exception as e:
+        if hasattr(mw, 'log_message'):
+            mw.log_message(f"DAT Browser show error: {e}")
+
+
+def _show_intro_panel(mw): #vers 7
+    """Show welcome/intro screen in left_stack page 2 — same pattern as Dir Tree / DAT."""
+    try:
+        left_stack, splitter = _get_left_stack(mw)
+        if left_stack is None or splitter is None:
+            return
+
+        # Build first time
+        ws = getattr(mw, '_intro_panel', None)
+        if ws is None:
+            from apps.components.Img_Factory.welcome_screen import WelcomeScreen
+            ws = WelcomeScreen(main_window=mw, parent=left_stack)
+            ws.open_img_requested.connect(mw.open_img_file)
+            ws.open_dat_browser.connect(lambda: _show_dat_browser(mw))
+            ws.open_dir_tree.connect(lambda: _show_dir_tree(mw))
+            ws._dismiss = lambda: _show_intro_panel(mw)
+
+            def _connect_workshops():
+                try:
+                    mm = getattr(getattr(mw, 'gui_layout', None), 'method_mappings', {})
+                    ws.open_col_workshop.connect(
+                        lambda: mm.get('edit_col_file', lambda: None)())
+                    ws.open_txd_workshop.connect(
+                        lambda: mm.get('edit_txd_file', lambda: None)())
+                    ws.open_model_workshop.connect(
+                        lambda: mm.get('edit_dff_file', lambda: None)())
+                    ws.open_dp5_workshop.connect(
+                        lambda: mw.open_dp5_workshop_docked()
+                        if hasattr(mw, 'open_dp5_workshop_docked') else None)
+                    ws.open_water_workshop.connect(
+                        lambda: mw.open_water_workshop()
+                        if hasattr(mw, 'open_water_workshop') else None)
+                    ws.open_capture_workshop.connect(mw.open_capture_workshop)
+                    ws.open_radar_workshop.connect(
+                        lambda: mw.open_radar_map()
+                        if hasattr(mw, 'open_radar_map') else None)
+                    ws.open_timecyc_workshop.connect(
+                        lambda: mw.open_timecyc_editor()
+                        if hasattr(mw, 'open_timecyc_editor') else None)
+                    ws.open_ide_editor.connect(
+                        lambda: mw.open_ide_editor_docked()
+                        if hasattr(mw, 'open_ide_editor_docked') else None)
+                    ws.open_ipl_editor.connect(
+                        lambda: mw.open_ipl_editor()
+                        if hasattr(mw, 'open_ipl_editor') else None)
+                    ws.open_handling_editor.connect(
+                        lambda: mw.open_handling_editor()
+                        if hasattr(mw, 'open_handling_editor') else None)
+                    ws.open_breakable_editor.connect(
+                        lambda: mw.open_breakable_editor()
+                        if hasattr(mw, 'open_breakable_editor') else None)
+                    ws.open_vehicle_workshop.connect(
+                        lambda: mw.open_vehicle_workshop_docked()
+                        if hasattr(mw, 'open_vehicle_workshop_docked') else None)
+                    ws.open_ped_workshop.connect(
+                        lambda: mw.open_ped_workshop_docked()
+                        if hasattr(mw, 'open_ped_workshop_docked') else None)
+                    ws.open_terrain_workshop.connect(
+                        lambda: mw.open_terrain_workshop_docked()
+                        if hasattr(mw, 'open_terrain_workshop_docked') else None)
+                    ws.open_disc_workshop.connect(
+                        lambda: mw.open_disc_workshop_docked()
+                        if hasattr(mw, 'open_disc_workshop_docked') else None)
+                    ws.open_retro_gta_workshop.connect(
+                        lambda: mw.open_retro_gta_workshop_docked()
+                        if hasattr(mw, 'open_retro_gta_workshop_docked') else None)
+                    ws.open_scm_workshop.connect(
+                        lambda: mw.open_scm_workshop_docked()
+                        if hasattr(mw, 'open_scm_workshop_docked') else None)
+                    ws.open_hex_workshop.connect(
+                        lambda: mw.open_hex_workshop_docked()
+                        if hasattr(mw, 'open_hex_workshop_docked') else None)
+                    ws.open_asset_checker.connect(
+                        lambda: mw.open_asset_checker()
+                        if hasattr(mw, 'open_asset_checker') else None)
+                except Exception:
+                    pass
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(500, _connect_workshops)
+            mw._intro_panel = ws
+
+        # Place in page 2 of left_stack
+        if left_stack.widget(2) is not ws:
+            old = left_stack.widget(2)
+            left_stack.removeWidget(old)
+            left_stack.insertWidget(2, ws)
+
+        # Toggle: if already on intro page and actually showing — collapse
+        sizes_now = splitter.sizes()
+        total_now = sum(sizes_now) or 1
+        currently_intro = (left_stack.currentIndex() == 2 and left_stack.isVisible()
+                           and sizes_now[0] > total_now * 0.10)
+        if currently_intro:
+            total = splitter.width() or sum(splitter.sizes()) or 10000
+            splitter.setSizes([0, total])
+            left_stack.hide()
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar.set_active('intro', False)
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Intro hidden")
+        else:
+            left_stack.setCurrentIndex(2)
+            left_stack.repaint()
+            # Show left_stack first so splitter knows its width
+            left_stack.show()
+            # Intro takes the full content width — use splitter's actual pixel width
+            total = splitter.width() or sum(splitter.sizes()) or 10000
+            splitter.setSizes([total, 0])
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar._set_exclusive_active('intro')
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Welcome / Intro")
+
+    except Exception:
+        import traceback; traceback.print_exc()
+
+
+class ToolTaskbar(QWidget):  # vers 2
+    """Tool taskbar — lives INSIDE the titlebar row between the title and undo.
+
+    Each button:
+      - Left-click  : raise / show the associated workshop window or tab
+      - Right-click : context menu with Open / Close options
+      - Active underline shown when the target widget is visible/raised
+
+    register(key, label, icon, target, tooltip)
+    unregister(key)
+    update_target(key, target)
+    set_active(key, bool)   — draw underline on the button
+    """
+
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent)
+        self._main_window = main_window
+        self._tools: dict = {}   # key → {label, icon, target, btn, active}
+        self.setObjectName("tool_taskbar")
+        self.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
+
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(2, 0, 2, 0)
+        self._layout.setSpacing(2)
+
+        # Start hidden — shown as soon as the first tool registers
+        self.setVisible(False)
+
+    #  helpers  
+
+    def _make_btn_style(self, active: bool) -> str:
+        """Build button stylesheet purely from stored theme attrs.
+
+        Color sources (set by apply_theme):
+          _txt        = text_primary    — icon/text colour (same as all SVGs)
+          _bg2        = bg_secondary    — selected button bg
+          _bg3        = bg_tertiary     — hover bg
+          _acc        = accent_primary  — active underline
+          _acc2       = accent_secondary— hover underline preview
+          _brd        = border          — button border
+
+        border-radius:0 required — Qt drops border-bottom when set.
+        """
+        if active:
+            return (
+                f"QPushButton {{"
+                f"  background: {self._bg2};"
+                f"  color: {self._txt};"
+                f"  font-size: 11px;"
+                f"  font-weight: bold;"
+                f"  padding: 2px 10px;"
+                f"  border: 1px solid {self._brd};"
+                f"  border-bottom: 3px solid {self._acc};"
+                f"  border-radius: 0px;"
+                f"}}"
+                f"QPushButton:hover {{"
+                f"  background: {self._bg3};"
+                f"  border-bottom: 3px solid {self._acc};"
+                f"}}"
+                f"QPushButton:pressed {{ background: {self._bg3}; }}"
+            )
+        else:
+            return (
+                f"QPushButton {{"
+                f"  background: transparent;"
+                f"  color: {self._txt};"
+                f"  font-size: 11px;"
+                f"  padding: 2px 10px;"
+                f"  border: 1px solid transparent;"
+                f"  border-bottom: 3px solid transparent;"
+                f"  border-radius: 0px;"
+                f"}}"
+                f"QPushButton:hover {{"
+                f"  background: {self._bg3};"
+                f"  color: {self._txt};"
+                f"  border-bottom: 3px solid {self._acc2};"
+                f"}}"
+                f"QPushButton:pressed {{ background: {self._bg2}; }}"
+            )
+
+    def _raise_target(self, key: str) -> None:
+        """Raise / show the tool's widget or call its opener.
+        Clicking an already-active tool hides it (OS taskbar behaviour).
+        Always raises the main window to front so it isn't blocked."""
+        info = self._tools.get(key)
+        if not info:
+            return
+        t = info["target"]
+        if t is None:
+            return
+
+        mw = self._main_window
+
+        # Dir tree: show/toggle via left stack
+        if key == "dirtree":
+            _show_dir_tree(mw)
+            return
+
+        if key == "dat":
+            _show_dat_browser(mw)
+            return
+
+        if callable(t):
+            t()
+            self._set_exclusive_active(key)
+            # Bring main window to front
+            if mw:
+                mw.raise_()
+                mw.activateWindow()
+            return
+
+        if isinstance(t, QWidget):
+            # Guard: the C++ object may have been deleted (e.g. workshop closed)
+            try:
+                _ = t.isVisible()  # will raise RuntimeError if deleted
+            except RuntimeError:
+                self.unregister(key)
+                return
+
+            # OS-taskbar behaviour: clicking an active tool hides it
+            tw = getattr(mw, "main_tab_widget", None)
+            if tw:
+                for i in range(tw.count()):
+                    try:
+                        w = tw.widget(i)
+                        if w is t or (w and t in w.findChildren(QWidget)):
+                            # Already the current tab? → OS-style toggle = do nothing
+                            # (hiding a tab is disruptive; just ensure visible + raised)
+                            tw.setCurrentIndex(i)
+                            self._ensure_content_visible(mw)
+                            self._set_exclusive_active(key)
+                            # Always bring main window to front
+                            if mw:
+                                mw.raise_()
+                                mw.activateWindow()
+                            return
+                    except RuntimeError:
+                        continue
+
+            # Floating window — toggle hide/show like OS taskbar
+            try:
+                is_active = info.get("active", False)
+                if is_active and t.isVisible():
+                    # Same button clicked again → hide (OS taskbar behaviour)
+                    t.hide()
+                    self.set_active(key, False)
+                else:
+                    if not t.isVisible():
+                        t.show()
+                    t.raise_()
+                    t.activateWindow()
+                    self._set_exclusive_active(key)
+                # Also raise main window so it isn't buried
+                if mw:
+                    mw.raise_()
+                    mw.activateWindow()
+            except RuntimeError:
+                self.unregister(key)
+
+    def _ensure_content_visible(self, mw) -> None: #vers 1
+        """Ensure the main content splitter is expanded so the tab is visible.
+        If content_splitter has the right panel collapsed, restore it."""
+        try:
+            splitter = getattr(mw, 'content_splitter', None)
+            if splitter is None:
+                return
+            sizes = splitter.sizes()
+            if not sizes:
+                return
+            # If the right/content panel (index 1) is collapsed, restore it
+            if len(sizes) >= 2 and sizes[-1] < 50:
+                total = sum(sizes)
+                # Restore to ~70% content, 30% file list
+                splitter.setSizes([int(total * 0.3), int(total * 0.7)])
+            # Also ensure main window is visible and on top
+            if not mw.isVisible():
+                mw.show()
+            mw.raise_()
+            mw.activateWindow()
+        except Exception:
+            pass
+
+    def _open_tool(self, key: str) -> None:
+        """Open or focus a tool panel."""
+        mw = self._main_window
+
+        if key == "dirtree":
+            _show_dir_tree(mw)
+            return
+
+        if key == "dat":
+            _show_dat_browser(mw)
+            return
+
+        # For COL/TXD/IDE/AI use the docked opener on main_window
+        openers = {
+            "col": "open_col_workshop_docked",
+            "txd": "open_txd_workshop_docked",
+            "ide": "open_ide_editor_docked",
+            "ai":  "open_ai_workshop_docked",
+        }
+        opener_name = openers.get(key)
+        if opener_name and hasattr(mw, opener_name):
+            getattr(mw, opener_name)()
+            return
+
+        # Fallback: raise whatever target is registered
+        self._raise_target(key)
+
+    def _set_display_mode(self, key: str, mode: str) -> None:
+        """Set button display mode: 'both' | 'icon' | 'text'."""
+        info = self._tools.get(key)
+        if not info:
+            return
+        info["display_mode"] = mode
+        btn = info["btn"]
+        if mode == "icon":
+            btn.setText("")
+            btn.setIconSize(QSize(18, 18))
+        elif mode == "text":
+            btn.setIcon(QIcon())
+            btn.setText(info["label"])
+        else:  # both
+            btn.setIcon(info["icon"])
+            btn.setIconSize(QSize(16, 16))
+            btn.setText(info["label"])
+
+    def _close_tool(self, key: str) -> None:
+        """Close a tool and unregister its taskbar button."""
+        mw = self._main_window
+        t  = self._tools.get(key, {}).get("target")
+        if key == "dirtree":
+            gl = getattr(mw, "gui_layout", None)
+            splitter = getattr(gl, "content_splitter", None) if gl else None
+            if splitter and splitter.count() >= 2:
+                total = sum(splitter.sizes()) or 10000
+                splitter.setSizes([total, 0])
+            if hasattr(mw, '_dirtree_state'):
+                mw._dirtree_state = 0
+        elif key in ("dat", "intro"):
+            # Left-stack panels — just collapse, don't destroy
+            gl = getattr(mw, "gui_layout", None)
+            left_stack = getattr(gl, "left_stack", None)
+            splitter = getattr(gl, "content_splitter", None)
+            if left_stack and splitter:
+                total = sum(splitter.sizes()) or 10000
+                splitter.setSizes([0, total])
+                left_stack.hide()
+        elif isinstance(t, QWidget):
+            try:
+                _ = t.isVisible()
+                tw = getattr(mw, "main_tab_widget", None)
+                if tw:
+                    for i in range(tw.count()):
+                        try:
+                            if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
+                                # Use close_tab so menu + taskbar sync properly
+                                if hasattr(mw, 'close_tab'):
+                                    mw.close_tab(i)
+                                else:
+                                    tw.removeTab(i)
+                                # Remove injected tool menu
+                                if hasattr(mw, '_update_tool_menu_for_tab'):
+                                    mw._update_tool_menu_for_tab(None)
+                                break
+                        except RuntimeError:
+                            continue
+                    else:
+                        t.close()
+                        if hasattr(mw, '_update_tool_menu_for_tab'):
+                            mw._update_tool_menu_for_tab(None)
+            except RuntimeError:
+                pass
+        self.unregister(key)
+
+    def _show_submenu(self, key: str, parent_menu) -> 'QMenu':
+        """Build the Show (icon/text/both) submenu for any button."""
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QAction
+        show_menu = QMenu("Show", parent_menu)
+        current = self._tools.get(key, {}).get("display_mode", "both")
+        for mk, ml in (("both","Icons and Text"),("icon","Icons Only"),("text","Text Only")):
+            a = QAction(ml, show_menu)
+            a.setCheckable(True)
+            a.setChecked(current == mk)
+            a.triggered.connect(lambda _=False, k=key, m=mk: self._set_display_mode(k, m))
+            show_menu.addAction(a)
+        return show_menu
+
+    def _context_menu(self, key: str, pos) -> None:
+        """Per-tool right-click context menu."""
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QAction
+        info = self._tools.get(key)
+        if not info:
+            return
+        mw  = self._main_window
+        lbl = info["label"]
+        menu = QMenu(self)
+
+        def _act(text, fn):
+            a = QAction(text, menu)
+            a.triggered.connect(lambda _=False: fn())
+            menu.addAction(a)
+
+        #  DAT: Close, Show
+        if key == "dat":
+            _act(f"Show  {lbl}", lambda k=key: self._open_tool(k))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
+
+        #  Dir tree: Close, Show  
+        elif key == "dirtree":
+            _act(f"Show  {lbl}", lambda k=key: self._open_tool(k))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
+
+        #  TXD: Open, Save, Close, Show  
+        elif key == "txd":
+            _act("Open TXD Workshop", lambda: getattr(mw,'open_txd_workshop_docked',lambda:None)())
+            _act("Save", lambda: self._tool_action(key, 'save'))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
+
+        #  COL: Open in COL Workshop (from selection), Save, Show, Close
+        elif key == "col":
+            _act("Open in COL Workshop", lambda: self._col_open_from_selection())
+            _act("Save", lambda: self._tool_action(key, 'save'))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
+
+        #  Default: generic Open, Show, Close  
+        else:
+            _act(f"Open  {lbl}", lambda k=key: self._open_tool(k))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
+
+        menu.exec(self.mapToGlobal(pos))
+
+    def _col_open_from_selection(self) -> None:
+        """Open selected COL entry from filelist in COL Workshop."""
+        mw = self._main_window
+        try:
+            from apps.gui.gui_layout import edit_col_file
+            edit_col_file(mw)
+        except Exception as e:
+            if hasattr(mw, 'open_col_workshop_docked'):
+                mw.open_col_workshop_docked()
+
+    def _tool_action(self, key: str, action: str) -> None:
+        """Dispatch tool-specific actions like save/open_in_filelist."""
+        mw = self._main_window
+        t  = self._tools.get(key, {}).get("target")
+        if action == 'save':
+            # Try common save method names on the target widget
+            for name in ('save_file', 'save', '_save_file', 'save_current'):
+                if t and hasattr(t, name):
+                    getattr(t, name)()
+                    return
+            # Try on child workshops
+            if t:
+                for child in t.findChildren(QWidget):
+                    for name in ('save_file', 'save', '_save_file'):
+                        if hasattr(child, name):
+                            getattr(child, name)()
+                            return
+        elif action == 'open_in_filelist':
+            # For COL — switch main_tab_widget to show the COL file list tab
+            tw = getattr(mw, 'main_tab_widget', None)
+            if tw and t:
+                for i in range(tw.count()):
+                    try:
+                        if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
+                            tw.setCurrentIndex(i)
+                            return
+                    except RuntimeError:
+                        continue
+
+    #  Public API
+
+    def register(self, key: str, label: str, icon,
+                 target, tooltip: str = "") -> None: #vers 2
+        """Add or update a tool button."""
+        if key in self._tools:
+            self.unregister(key)
+
+        btn = QPushButton()
+        btn.setIcon(icon)
+        btn.setText(label)
+        btn.setIconSize(QSize(16, 16))
+        btn.setFixedHeight(28)
+        btn.setMinimumWidth(52)
+        btn.setMaximumWidth(110)
+        btn.setFlat(False)
+        btn.setToolTip(tooltip or label)
+        btn.setObjectName("tbtn")
+        btn.setStyleSheet(self._make_btn_style(False))  # themed in apply_theme()
+
+        btn.clicked.connect(lambda _=False, k=key: self._raise_target(k))
+
+        btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        btn.customContextMenuRequested.connect(
+            lambda pos, k=key: self._context_menu(k, pos))
+
+        self._layout.addWidget(btn)
+
+        self._tools[key] = {
+            "label":  label,
+            "icon":   icon,
+            "target": target,
+            "btn":    btn,
+            "active": False,
+        }
+        self.setVisible(True)
+        self._refresh_img_group()
+
+    def unregister(self, key: str) -> None: #vers 2
+        """Remove a tool button."""
+        if key not in self._tools:
+            return
+        btn = self._tools[key]["btn"]
+        self._layout.removeWidget(btn)
+        btn.deleteLater()
+        del self._tools[key]
+        if not self._tools:
+            self.setVisible(False)
+        self._refresh_img_group()
+
+    def update_target(self, key: str, target) -> None:
+        if key in self._tools:
+            self._tools[key]["target"] = target
+
+    def set_active(self, key: str, active: bool) -> None: #vers 2
+        """Draw / remove the active underline on a button."""
+        if key not in self._tools:
+            return
+        self._tools[key]["active"] = active
+        self._tools[key]["btn"].setStyleSheet(self._make_btn_style(active))
+        if key.startswith("img_"):
+            self._refresh_img_group()
+
+    def _set_exclusive_active(self, key: str) -> None:
+        """Mark key as active, clear underline on all others.
+        Also hides the intro panel if a different tool is being activated."""
+        for k in self._tools:
+            self.set_active(k, k == key)
+        # Hide intro panel when switching to any other tool
+        if key != 'intro':
+            mw = getattr(self, 'main_window', None)
+            if mw:
+                ws = getattr(mw, '_intro_panel', None)
+                if ws and ws.isVisible():
+                    ws.hide()
+
+    def is_registered(self, key: str) -> bool:
+        return key in self._tools
+
+    IMG_GROUP_AT = 5    # this many open files collapse into [IMG+]
+
+    def _refresh_img_group(self) -> None: #vers 1
+        """Collapse img_* file buttons into one [IMG+] dropdown at 5 or more."""
+        keys = [k for k in self._tools if k.startswith("img_")]
+        grouped = len(keys) >= self.IMG_GROUP_AT
+        for k in keys:
+            self._tools[k]["btn"].setVisible(not grouped)
+        grp = getattr(self, "_img_group_btn", None)
+        if not grouped:
+            if grp is not None:
+                grp.setVisible(False)
+            return
+        if grp is None:
+            from PyQt6.QtWidgets import QToolButton, QMenu
+            grp = QToolButton(self)
+            grp.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            grp.setFixedHeight(28)
+            grp.setObjectName("tbtn")
+            grp.setMenu(QMenu(grp))
+            self._img_group_btn = grp
+            first = min(self._layout.indexOf(self._tools[k]["btn"]) for k in keys)
+            self._layout.insertWidget(max(0, first), grp)
+        active = next((k for k in keys if self._tools[k]["active"]), None)
+        grp.setText(f"IMG+ ({len(keys)})")
+        grp.setToolTip("Open files - pick one")
+        grp.setStyleSheet(self._make_btn_style(active is not None).replace("QPushButton", "QToolButton"))
+        menu = grp.menu()
+        menu.clear()
+        for k in keys:
+            info = self._tools[k]
+            act = menu.addAction(info["icon"], info["btn"].toolTip().replace("Switch to ", ""))
+            act.setCheckable(True)
+            act.setChecked(k == active)
+            act.triggered.connect(lambda _=False, kk=k: self._raise_target(kk))
+        grp.setVisible(True)
+
+    def apply_theme(self, colors: dict) -> None: #vers 2
+        """Store theme color attrs then re-style all buttons.
+
+        Exact keys used:
+          text_primary    → _txt  (icon + text colour, same as all SVGs/buttons)
+          bg_secondary    → _bg2  (selected button background)
+          bg_tertiary     → _bg3  (hover background)
+          accent_primary  → _acc  (active underline)
+          accent_secondary→ _acc2 (hover underline preview)
+          border          → _brd  (button border)
+        """
+        self._txt  = colors.get("text_primary",    "#cccccc")
+        self._bg2  = colors.get("bg_secondary",    "#182030")
+        self._bg3  = colors.get("bg_tertiary",     "#151d2b")
+        self._acc  = colors.get("accent_primary",  "#1976d2")
+        self._acc2 = colors.get("accent_secondary","#1565c0")
+        self._brd  = colors.get("border",          "#3a3a3a")
+        # Tray bg via QPalette — no stylesheet cascade to child buttons
+        self.setAutoFillBackground(True)
+        from PyQt6.QtGui import QPalette, QColor
+        pal = self.palette()
+        c = QColor(self._bg3)
+        c.setAlpha(60)
+        pal.setColor(QPalette.ColorRole.Window, c)
+        self.setPalette(pal)
+        for key, info in self._tools.items():
+            info["btn"].setStyleSheet(self._make_btn_style(info["active"]))
+        self._refresh_img_group()
+
+    # seed defaults so apply_theme isn't required before first use
+    _txt  = "#cccccc"
+    _bg2  = "#182030"
+    _bg3  = "#151d2b"
+    _acc  = "#1976d2"
+    _acc2 = "#1565c0"
+    _brd  = "#3a3a3a"
+
+
+
+
+
+class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
+    """Custom UI version of IMGFactoryGUILayout with modern theme and layout"""
+
+    def __init__(self, main_window):
+        super().__init__(main_window)
+
+        # Load setting: use system titlebar by default
+        self.use_system_titlebar = True
+        if hasattr(self.main_window, 'app_settings'):
+            self.use_system_titlebar = self.main_window.app_settings.current_settings.get('use_system_titlebar', False)
+
+        # Apply initial window flags
+        self._apply_window_flags()
+
+        # ONLY set window-specific stuff in standalone mode
+
+        self.window_always_on_top = False
+
+        # Corner resize variables for standalone
+        self.dragging = False
+        self.drag_position = None
+        self.resizing = False
+        self.resize_corner = None
+        self.corner_size = 20
+        self.resize_margin = 10  # Edge margin for resize detection
+        self.hover_corner = None
+        self._initialize_features()
+        self.enable_debug_check = False
+
+
+    @property
+    def window_context(self): #vers 1
+        """Get the appropriate window context for method calls
+
+        Returns self.main_window if available (when embedded in IMG Factory),
+        otherwise returns self (when running standalone)
+        """
+        return self.main_window if self.main_window is not None else self
+
+
+    def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool): #vers 4
+        """Apply UI mode: 'system' or 'custom'"""
+        # STORE MODE EARLY
+        self.ui_mode = ui_mode
+
+        # If toolbar exists, apply visibility immediately
+        if hasattr(self, 'titlebar') and self.titlebar:
+            self.titlebar.setVisible(True)  # Always visible
+
+            # Control window buttons based on mode
+            show_controls = (ui_mode == 'custom')
+            if hasattr(self, 'minimize_btn'):
+                self.minimize_btn.setVisible(show_controls)
+            if hasattr(self, 'maximize_btn'):
+                self.maximize_btn.setVisible(show_controls)
+            if hasattr(self, 'close_btn'):
+                self.close_btn.setVisible(show_controls)
+
+        # Menu bar visibility
+        if hasattr(self.main_window, 'menuBar') and callable(self.main_window.menuBar):
+            menu_bar = self.main_window.menuBar()
+            if menu_bar:
+                menu_bar.setVisible(show_menu_bar)
+
+        # Status bar visibility
+        if hasattr(self.main_window, 'statusBar') and callable(self.main_window.statusBar):
+            status_bar = self.main_window.statusBar()
+            if status_bar:
+                status_bar.setVisible(show_status_bar)
+
+
+    def create_main_ui_with_splitters(self, parent_layout): #vers 6
+        """Create the main UI with toolbar for custom layout - TOOLBAR NOW IN _create_ui"""
+        # NO LONGER CREATE TOOLBAR HERE - it's handled in imgfactory._create_ui
+
+        # Create temp widget for main content
+        temp_widget = QWidget()
+        temp_layout = QVBoxLayout(temp_widget)
+        temp_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Call parent method to create the main UI content
+        super().create_main_ui_with_splitters(temp_layout)
+
+        # Add the main content directly to parent layout
+        parent_layout.addWidget(temp_widget)
+
+
+        # NOW apply ui_mode visibility settings AFTER toolbar exists
+        ui_mode = getattr(self, 'ui_mode', 'system')
+        if ui_mode == 'custom':
+            # Show window controls in custom mode
+            if hasattr(self, 'minimize_btn'):
+                self.minimize_btn.setVisible(True)
+            if hasattr(self, 'maximize_btn'):
+                self.maximize_btn.setVisible(True)
+            if hasattr(self, 'close_btn'):
+                self.close_btn.setVisible(True)
+        else:
+            # Hide window controls in system mode
+            if hasattr(self, 'minimize_btn'):
+                self.minimize_btn.setVisible(False)
+            if hasattr(self, 'maximize_btn'):
+                self.maximize_btn.setVisible(False)
+            if hasattr(self, 'close_btn'):
+                self.close_btn.setVisible(False)
+
+
+
+
+    def _apply_window_flags(self): #vers 1
+        """Apply window flags based on system/custom UI setting"""
+        if not hasattr(self.main_window, 'setWindowFlags') or not hasattr(self.main_window, 'show'):
+            return
+        current_geometry = self.main_window.geometry()
+        was_visible = self.main_window.isVisible()
+        if self.use_system_titlebar:
+            self.main_window.setWindowFlags(
+                Qt.WindowType.Window |
+                Qt.WindowType.WindowMinimizeButtonHint |
+                Qt.WindowType.WindowMaximizeButtonHint |
+                Qt.WindowType.WindowCloseButtonHint
+            )
+        else:
+            self.main_window.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.main_window.setGeometry(current_geometry)
+        if was_visible:
+            self.main_window.show()
+
+
+    def toggle_maximize_restore(self):
+        if self.main_window.isMaximized():
+            self.main_window.showNormal()
+        else:
+            self.main_window.showMaximized()
+
+
+    def open_img_file(self, *a, **kw):
+        if hasattr(self, "main_window"): self.main_window.log_message("open_img_file called")
+
+    def rebuild_img(self, *a, **kw):
+        if hasattr(self, "main_window"): self.main_window.log_message("rebuild_img called")
+
+    def save_img_entry(self, *a, **kw):
+        if hasattr(self, "main_window"): self.main_window.log_message("save_img_entry called")
+
+    def _show_workshop_settings(self): #vers 4
+        """Show IMG Factory Settings dialog - calls proper settings module"""
+        try:
+            from apps.methods.imgfactory_ui_settings import show_imgfactory_settings_dialog
+            show_imgfactory_settings_dialog(self.main_window)
+        except Exception as e:
+            self.main_window.log_message(f"Error opening settings: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    def _create_toolbar(self): #vers 8
+        """Create toolbar - ALL BUTTONS CONNECTED"""
+        # Read sizes from app_settings so they match Global App System Settings
+        try:
+            from apps.utils.app_settings_system import get_titlebar_sizes as _gts
+            _as = getattr(self, 'app_settings', None) or getattr(
+                  getattr(self, 'main_window', None), 'app_settings', None)
+            _sz = _gts(_as)
+            _TB_H    = _sz['tb_height']
+            _BTN_SZ  = _sz['btn_size']
+            _ICO_SZ  = _sz['icon_size']
+            _BTN_H   = _sz['btn_height']
+        except Exception:
+            _TB_H, _BTN_SZ, _ICO_SZ, _BTN_H = 32, 32, 20, 24
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        from PyQt6.QtGui import QFont
+
+        if not hasattr(self, 'title_font'):
+            self.title_font = QFont("Arial", 14)
+        if not hasattr(self, 'button_font'):
+            self.button_font = QFont("Arial", 10)
+        if not hasattr(self, 'icon_factory'):
+            self.icon_factory = SVGIconFactory()
+        if not hasattr(globals(), 'App_name'):
+            from apps.components.Img_Factory.imgfactory import App_name
+
+        self.titlebar = QWidget()
+        self.titlebar.setFixedHeight(45)
+        self.titlebar.setObjectName("titlebar")
+
+        # Install event filter for drag detection
+        self.titlebar_event_filter = TitleBarEventFilter()
+        self.titlebar.installEventFilter(self.titlebar_event_filter)
+        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.titlebar.setMouseTracking(True)
+
+        layout = QHBoxLayout(self.titlebar)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+
+        # Get icon color from theme text_primary
+        icon_color = "#000000"
+        if hasattr(self, 'main_window') and hasattr(self.main_window, 'app_settings'):
+            current_theme = self.main_window.app_settings.current_settings.get("theme", "default")
+            theme_colors = self.main_window.app_settings.get_theme_colors(current_theme)
+            if theme_colors:
+                icon_color = theme_colors.get('text_primary', '#000000')
+
+        # M Menu button - BEFORE settings
+        self.menu_btn = QPushButton()
+        self.menu_btn.setFont(self.button_font)
+        self.menu_btn.setIcon(self.icon_factory.menu_m_icon(20, icon_color))
+        self.menu_btn.setText("Menu")
+        self.menu_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
+        self.menu_btn.clicked.connect(self._show_popup_menu)
+        self.menu_btn.setToolTip("Main Menu")
+        layout.addWidget(self.menu_btn)
+
+        # [DP5] tool button — hidden until DP5 docks, then shows between Menu and Settings
+        self.tool_menu_btn = QPushButton()
+        self.tool_menu_btn.setFont(self.button_font)
+        self.tool_menu_btn.setText("DP5")
+        self.tool_menu_btn.setToolTip("DP5 Paint menu")
+        self.tool_menu_btn.setVisible(False)   # hidden until a tool docks
+        self.tool_menu_btn.setFixedHeight(28)
+        self._tool_menu_popup = None           # set by register_tool_menu_btn()
+        self.tool_menu_btn.clicked.connect(self._show_tool_menu_popup)
+        layout.addWidget(self.tool_menu_btn)
+
+        # Settings button - PREVENT DUPLICATE CONNECTIONS
+        self.settings_btn = QPushButton()
+        self.settings_btn.setFont(self.button_font)
+        self.settings_btn.setIcon(self.icon_factory.settings_icon(20, icon_color))
+        self.settings_btn.setText("Settings")
+        self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
+
+        try:
+            self.settings_btn.clicked.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+
+        self.settings_btn.clicked.connect(self._show_workshop_settings)
+        self.settings_btn.setToolTip("Img Factory Settings")
+        layout.addWidget(self.settings_btn)
+
+        # RW Reference button
+        self.rw_ref_btn = QPushButton()
+        self.rw_ref_btn.setFont(self.button_font)
+        self.rw_ref_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
+        self.rw_ref_btn.setText("RW Ref")
+        self.rw_ref_btn.setIconSize(QSize(20, 20))
+        self.rw_ref_btn.clicked.connect(self._show_rw_reference)
+        self.rw_ref_btn.setToolTip("RenderWare Format Reference (versions, sections, texture formats, platforms)")
+        layout.addWidget(self.rw_ref_btn)
+
+        layout.addStretch()
+
+        # App title in center
+        try:
+            from apps.app_info import get_full_build as _gbuild
+            _title_text = f"{App_name} - {_gbuild()}"
+        except ImportError:
+            _title_text = App_name
+        self.title_label = QLabel(_title_text)
+        self.title_label.setFont(self.title_font)
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_label.setMinimumWidth(1)             # shrinks first, never widens the window
+        layout.addWidget(self.title_label)
+
+        layout.addStretch()
+
+    # = TAB NAVIGATION BUTTONS
+
+        # STUB: buttons and signal connections need review
+        #'create_new_img': lambda: create_new_img(self.main_window),
+        #'open_img_file': lambda: open_file_dialog(self.main_window),
+        #'reload_table': lambda: reload_current_file(self.main_window),
+
+
+        # File Entries button - CONNECTED
+        #self.file_open_btn = QPushButton()
+        #self.file_open_btn.setFont(self.button_font)
+        #self.file_open_btn.setIcon(self.icon_factory.open_icon())
+        #self.file_open_btn.setText("Open")
+        #self.file_open_btn.setIconSize(QSize(20, 20))
+        #self.file_open_btn.setToolTip("Open file (Ctrl+O)")
+        #self.file_open_btn.clicked.connect(lambda: self.open_img_file)
+        #self.file_open_btn.clicked.connect(self.open_img_file)
+        #layout.addWidget(self.file_open_btn)
+
+        # Directory Tree button - CONNECTED
+        #self.file_save_btn = QPushButton()
+        #self.file_save_btn.setFont(self.button_font)
+        #self.file_save_btn.setIcon(self.icon_factory.save_icon())
+        #self.file_save_btn.setText("Save")
+        #self.file_save_btn.setIconSize(QSize(20, 20))
+        #self.file_save_btn.setToolTip("Save File (Ctrl+S)")
+        #self.file_save_btn.clicked.connect(self.save_img_entry)
+        #self.file_save_btn.clicked.connect(lambda: self.show_project_manager_dialog)
+
+        #layout.addWidget(self.file_save_btn)
+
+        # Search button - CONNECTED (renamed from "Search Results")
+        #self.file_rebuild_btn = QPushButton()
+        #self.file_rebuild_btn.setFont(self.button_font)
+        #self.file_rebuild_btn.setIcon(self.icon_factory.rebuild_icon())
+        #self.file_rebuild_btn.setText("Rebuild")
+        #self.file_rebuild_btn.setIconSize(QSize(20, 20))
+        #self.file_rebuild_btn.setToolTip("Rebuild (Ctrl+R)")
+        #self.file_rebuild_btn.clicked.connect(lambda: self.main_window.search_manager.show_search_dialog())
+        #self.file_rebuild_btn.clicked.connect(self.rebuild_img)
+        #layout.addWidget(self.file_rebuild_btn)
+
+
+        layout.addStretch()
+
+        # ==================== ACTION BUTTONS ====================
+
+        #  Tool Taskbar — embedded inline between title and undo
+        # Populated by register_tool() whenever a workshop opens.
+        # Hidden until first tool registers; sits flush in the titlebar row.
+        # ToolTaskbar is defined earlier in this file — instantiate directly.
+        self._inline_taskbar = ToolTaskbar(self.main_window, self.titlebar)
+        self._inline_taskbar.setVisible(False)
+        self._inline_taskbar.setMinimumWidth(1)         # many tools: clipped, window stays on screen
+        layout.addWidget(self._inline_taskbar)
+        # Expose on main_window so register_tool finds it immediately
+        self.main_window.tool_taskbar = self._inline_taskbar
+
+        layout.addStretch()
+
+        # Undo button - CONNECTED
+        self.undo_btn = QPushButton()
+        self.undo_btn.setFont(self.button_font)
+        self.undo_btn.setIcon(self.icon_factory.undo_icon(20, icon_color))
+        self.undo_btn.setText("")
+        self.undo_btn.setIconSize(QSize(20, 20))
+        self.undo_btn.setMinimumWidth(40)
+        self.undo_btn.setMaximumWidth(40)
+        self.undo_btn.setMinimumHeight(30)
+        self.undo_btn.setToolTip("Undo last change")
+        self.undo_btn.setEnabled(True)
+
+        if hasattr(self.main_window, '_smart_undo_action'):
+            self.undo_btn.clicked.connect(self.main_window._smart_undo_action)
+        elif hasattr(self.main_window, 'undo_manager'):
+            self.undo_btn.clicked.connect(self.main_window.undo_manager.undo)
+
+        layout.addWidget(self.undo_btn)
+
+        # Info button - CONNECTED
+        self.info_btn = QPushButton()
+        self.info_btn.setIcon(self.icon_factory.info_icon(20, icon_color))
+        self.info_btn.setIconSize(QSize(20, 20))
+        self.info_btn.setMinimumWidth(40)
+        self.info_btn.setMaximumWidth(40)
+        self.info_btn.setMinimumHeight(30)
+        self.info_btn.setToolTip("Application Information")
+        self.info_btn.clicked.connect(self._show_imgfactory_info)
+        layout.addWidget(self.info_btn)
+
+        # Properties/Theme button - CONNECTED
+        self.properties_btn = QPushButton()
+        self.properties_btn.setFont(self.button_font)
+        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
+        self.properties_btn.setIconSize(QSize(20, 20))
+        self.properties_btn.setMinimumWidth(40)
+        self.properties_btn.setMaximumWidth(40)
+        self.properties_btn.setMinimumHeight(30)
+        self.properties_btn.setToolTip("Theme Settings")
+        self.properties_btn.clicked.connect(self._launch_theme_settings)
+        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
+        layout.addWidget(self.properties_btn)
+
+        # AI Workshop button
+        self.ai_btn = QPushButton()
+        self.ai_btn.setFont(self.button_font)
+        self.ai_btn.setIcon(SVGIconFactory.ai_icon(24, icon_color))
+        self.ai_btn.setText("AI")
+        self.ai_btn.setIconSize(QSize(24, 24))
+        self.ai_btn.setMinimumWidth(64)
+        self.ai_btn.setMaximumWidth(64)
+        self.ai_btn.setMinimumHeight(30)
+        self.ai_btn.setToolTip("AI Workshop – Local LLM chat via Ollama\nLeft-click: dock into tab\nRight-click: open standalone")
+        self.ai_btn.clicked.connect(lambda: self.main_window.open_ai_workshop_docked())
+        self.ai_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.ai_btn.customContextMenuRequested.connect(self._show_ai_context_menu)
+        layout.addWidget(self.ai_btn)
+
+        #self.debug_btn = QPushButton()
+        #self.debug_btn.setFont(self.button_font)
+        #self.debug_btn.setText("DEBUG")
+        #self.debug_btn.setIconSize(QSize(20, 20))
+        #self.debug_btn.setToolTip("Show tab debug info")
+        #self.debug_btn.clicked.connect(self._debug_tabs)
+        #layout.addWidget(self.debug_btn)
+
+        # ==================== WINDOW CONTROLS (Custom UI only) ====================
+
+        ui_mode = getattr(self, 'ui_mode', 'system')
+
+        if ui_mode == 'custom':
+            self.minimize_btn = QPushButton()
+            self.minimize_btn.setIcon(self.icon_factory.minimize_icon(20, icon_color))
+            self.minimize_btn.setIconSize(QSize(20, 20))
+            self.minimize_btn.setMinimumWidth(40)
+            self.minimize_btn.setMaximumWidth(40)
+            self.minimize_btn.setMinimumHeight(30)
+            self.minimize_btn.clicked.connect(self.main_window.showMinimized)
+            self.minimize_btn.setToolTip("Minimize Window")
+            layout.addWidget(self.minimize_btn)
+
+            self.maximize_btn = QPushButton()
+            self.maximize_btn.setIcon(self.icon_factory.maximize_icon(20, icon_color))
+            self.maximize_btn.setIconSize(QSize(20, 20))
+            self.maximize_btn.setMinimumWidth(40)
+            self.maximize_btn.setMaximumWidth(40)
+            self.maximize_btn.setMinimumHeight(30)
+            self.maximize_btn.clicked.connect(self.toggle_maximize_restore)
+            self.maximize_btn.setToolTip("Maximize/Restore Window")
+            layout.addWidget(self.maximize_btn)
+
+            self.close_btn = QPushButton()
+            self.close_btn.setIcon(self.icon_factory.close_icon(20, icon_color))
+            self.close_btn.setIconSize(QSize(20, 20))
+            self.close_btn.setMinimumWidth(40)
+            self.close_btn.setMaximumWidth(40)
+            self.close_btn.setMinimumHeight(30)
+            self.close_btn.clicked.connect(self.main_window.close)
+            self.close_btn.setToolTip("Close Window")
+            layout.addWidget(self.close_btn)
+
+        return self.titlebar
+
+    def _show_tool_menu_popup(self): #vers 1
+        """Show the docked tool's popup menu from the [DP5] titlebar button."""
+        popup = self._tool_menu_popup
+        if popup and callable(popup):
+            popup()
+        elif hasattr(self, 'tool_menu_btn'):
+            from PyQt6.QtWidgets import QMenu
+            m = QMenu(self.tool_menu_btn)
+            m.addAction("(no menu registered)").setEnabled(False)
+            m.exec(self.tool_menu_btn.mapToGlobal(
+                self.tool_menu_btn.rect().bottomLeft()))
+
+    def register_tool_menu_btn(self, label: str, popup_fn): #vers 1
+        """Called by a docking tool to claim the titlebar tool button.
+        label    — short text e.g. 'DP5'
+        popup_fn — callable that shows the tool's menu popup
+        """
+        if not hasattr(self, 'tool_menu_btn'):
+            return
+        self.tool_menu_btn.setText(label)
+        self.tool_menu_btn.setToolTip(f"{label} menu")
+        self._tool_menu_popup = popup_fn
+        self.tool_menu_btn.setVisible(True)
+
+    def unregister_tool_menu_btn(self): #vers 1
+        """Called when the tool tab closes — hides the button."""
+        if not hasattr(self, 'tool_menu_btn'):
+            return
+        self.tool_menu_btn.setVisible(False)
+        self._tool_menu_popup = None
+
+    def _show_popup_menu(self): #vers 3
+        """Show main popup menu via unified menu system."""
+        try:
+            self.main_window.menu_system.show_popup(at_widget=self.menu_btn)
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Menu error: {str(e)}")
+
+
+
+
+    def _switch_to_directory_tree(self): #vers 13
+        """Switch to Directory Tree - setup once, then block button"""
+        try:
+            # If already setup, block second press
+            if hasattr(self.main_window, '_dirtree_setup_complete'):
+                self.main_window.log_message("Directory Tree already loaded")
+                return
+
+            # Check game root
+            if not hasattr(self.main_window, 'game_root') or not self.main_window.game_root:
+                from PyQt6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self.main_window,
+                    "No Project Configured",
+                    "No project is currently configured.\n\nWould you like to open the Project Manager now?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                    show_project_manager_dialog(self.main_window)
+                return
+
+            # ONE-TIME SETUP: Create directory tree
+            if not hasattr(self.main_window, 'directory_tree'):
+                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                if not integrate_directory_tree_browser(self.main_window):
+                    self.main_window.log_message("Failed to load Directory Tree")
+                    return
+
+            # Place in file window
+            layout = self.main_window.gui_layout.file_window.layout()
+            layout.addWidget(self.main_window.directory_tree)
+            self.main_window.log_message("Directory tree setup complete")
+
+            # Browse to game root
+            if hasattr(self.main_window.directory_tree, 'browse_directory'):
+                self.main_window.directory_tree.browse_directory(self.main_window.game_root)
+
+            # Update Tab 0 label to "Dir Tree"
+            if hasattr(self.main_window, 'main_tab_widget'):
+                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
+
+            # Mark setup as complete BEFORE showing
+            self.main_window._dirtree_setup_complete = True
+            self.main_window._dirtree_state = 0  # start hidden
+
+            # Register dir tree in tool taskbar
+            try:
+                mw = self.main_window
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                _icon = SVGIconFactory.info_icon() if not hasattr(SVGIconFactory,'folder_icon') else SVGIconFactory.folder_icon()
+                if hasattr(mw, 'register_tool'):
+                    mw.register_tool("dirtree", "Dir", _icon,
+                                     mw.directory_tree, "Directory Tree Browser")
+            except Exception:
+                pass
+
+            # Show directory tree, hide table
+            if hasattr(self.main_window.gui_layout, 'table'):
+                self.main_window.gui_layout.table.hide()
+            self.main_window.directory_tree.show()
+
+            # Switch to Tab 0
+            if hasattr(self.main_window, 'main_tab_widget'):
+                self.main_window.main_tab_widget.setCurrentIndex(0)
+                self.main_window.log_message("→ Directory Tree")
+
+        except Exception as e:
+            self.main_window.log_message(f"Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+
+
+
+
+
+    def _show_rw_scan_dialog(self): #vers 1
+        """Show RW version scan dialog: lists all detected versions, offers force-rescan."""
+        try:
+            from PyQt6.QtWidgets import (
+                QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
+                QTableWidget, QTableWidgetItem, QHeaderView, QProgressDialog,
+                QAbstractItemView
+            )
+            from PyQt6.QtCore import Qt, QTimer
+            from PyQt6.QtGui import QColor, QPalette
+
+            mw = self.main_window
+            img_file = getattr(mw, 'current_img', None)
+
+            if not img_file or not img_file.entries:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(mw, "RW Scan", "No IMG file loaded.")
+                return
+
+            from apps.methods.rw_versions import get_rw_version_name, is_valid_rw_version
+
+            #  collect stats
+            def _collect(entries):
+                """Return (rows, version_summary) from current entry list."""
+                rows = []
+                version_counts = {}
+                for entry in entries:
+                    ext = getattr(entry, 'extension', '').upper()
+                    if ext not in ('DFF', 'TXD'):
+                        continue
+                    size = getattr(entry, 'size', 0)
+                    rv   = getattr(entry, 'rw_version', 0)
+                    rvn  = getattr(entry, 'rw_version_name', '')
+                    if rv and is_valid_rw_version(rv):
+                        label = rvn if rvn and rvn not in ('Unknown', '', 'N/A') \
+                                    else get_rw_version_name(rv)
+                        hex_v = f"0x{rv:08X}"
+                    elif size == 0:
+                        label, hex_v = "Empty", "—"
+                    else:
+                        label, hex_v = "Unknown", "—"
+                    rows.append((entry.name, ext, hex_v, label))
+                    version_counts[label] = version_counts.get(label, 0) + 1
+                return rows, version_counts
+
+            #  build dialog  
+            dlg = QDialog(mw)
+            dlg.setWindowTitle("RW Version Scan")
+            dlg.setMinimumSize(700, 480)
+            dlg.resize(750, 520)
+
+            pal   = dlg.palette()
+            c_bg  = pal.color(QPalette.ColorRole.Base).name()
+            c_alt = pal.color(QPalette.ColorRole.AlternateBase).name()
+            c_txt = pal.color(QPalette.ColorRole.Text).name()
+            c_hdr = pal.color(QPalette.ColorRole.Button).name()
+            c_sel = pal.color(QPalette.ColorRole.Highlight).name()
+
+            dlg.setStyleSheet(f"""
+                QDialog        {{ background:{c_bg}; color:{c_txt}; }}
+                QTableWidget   {{ background:{c_bg}; color:{c_txt};
+                                  gridline-color:{c_hdr};
+                                  selection-background-color:{c_sel}; }}
+                QHeaderView::section {{ background:{c_hdr}; color:{c_txt};
+                                        padding:4px; border:none; }}
+                QPushButton    {{ background:{c_hdr}; color:{c_txt};
+                                  padding:4px 12px; border-radius:3px; }}
+                QPushButton:hover {{ background:{c_sel}; }}
+                QLabel         {{ color:{c_txt}; }}
+            """)
+
+            vlay = QVBoxLayout(dlg)
+            vlay.setSpacing(6)
+
+            # Title + summary row
+            title_lbl = QLabel()
+            title_lbl.setStyleSheet("font-weight:bold; font-size:12px;")
+            vlay.addWidget(title_lbl)
+
+            summary_lbl = QLabel()
+            summary_lbl.setWordWrap(True)
+            vlay.addWidget(summary_lbl)
+
+            # Table: Name | Type | Version hex | Version name
+            table = QTableWidget()
+            table.setColumnCount(4)
+            table.setHorizontalHeaderLabels(["Name", "Type", "RW Hex", "RW Version"])
+            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+            table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            table.setAlternatingRowColors(True)
+            table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            table.verticalHeader().setVisible(False)
+            vlay.addWidget(table)
+
+            def _populate(entries):
+                rows, vcounts = _collect(entries)
+                table.setRowCount(len(rows))
+                unknown_count = 0
+                for r, (name, ext, hex_v, label) in enumerate(rows):
+                    table.setItem(r, 0, QTableWidgetItem(name))
+                    table.setItem(r, 1, QTableWidgetItem(ext))
+                    table.setItem(r, 2, QTableWidgetItem(hex_v))
+                    table.setItem(r, 3, QTableWidgetItem(label))
+                    if label == "Unknown":
+                        unknown_count += 1
+                        for c in range(4):
+                            item = table.item(r, c)
+                            if item:
+                                item.setForeground(QColor(pal.color(QPalette.ColorRole.PlaceholderText)))
+
+                dff_txd_total = sum(vcounts.values())
+                title_lbl.setText(
+                    f"RW Version Scan — {os.path.basename(img_file.file_path)}"
+                    f"  ({dff_txd_total} DFF/TXD entries)"
+                )
+                parts = [f"{v}: {n}" for v, n in sorted(vcounts.items(), key=lambda x: -x[1])]
+                summary_lbl.setText("  |  ".join(parts) if parts else "No DFF/TXD entries.")
+                return unknown_count
+
+            import os
+            unknown_before = _populate(img_file.entries)
+
+            # Bottom buttons
+            hlay = QHBoxLayout()
+
+            status_lbl = QLabel("")
+            status_lbl.setStyleSheet("font-style:italic;")
+            hlay.addWidget(status_lbl, 1)
+
+            rescan_btn = QPushButton("⟳  Force Rescan All")
+            rescan_btn.setToolTip("Re-read every DFF/TXD entry from disk and detect RW version")
+
+            def _do_rescan():
+                rescan_btn.setEnabled(False)
+                status_lbl.setText("Scanning…")
+                dlg.repaint()
+
+                dff_txd_entries = [
+                    e for e in img_file.entries
+                    if getattr(e, 'extension', '').upper() in ('DFF', 'TXD')
+                ]
+                total = len(dff_txd_entries)
+                found = 0
+
+                for e in dff_txd_entries:
+                    e.rw_version = 0
+                    e.rw_version_name = ''
+                    e._version_detected = False
+                    try:
+                        e.detect_file_type_and_version()
+                        if getattr(e, 'rw_version', 0):
+                            found += 1
+                    except Exception:
+                        pass
+
+                unknown_after = _populate(img_file.entries)
+
+                # Refresh the main IMG table too
+                try:
+                    from apps.methods.export_shared import get_active_table
+                    active_table = get_active_table(mw)
+                    if active_table and hasattr(mw, 'gui_layout'):
+                        populator = getattr(mw.gui_layout, 'table_populator', None)
+                        if populator is None:
+                            from apps.methods.populate_img_table import IMGTablePopulator
+                            populator = IMGTablePopulator(mw)
+                        # Refresh only the RW Version column (col 5) for efficiency
+                        from apps.methods.populate_img_table import IMGTablePopulator
+                        pop = IMGTablePopulator(mw)
+                        for row, entry in enumerate(img_file.entries):
+                            if row >= active_table.rowCount():
+                                break
+                            ext = getattr(entry, 'extension', '').upper()
+                            if ext in ('DFF', 'TXD'):
+                                ver_text = pop.get_rw_version_light(entry)
+                                from PyQt6.QtWidgets import QTableWidgetItem as QTI
+                                item = QTI(ver_text)
+                                active_table.setItem(row, 5, item)
+                except Exception:
+                    pass
+
+                status_lbl.setText(
+                    f"Done — {found}/{total} entries resolved, "
+                    f"{unknown_after} still unknown."
+                )
+                rescan_btn.setEnabled(True)
+
+            rescan_btn.clicked.connect(_do_rescan)
+            hlay.addWidget(rescan_btn)
+
+            close_btn = QPushButton("Close")
+            close_btn.clicked.connect(dlg.accept)
+            hlay.addWidget(close_btn)
+
+            vlay.addLayout(hlay)
+
+            if unknown_before > 0:
+                status_lbl.setText(
+                    f"{unknown_before} entries have no detected RW version — "
+                    "click Rescan to re-read from disk."
+                )
+
+            dlg.exec()
+
+        except Exception as e:
+            try:
+                self.main_window.log_message(f"RW Scan dialog error: {e}")
+            except Exception:
+                pass
+
+    def _show_rw_reference(self): #vers 5
+        """Show comprehensive GTA/RenderWare format reference — all researched binary layouts."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+                                     QTabWidget, QTextEdit, QLabel, QSplitter)
+        from PyQt6.QtGui import QFont, QPalette
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import Qt
+
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle("GTA / RenderWare Format Reference — IMG Factory 1.6")
+        dialog.setMinimumSize(980, 760)
+        dialog.resize(1060, 800)
+        from apps.core.theme_utils import apply_dialog_theme
+        apply_dialog_theme(dialog, self.main_window)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(6)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        hdr = QLabel("RenderWare & GTA Archive Format Reference")
+        hdr.setFont(QFont("Arial", 13, QFont.Weight.Bold))
+        hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(hdr)
+
+        sub = QLabel(
+            "Researched binary layouts for every platform supported by IMG Factory 1.6 — "
+            "including how each format was identified, what bytes we inspected, and "
+            "what conclusions we drew.")
+        sub.setWordWrap(True)
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(sub)
+
+        tabs = QTabWidget()
+        layout.addWidget(tabs, 1)
+
+        def make_tab(html):
+            t = QTextEdit()
+            t.setReadOnly(True)
+            t.setHtml(html)
+            return t
+
+        # Use app theme colours — QPalette is unreliable when the app uses a custom theme
+        _tc = {}
+        if hasattr(self.main_window, 'app_settings'):
+            _theme = self.main_window.app_settings.current_settings.get('theme', '')
+            _tc = self.main_window.app_settings.get_theme_colors(_theme) or {}
+
+        pal = QApplication.instance().palette()
+        def _h(r): return pal.color(r).name()
+
+        # All colours from theme dict first, QPalette as last-resort fallback only
+        c_bg    = _tc.get('bg_primary',           _h(QPalette.ColorRole.Base))
+        c_bg2   = _tc.get('panel_entries',         _tc.get('bg_secondary', _h(QPalette.ColorRole.AlternateBase)))
+        c_bg3   = _tc.get('bg_tertiary',           _tc.get('bg_secondary', c_bg2))
+        c_text  = _tc.get('text_primary',          _h(QPalette.ColorRole.Text))
+        c_text2 = _tc.get('text_secondary',        _h(QPalette.ColorRole.PlaceholderText))
+        c_acc   = _tc.get('accent_primary',        _h(QPalette.ColorRole.Highlight))
+        c_brd   = _tc.get('border',                _h(QPalette.ColorRole.Mid))
+        c_th    = _tc.get('button_normal',         _h(QPalette.ColorRole.Button))
+        c_thtx  = _tc.get('text_primary',          _h(QPalette.ColorRole.ButtonText))
+        c_code  = _tc.get('panel_filter',          _tc.get('bg_tertiary', c_bg2))   # inline <code> boxes
+        c_sel   = _tc.get('selection_background',  _h(QPalette.ColorRole.Highlight))
+        c_ok    = _tc.get('success',               _h(QPalette.ColorRole.Link))
+        c_err   = _tc.get('error',                 _h(QPalette.ColorRole.LinkVisited))
+        c_wrn   = _tc.get('warning',               _h(QPalette.ColorRole.Highlight))
+
+        css = (
+            "<style>"
+            f"body{{font-family:'Segoe UI','Arial',sans-serif;font-size:12px;"
+            f"background:{c_bg};color:{c_text};padding:8px;margin:0;}}"
+            f"h2{{color:{c_acc};border-bottom:2px solid {c_brd};padding-bottom:4px;"
+            f"margin-top:14px;margin-bottom:4px;font-size:14px;}}"
+            f"h3{{color:{c_acc};margin:10px 0 3px 0;font-size:13px;font-weight:bold;}}"
+            f"h4{{color:{c_text};margin:6px 0 2px 0;font-size:12px;font-weight:bold;}}"
+            f"p{{margin:4px 0 6px 0;line-height:1.5;}}"
+            f"table{{border-collapse:collapse;width:100%;margin-bottom:10px;"
+            f"border:1px solid {c_brd};}}"
+            f"th{{background:{c_th};color:{c_thtx};padding:4px 10px;text-align:left;"
+            f"border:1px solid {c_brd};font-size:11px;font-weight:bold;}}"
+            f"td{{padding:3px 10px;border:1px solid {c_brd};color:{c_text};"
+            f"background:{c_bg};vertical-align:top;font-size:11px;}}"
+            f"tr:nth-child(even) td{{background:{c_bg2};}}"
+            f"tr:hover td{{background:{c_bg3};}}"
+            # code boxes: use panel_filter colour so they stand out but stay on-theme
+            f"code{{background:{c_code};color:{c_text};padding:1px 5px;"
+            f"border-radius:3px;font-family:'Consolas','Courier New',monospace;"
+            f"font-size:11px;border:1px solid {c_brd};}}"
+            f"pre{{background:{c_code};color:{c_text};padding:8px 10px;"
+            f"border-radius:4px;font-family:'Consolas','Courier New',monospace;"
+            f"font-size:11px;border:1px solid {c_brd};white-space:pre-wrap;"
+            f"margin:4px 0;}}"
+            f".note{{color:{c_text2};font-style:italic;margin:3px 0;}}"
+            f".ok{{color:{c_ok};font-weight:bold;}}"
+            f".err{{color:{c_err};font-weight:bold;}}"
+            f".wrn{{color:{c_wrn};font-weight:bold;}}"
+            f".hex{{font-family:'Consolas','Courier New',monospace;color:{c_acc};"
+            f"background:{c_code};padding:1px 4px;border-radius:2px;"
+            f"border:1px solid {c_brd};font-size:11px;}}"
+            f".off{{color:{c_text2};font-size:10px;}}"
+            f"b{{color:{c_text};}}"
+            "</style>"
+        )
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 1: IMG Archive Formats
+        # ══════════════════════════════════════════════════════════════════════
+        img_html = css + """
+<h2>IMG Archive Formats — All Platforms</h2>
+
+<p class="note">All byte values are little-endian (LE) unless noted. Sector size is 2048 bytes for PC/Xbox/PS2 standard formats, 512 bytes for PS2 embedded-directory formats and iOS/PSP variants.</p>
+
+<h3>VERSION 1 — DIR+IMG Pair (GTA3, VC PC; Bully PS2)</h3>
+<p>Two files: <code>NAME.DIR</code> (directory) + <code>NAME.IMG</code> (data). The .DIR file is a flat array of 32-byte entries. Data begins at sector 0 of the .IMG file.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>sector_offset</td><td>Sector number in .IMG where this entry begins</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>sector_size</td><td>Entry size in 2048-byte sectors (round up)</td></tr>
+<tr><td class="hex">+08</td><td>24</td><td>name</td><td>ASCII filename, null-padded. Max 23 chars + null terminator.</td></tr>
+</table>
+<p class="note">Entry count = DIR file size ÷ 32. No magic bytes, no header — first entry at byte 0. On Linux, companion lookup is case-insensitive (.DIR, .dir, .Dir all found).</p>
+<p class="note"><b>Bully PS2 (WORLD.IMG, GTA3.IMG):</b> Uses identical V1 format. RW version <code class="hex">0x1C02000A</code> uniquely identifies Bully assets.</p>
+
+<h3>VERSION 1.5 — Extended DIR+IMG (&gt;2 GB)</h3>
+<p>Same 32-byte entry layout as V1 but entries may have no null terminator in the name field (all 24 bytes used for long filenames). Detected by: IMG size &gt; 2 GB, or name field has no <code>\x00</code> byte.</p>
+
+<h3>VERSION 2 — Single-File VER2 (GTA SA PC, Android SA/LCS)</h3>
+<p>Single <code>.IMG</code> file. Header followed immediately by directory, then data.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>magic</td><td><code class="hex">56 45 52 32</code> = "VER2"</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>entry_count</td><td>Number of directory entries</td></tr>
+<tr><td class="hex">+08</td><td>32×N</td><td>entries[]</td><td>Same 32-byte layout as V1 (offset, size, name). Offsets relative to start of IMG.</td></tr>
+<tr><td colspan="4" class="note">Data follows directory, sector-aligned. First entry typically starts at sector ceil((8+32N)/2048).</td></tr>
+</table>
+
+<h3>VERSION 3 — GTA IV (Single-File, optional AES-256 encryption)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>magic</td><td><code class="hex">52 2A 4E A9</code> = 0xA94E2A52 LE (unencrypted), or AES-256 ECB block (encrypted)</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>entry_count</td><td>Number of entries</td></tr>
+</table>
+
+<h3>XBOX — DIR+IMG with LZO Compression (GTA3/VC Xbox)</h3>
+<p>Same 32-byte DIR+IMG pair as V1, but each entry's data is LZO-compressed. Detected by reading the first entry's data and checking for the Xbox LZO magic.</p>
+<table>
+<tr><th>Field</th><th>Value</th><th>Notes</th></tr>
+<tr><td>LZO magic</td><td class="hex">CE A1 A3 67</td><td>0x67A3A1CE LE — first 4 bytes of compressed entry data</td></tr>
+<tr><td>Block header</td><td>12 bytes</td><td>always(4) + decompressed_size(4) + compressed_size(4)</td></tr>
+<tr><td>RW header</td><td>always literal</td><td>RW chunk header (12 bytes) is always a literal run in the first LZO instruction, readable without decompressing the full block</td></tr>
+</table>
+
+<h3>PS2_V1 — 12-byte Embedded Directory (GTA3/VC PS2, iOS ports)</h3>
+<p>No companion .DIR file. Entries are packed at the <b>very start</b> of the .IMG file, 12 bytes each, with no count header.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>sector_offset</td><td>First entry's sector offset — this value × 512 = total directory size</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>asset_id</td><td>High 16 bits = type (1=TXD, 2=DFF, 3=COL, 4=IPL…), low 16 bits = sequential index</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>sector_size</td><td>Entry size in 512-byte sectors</td></tr>
+</table>
+<p class="note"><b>How we derived this:</b> GTA3.IMG from Liberty City Stories PS2 starts with <code>16 00 00 00 D4 9F 01 00 10 03 00 00</code>. The first field (0x16 = 22) is a plausible sector offset; the third field (0x310 = 784) is a plausible sector size. The directory ends at sector 22 × 512 = 11,264 bytes → 938 entries. Entry count = first_entry.sector_offset × 512 ÷ 12.</p>
+<p class="note"><b>Asset ID decoding:</b> <code class="hex">0x00010001</code> → type=TXD(1), index=1 → displayed as <code>txd_0001</code>.</p>
+
+<h3>PS2_VCS — Embedded Type-Code Directory (LCS/VCS PS2)</h3>
+<p>Single .IMG file. Directory at the start, 32-byte entries with ASCII type codes. Sector size 512 bytes.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>type_code</td><td>4-char ASCII e.g. <code>CDIN</code>, <code>MISS</code>, <code>SKEN</code></td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>padding</td><td>Always <code>00 00 00 00</code> — key detection field</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>sector_offset</td><td>Offset in 512-byte sectors</td></tr>
+<tr><td class="hex">+0C</td><td>4</td><td>sector_size</td><td>Size in 512-byte sectors</td></tr>
+<tr><td class="hex">+10</td><td>16</td><td>padding</td><td>0x00 or 0x88 fill — 0x88 sentinel marks end of directory</td></tr>
+</table>
+<p class="note"><b>Detection:</b> bytes[0:4] all printable ASCII AND bytes[4:8] == <code>\x00\x00\x00\x00</code>. This distinguishes it from PS2_V1 (where bytes[4:8] is asset_id, usually non-zero) and from V1 (which has a .DIR companion).</p>
+
+<h3>Android SA — VER2 + Mobile Texture DB</h3>
+<p>VER2 single-file format. Identified by companion files <code>texdb.dat</code> / <code>texdb.toc</code> / <code>streaming.dat</code> in the same directory, or "android"/"mobile" in filename.</p>
+
+<h3>Android LCS — VER2 + 0x1005FFFF TXD entries</h3>
+<p>VER2 single-file format. Identified by "lcs"/"liberty" in filename, or by scanning first few entries for RW version <code class="hex">0x1005FFFF</code>.</p>
+
+<h3>iOS *_pvr.img — 12-byte Entries, 512-byte Sectors</h3>
+<p>Same 12-byte entry format as PS2_V1. Identified by <code>_pvr</code> suffix in filename. LCS iOS distinguished from GTA3/VC iOS by "lcs"/"liberty" in filename. The companion streaming segments (<code>indust.img</code>, <code>suburb.img</code>) have no directory — open <code>gta3.img</code> instead.</p>
+
+<h3>Streaming Segment (LCS/VCS iOS/PSP)</h3>
+<p>Raw data file with no directory. Lives alongside a <code>gta3.img</code> (VER2) in the same folder. Detected by: no magic, no .DIR companion, sibling <code>gta3.img</code> is VER2. Opening shows a helpful message to open the sibling instead.</p>
+
+<h3>Platform Detection Order (detect_version)</h3>
+<ol>
+<li>Has .DIR companion → <b>V1 / V1.5 / Xbox</b> (probe for LZO magic first)</li>
+<li>Starts with <code>VER2</code> → <b>V2</b> (sub-classify by filename/companion files for Android)</li>
+<li>Starts with <code class="hex">0xA94E2A52</code> → <b>GTA IV unencrypted</b></li>
+<li>First 16 bytes decrypt to valid GTA IV header → <b>GTA IV encrypted</b></li>
+<li>No companion, ends in .img → probe: PS2_VCS, PS2_V1 (with *_pvr check), Bully, streaming segment, fallback V1/V1.5</li>
+</ol>
+<p class="note"><b>Linux case-sensitivity:</b> Companion lookup uses <code>_find_companion()</code> which tries .dir, .DIR, then a directory scan — so <code>GTA3.IMG</code> correctly finds <code>GTA3.DIR</code>.</p>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 2: RW Versions & Sections
+        # ══════════════════════════════════════════════════════════════════════
+        ver_html = css + """
+<h2>RenderWare Versions</h2>
+
+<h3>Version Encoding Formats</h3>
+<p>RW version numbers appear in three distinct encoding styles depending on the game/platform.</p>
+
+<h4>1. Plain integer (0x300–0x3FF) — GTA3 PS2, early PS2 titles</h4>
+<table>
+<tr><th>Hex</th><th>Decoded</th><th>Used by</th></tr>
+<tr><td class="hex">0x00000300</td><td>3.0.0</td><td>GTA3 early builds</td></tr>
+<tr><td class="hex">0x00000304</td><td>3.0.4</td><td>GTA3 early PC</td></tr>
+<tr><td class="hex">0x00000310</td><td>3.1.0</td><td>GTA3/VC PS2 — <b>old-style plain integer</b></td></tr>
+<tr><td class="hex">0x00000314</td><td>3.1.4</td><td>VC PS2 variant</td></tr>
+<tr><td class="hex">0x00000320</td><td>3.2.0</td><td>GTA3/VC PS2 late</td></tr>
+</table>
+<p class="note"><b>How identified:</b> GTA3.IMG (LC PS2) started with <code>16 00 00 00 D4 9F 01 00 10 03 00 00</code>. Bytes [8:12] = <code>0x00000310</code> = 784 decimal. Cross-referenced against known GTA3 PS2 RW revision → 3.1.0 plain-int encoding confirmed.</p>
+
+<h4>2. Packed format (low word = 0xFFFF) — GTA3 PC through GTA SA</h4>
+<table>
+<tr><th>Hex</th><th>Version</th><th>Platform/Game</th></tr>
+<tr><td class="hex">0x0401FFFF</td><td>2.0.0.1</td><td>GTA3 early TXD</td></tr>
+<tr><td class="hex">0x0800FFFF</td><td>3.0.0.0</td><td>GTA3 PS2</td></tr>
+<tr><td class="hex">0x0C00FFFF</td><td>3.1.0.0</td><td>GTA3/VC PC</td></tr>
+<tr><td class="hex">0x0C01FFFF</td><td>3.1.0.1</td><td>GTA VC PC</td></tr>
+<tr><td class="hex">0x0C02FFFF</td><td>3.1.0.2</td><td>GTA3 PC / VC PS2</td></tr>
+<tr><td class="hex">0x1000FFFF</td><td>3.2.0.0</td><td>GTA3 PC</td></tr>
+<tr><td class="hex">0x1005FFFF</td><td>3.2.0.5</td><td>GTA VC PC / LCS Android (marker)</td></tr>
+<tr><td class="hex">0x1400FFFF</td><td>3.4.0.0</td><td>GTA3/VC Xbox</td></tr>
+<tr><td class="hex">0x1401FFFF</td><td>3.4.0.1</td><td>Manhunt / SOL</td></tr>
+<tr><td class="hex">0x1800FFFF</td><td>3.5.0.0</td><td>SA Alpha / internal dev</td></tr>
+<tr><td class="hex">0x1801FFFF</td><td>3.5.0.1</td><td>LCS / MDL</td></tr>
+<tr><td class="hex">0x1802FFFF</td><td>3.5.0.2</td><td>VCS</td></tr>
+<tr><td class="hex">0x1803FFFF</td><td>3.6.0.3</td><td>GTA SA PC</td></tr>
+</table>
+<p class="note">Packed format: high 16 bits = version nibbles, low 16 bits = always 0xFFFF. Decode: major = (v &gt;&gt; 14) &amp; 0x3C00, minor = ...(see RW SDK docs).</p>
+
+<h4>3. Non-standard — SA Mobile, Bully</h4>
+<table>
+<tr><th>Hex</th><th>Game</th><th>Notes</th></tr>
+<tr><td class="hex">0x1C020037</td><td>SA Mobile / PSP</td><td>Low word ≠ 0xFFFF, unique to mobile builds</td></tr>
+<tr><td class="hex">0x1C02000A</td><td>Bully PS2/PC</td><td>Found in every Bully TXD/DFF. Low word = 0x000A. Confirmed from ASY_LobbyGlass.txd binary.</td></tr>
+<tr><td class="hex">0x1C020085</td><td>Bully variant</td><td>Alternate Bully build</td></tr>
+</table>
+
+<h3>RW Chunk Header (12 bytes)</h3>
+<p>Every RenderWare section starts with a 12-byte chunk header:</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>type_id</td><td>Section type (see table below)</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>data_size</td><td>Byte count of data following this header (not including this header)</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>version</td><td>RenderWare version encoding (see above)</td></tr>
+</table>
+
+<h3>Key RW Section Types</h3>
+<table>
+<tr><th>Type ID</th><th>Name</th><th>Description</th></tr>
+<tr><td class="hex">0x0001</td><td>RpMaterial</td><td>Material definition</td></tr>
+<tr><td class="hex">0x0002</td><td>RpTexture</td><td>Texture reference</td></tr>
+<tr><td class="hex">0x0003</td><td>RpGeometry</td><td>Mesh geometry</td></tr>
+<tr><td class="hex">0x0006</td><td>RpAtomicSection</td><td>Atomic/LOD data</td></tr>
+<tr><td class="hex">0x0008</td><td>RpGeometryList</td><td>List of geometries</td></tr>
+<tr><td class="hex">0x000F</td><td>RpMaterialList</td><td>Material list</td></tr>
+<tr><td class="hex">0x0010</td><td>RpClump</td><td>3D model container (.dff)</td></tr>
+<tr><td class="hex">0x0014</td><td>RwFrame</td><td>Frame/bone</td></tr>
+<tr><td class="hex">0x0015</td><td>RpFrameList</td><td>Frame hierarchy</td></tr>
+<tr><td class="hex">0x0016</td><td>RwTexDictionary</td><td>Texture dictionary (.txd) — <b>key marker for TXD files</b></td></tr>
+<tr><td class="hex">0x001A</td><td>RwString</td><td>String data</td></tr>
+<tr><td class="hex">0x001B</td><td>RwExtension</td><td>Extension data</td></tr>
+<tr><td class="hex">0x0253F2FB</td><td>RpMorphPLG</td><td>Morph plugin</td></tr>
+</table>
+<p class="note"><b>How TXD files are identified in IMG:</b> First 4 bytes of a TXD entry = <code class="hex">0x00000016</code> (type 22 = RwTexDictionary). This is the primary fast-check before reading the full RW header. Similarly, DFF = <code class="hex">0x00000010</code> (RpClump).</p>
+
+<h3>RW Version Scanning in IMG Factory</h3>
+<p>For each DFF/TXD entry, the version is read from the first 16 bytes of entry data:</p>
+<ol>
+<li>Try version at <code>[8:12]</code> (standard: no prefix)</li>
+<li>Try version at <code>[12:16]</code> (4-byte prefix before RW chunk)</li>
+<li>Try version at <code>[16:20]</code> (8-byte prefix)</li>
+<li>For Xbox LZO entries: skip 24-byte master+block header, then scan compressed payload</li>
+</ol>
+<p class="note">A version value is considered valid if it matches a known encoding pattern <b>or</b> has a named entry in the version table. This allows Bully (0x1C02000A) to pass validation even though it doesn't fit any standard encoding pattern.</p>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 3: TXD Format
+        # ══════════════════════════════════════════════════════════════════════
+        txd_html = css + """
+<h2>TXD — Texture Dictionary Format</h2>
+
+<h3>File Structure</h3>
+<p>A .txd file is a RenderWare archive containing one or more native textures.</p>
+<pre>
+RwTexDictionary (0x0016) chunk header [12 bytes]
+  ├ Struct (0x0001) — texture count [2 bytes] + device id [2 bytes]
+  └ RwTexNative (0x0015) × N
+        ├ Struct (0x0001) — platform id, filter, wrapping, name, mask
+        ├ [Platform-specific texture data]
+        └ RwExtension (0x001B)
+</pre>
+
+<h3>Platform IDs</h3>
+<table>
+<tr><th>ID</th><th>Platform</th><th>Texture Format</th></tr>
+<tr><td>1</td><td>D3D8 (PC GTA3/VC)</td><td>DXT1/DXT3/uncompressed (D3DFMT_*)</td></tr>
+<tr><td>2</td><td>D3D9 (PC GTA SA+)</td><td>DXT1/DXT3/DXT5/A8R8G8B8/R5G6B5</td></tr>
+<tr><td>4</td><td>PS2</td><td>PS2-native, swizzled, GS Pixel Storage Modes</td></tr>
+<tr><td>5</td><td>Xbox</td><td>Xbox-native, DXT compressed or unswizzled</td></tr>
+<tr><td>6</td><td>GameCube</td><td>DXT1/CMPR</td></tr>
+<tr><td>8</td><td>PVRTC (iOS)</td><td>PVRTC-2bpp, PVRTC-4bpp</td></tr>
+<tr><td>9</td><td>ETC1 (Android)</td><td>ETC1 compressed</td></tr>
+</table>
+
+<h3>Texture Native Header (D3D9 example)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>platform_id (2 = D3D9)</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>filter_flags</td></tr>
+<tr><td class="hex">+08</td><td>32</td><td>texture_name (null-terminated)</td></tr>
+<tr><td class="hex">+28</td><td>32</td><td>mask_name (null-terminated)</td></tr>
+<tr><td class="hex">+48</td><td>4</td><td>raster_format (RASTER_DEFAULT, RASTER_1555, RASTER_565...)</td></tr>
+<tr><td class="hex">+4C</td><td>4</td><td>d3d_format / has_alpha</td></tr>
+<tr><td class="hex">+50</td><td>2</td><td>width</td></tr>
+<tr><td class="hex">+52</td><td>2</td><td>height</td></tr>
+<tr><td class="hex">+54</td><td>1</td><td>depth (bits per pixel)</td></tr>
+<tr><td class="hex">+55</td><td>1</td><td>mip_count</td></tr>
+<tr><td class="hex">+56</td><td>1</td><td>raster_type</td></tr>
+<tr><td class="hex">+57</td><td>1</td><td>compression (0=none, 1=DXT1, 3=DXT3, 5=DXT5)</td></tr>
+</table>
+
+<h3>Mobile Formats (Android / iOS)</h3>
+<table>
+<tr><th>Format</th><th>Platform</th><th>Detection</th></tr>
+<tr><td>PVRTC-2bpp / 4bpp</td><td>iOS</td><td>platform_id=8, files named *_pvr.img</td></tr>
+<tr><td>ETC1</td><td>Android</td><td>platform_id=9, companion texdb.dat/toc present</td></tr>
+<tr><td>DXT1/3/5</td><td>Android SA</td><td>Same as PC D3D9 format, VER2 container</td></tr>
+</table>
+<p class="note">Mobile TXDs from GTA SA Android live inside the standard VER2 .img file. A separate mobile texture database (<code>texdb.dat</code> / <code>texdb.toc</code>) maps texture IDs to streaming offsets — this is what IMG Factory reads to list mobile textures.</p>
+
+<h3>DDS Support (iOS Game Trees)</h3>
+<p>iOS game trees contain DDS files alongside *_pvr.img files. DDS uses the standard Microsoft DDS header with FourCC codes (DXT1/3/5) or uncompressed RGBA formats. These are pushed to the <code>game_trees</code> branch pending TXD Workshop integration.</p>
+
+<h3>TXD Workshop</h3>
+<p>Opens a TXD from either a standalone .txd file or from an entry inside an IMG archive. Displays the texture list, allows preview, import, and export. Platform is detected from the platform_id field in each RwTexNative. Version is read from the RwTexDictionary chunk header (bytes [8:12]).</p>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 4: COL Format
+        # ══════════════════════════════════════════════════════════════════════
+        col_html = css + """
+<h2>COL — Collision Format</h2>
+
+<h3>Magic Identifiers by Version</h3>
+<table>
+<tr><th>Magic</th><th>Version</th><th>Game</th></tr>
+<tr><td class="hex">COLL</td><td>COL 1</td><td>GTA3, VC</td></tr>
+<tr><td class="hex">COL2</td><td>COL 2</td><td>GTA SA</td></tr>
+<tr><td class="hex">COL3</td><td>COL 3</td><td>GTA SA (extended)</td></tr>
+<tr><td class="hex">COL4</td><td>COL 4</td><td>GTA IV</td></tr>
+</table>
+
+<h3>COL 1 Header (GTA3/VC)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>magic "COLL"</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>data_size</td></tr>
+<tr><td class="hex">+08</td><td>22</td><td>model_name (null-terminated)</td></tr>
+<tr><td class="hex">+1E</td><td>2</td><td>model_id</td></tr>
+<tr><td class="hex">+20</td><td>24</td><td>bounding_sphere (center xyz + radius, 4×float)</td></tr>
+<tr><td class="hex">+38</td><td>Varies</td><td>spheres, boxes, mesh triangles, vertices</td></tr>
+</table>
+
+<h3>COL 2/3 Header Extensions (SA)</h3>
+<p>SA adds surface properties, shadow meshes, and per-face material data. COL3 adds face groups for spatial optimization. The bounding box replaces/extends the bounding sphere.</p>
+
+<h3>COL Workshop</h3>
+<p>Opens COL files from standalone .col or from entries inside an IMG archive. Displays spheres, boxes, mesh collision, and allows editing of collision primitives. Registered in the Tool Taskbar when opened.</p>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 5: DAT / IDE / IPL Files
+        # ══════════════════════════════════════════════════════════════════════
+        dat_html = css + """
+<h2>DAT / IDE / IPL — Game Data Files</h2>
+
+<h3>IDE — Item Definition (object catalogue)</h3>
+<p>Plain text sections defining every object in the game. Each section header is a keyword, entries follow one per line, section ends with <code>end</code>.</p>
+<table>
+<tr><th>Section</th><th>Content</th></tr>
+<tr><td>objs</td><td>Static objects: ID, model, txd, draw_distance, flags</td></tr>
+<tr><td>tobj</td><td>Timed objects (LOD variants by time of day)</td></tr>
+<tr><td>weap</td><td>Weapon models</td></tr>
+<tr><td>cars</td><td>Vehicle definitions: ID, model, txd, type, handling, flags...</td></tr>
+<tr><td>peds</td><td>Pedestrian definitions</td></tr>
+<tr><td>txdp</td><td>TXD parent references (SA: texture sharing between models)</td></tr>
+<tr><td>2dfx</td><td>2D effects (lights, particles, escalators) — attached to an existing object by model ID, not standalone; every placed instance of that model gets its own copy of the effect</td></tr>
+<tr><td>anim</td><td>Animation definitions</td></tr>
+<tr><td>path <span class="wrn">(GTA III only)</span></td><td>See "GTA III's own IDE-embedded paths" below — a completely different mechanism from VC/SA's IPL-embedded paths, unique to this one game.</td></tr>
+</table>
+
+<h3>IPL — Item Placement (instance list)</h3>
+<p>Defines where objects are placed in the world. Also plain text, one section keyword per block, verified field-by-field against real game files (GTA III, VC, SA) rather than assumed from documentation alone.</p>
+<table>
+<tr><th>Section</th><th>Fields</th><th>Notes</th></tr>
+<tr><td>inst</td><td>SA: ID, model, interior, pos xyz, rot xyzw, lod_index (11 fields, no scale).<br>VC: ID, model, interior, pos xyz, scale xyz, rot xyzw (13 fields, no lod_index).<br>GTA III: ID, model, pos xyz, scale xyz, rot xyzw (12 fields, no interior/lod_index).</td><td>Three genuinely different per-game layouts — writing the wrong one back out silently drops or misplaces fields.</td></tr>
+<tr><td>cull</td><td>CenterX/Y/Z, X1/Y1/Z1 (corner), X2/Y2/Z2 (opposite corner), Flags, WantedLevelDrop (11 fields)</td><td><b>Object culling zones</b> — hides/shows objects based on the camera being inside a defined box. Not the same thing as occlusion (below) despite the similar-sounding name.</td></tr>
+<tr><td>occl</td><td>MidX, MidY, BottomZ, WidthX, WidthY, Height, Rotation (7 fields) — VC/SA only</td><td><b>Occlusion culling zones</b> — a rotatable box (around its own vertical axis) used to stop rendering whatever's directly behind it, for performance. Genuinely distinct from <code>cull</code>: rotatable, and serves a different purpose (visibility optimisation, not zone-based show/hide).</td></tr>
+<tr><td>zone</td><td>Name, Type, MinX/Y/Z, MaxX/Y/Z, Island, TextKey (TextKey optional — often absent in real files)</td><td>Named, axis-aligned world regions (radar zones, gang territories, etc).</td></tr>
+<tr><td>path <span class="wrn">(VC/SA)</span></td><td>Group header: two ints. Per node: NodeType, Next, IsExternal, X, Y, Z, Median, LeftLanes, RightLanes, Flag1-3 (12 fields)</td><td>Absolute world coordinates, <b>divided by 16</b> from their raw stored value — confirmed by cross-referencing a real, independently-converted reference path file against these same coordinates. Deprecated/replaced by nodes.dat in later SA revisions per some documentation, though this app still reads it where present.</td></tr>
+<tr><td>grge <span class="wrn">(SA)</span></td><td>X1/Y1/Z1 (lower corner), FrontX/FrontY (front-face marker, 2D only), X2/Y2/Z2 (upper corner), DoorType, GarageType, Name (11 fields)</td><td></td></tr>
+<tr><td>enex <span class="wrn">(SA)</span></td><td>EnterX/Y/Z, EnterAngle, SizeX/Y/Z, ExitX/Y/Z, ExitAngle, TargetInterior, Flags, "Name" (quoted), Sky, NumPedsToSpawn, TimeOn, TimeOff (17 fields)</td><td>Entrance/exit marker pairs (building doors, etc).</td></tr>
+<tr><td>pick</td><td colspan="2">Weapon/item pickup spawns — recognised as a valid section, not yet structurally parsed (no verified real sample data).</td></tr>
+</table>
+<p class="note">Binary IPL: SA uses a binary variant for streaming IPL data inside GTA3.img (and equivalent archives). Identified by magic <code>bnry</code> at offset 0. A binary stream's own model-name resolution comes from the already-loaded IDE object database (matched by numeric ID), not stored in the stream itself.</p>
+
+<h3>GTA III's own IDE-embedded paths — a genuinely different system</h3>
+<p>Unlike VC/SA, GTA III has <b>no</b> "path" section in its IPL files at all — confirmed directly against real GTA III game data (a "path" keyword never once appears in any real GTA III .ipl). Instead, GTA III's own IDE files carry an object-attached path system: a <code>path</code> section inside the <b>.ide</b> file, bound to a specific model ID — attached to an existing placed object the same way <code>2dfx</code> is, rather than existing as free-standing world-space data.</p>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Group header</td><td>GroupType (ped/car), Id, ModelName</td></tr>
+<tr><td>Per node (9 fields)</td><td>NodeType, NextNode, IsCrossRoad, XRel, YRel, ZRel, Median, LeftLanes, RightLanes</td></tr>
+</table>
+<p class="note">Coordinates are <b>relative</b> to wherever that model ID is actually placed via an INST line (not absolute like VC/SA) — resolving a group to world-space means finding every instance placement of that model ID, then rotating the relative offset by that specific instance's own placement rotation and adding its position, so a path stays correctly attached to its object however that object is placed or rotated. The same <b>÷16 scale</b> VC's own path coordinates use also applies here to the relative offsets — confirmed by comparing against a real, independently-converted reference path set for the same city (median/max intra-group node distances matched within ~10% only once this scale was applied; without it, resolved paths came out roughly 15x too large and consequently nowhere near the roads they belonged to). A single model ID can legitimately have 2-3 separate path groups attached to it (different lanes/directions through one object) — this is normal, not a data error; genuine collisions between two <i>different</i> objects sharing one model ID do not occur, confirmed against a complete real GTA III world load (870 real path groups, 553 unique model IDs, zero collisions).</p>
+
+<h3>DAT Files</h3>
+<table>
+<tr><th>File</th><th>Content</th></tr>
+<tr><td>gta.dat / gta3.dat</td><td>Master load list — lists all IDE, IPL, IMG, COLFILE, MAPZONE entries to load, in the order they should load</td></tr>
+<tr><td>handling.cfg</td><td>Vehicle physics parameters</td></tr>
+<tr><td>timecyc.dat</td><td>Time-of-day colour cycling for sky, sun, fog</td></tr>
+<tr><td>object.dat</td><td>Per-object physics properties: mass, turn mass, air resistance, elasticity, percent submerged, uproot limit, collision damage multiplier. Plain text, human-readable.</td></tr>
+<tr><td>pedstats.dat</td><td>Pedestrian behaviour statistics</td></tr>
+<tr><td>weapon.dat</td><td>Weapon parameters and damage values</td></tr>
+<tr><td>paths/tracks.dat, tracks2.dat</td><td>Train track waypoints — a line-count header, then one "X Y Z" line per waypoint. Simplest of the non-IPL path formats.</td></tr>
+<tr><td>paths/flight.dat, flight2-4.dat</td><td>Aircraft flight paths (4 files) — not yet parsed.</td></tr>
+<tr><td>paths/CHASE0-19.DAT</td><td>Mission-specific vehicle chase paths — binary, not yet investigated.</td></tr>
+<tr><td>CULLZONE.DAT</td><td>A binary equivalent to the IPL "cull" section — confirmed present in real game data but unused by the game itself at runtime (verified for both VC and GTA III).</td></tr>
+</table>
+
+<h3>DAT Browser (IMG Factory)</h3>
+<p>Reads gta.dat / gta3.dat to build a cross-reference of all IDE and IPL entries. IDE entries are linked to their source IMG file so the "COL" column in the file list can show which collision file covers each model. Registered in the Tool Taskbar when opened.</p>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 6: Platform Matrix & Detection
+        # ══════════════════════════════════════════════════════════════════════
+        matrix_html = css + """
+<h2>Platform Support Matrix</h2>
+
+<table>
+<tr>
+<th>Version Enum</th><th>Value</th><th>Platform</th><th>Container</th><th>Sector</th><th>Entry fmt</th><th>Status</th>
+</tr>
+<tr><td>VERSION_1</td><td>1</td><td>PC</td><td>DIR+IMG</td><td>2048</td><td>32-byte (off/sz/name)</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_1_5</td><td>15</td><td>PC (&gt;2GB)</td><td>DIR+IMG</td><td>2048</td><td>32-byte, long names</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_SOL</td><td>25</td><td>PC</td><td>DIR+IMG</td><td>2048</td><td>32-byte</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_2</td><td>2</td><td>PC</td><td>Single VER2</td><td>2048</td><td>32-byte in header</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_3</td><td>3</td><td>PC</td><td>Single 0xA94E2A52</td><td>2048</td><td>GTA IV extended</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_3_ENC</td><td>30</td><td>PC</td><td>AES-256 ECB</td><td>2048</td><td>Encrypted dir</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_XBOX</td><td>50</td><td>Xbox</td><td>DIR+IMG</td><td>2048</td><td>32-byte + LZO data</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_PS2_VCS</td><td>40</td><td>PS2</td><td>Single (embedded dir)</td><td>512</td><td>32-byte type-code</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_PS2_V1</td><td>42</td><td>PS2/iOS/Android</td><td>Single (embedded dir)</td><td>512</td><td>12-byte asset_id</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_PS2_LVZ</td><td>41</td><td>PS2</td><td>zlib DLRW stream</td><td>512</td><td>8-byte indexed</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_1_IOS</td><td>47</td><td>iOS</td><td>Single *_pvr.img</td><td>512</td><td>12-byte asset_id</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_LCS_IOS</td><td>53</td><td>iOS</td><td>Single *_pvr.img (LCS)</td><td>512</td><td>12-byte asset_id</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_LCS_ANDROID</td><td>52</td><td>Android</td><td>VER2 + 0x1005FFFF TXDs</td><td>2048</td><td>32-byte</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_SA_ANDROID</td><td>51</td><td>Android</td><td>VER2 + texdb.dat</td><td>2048</td><td>32-byte</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_STREAMING_SEG</td><td>60</td><td>iOS/PSP</td><td>Raw segment (no dir)</td><td>—</td><td>—</td><td class="wrn">Info only</td></tr>
+<tr><td>VERSION_BULLY</td><td>44</td><td>PS2 (CUTS.IMG)</td><td>Single name-only dir</td><td>—</td><td>64-byte name entries</td><td class="wrn">Name-list only</td></tr>
+<tr><td>VERSION_ANPK</td><td>43</td><td>PSP</td><td>Named DGAN clips</td><td>—</td><td>ANPK magic + blocks</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_HXD</td><td>45</td><td>PS2</td><td>Bone/animation</td><td>—</td><td>float header + path</td><td class="ok">✓</td></tr>
+</table>
+<p class="note">Bully WORLD.IMG / GTA3.IMG uses standard VERSION_1 (not VERSION_BULLY). VERSION_BULLY is reserved for CUTS.IMG-style name-only archives.</p>
+
+<h2>Key Detection Heuristics (How We Identified Each Format)</h2>
+
+<h3>PS2_V1 vs Bully vs PS2_VCS — disambiguation</h3>
+<table>
+<tr><th>Format</th><th>Bytes[0:4]</th><th>Bytes[4:8]</th><th>Bytes[8:12]</th><th>Key test</th></tr>
+<tr><td>PS2_V1</td><td>Small int (sector offset, e.g. 22)</td><td>asset_id (type&lt;&lt;16|idx)</td><td>Sector size</td><td>asset_id high byte NOT printable ASCII; bytes[4:8] non-zero</td></tr>
+<tr><td>Bully CUTS</td><td>Small int (entry count, e.g. 82)</td><td>First chars of first name (printable)</td><td>More name chars</td><td>Bytes[4] is printable ASCII letter; 4+ consecutive printable chars</td></tr>
+<tr><td>PS2_VCS</td><td>4-char type code ("CDIN")</td><td>Always 0x00000000</td><td>Sector offset</td><td>Bytes[0:4] all printable AND bytes[4:8] == 0x00000000</td></tr>
+</table>
+
+<h3>False-Positive Avoidance</h3>
+<ul>
+<li><b>GTA3.IMG (LC) opened as PS2_V1:</b> Caused by Linux case-sensitivity — <code>GTA3.dir</code> check failed because file is <code>GTA3.DIR</code>. Fixed with <code>_find_companion()</code> case-insensitive search.</li>
+<li><b>PS2_V1 first byte 0x16 rejected:</b> 0x16 = 22 is a valid small sector offset. Was wrongly in the "known RW types to reject" list alongside 0x10 (RpClump). Removed.</li>
+<li><b>LC PS2 sec_off1 &lt; sec_off0:</b> Entry 0 at sector 22, entry 1 at sector 1. Our sequential-layout check (sec_off1 &gt;= sec_off0) correctly rejected this non-PS2_V1 file.</li>
+</ul>
+
+<h2>Rebuild Logic</h2>
+<h3>V1 / V1.5 (DIR+IMG Pair)</h3>
+<ol>
+<li>Write all entry data sequentially to a temp .img file; record (sector_offset, sector_count) per entry</li>
+<li>Write directory (32 bytes × N entries) to a temp .dir file using offsets from step 1</li>
+<li>Atomically replace both .img and .dir files</li>
+</ol>
+<p class="note">Previous bug: single-file rebuild wrote dir+data into the .dir file, growing it from ~123 KB to ~116 MB.</p>
+
+<h3>V2 / V3 (Single-File)</h3>
+<ol>
+<li>Write magic + entry count + directory placeholder (all zeros, 32×N bytes)</li>
+<li>Align to sector boundary</li>
+<li>Write each entry's data, padding to sector boundary, recording actual offsets</li>
+<li>Seek back to directory placeholder and write real offsets + sizes</li>
+</ol>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 7: Troubleshooting & Notes
+        # ══════════════════════════════════════════════════════════════════════
+        notes_html = css + """
+<h2>Known Issues &amp; Troubleshooting</h2>
+
+<h3>File Opens as Wrong Format</h3>
+<ul>
+<li><b>Symptom:</b> Garbage names, huge sizes, Korean/binary characters in Name column.</li>
+<li><b>Cause:</b> Format detection chose the wrong parser. Usually means a companion .DIR file wasn't found (case-sensitivity on Linux) or a detector had a false positive.</li>
+<li><b>Fix:</b> Ensure .DIR and .IMG are in the same folder. On Linux, both files must be accessible to the case-insensitive companion lookup.</li>
+</ul>
+
+<h3>RW Version Shows "Unknown"</h3>
+<ul>
+<li><b>Cause A:</b> Version value not in the known-valid set (e.g. Bully <code class="hex">0x1C02000A</code> before it was added).</li>
+<li><b>Cause B:</b> Entry data not yet cached — version read requires opening the IMG file.</li>
+<li><b>Fix:</b> Version is read lazily from the first 16 bytes of each entry on table population. If still Unknown, the RW chunk at that offset may not be a standard RW header.</li>
+</ul>
+
+<h3>Export Produces Wrong Content</h3>
+<ul>
+<li><b>Symptom:</b> Exported files contain directory data instead of asset data.</li>
+<li><b>Cause:</b> Old code opened <code>img_archive.file_path</code> directly. For V1 files opened via .DIR, this reads directory bytes not asset data.</li>
+<li><b>Fix:</b> Export uses <code>img_archive.read_entry_data(entry)</code> which correctly resolves .DIR → .IMG path.</li>
+</ul>
+
+<h3>Rebuild Makes File Much Larger</h3>
+<ul>
+<li><b>Symptom:</b> 104 MB .DIR grows to 312 MB after rebuild.</li>
+<li><b>Cause:</b> Old rebuild wrote header + directory + all entry data into the .DIR file as a single blob.</li>
+<li><b>Fix:</b> V1 rebuild writes .DIR and .IMG separately; V2+ uses seek-back to fill directory after writing data.</li>
+</ul>
+
+<h3>LCS iOS — "Open gta3.img Instead"</h3>
+<p>Files like <code>indust.img</code>, <code>suburb.img</code>, <code>underg.img</code> in the iOS LCS Models folder are streaming segments — raw data with no internal directory. The directory for all segments lives in <code>gta3.img</code>. IMG Factory detects these as VERSION_STREAMING_SEG and shows a clear message.</p>
+
+<h3>Ctrl+Up / Ctrl+Down — Entry Reordering</h3>
+<p>Selected entries can be moved up or down in the entry list using Ctrl+Up / Ctrl+Down, or via the right-click context menu. This changes the order in <code>img_file.entries</code> — a rebuild is needed to write the new order to disk.</p>
+
+<h3>Map Workshop — GTA III Paths Render as a Criss-Crossed Mess, Miles Off the Roads</h3>
+<ul>
+<li><b>Symptom:</b> Path lines span far beyond where any road actually is, wildly criss-crossing rather than following streets.</li>
+<li><b>Cause:</b> GTA III's IDE-embedded path node relative offsets are stored in the same ×16-scaled units VC's own IPL path coordinates use — this scale was applied correctly for VC's paths but missed entirely when GTA III's own (structurally different) path system was resolved to world-space, leaving every node roughly 16x too far from the object it's actually attached to.</li>
+<li><b>Fix:</b> Divide the relative XYZ offset by 16 before rotating it by the placing instance's own rotation and adding that instance's position. Confirmed against a real, independently-converted reference path set for the same city — resolved node spacing matched within ~10% once this scale was applied (versus ~15x too large without it).</li>
+</ul>
+
+<h3>Map Workshop — Objects From a Binary IPL Stream Vanish After Loading a Different Map Section</h3>
+<ul>
+<li><b>Symptom:</b> A binary-streamed IPL's instances render correctly right after loading, then disappear entirely once a different, unrelated IPL file gets shown.</li>
+<li><b>Cause:</b> Newly-loaded binary stream instances were appended to a second, parallel in-memory list, never merged into the loader's own canonical instance list. Several places rebuild the working instance list fresh from that canonical list whenever any IPL loads — every one of those rebuilds silently discarded the stream's own instances, since they were never actually part of the list being rebuilt from.</li>
+<li><b>Fix:</b> Merge newly-loaded binary stream instances into the loader's own canonical list directly, rather than a separate list nothing else knows to preserve.</li>
+</ul>
+
+<h2>IMG Factory Version Matrix</h2>
+<table>
+<tr><th>Component</th><th>Current Version</th><th>Notes</th></tr>
+<tr><td>imgfactory.py</td><td>vers 63+</td><td>Main application window</td></tr>
+<tr><td>img_core_classes.py</td><td>IMGFile vers 5</td><td>Format detection and opening</td></tr>
+<tr><td>img_ps2_vcs.py</td><td>vers 8</td><td>PS2/PSP/Bully/HXD/ANPK parsers</td></tr>
+<tr><td>populate_img_table.py</td><td>get_rw_version_light vers 6</td><td>RW version display</td></tr>
+<tr><td>rw_versions.py</td><td>is_valid_rw_version vers 6</td><td>Version validation</td></tr>
+<tr><td>rebuild.py</td><td>_perform_native_rebuild vers 9</td><td>V1 pair + V2 single-file rebuild</td></tr>
+<tr><td>export.py / img_export_entry.py</td><td>export_entry vers 3</td><td>Uses read_entry_data for correct path</td></tr>
+<tr><td>map_workshop.py</td><td>ModelWorkshop</td><td>GTA3/VC/SA world viewer &amp; editor — inst/cull/zone/path/grge/enex/occl parsing and rendering, GTA III IDE-embedded paths, binary IPL streams</td></tr>
+<tr><td>app_settings_system.py</td><td>SettingsDialog vers 15</td><td>Shared across IMG Factory tools</td></tr>
+<tr><td>scan_img.py</td><td>vers 1 + RecentScansDialog vers 2</td><td>Recursive folder scanner + history</td></tr>
+</table>
+"""
+
+        #  Radar Formats tab  
+        radar_html = css + f"""
+<body>
+<h2>Radar Map Format Reference</h2>
+<p>Researched from binary inspection of sample files (Apr 2026).
+All radar tiles are <b>128×128 pixels</b> unless otherwise noted.</p>
+
+<h3>PC / PS2 / Xbox — Standard RW TXD tiles in IMG archive</h3>
+<table>
+<tr><th>Game</th><th>IMG File</th><th>Tile Names</th><th>Count</th><th>Grid</th><th>Pixel Format</th><th>IMG Version</th></tr>
+<tr><td>GTA III</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
+<tr><td>GTA VC</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
+<tr><td>GTA SA</td><td>gta3.img</td><td>radar00–radar143.txd</td><td>144</td><td>12×12</td><td>DXT1</td><td>VER2 self-contained</td></tr>
+<tr><td>GTA LCS</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
+<tr><td>GTA VCS</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
+<tr><td>GTA SOL</td><td>RadarTex.img</td><td>radar0000–radar1295.txd</td><td>1296</td><td>36×36</td><td>DXT1</td><td>V1/SOL (needs RadarTex.dir)</td></tr>
+</table>
+
+<h3>IMG V1 Note</h3>
+<p>V1 archives have <b>no header in the .img file</b> — all directory information is in a
+separate <code>.dir</code> file with 32-byte entries:
+<code>offset_sectors(4) + size_sectors(4) + name(24)</code>.
+The <code>.dir</code> file must be in the same folder as the <code>.img</code> file.</p>
+
+<h3>VER2 Entry Layout (GTA SA)</h3>
+<table>
+<tr><th>Offset</th><th>Type</th><th>Field</th></tr>
+<tr><td>0</td><td>uint32</td><td>offset in 2048-byte sectors</td></tr>
+<tr><td>4</td><td>uint16</td><td>streaming_size in sectors</td></tr>
+<tr><td>6</td><td>uint16</td><td>size in sectors (use streaming_size if 0)</td></tr>
+<tr><td>8</td><td>char[24]</td><td>null-terminated filename</td></tr>
+</table>
+<p>Header: <code>VER2</code> magic (4) + entry_count uint32 (4) = 8 bytes. Each entry = 32 bytes.</p>
+
+<h3>Android</h3>
+<table>
+<tr><th>Game</th><th>File</th><th>Format</th><th>Notes</th></tr>
+<tr><td>GTA III</td><td>gta3_unc.img (VER2)</td><td>Single RADAR.TXD</td><td>One 256×256 texture named 'radardisc' — whole map pre-rendered. Platform=12 (Android), ver=0x1005FFFF. Name at texture_data+20 (not +8 as in PC TXD).</td></tr>
+<tr><td>GTA VC</td><td>root/texdb</td><td>Proprietary texdb</td><td>Not tile-based. Requires texdb reader (TXD Workshop).</td></tr>
+<tr><td>GTA SA</td><td>txd.dxt.toc + txd.dxt.tmb + txd.dxt.dat</td><td>TOC/TMB/DAT</td><td>TOC: 8-byte header (dat_file_size + pad) + 293 × 8-byte (start, end) offset pairs. Chunks have 0x83Fxxxxx type — appear hashed/encrypted. TMB: ~156 bytes/entry, thumbnail data, no readable names. <b>Format not yet decoded.</b></td></tr>
+</table>
+
+<h3>iOS</h3>
+<table>
+<tr><th>Game</th><th>File</th><th>Format</th><th>Notes</th></tr>
+<tr><td>GTA LCS</td><td>gta3.pvr</td><td>VER2 IMG with PVRTC tiles</td><td>Same VER2 format as SA PC. Texture native platform=8. PVRTC compressed. radar00–radar63.txd inside.</td></tr>
+<tr><td>GTA SA</td><td>txd.dxt.toc/tmb/dat</td><td>TOC/TMB/DAT</td><td>Same format as Android SA. <b>Not yet decoded.</b></td></tr>
+</table>
+
+<h3>PSP</h3>
+<table>
+<tr><th>Game</th><th>Extension</th><th>Magic</th><th>Format</th><th>Notes</th></tr>
+<tr><td>GTA LCS</td><td>.chk</td><td><code>78 65 74 00</code> ("xet\0")</td><td>PSP GIM/XTX</td><td>Header: magic(4)+0(4)+filesize(4)+datasize(4)+datasize(4)+flags(4)+… Pixel data at ~offset 160. ~132KB total = 256×256 PSP 16bpp. <b>Decoder not yet implemented.</b></td></tr>
+<tr><td>GTA VCS</td><td>.xtx</td><td><code>78 65 74 00</code> ("xet\0")</td><td>PSP GIM/XTX</td><td>Identical structure to LCS .chk. Same magic, same sizes. <b>Decoder not yet implemented.</b></td></tr>
+</table>
+
+<h3>Formats Planned</h3>
+<table>
+<tr><th>Format</th><th>Games</th><th>What's Needed</th></tr>
+<tr><td>TOC/TMB/DAT</td><td>SA Android, SA iOS</td><td>Reverse-engineer 0x83Fxxxxx chunk headers. Likely hashed filenames + compressed TXD data.</td></tr>
+<tr><td>PSP GIM/XTX ('xet\0')</td><td>LCS PSP, VCS PSP</td><td>Parse header to find pixel format + dimensions. Decode PSP 16bpp (likely BGR5551 or ABGR4444). Implement in Radar Workshop.</td></tr>
+<tr><td>iOS PVRTC</td><td>LCS iOS</td><td>PVRTC decode already in TXD Workshop — port to Radar Workshop RadarTxdReader.</td></tr>
+<tr><td>VC Android texdb</td><td>VC Android</td><td>Separate texdb reader system. Not radar-specific.</td></tr>
+</table>
+<h3>Future Features</h3>
+<table>
+<tr><th>Feature</th><th>Notes</th></tr>
+<tr><td>🧩 Sliding Puzzle mini-game</td><td>Radar tiles make a perfect sliding puzzle. Add "Boredom!" entry to Radar Workshop menu — shuffles tiles into a sliding puzzle, solve to reassemble the map. Track moves/time.</td></tr>
+</table>
+</body>"""
+
+        dff_html = css + f"""<body>
+<h2>DFF / RenderWare Model Format — Vehicle Rendering Findings</h2>
+<p>Researched from the official RW 3.1 3dsmax exporter source and GTA VC/GTA3/SA game data.</p>
+
+<h3>UV Coordinate System</h3>
+<table>
+<tr><th>Finding</th><th>Detail</th></tr>
+<tr><td>V origin</td><td>RW exporter stores <code>v = 1 - maxV</code> before writing to DFF. V=0 is <b>top</b> of texture (D3D convention). Do <b>not</b> flip V again in OpenGL — <code>glTexCoord2f(u, v)</code> directly.</td></tr>
+<tr><td>Winding order</td><td>Non-mirrored nodes: v0,v1,v2. Mirrored nodes (negative Parity): v1,v0,v2 (swapped). GTA uses clockwise winding viewed from front.</td></tr>
+<tr><td>UV suffix</td><td>SA streaming appends 4–8 random lowercase chars e.g. <code>buildrt4_fehihwm</code>. Strip with regex <code>_[a-z]{{4,8}}$</code> before texture lookup.</td></tr>
+</table>
+
+<h3>Geometry Flags (rpGEOMETRY*)</h3>
+<table>
+<tr><th>Flag</th><th>Hex</th><th>Meaning</th></tr>
+<tr><td>rpGEOMETRYTRISTRIP</td><td>0x0001</td><td>Geometry uses tri-strip meshes</td></tr>
+<tr><td>rpGEOMETRYPOSITIONS</td><td>0x0002</td><td>Has vertex positions</td></tr>
+<tr><td>rpGEOMETRYTEXTURED</td><td>0x0004</td><td>Has UV texture coordinates</td></tr>
+<tr><td>rpGEOMETRYPRELIT</td><td>0x0008</td><td>Vertex pre-lighting colors present — use instead of GL lights</td></tr>
+<tr><td>rpGEOMETRYNORMALS</td><td>0x0010</td><td>Vertex normals present</td></tr>
+<tr><td>rpGEOMETRYLIGHT</td><td>0x0020</td><td>Affected by dynamic lighting — enable GL_LIGHTING</td></tr>
+<tr><td>rpGEOMETRYMODULATEMATERIALCOLOR</td><td>0x0040</td><td>Material colour multiplies texture (GL_MODULATE). If not set, use GL_REPLACE.</td></tr>
+<tr><td>rpGEOMETRYTEXTURED2</td><td>0x0080</td><td>Has second UV layer</td></tr>
+<tr><td>UV layer count</td><td>bits 16–23</td><td>Upper byte of flags encodes number of UV layers</td></tr>
+</table>
+
+<h3>Texture Chunk — Filter/Wrap Flags</h3>
+<table>
+<tr><th>Field</th><th>Bytes</th><th>Values</th></tr>
+<tr><td>filter_mode</td><td>uint8 at offset 0</td><td>0=NONE 1=NEAREST 2=LINEAR 3=MIP_NEAREST 4=MIP_LINEAR 5=LINEAR_MIP_NEAREST 6=LINEAR_MIP_LINEAR</td></tr>
+<tr><td>wrap_u</td><td>bits 0–3 of byte 1</td><td>0=NONE 1=WRAP 2=CLAMP 3=MIRROR</td></tr>
+<tr><td>wrap_v</td><td>bits 4–7 of byte 1</td><td>Same as wrap_u</td></tr>
+<tr><td>DFF struct</td><td>uint16 at start of TEXTURE struct</td><td>filter_mode | (wrap_u&lt;&lt;8) | (wrap_v&lt;&lt;12)</td></tr>
+<tr><td>TXD struct</td><td>4 bytes after platform_id</td><td>byte[0]=filter, byte[1]=(wrap_v&lt;&lt;4)|wrap_u</td></tr>
+</table>
+
+<h3>Vehicle Frame Hierarchy (VC/GTA3)</h3>
+<table>
+<tr><th>Frame Name Pattern</th><th>Purpose</th></tr>
+<tr><td>chassis_dummy</td><td>Root chassis attachment frame — parent of all body parts</td></tr>
+<tr><td>chassis_hi / chassis_lo / chassis_vlo</td><td>LOD levels — _hi=high detail, _lo=medium, _vlo=lowest</td></tr>
+<tr><td>wheel_lf / wheel_rf / wheel_lb / wheel_rb</td><td>Wheel geometry frames (embedded in vehicle DFF for GTA3/VC)</td></tr>
+<tr><td>wheel_lf_dummy etc.</td><td>Wheel attachment points — position only, no geometry. Place wheels.DFF here.</td></tr>
+<tr><td>door_lf_dummy / door_rf_dummy / door_lr_dummy / door_rr_dummy</td><td>Door pivot points for opening animation</td></tr>
+<tr><td>bonnet_dummy / boot_dummy</td><td>Hood/trunk pivot points</td></tr>
+<tr><td>exhaust / exhaust_2</td><td>Exhaust attachment (particles)</td></tr>
+<tr><td>ped_frontseat / ped_backseat</td><td>Seat positions for ped placement</td></tr>
+<tr><td>bump_front_dummy / bump_rear_dummy</td><td>Bumper attachment</td></tr>
+<tr><td>windscreen_dummy</td><td>Windscreen replacement position</td></tr>
+<tr><td>*_dam</td><td>Damaged state geometry — shown when vehicle is damaged</td></tr>
+<tr><td>*_ok</td><td>Undamaged state geometry — hidden when damaged</td></tr>
+</table>
+
+<h3>Wheel Textures by Game</h3>
+<table>
+<tr><th>Game</th><th>Texture File</th><th>Wheel DFF</th></tr>
+<tr><td>GTA3 / VC / LC</td><td>models/misc.txd (wheel_sp*, wheel_sal*, wheel_cla*, wheel_lig*, wheel_all*) + models/generic.txd</td><td>models/Generic/wheels.DFF</td></tr>
+<tr><td>SA</td><td>models/generic/wheels.txd + models/generic/vehicle.txd</td><td>models/generic/wheels.DFF</td></tr>
+</table>
+
+<h3>handling.cfg Vehicle Render Values</h3>
+<table>
+<tr><th>Field</th><th>Index</th><th>Use in Renderer</th></tr>
+<tr><td>CentreOfMassX/Y/Z</td><td>4,5,6</td><td>CoM indicator position in viewport</td></tr>
+<tr><td>FrontTyre</td><td>37</td><td>Wheel model ID (maps to wheel type in wheels.DFF)</td></tr>
+<tr><td>FrontTyreScale</td><td>38</td><td>Scale factor applied to front wheel geometry</td></tr>
+<tr><td>RearTyre</td><td>39</td><td>Rear wheel model ID</td></tr>
+<tr><td>RearTyreScale</td><td>40</td><td>Scale factor applied to rear wheel geometry</td></tr>
+<tr><td>SuspensionUpperLimit</td><td>30</td><td>Max suspension compression (can visualise as range)</td></tr>
+<tr><td>SuspensionLowerLimit</td><td>31</td><td>Max suspension extension</td></tr>
+</table>
+
+<h3>Shared TXD Loading Order (per game)</h3>
+<table>
+<tr><th>Step</th><th>GTA3/VC/LC</th><th>SA</th></tr>
+<tr><td>1</td><td>models/generic.txd</td><td>models/generic/vehicle.txd</td></tr>
+<tr><td>2</td><td>models/particle.txd</td><td>models/generic/wheels.txd</td></tr>
+<tr><td>3</td><td>models/misc.txd (wheel textures)</td><td>—</td></tr>
+<tr><td>4</td><td>models/wheels.TXD (if exists)</td><td>—</td></tr>
+<tr><td>5</td><td>IDE DB → exact txd_name.txd from IMG</td><td>Same</td></tr>
+<tr><td>6</td><td>Prefix heuristic scan of IMG TXDs</td><td>Same</td></tr>
+</table>
+</body>"""
+
+        # TAB: Stories MDL, IV WDR, water, prelight, indexed BMP (Oct 2026 findings)
+        new_html = css + """
+<h2>Stories MDL (LCS / VCS) - PSP and PS2</h2>
+<p>Relocatable chunk: pointers are offsets fixed up through a relocation table.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+04</td><td>4</td><td>shrink</td><td>Unused after load</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>file_end</td><td>Size of the chunk</td></tr>
+<tr><td class="hex">+0C</td><td>4</td><td>data_end</td><td>End of data, start of relocation table</td></tr>
+<tr><td class="hex">+10</td><td>4</td><td>reloc_table</td><td>Offset of pointer-slot list</td></tr>
+<tr><td class="hex">+14</td><td>4</td><td>num_relocs</td><td>Pointer slots to fix up</td></tr>
+<tr><td class="hex">+18</td><td>4</td><td>global_table</td><td>Root object</td></tr>
+</table>
+<p>Ped MDL: root pointer <code>+32</code> = collision model, <code>+36</code> = element group (skinned parts).</p>
+<h3>Geometry</h3>
+<table>
+<tr><th>Platform</th><th>Layout</th><th>Notes</th></tr>
+<tr><td>PSP</td><td>sPspGeometry, triangle strips</td><td>Position scale per axis is a power of two; fixed-point verts</td></tr>
+<tr><td>PS2</td><td>VIF packets, batches of max 70 verts</td><td>Batches overlap by 2 verts (strip restart). VIF UNPACK <code class="hex">0xF</code> (V4-5) = one 16-bit value per element, not 4 x 5 bits</td></tr>
+</table>
+<p class="note">IMG Factory rebuilds strips from triangles (welded first, so adjacency survives UV seams).</p>
+
+<h2>GTA IV WDR / WFT (RSC5 resource)</h2>
+<table>
+<tr><th>Part</th><th>Notes</th></tr>
+<tr><td>Header</td><td>Magic <code>RSC</code> + version 5, flags word</td></tr>
+<tr><td>Flags</td><td>Encode virtual (CPU) and physical (GPU) segment sizes</td></tr>
+<tr><td>Body</td><td>zlib stream of virtual segment then physical segment</td></tr>
+</table>
+<p class="note">Vertex/index buffers live in the physical segment; pointers into it use the physical base.</p>
+
+<h2>waterpro.dat Grid (SOL / VC / III)</h2>
+<p>Grid of tiles; tiles are stored <b>row-major by Y</b>, cells inside a tile <b>row-major by X</b>
+(<code>out[X][Y]</code>). Display north-up. SOL holds about 141,000 water cells.</p>
+<h3>water_offset.dat (IMG Factory, per game in data/)</h3>
+<pre>x 0.000          # world X offset
+y 0.000          # world Y offset
+z 14.000         # water height offset
+nudge 12.0 -4.0  # fine X/Y alignment to radar
+fix auto         # on / off / auto (VC grid fix)</pre>
+
+<h2>Prelighting (vertex colours)</h2>
+<table>
+<tr><th>Item</th><th>Notes</th></tr>
+<tr><td>Flag</td><td><code class="hex">0x08</code> rpGEOMETRYPRELIT on the Geometry</td></tr>
+<tr><td>Data</td><td>RGBA byte per vertex, after triangles in the Geometry struct</td></tr>
+<tr><td>Generate</td><td>ambient + sun x max(0, N.L), darkened by a sun shadow map (Map Workshop)</td></tr>
+<tr><td>Save</td><td>Only geometries that already carry colours are rewritten (same size, patched in place)</td></tr>
+</table>
+
+<h2>COL Spheres and Boxes</h2>
+<table>
+<tr><th>Item</th><th>Size</th><th>Fields</th></tr>
+<tr><td>Sphere</td><td>20</td><td>radius, centre (3 floats), surface (material, flag, brightness, light)</td></tr>
+<tr><td>Box</td><td>28</td><td>min (3 floats), max (3 floats), surface (4 bytes)</td></tr>
+</table>
+<p class="note">Boxes are axis-aligned: they move and scale but never rotate.</p>
+
+<h2>Indexed BMP (DP5 Save Back)</h2>
+<p>1, 2, 4 and 8-bit palette BMPs read and written with their original depth and palette;
+32-bit BMPs saved back as 32-bit.</p>
+"""
+
+        tabs.addTab(make_tab(img_html),    "IMG Formats")
+        tabs.addTab(make_tab(ver_html),    "RW Versions")
+        tabs.addTab(make_tab(txd_html),    "TXD / Textures")
+        tabs.addTab(make_tab(dff_html),    "DFF / Vehicle")
+        tabs.addTab(make_tab(col_html),    "COL Collision")
+        tabs.addTab(make_tab(dat_html),    "DAT / IDE / IPL")
+        tabs.addTab(make_tab(matrix_html), "Platform Matrix")
+        tabs.addTab(make_tab(radar_html),  "Radar Formats")
+        tabs.addTab(make_tab(new_html),    "MDL / WDR / Water")
+        paths_html = css + """
+<h2>SA paths - nodes0.dat .. nodes63.dat</h2>
+<p>64 areas of 750 x 750 units from -3000: <code>area = floor((y+3000)/750)*8 + floor((x+3000)/750)</code>.
+Coordinates are int16 / 8. Links between areas use (area, node) pairs.</p>
+<h3>Header (20 bytes)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>nodes</td><td>Vehicle + ped nodes</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>vehicle_nodes</td><td>Listed first</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>ped_nodes</td><td>After vehicle nodes</td></tr>
+<tr><td class="hex">+0C</td><td>4</td><td>navi_nodes</td><td>One per vehicle link pair</td></tr>
+<tr><td class="hex">+10</td><td>4</td><td>links</td><td>Total link entries</td></tr>
+</table>
+<h3>Path node (28 bytes)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>mem_addr</td><td>Runtime pointer, kept as read</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>unused</td><td>0</td></tr>
+<tr><td class="hex">+08</td><td>6</td><td>x, y, z</td><td>int16 / 8</td></tr>
+<tr><td class="hex">+0E</td><td>2</td><td>heuristic</td><td>Always 0x7FFE</td></tr>
+<tr><td class="hex">+10</td><td>2</td><td>link_id</td><td>First entry in the link list</td></tr>
+<tr><td class="hex">+12</td><td>2</td><td>area_id</td><td>This file's area</td></tr>
+<tr><td class="hex">+14</td><td>2</td><td>node_id</td><td>Index in this file</td></tr>
+<tr><td class="hex">+16</td><td>1</td><td>path_width</td><td>/ 8</td></tr>
+<tr><td class="hex">+17</td><td>1</td><td>flood_fill</td><td>Connected-group id</td></tr>
+<tr><td class="hex">+18</td><td>4</td><td>flags</td><td>Bits 0-3 = link count</td></tr>
+</table>
+<h3>Navi node (14 bytes)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>x, y</td><td>int16 / 8; midpoint of the link</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>target area, node</td><td>Node the direction points at</td></tr>
+<tr><td class="hex">+08</td><td>2</td><td>dir x, y</td><td>int8 x 100; unit vector to the target</td></tr>
+<tr><td class="hex">+0A</td><td>4</td><td>flags</td><td>Path width, lanes each way, traffic</td></tr>
+</table>
+<h3>After the nodes</h3>
+<table>
+<tr><th>Block</th><th>Size each</th><th>Notes</th></tr>
+<tr><td>Links</td><td>4</td><td>area uint16, node uint16</td></tr>
+<tr><td>Filler</td><td>768 total</td><td>Kept as read</td></tr>
+<tr><td>Navi links</td><td>2</td><td><code>area &lt;&lt; 10 | navi node</code> (10 bits), 0 for ped links</td></tr>
+<tr><td>Link lengths</td><td>1</td><td>floor of 2D distance</td></tr>
+<tr><td>Intersections</td><td>1</td><td>Bit 0 road cross, bit 1 ped traffic light</td></tr>
+</table>
+<p>Both directions of a vehicle link share one navi node. Rebuild is byte-exact when nothing changed.</p>
+"""
+        tabs.addTab(make_tab(paths_html),  "SA Paths")
+        tabs.addTab(make_tab(notes_html),  "Troubleshooting")
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        close_btn.setFixedWidth(100)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+        dialog.exec()
+
+    def _show_imgfactory_info(self): #vers 2
+        """Show IMG Factory application information dialog"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QFont
+
+        try:
+            from apps.components.Img_Factory.imgfactory import App_name, App_auth, App_build
+        except:
+            App_name = "IMG Factory"
+            App_auth = "X-Seti"
+            App_build = "1.6"
+
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle("About IMG Factory")
+        dialog.setMinimumWidth(500)
+        dialog.setMinimumHeight(600)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Title
+        title = QLabel(f"{App_name} {App_build}")
+        title_font = QFont("Arial", 18, QFont.Weight.Bold)
+        title.setFont(title_font)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        # Author
+        author = QLabel(f"by {App_auth}")
+        author_font = QFont("Arial", 12)
+        author.setFont(author_font)
+        author.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        author.setStyleSheet("color: palette(placeholder-text);")
+        layout.addWidget(author)
+
+        # Description
+        description = QTextEdit()
+        description.setReadOnly(True)
+        description.setMaximumHeight(200)
+        description.setHtml("""
+            <h3>GTA modding suite</h3>
+            <p><b>IMG Factory</b> manages GTA archives (IMG, COL, TXD) and opens docked
+            workshops for textures, collision, models, maps, terrain, paths, water,
+            radar, vehicles, peds, timecyc, SCM, hex and disc images.</p>
+            <p>Docks, ribbons and themes from App Settings; each workshop also runs standalone.</p>
+            <p><b>Based on:</b> Original IMG Factory by MexUK (2007). Python / PyQt6 rewrite.</p>
+        """)
+        layout.addWidget(description)
+
+        # Legal: scales button and a one-line description (Legal.md)
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        legal_row = QHBoxLayout()
+        legal_btn = QPushButton("Legal")
+        tc = self.main_window.app_settings.get_theme_colors() or {}
+        legal_btn.setIcon(SVGIconFactory.legal_icon(20, tc.get('text_primary', '#cccccc')))
+        legal_btn.setToolTip("Legal notice (Legal.md)")
+        legal_btn.clicked.connect(self.main_window.show_legal)
+        legal_lbl = QLabel("Not affiliated with Rockstar Games. Intended use, ownership "
+                           "of game assets, no warranty.")
+        legal_lbl.setWordWrap(True)
+        legal_row.addWidget(legal_btn)
+        legal_row.addWidget(legal_lbl, 1)
+        layout.addLayout(legal_row)
+
+        # Version info
+        from apps.app_info import get_full_build
+        version_info = QLabel(f"{get_full_build()} | {App_build}")
+        version_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version_info.setStyleSheet("color: palette(placeholder-text); font-size: 10px;")
+        layout.addWidget(version_info)
+
+        layout.addStretch()
+
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.setFixedWidth(100)
+        close_btn.clicked.connect(dialog.accept)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(close_btn)
+        btn_layout.addStretch()
+
+        layout.addLayout(btn_layout)
+
+        dialog.exec()
+
+    def show_search_dialog(self):  #vers 2
+        """Show the search dialog"""
+        try:
+            # Create and show the search dialog
+            from apps.core.gui_search import ASearchDialog
+            search_dialog = ASearchDialog(self.main_window)
+            search_dialog.exec()
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Search dialog error: {str(e)}")
+
+
+    def find_next(self):  # vers 1
+        """Find next occurrence of search term"""
+        try:
+            if hasattr(self.main_window, 'search_manager'):
+                self.main_window.search_manager.find_next()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Find Next: Search manager not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Find Next error: {str(e)}")
+
+
+    def find_previous(self):  # vers 1
+        """Find previous occurrence of search term"""
+        try:
+            if hasattr(self.main_window, 'search_manager'):
+                self.main_window.search_manager.find_previous()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Find Previous: Search manager not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Find Previous error: {str(e)}")
+
+
+
+
+
+
+
+
+    def _launch_theme_settings(self): #vers 2
+        """Launch theme settings dialog with live theme apply."""
+        try:
+            if hasattr(self.main_window, 'app_settings'):
+                from apps.utils.app_settings_system import SettingsDialog, apply_theme_to_app
+                from PyQt6.QtWidgets import QApplication
+                dialog = SettingsDialog(self.main_window.app_settings, self.main_window)
+
+                def _live(theme_key, mw=self.main_window):
+                    try:
+                        apply_theme_to_app(QApplication.instance(), mw.app_settings)
+                        colors = mw.app_settings.get_theme_colors() or {}
+                        icon_color = colors.get('text_primary', '#cccccc')
+                        if hasattr(mw.gui_layout, 'refresh_icons'):
+                            mw.gui_layout.refresh_icons(icon_color)
+                        if hasattr(mw.gui_layout, 'apply_table_theme'):
+                            mw.gui_layout.apply_table_theme()
+                        if hasattr(mw, 'tool_taskbar'):
+                            mw.tool_taskbar.apply_theme(colors)
+                    except Exception:
+                        pass
+
+                dialog.themeChanged.connect(_live)
+                dialog.exec()
+                self.main_window._apply_button_display_mode_from_settings()
+            else:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self.main_window,
+                    "Theme Settings",
+                    "Theme settings not available"
+                )
+        except Exception as e:
+            print(f"Error launching theme settings: {str(e)}")
+
+
+    def _show_settings_context_menu(self, pos): #vers 1
+        """Show context menu for settings button"""
+        from PyQt6.QtWidgets import QMenu
+
+        menu = QMenu(self.main_window)
+
+        # Theme action
+        theme_action = menu.addAction("Theme Settings")
+        theme_action.triggered.connect(self._launch_theme_settings)
+
+        # IMG Factory settings action
+        imgfactory_action = menu.addAction("IMG Factory Settings")
+        imgfactory_action.triggered.connect(self._show_workshop_settings)
+
+        menu.exec(self.properties_btn.mapToGlobal(pos))
+
+
+    def _show_ai_context_menu(self, pos): #vers 1
+        """Right-click menu for AI Workshop button"""
+        from PyQt6.QtWidgets import QMenu
+
+        menu = QMenu(self.main_window)
+
+        docked_action = menu.addAction("Open AI Workshop (Docked Tab)")
+        docked_action.triggered.connect(lambda: self.main_window.open_ai_workshop_docked())
+
+        standalone_action = menu.addAction("Open AI Workshop (Standalone Window)")
+        standalone_action.triggered.connect(lambda: self.main_window.open_ai_workshop_standalone())
+
+        menu.exec(self.ai_btn.mapToGlobal(pos))
+
+
+        """Apply always on top window flag"""
+        current_flags = self.windowFlags()
+
+        if self.window_always_on_top:
+            new_flags = current_flags | Qt.WindowType.WindowStaysOnTopHint
+        else:
+            new_flags = current_flags & ~Qt.WindowType.WindowStaysOnTopHint
+
+        if new_flags != current_flags:
+            # Save state
+            current_geometry = self.geometry()
+            was_visible = self.isVisible()
+
+            self.setWindowFlags(new_flags)
+
+            self.setGeometry(current_geometry)
+            if was_visible:
+                self.show()
+
+
+
+    def _show_amiga_locale_error(self): #vers 2
+        """Show Amiga Workbench 3.1 style error dialog"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QFont
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Workbench Request")
+        dialog.setFixedSize(450, 150)
+
+        # Amiga Workbench styling
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: palette(placeholderText);
+                border: 2px solid palette(buttonText);
+            }
+            QLabel {
+                color: palette(windowText);
+                background-color: palette(placeholderText);
+            }
+            QPushButton {
+                background-color: palette(midlight);
+                color: palette(windowText);
+                border: 2px outset palette(buttonText);
+                padding: 5px 15px;
+                min-width: 80px;
+            }
+            QPushButton:pressed {
+                border: 2px inset palette(mid);
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Amiga Topaz font style
+        amiga_font = QFont("Courier", 10, QFont.Weight.Normal)
+
+        # Error message
+        message = QLabel("Workbench 3.1 installer\n\nPlease insert Local disk in any drive")
+        message.setFont(amiga_font)
+        message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(message)
+
+        layout.addStretch()
+
+        # Button layout
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        # Retry and Cancel buttons (Amiga style)
+        retry_btn = QPushButton("Retry")
+        retry_btn.setFont(amiga_font)
+        retry_btn.clicked.connect(dialog.accept)
+        button_layout.addWidget(retry_btn)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setFont(amiga_font)
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
+
+        dialog.exec()
+
+
+# - Docking functions
+
+    def _update_dock_button_visibility(self): #vers 2
+        """Show/hide dock and tearoff buttons based on docked state"""
+        if hasattr(self, 'dock_btn'):
+            # Hide D button when docked, show when standalone
+            self.dock_btn.setVisible(not self.is_docked)
+
+        if hasattr(self, 'tearoff_btn'):
+            # T button only visible when docked and not in standalone mode
+            self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
+
+
+    def toggle_dock_mode(self): #vers 2
+        """Toggle between docked and standalone mode"""
+        if self.is_docked:
+            self._undock_from_main()
+        else:
+            self._dock_to_main()
+
+        self._update_dock_button_visibility()
+
+
+    def _dock_to_main(self): #vers 9
+        """Dock handled by overlay system in imgfactory - IMPROVED"""
+        try:
+            if hasattr(self, 'is_overlay') and self.is_overlay:
+                self.show()
+                self.raise_()
+                return
+
+            # For proper docking, we need to be called from imgfactory
+            # This method should be handled by imgfactory's overlay system
+            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
+                # If available, use the main window's docking system
+                self.main_window.open_col_workshop_docked()
+            else:
+                # Fallback: just show the window
+                self.show()
+                self.raise_()
+
+            # Update dock state
+            self.is_docked = True
+            self._update_dock_button_visibility()
+
+            if hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"{App_name} docked to main window")
+
+
+        except Exception as e:
+            print(f"Error docking: {str(e)}")
+            self.show()
+
+
+    def _undock_from_main(self): #vers 4
+        """Undock from overlay mode to standalone window - IMPROVED"""
+        try:
+            if hasattr(self, 'is_overlay') and self.is_overlay:
+                # Switch from overlay to normal window
+                self.setWindowFlags(Qt.WindowType.Window)
+                self.is_overlay = False
+                self.overlay_table = None
+
+            # Set proper window flags for standalone mode
+            self.setWindowFlags(Qt.WindowType.Window)
+
+            # Ensure proper size when undocking
+            if hasattr(self, 'original_size'):
+                self.resize(self.original_size)
+            else:
+                self.resize(1000, 700)  # Reasonable default size
+
+            self.is_docked = False
+            self._update_dock_button_visibility()
+
+            self.show()
+            self.raise_()
+
+            if hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"{App_name} undocked to standalone")
+
+        except Exception as e:
+            print(f"Error undocking: {str(e)}")
+            # Fallback
+            self.setWindowFlags(Qt.WindowType.Window)
+            self.show()
+
+
+
+# - Window functionality
+
+    def _apply_theme(self): #vers 1
+        """Apply app theme via app_settings stylesheet."""
+        try:
+            mw = getattr(self, 'main_window', None)
+            as_ = getattr(mw, 'app_settings', None) if mw else None
+            if as_ and hasattr(as_, 'get_stylesheet'):
+                from PyQt6.QtWidgets import QApplication
+                ss = as_.get_stylesheet()
+                if ss:
+                    QApplication.instance().setStyleSheet(ss)
+        except Exception as e:
+            print(f"gui_layout_custom _apply_theme error: {e}")
+
+    def _update_status_indicators(self): #vers 1
+        """Refresh main window status bar indicators (current IMG file info,
+        or ready state if none loaded)."""
+        mw = getattr(self, 'main_window', None)
+        if not mw:
+            return
+        img = getattr(mw, 'current_img', None)
+        if img and hasattr(mw, 'update_img_status'):
+            import os
+            filename = os.path.basename(getattr(img, 'file_path', '') or '')
+            entry_count = len(getattr(img, 'entries', []) or [])
+            version = getattr(getattr(img, 'version', None), 'name', 'Unknown')
+            try:
+                file_size = os.path.getsize(img.file_path) if getattr(img, 'file_path', '') else 0
+            except Exception:
+                file_size = 0
+            mw.update_img_status(img_file=img, filename=filename, entry_count=entry_count,
+                                  file_size=file_size, version=version)
+        elif hasattr(mw, 'set_ready_status'):
+            mw.set_ready_status()
+
+    def _initialize_features(self): #vers 5
+        """Initialize all features after UI setup - including enhanced logging"""
+        try:
+            self._apply_theme()
+            self._update_status_indicators()
+            
+            # Connect various system events to the extended log
+            self._connect_extended_logging()
+
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message("All features initialized")
+                self.window_context.log_message("Extended logging system active")
+                
+                # Check if directory tree autoload is enabled
+                autoload_tree = True
+                if hasattr(self.main_window, 'app_settings'):
+                    from apps.methods.img_factory_settings import IMGFactorySettings
+                    settings = IMGFactorySettings()
+                    autoload_tree = settings.get('autoload_directory_tree', True)
+                
+                if autoload_tree:
+                    self.window_context.log_message("Directory tree autoload enabled - switching in 100ms")
+                    # Automatically switch to directory tree view at startup
+                    QTimer.singleShot(100, self._switch_to_directory_tree)
+                else:
+                    self.window_context.log_message("Directory tree autoload disabled in settings")
+
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"Feature init error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    
+    def _connect_extended_logging(self): #vers 1
+        """Connect various system events to the extended log system"""
+        try:
+            # Connect search results to log
+            if hasattr(self.main_window, 'search_manager') and self.main_window.search_manager:
+                if hasattr(self.main_window.search_manager, 'search_results_signal'):
+                    def log_search_results(results):
+                        self.main_window.log_message(f"[SEARCH RESULT] Found {len(results)} items")
+                        
+                    self.main_window.search_manager.search_results_signal.connect(log_search_results)
+            
+            # Connect import/export events if available
+            if hasattr(self.main_window, 'import_manager'):
+                def log_import(event_data):
+                    self.main_window.log_message(f"[IMPORT] {event_data}")
+                
+                def log_export(event_data):
+                    self.main_window.log_message(f"[EXPORT] {event_data}")
+                
+                # Connect import/export signals if they exist
+                if hasattr(self.main_window.import_manager, 'import_signal'):
+                    self.main_window.import_manager.import_signal.connect(log_import)
+                if hasattr(self.main_window, 'export_signal'):
+                    self.main_window.export_signal.connect(log_export)
+            
+            # Connect file removal events
+            def log_removal(file_path):
+                self.main_window.log_message(f"[REMOVAL] Removed: {file_path}")
+            
+            # This would connect to actual removal signals when they exist in the system
+            self.main_window.log_removal_handler = log_removal
+
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"Logging connection error: {str(e)}")
+
+
+    def _is_on_draggable_area(self, pos): #vers 7
+        """Check if position is on draggable titlebar area
+
+        Args:
+            pos: Position in titlebar coordinates (from eventFilter)
+
+        Returns:
+            True if position is on titlebar but not on any button
+        """
+        if not hasattr(self, 'titlebar'):
+            print("[DRAG] No titlebar attribute")
+            return False
+
+        # Verify pos is within titlebar bounds
+        if not self.titlebar.rect().contains(pos):
+            print(f"[DRAG] Position {pos} outside titlebar rect {self.titlebar.rect()}")
+            return False
+
+        # Check if clicking on any button - if so, NOT draggable
+        for widget in self.titlebar.findChildren(QPushButton):
+            if widget.isVisible():
+                # Get button geometry in titlebar coordinates
+                button_rect = widget.geometry()
+                if button_rect.contains(pos):
+                    print(f"[DRAG] Clicked on button: {widget.toolTip()}")
+                    return False
+
+        # Not on any button = draggable
+        print(f"[DRAG] On draggable area at {pos}")
+        return True
+
+
+# - From the fixed gui - move, drag
+
+
+    def _toggle_maximize(self): #vers 1
+        """Toggle window maximize state"""
+        if self.main_window.isMaximized():
+            self.main_window.showNormal()
+        else:
+            self.main_window.showMaximized()
+
+
+    def refresh_icons(self, color: str): #vers 2
+        """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            if hasattr(self, 'menu_btn'):
+                self.menu_btn.setIcon(SVGIconFactory.menu_m_icon(20, color))
+            if hasattr(self, 'settings_btn'):
+                self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, color))
+            if hasattr(self, 'rw_ref_btn'):
+                self.rw_ref_btn.setIcon(SVGIconFactory.info_icon(20, color))
+            if hasattr(self, 'undo_btn'):
+                self.undo_btn.setIcon(SVGIconFactory.undo_icon(20, color))
+            if hasattr(self, 'info_btn'):
+                self.info_btn.setIcon(SVGIconFactory.info_icon(20, color))
+            if hasattr(self, 'properties_btn'):
+                self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, color))
+            if hasattr(self, 'ai_btn'):
+                self.ai_btn.setIcon(SVGIconFactory.ai_icon(24, color))
+            if hasattr(self, 'minimize_btn'):
+                self.minimize_btn.setIcon(SVGIconFactory.minimize_icon(20, color))
+            if hasattr(self, 'maximize_btn'):
+                self.maximize_btn.setIcon(SVGIconFactory.maximize_icon(20, color))
+            if hasattr(self, 'close_btn'):
+                self.close_btn.setIcon(SVGIconFactory.close_icon(20, color))
+            # Refresh tool taskbar theme
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'tool_taskbar'):
+                colors = {}
+                if hasattr(self.main_window, 'app_settings'):
+                    colors = self.main_window.app_settings.get_theme_colors() or {}
+                self.main_window.tool_taskbar.apply_theme(colors)
+        except Exception as e:
+            print(f"refresh_icons failed: {e}")
+
+    def closeEvent(self, event): #vers 1
+        """Handle close event"""
+        self.window_closed.emit()
+        event.accept()
+
+
+
+# Export functions
+__all__ = [
+    'IMGFactoryGUILayoutCustom'
+]
+
+
+#  
+# Tool Taskbar
+#  

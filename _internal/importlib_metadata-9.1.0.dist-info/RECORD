@@ -1,0 +1,17 @@
+importlib_metadata-9.1.0.dist-info/METADATA,sha256=7FWbGAplJ-uVWeOCEtDYsCNDKiSz2iCwAYCQjzPLhS4,4491
+importlib_metadata-9.1.0.dist-info/RECORD,,
+importlib_metadata-9.1.0.dist-info/WHEEL,sha256=mOdXR9C3wMVov7cSY8PY-XCzo3SmmWCHvGQr5csJoao,91
+importlib_metadata-9.1.0.dist-info/top_level.txt,sha256=CO3fD9yylANiXkrMo4qHLV_mqXL2sC5JFKgt1yWAT-A,19
+importlib_metadata/__init__.py,sha256=-2I8r1v-bF_iycDiagDfevOubOfPiJHqvqv-ISIyWC0,39702
+importlib_metadata/_adapters.py,sha256=trKXIPevJdTgzFi4rgsHJt--wx_6IZDhu1_aoocRZiU,3803
+importlib_metadata/_collections.py,sha256=CxAhzlF3g1rwu_fMiB53JtRQiUFh0RgiMpoOvmK_ocg,760
+importlib_metadata/_compat.py,sha256=Eyg6xhtO8ifhA_iFUctHkLVqItcCO0Fp4PBZticH2HI,1313
+importlib_metadata/_context.py,sha256=-QwKJg9f8ZqQhAnI4fb5kEcNiSQ0ZlclczLmCOWe_Sk,2672
+importlib_metadata/_functools.py,sha256=hVPD-xQZF68JXAhQOzDqpsD-gav28Ga0p1T_wDzLuwc,3537
+importlib_metadata/_itertools.py,sha256=nMvp9SfHAQ_JYwK4L2i64lr3GRXGlYlikGTVzWbys_E,5351
+importlib_metadata/_meta.py,sha256=QZB5_j0k5oPR1RUQA4jwR9wW5hUbSzvrZnsVKqoJuaQ,1771
+importlib_metadata/_text.py,sha256=rbYcAfOSvGGod0gMRuNtb5wHhClmhQ6Fb6-iHPuwzno,2175
+importlib_metadata/compat/__init__.py,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+importlib_metadata/compat/py311.py,sha256=uqm-K-uohyj1042TH4a9Er_I5o7667DvulcD-gC_fSA,608
+importlib_metadata/diagnose.py,sha256=qBThKVWNTkAkKCPdINnBmbP29_HgkUiM6uWJTJKHUlg,836
+importlib_metadata/py.typed,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0

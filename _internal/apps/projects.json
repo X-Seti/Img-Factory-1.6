@@ -1,0 +1,154 @@
+{
+  "TG Dunsfold": {
+    "name": "TG Dunsfold",
+    "project_folder": "/home/x2/Desktop/gta_resouce/GTAVC_Dunsfold",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTAVC_Dunsfold",
+    "assists_path": "/home/x2/Desktop/depends",
+    "created_date": "2026-05-06T23:14:15.984799",
+    "last_used": "2026-05-06T23:14:37.640820"
+  },
+  "GTALC-PC": {
+    "name": "GTALC-PC",
+    "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTALC-PC",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTALC-PC",
+    "assists_path": "/home/x2/Desktop",
+    "created_date": "2026-05-10T16:36:25.590006",
+    "last_used": "2026-08-18T10:38:36.842222"
+  },
+  "GTAVC-PC": {
+    "name": "GTAVC-PC",
+    "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC",
+    "assists_path": "/home/x2/Desktop/gta_resouce",
+    "created_date": "2026-05-10T16:38:03.292048",
+    "last_used": "2026-10-14T19:48:59.951636"
+  },
+  "GTASA-PC": {
+    "name": "GTASA-PC",
+    "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTASA-PC",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTASA-PC/",
+    "assists_path": "/home/x2/Desktop/gta_resouce",
+    "created_date": "2026-05-10T16:39:18.222221",
+    "last_used": "2026-10-29T16:27:56.809512"
+  },
+  "GTASOL 76.5": {
+    "name": "GTASOL 76.5",
+    "project_folder": "/home/x2/Projects/GTASOLBeta70.5(FireBull)",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTASOL76.0/",
+    "assists_path": "/home/x2/Desktop/depends",
+    "created_date": "2026-01-20T02:11:04.637163",
+    "last_used": "2026-10-20T22:34:06.575322"
+  },
+  "GTASOL test": {
+    "name": "GTASOL test",
+    "project_folder": "/home/x2/Desktop/gta_resouce/GTASOLBeta70.5(FireBull)",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTASOLBeta70.5(FireBull)/",
+    "assists_path": "/home/x2/Desktop/gta_resouce/",
+    "created_date": "2026-07-07T19:01:53.884876",
+    "last_used": ""
+  },
+  "Vice City": {
+    "name": "Vice City",
+    "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC/",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC/",
+    "assists_path": "/home/x2/Projects/",
+    "created_date": "2026-08-04T16:48:22.902388",
+    "last_used": "2026-08-11T04:23:51.466765"
+  },
+  "GTA LC": {
+    "name": "GTA LC",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTALC-PC/",
+    "assists_path": "",
+    "created_date": "2026-08-18T10:40:59.926680",
+    "last_used": "2026-08-20T14:08:10.004680"
+  },
+  "Carcer City": {
+    "name": "Carcer City",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTA_Carcer_City_Demo/",
+    "assists_path": "/home/x2/Desktop/gta_resouce/GTA_Carcer_City_Demo/Assets",
+    "created_date": "2026-08-20T14:09:15.957980",
+    "last_used": "2026-10-08T15:49:41.747737"
+  },
+  "GTASOL 76.0": {
+    "name": "GTASOL 76.0",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTASOL76.0/",
+    "assists_path": "",
+    "created_date": "2026-09-04T23:12:53.930878",
+    "last_used": "2026-09-12T20:14:31.574952"
+  },
+  "GTASOL 65.9": {
+    "name": "GTASOL 65.9",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTASOL65.9(Trilogy(NoMoreTatonka)/",
+    "assists_path": "",
+    "created_date": "2026-09-12T20:15:07.741554",
+    "last_used": "2026-10-06T14:25:33.403292"
+  },
+  "GTATrilogy65.5": {
+    "name": "GTATrilogy65.5",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTAVC-SOLBeta65.5 - Trilogy/",
+    "assists_path": "",
+    "created_date": "2026-09-12T20:18:17.293643",
+    "last_used": "2026-09-14T20:54:29.274452"
+  },
+  "GTAIV": {
+    "name": "GTAIV",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/Grand Theft Auto IV",
+    "assists_path": "",
+    "created_date": "2026-10-06T14:27:17.488152",
+    "last_used": "2026-10-29T23:51:13.253020"
+  },
+  "LibertyCityStories(ported)": {
+    "name": "LibertyCityStories(ported)",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/Ported_IOS_LCS/data",
+    "assists_path": "",
+    "created_date": "2026-10-07T21:03:24.199367",
+    "last_used": "2026-10-08T00:55:00.227485"
+  },
+  "Other LCS": {
+    "name": "Other LCS",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTA Liberty City Stories/",
+    "assists_path": "",
+    "created_date": "2026-10-08T00:57:04.356521",
+    "last_used": "2026-10-12T14:56:32.979346"
+  },
+  "PS2_VC": {
+    "name": "PS2_VC",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PS2/VC_PS2/",
+    "assists_path": "",
+    "created_date": "2026-10-08T15:50:56.462320",
+    "last_used": "2026-10-08T15:51:06.698339"
+  },
+  "PS2 VCS": {
+    "name": "PS2 VCS",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PS2/VCS_PS2/VCS/",
+    "assists_path": "",
+    "created_date": "2026-10-20T22:36:28.958219",
+    "last_used": "2026-10-20T22:36:36.255382"
+  },
+  "PS2 LCS": {
+    "name": "PS2 LCS",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/PS2/LCS_PS2/LCS/",
+    "assists_path": "",
+    "created_date": "2026-10-20T22:37:32.024653",
+    "last_used": "2026-10-21T00:22:13.804490"
+  },
+  "BULLY": {
+    "name": "BULLY",
+    "project_folder": "",
+    "game_root": "/home/x2/Desktop/gta_resouce/Bully Scholarship Edition/",
+    "assists_path": "",
+    "created_date": "2026-10-21T00:25:41.210842",
+    "last_used": "2026-10-21T19:41:58.403435"
+  }
+}
