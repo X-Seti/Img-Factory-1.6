@@ -51,7 +51,7 @@ install_arch() {
         libxcb xcb-util-cursor xcb-util xcb-util-image \
         xcb-util-keysyms xcb-util-renderutil xcb-util-wm \
         portaudio lzo cairo ffmpeg \
-        gst-plugin-pipewire gst-plugins-good gst-plugins-bad gst-plugins-ugly gstreamer
+        gst-plugin-pipewire gst-plugins-good gst-plugins-bad gst-plugins-ugly gstreamer jxrlib
 }
 
 install_fedora() {

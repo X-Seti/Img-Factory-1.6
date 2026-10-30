@@ -10,10 +10,32 @@ cd "$(dirname "$0")/.."
 python3 -m PyInstaller --version >/dev/null 2>&1 || {
     echo "PyInstaller missing: pip install pyinstaller"; exit 1; }
 
-export WORKSHOPS="${1:-map,model,radar,water}"
+export WORKSHOPS="${1:-asset,breakable,capture,col,dat,disc,dp5,handling,hex,map,model, modelv,radar,path,ped,radar,terrain,retro,timecyc,txd,vehicle,water}"
 python3 -m PyInstaller --noconfirm workshops.spec
 
-declare -A NAMES=([map]=MapWorkshop [model]=ModelWorkshop [radar]=RadarWorkshop [water]=WaterWorkshop)
+declare -A NAMES=(
+        [asset]=AssetWorkshop
+        [breakable]=BreakableEditor
+        [capture]=CaptureWorkshop
+        [col]=ColEditor
+        [dat]=DatBrowser
+        [disc]=DiscWorkshop
+        [dp5]=Dp5Workshop
+        [handling]=HandlingEditor
+        [hex]=HexEditor
+        [map]=MapWorkshop
+        [model]=ModelEditor
+        [modelv]=ModelViewer
+        [path]=PathWorkshop
+        [ped]=PedWorkshop
+        [radar]=RadarWorkshop
+        [terrain]=TerrainWorkshop
+        [retro]=RetroGTAWorkshop
+        [timecyc]=TimeCycEditor
+        [txd]=TxdEditor
+        [vehicle]=VehicleWorkshop
+        [water]=WaterEditor
+        )
 for key in ${WORKSHOPS//,/ }; do
     out="dist/${NAMES[$key]}"
     cp -r icons "$out/"                         # ribbon community icons
