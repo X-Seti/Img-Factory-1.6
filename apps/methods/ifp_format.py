@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ifp_format.py - Version: 2
+#this belongs in apps/methods/ifp_format.py - Version: 3
 # X-Seti - October 21 2026 - IMG Factory 1.6 - IFP animation read / write
 
 """
@@ -110,12 +110,12 @@ class IFPAnim: #vers 1
     def duration(self) -> float: #vers 1
         return max((b.keys[-1].time for b in self.bones if b.keys), default=0.0)
 
-    def bone(self, name: str = '', bone_id: int = -1) -> Optional[IFPBone]: #vers 1
+    def bone(self, name: str = '', bone_id: int = -1) -> Optional[IFPBone]: #vers 2
         for b in self.bones:
             if bone_id >= 0 and b.bone_id == bone_id:
                 return b
-        n = name.lower()
-        return next((b for b in self.bones if b.name.lower() == n), None)
+        n = name.strip().lower()                         # ' Pelvis' and 'Pelvis' match
+        return next((b for b in self.bones if b.name.strip().lower() == n), None)
 
 
 @dataclass

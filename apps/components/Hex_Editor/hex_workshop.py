@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 13
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 15
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -19,7 +19,7 @@ RW Analyze for RenderWare streams (.dff .txd .rws ...).
     written back to its archive.
 
 ##Methods list -
-# HexWorkshop.setup_ui / _build_ribbons / load_file / load_bytes / _save_file / _save_as
+# HexWorkshop.setup_ui / _build_ribbons / load_file / load_bytes / _save_file / _save_as / _save_copy_as
 # HexWorkshop find / replace / goto / bookmarks / insert / fill / import / export / compare
 # show_hex_editor_for_file
 # show_hex_editor_for_entry
@@ -165,12 +165,13 @@ class HexWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop):  #vers 5
             QShortcut(QKeySequence(keys), self, activated=fn)
 
 
-    def _build_ribbons(self): #vers 2
+    def _build_ribbons(self): #vers 4
         B, C = self.ribbon_button, self.canvas
         tb = self.ribbon_toolbar("File")
         B(tb, "open_icon",   "Open a file  (Ctrl+O)", self._open_file)
         self.save_btn = B(tb, "save_icon", "Save - backs the old file up first  (Ctrl+S)", self._save_file, enabled=False)
-        B(tb, "saveas_icon", "Save As...", self._save_as)
+        B(tb, "hex_save_as_icon", "Save As...", self._save_as)
+        B(tb, "hex_save_copy_icon", "Save Copy As... - keeps editing this file", self._save_copy_as, text="Copy")
         B(tb, "get_refresh_icon", "Revert: reload the file and drop all edits", self._revert, text="Rev")
         tb.addSeparator()
         B(tb, "import_icon", "Insert / overwrite a file's bytes at the cursor...", self._import_bytes, text="Imp")
@@ -181,20 +182,20 @@ class HexWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop):  #vers 5
         B(tb, "redo_icon", "Redo  (Ctrl+Y)", lambda: self.doc.redo())
         tb.addSeparator()
         B(tb, "copy_icon", "Copy as hex  (Ctrl+C)", C.copy_hex)
-        B(tb, "copy_icon", "Copy as text  (Ctrl+Shift+C)", C.copy_text, text="Txt")
+        B(tb, "hex_copy_text_icon", "Copy as text  (Ctrl+Shift+C)", C.copy_text, text="Txt")
         B(tb, "paste_icon", "Paste  (Ctrl+V) - hex text or plain text", C.paste)
         B(tb, "trash_icon", "Delete the selection (or the byte at the cursor)", C.delete_selection)
         tb.addSeparator()
-        self._ins_btn = B(tb, "edit_icon", "Insert mode: typing adds bytes instead of overwriting  (Insert key)", self._toggle_insert,
+        self._ins_btn = B(tb, "hex_insert_mode_icon", "Insert mode: typing adds bytes instead of overwriting  (Insert key)", self._toggle_insert,
                           checkable=True, text="Ins")
-        B(tb, "add_icon", "Insert N bytes at the cursor...", self._insert_dialog, text="+N")
-        B(tb, "paint_icon", "Fill the selection with a byte...", self._fill_dialog, text="Fill")
-        B(tb, "locate_icon", "Select all  (Ctrl+A)", C.select_all, text="All")
+        B(tb, "hex_insert_bytes_icon", "Insert N bytes at the cursor...", self._insert_dialog, text="+N")
+        B(tb, "fill_icon", "Fill the selection with a byte...", self._fill_dialog, text="Fill")
+        B(tb, "hex_select_all_icon", "Select all  (Ctrl+A)", C.select_all, text="All")
 
         tb = self.ribbon_toolbar("Search")
         B(tb, "search_icon", "Find...  (Ctrl+F)", self._focus_search)
-        B(tb, "locate_icon", "Go to offset...  (Ctrl+G)", self._goto_dialog, text="Go")
-        B(tb, "add_icon", "Bookmark the cursor  (Ctrl+B)", self._add_bookmark, text="Mark")
+        B(tb, "hex_goto_icon", "Go to offset...  (Ctrl+G)", self._goto_dialog, text="Go")
+        B(tb, "hex_bookmark_icon", "Bookmark the cursor  (Ctrl+B)", self._add_bookmark, text="Mark")
 
         self._ribbon_mw.addToolBarBreak()
         tb = self.ribbon_toolbar("View")
@@ -205,22 +206,25 @@ class HexWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop):  #vers 5
         self._bpr.setMinimumHeight(28)
         self._bpr.currentTextChanged.connect(lambda t: self.canvas.set_bytes_per_row(int(t)))
         tb.addWidget(self._bpr)
-        B(tb, "info_icon", "Show offsets in decimal / hex", self._toggle_offsets, text="Dec")
+        B(tb, "hex_offset_base_icon", "Show offsets in decimal / hex", self._toggle_offsets, text="Dec")
         B(tb, "zoom_in_icon", "Bigger text", lambda: self._font(+1))
         B(tb, "zoom_out_icon", "Smaller text", lambda: self._font(-1))
 
         tb = self.ribbon_toolbar("Tools")
-        B(tb, "check_icon", "Hashes of the file / selection (CRC32, MD5, SHA1, SHA256)", self._show_hashes, text="Hash")
+        B(tb, "hex_hash_icon", "Hashes of the file / selection (CRC32, MD5, SHA1, SHA256)", self._show_hashes, text="Hash")
         self._rw_btns = [
-            B(tb, "convert_icon", "RenderWare: recompute every section size", self.structure.recompute, text="Size"),
-            B(tb, "convert_icon", "RenderWare: change the version of every section...", self.structure.change_version, text="Ver"),
-            B(tb, "package_icon", "RenderWare: append another file's sections...", self.structure.append_file, text="App"),
-            B(tb, "info_icon", "RenderWare: list texture names", self.structure.show_textures, text="Tex"),
-            B(tb, "export_icon", "Export the section tree as a text file...", self._export_tree, text="Tree")]
+            B(tb, "rw_section_size_icon", "RenderWare: recompute every section size", self.structure.recompute, text="Size"),
+            B(tb, "rw_version_icon", "RenderWare: change the version of every section...", self.structure.change_version, text="Ver"),
+            B(tb, "rw_append_icon", "RenderWare: append another file's sections...", self.structure.append_file, text="App"),
+            B(tb, "rw_texture_list_icon", "RenderWare: list texture names", self.structure.show_textures, text="Tex"),
+            B(tb, "get_tree_icon", "Export the section tree as a text file...", self._export_tree, text="Tree"),
+            B(tb, "rw_userdata_frame_icon", "RenderWare: User Data frame names (3ds Max export) to Frame sections",
+              self.structure.userdata_to_frame, text="UD>F"),
+            B(tb, "txd_xbox_icon", "RenderWare: convert this PC TXD to an Xbox TXD", self.structure.txd_to_xbox, text="Xbox")]
         for b in self._rw_btns:
             b.setEnabled(False)
         tb.addSeparator()
-        B(tb, "convert_icon", "Convert DFF / TXD / COL up or down between GTA III, Vice City and San Andreas (also batch)...",
+        B(tb, "rw_game_convert_icon", "Convert DFF / TXD / COL up or down between GTA III, Vice City and San Andreas (also batch)...",
           self._convert_dialog, text="Conv")
 
     # ------------------------------------------------------------------ state
@@ -355,6 +359,18 @@ class HexWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop):  #vers 5
             self._save_callback = None
             self._entry_label = os.path.basename(path)
             self._save_file()
+
+    def _save_copy_as(self): #vers 1
+        """Write the current bytes to another file; this file stays open."""
+        path, _ = QFileDialog.getSaveFileName(self, "Save Copy As", self._file_path or "", "All files (*)")
+        if path:
+            from apps.methods.file_backup import safe_write_bytes
+            try:
+                safe_write_bytes(path, bytes(self.doc.data))
+            except OSError as ex:
+                QMessageBox.critical(self, "Save Copy As", str(ex))
+                return
+            self._set_status(f"Copy saved: {os.path.basename(path)}")
 
     def closeEvent(self, ev):
         if self.doc.modified:

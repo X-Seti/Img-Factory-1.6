@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_data_func.py - Version: 9
+#this belongs in apps/components/Ped_Workshop/depends/ped_data_func.py - Version: 11
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop ped data
 
 """
@@ -8,6 +8,7 @@ popcycle, Decision) and loading a ped's DFF + TXD.
 """
 
 ##class PedDataMixin: -
+# _cs_ped_convert
 # _create_peds_dock
 # _filter_ped_table
 # _load_ped
@@ -143,6 +144,55 @@ class PedDataMixin: #vers 1
                 self._ped_file_combo.setCurrentIndex(i)
                 self._ped_tabs.setCurrentIndex(1)
                 return
+
+    def _cs_ped_convert(self): #vers 2
+        """Cutscene ped (cs*.dff, or picked from cutscene.img) to an in-game ped on the 32-bone skeleton."""
+        from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+        from apps.methods.ped_cs_convert import convert_cutscene_ped
+        src, _ = QFileDialog.getOpenFileName(self, "Cutscene ped: a cs*.dff or models/cutscene.img", "",
+                                             "Cutscene peds (*.dff *.img)")
+        if not src:
+            return
+        txd = None
+        if src.lower().endswith('.img'):
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(src)
+            if not arc.open():
+                QMessageBox.warning(self, "Cutscene ped", f"Couldn't open {src}")
+                return
+            ents = {e.name.lower(): e for e in arc.entries}
+            names = sorted(e.name for n, e in ents.items() if n.startswith('cs') and n.endswith('.dff'))
+            pick, ok = QInputDialog.getItem(self, "Cutscene ped", "Model in cutscene.img:", names, 0, False)
+            if not ok:
+                return
+            raw = arc.read_entry_data(ents[pick.lower()])
+            t = ents.get(pick.lower()[:-4] + '.txd')
+            txd = arc.read_entry_data(t) if t is not None else None
+            base, folder = pick, os.path.dirname(src)
+        else:
+            with open(src, 'rb') as f:
+                raw = f.read()
+            t = os.path.splitext(src)[0] + '.txd'
+            if os.path.isfile(t):
+                with open(t, 'rb') as f:
+                    txd = f.read()
+            base, folder = os.path.basename(src), os.path.dirname(src)
+        try:
+            new, report = convert_cutscene_ped(raw)
+        except (ValueError, StopIteration) as e:
+            QMessageBox.warning(self, "Cutscene ped", f"{base}: {e}")
+            return
+        name = base[2:] if base.lower().startswith('cs') and len(base) > 6 else 'ig_' + base
+        dst, _ = QFileDialog.getSaveFileName(self, "Save in-game ped", os.path.join(folder, name), "DFF (*.dff)")
+        if not dst:
+            return
+        from apps.methods.file_backup import safe_write_bytes
+        safe_write_bytes(dst, new)
+        txd_dst = os.path.splitext(dst)[0] + '.txd'
+        if txd and not os.path.exists(txd_dst):
+            safe_write_bytes(txd_dst, txd)                 # textures are the same
+        QMessageBox.information(self, "Cutscene ped", f"{os.path.basename(dst)}: {report}")
+        self._open_path(dst)
 
     def _filter_ped_table(self, text: str): #vers 1
         t, q = self._ped_table, text.lower()

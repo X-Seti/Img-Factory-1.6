@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 33
+#this belongs in apps/gui/gui_layout_custom.py - Version: 34
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -163,7 +163,7 @@ def _show_dat_browser(mw): #vers 5
             mw.log_message(f"DAT Browser show error: {e}")
 
 
-def _show_intro_panel(mw): #vers 7
+def _show_intro_panel(mw): #vers 8
     """Show welcome/intro screen in left_stack page 2 — same pattern as Dir Tree / DAT."""
     try:
         left_stack, splitter = _get_left_stack(mw)
@@ -223,6 +223,12 @@ def _show_intro_panel(mw): #vers 7
                     ws.open_terrain_workshop.connect(
                         lambda: mw.open_terrain_workshop_docked()
                         if hasattr(mw, 'open_terrain_workshop_docked') else None)
+                    ws.open_cutscene_workshop.connect(
+                        lambda: mw.open_cutscene_workshop_docked()
+                        if hasattr(mw, 'open_cutscene_workshop_docked') else None)
+                    ws.open_weapon_workshop.connect(
+                        lambda: mw.open_weapon_workshop_docked()
+                        if hasattr(mw, 'open_weapon_workshop_docked') else None)
                     ws.open_disc_workshop.connect(
                         lambda: mw.open_disc_workshop_docked()
                         if hasattr(mw, 'open_disc_workshop_docked') else None)

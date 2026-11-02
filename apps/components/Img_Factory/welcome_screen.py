@@ -176,6 +176,8 @@ class WelcomeScreen(QWidget):
     open_vehicle_workshop  = pyqtSignal()
     open_ped_workshop      = pyqtSignal()
     open_terrain_workshop  = pyqtSignal()
+    open_cutscene_workshop = pyqtSignal()
+    open_weapon_workshop   = pyqtSignal()
     open_retro_gta_workshop = pyqtSignal()
     open_disc_workshop     = pyqtSignal()
     open_scm_workshop      = pyqtSignal()
@@ -390,7 +392,7 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 13
+    def _build_quickstart_tab(self): #vers 14
         from PyQt6.QtCore import Qt as _Qt
         # Scroll area — vertical scrollbar always visible (ready for future cards)
         scroll = QScrollArea()
@@ -476,6 +478,14 @@ class WelcomeScreen(QWidget):
              "Create ground, sculpt hills, paint grass, sand, rock and roads "
              "with UV tiling. Exports DFF / COL / TXD / IDE / IPL.",
              self.open_terrain_workshop, 'Terrain_Workshop'),
+            (_SVG.cutscene_app_icon(36), "Cutscene Workshop",
+             "Cutscene scripts, subtitles and camera paths for III, VC and SA, "
+             "with 3D playback of the cast and camera.",
+             self.open_cutscene_workshop, 'Cutscene_Workshop'),
+            (_SVG.weapon_app_icon(36), "Weapon Workshop",
+             "weapon.dat for III, VC and SA, plus SA melee combos and stat "
+             "values, as tables with the flags explained.",
+             self.open_weapon_workshop, 'Weapon_Workshop'),
             (_SVG.retro_gta_app_icon(36), "Retro GTA Workshop",
              "Top-down GTA editor. GTA2 maps (.gmp) and styles (.sty): map view, "
              "block faces, lid painting, tiles and sprites.",

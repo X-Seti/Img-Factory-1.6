@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_nodes_func.py - Version: 13
+#this belongs in apps/components/Path_Workshop/depends/path_nodes_func.py - Version: 14
 # X-Seti - October 19 2026 - IMG Factory 1.6 - Path Workshop node logic
 
 """
@@ -245,7 +245,7 @@ class PathNodesMixin:
         names = ", ".join(os.path.basename(p) for p in paths[:4]) + (" …" if len(paths) > 4 else "")
         self._set_status(f"{'Added' if append else 'Loaded'} {names} - {len(self._pn)} path nodes")
 
-    def _load_path_file(self, path, loader=None): #vers 8
+    def _load_path_file(self, path, loader=None): #vers 9
         """One path file into loader (new one if None), game from the Game preset."""
         import re
         from apps.methods.gta_dat_parser import GTAWorldLoader, IPLParser
@@ -254,7 +254,7 @@ class PathNodesMixin:
         preset = self._game_combo.currentText()
         game = next((g for g, p in _PRESET_FOR_GAME.items() if p == preset), 'vc')
         is_nodes = re.match(r'nodes\d+\.dat$', name)
-        if is_nodes or name in ('roadblox.dat',) or name.endswith(('.img', '.rrr')):
+        if is_nodes or name in ('roadblox.dat',) or name.endswith(('.img', '.rrr', '.nod')):
             game = 'sa'
         loader = loader or GTAWorldLoader(game)
         if name.endswith('.dtz'):                      # LCS / VCS compiled paths
@@ -287,8 +287,15 @@ class PathNodesMixin:
                     loader.sa_nodes[area] = pf
             loader.car_recordings.update(load_carrec_img(path))
             if not loader.sa_nodes and not loader.car_recordings:
-                QMessageBox.warning(self, "Load Paths", f"No nodesN.dat or .rrr inside {name}")
+                QMessageBox.warning(self, "Load Paths", f"No nodesN.dat / .nod or .rrr inside {name}")
                 return None
+        elif re.match(r'nodes\d+\.nod$', name):        # one extracted GTA IV area
+            from apps.methods.sa_path_parser import parse_iv_nod
+            area = int(re.findall(r'\d+', name)[0])
+            with open(path, 'rb') as fh:
+                pf = parse_iv_nod(fh.read(), area, path)
+            if pf is not None:
+                loader.sa_nodes[area] = pf
         elif name.endswith('.rrr'):                    # one extracted car recording
             from apps.methods.sa_path_parser import parse_rrr
             with open(path, 'rb') as fh:
@@ -306,7 +313,7 @@ class PathNodesMixin:
         else:
             QMessageBox.warning(self, "Load Paths",
                                 f"Not a path file:\n{path}\n\nUse the game .dat, an .ipl, "
-                                "nodesN.dat, gta3.img / carrec.img, .rrr, game.dtz, tracks / flight / chase .dat or roadblox.dat")
+                                "nodesN.dat / .nod, gta3.img / carrec.img / IV paths.img, .rrr, game.dtz, tracks / flight / chase .dat or roadblox.dat")
             return None
         return loader
 

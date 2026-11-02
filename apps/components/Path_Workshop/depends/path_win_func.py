@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_win_func.py - Version: 5
+#this belongs in apps/components/Path_Workshop/depends/path_win_func.py - Version: 6
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Path Workshop window
 
 """
@@ -41,7 +41,7 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath
 
 # - Corner overlay (window chrome)
 _RADAR_EXTS = ('.txd', '.pvr', '.png', '.jpg', '.jpeg', '.bmp', '.tga')
-_PATH_EXTS = ('.ipl', '.ide', '.dat', '.dtz', '.rrr')
+_PATH_EXTS = ('.ipl', '.ide', '.dat', '.dtz', '.rrr', '.nod')
 
 
 class PathWindowMixin: #vers 2
@@ -65,7 +65,7 @@ class PathWindowMixin: #vers 2
     def dragMoveEvent(self, event): #vers 1
         self.dragEnterEvent(event)
 
-    def dropEvent(self, event): #vers 1
+    def dropEvent(self, event): #vers 2
         """Radar files load the map; path files (several, Shift adds) load paths."""
         import os
         files = self._dropped_files(event)
@@ -76,10 +76,10 @@ class PathWindowMixin: #vers 2
         radar, paths = [], []
         for f in files:
             low = os.path.basename(f).lower()
-            if low.endswith(_RADAR_EXTS) or (low.endswith('.img') and low != 'carrec.img'):
+            if low.endswith(_RADAR_EXTS) or (low.endswith('.img') and low not in ('carrec.img', 'paths.img')):
                 radar.append(f)              # gta3.img nodes: use Load Paths
             else:
-                paths.append(f)              # .ipl/.dat/.dtz/.rrr, carrec.img
+                paths.append(f)              # .ipl/.dat/.dtz/.rrr/.nod, carrec / IV paths.img
         if radar:
             r = radar[0]
             if r.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tga')):

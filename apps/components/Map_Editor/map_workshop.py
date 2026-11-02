@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 261
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 262
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -70,6 +70,7 @@ from apps.components.Map_Editor.depends.map_edit_func import MapEditMixin
 from apps.components.Map_Editor.depends.map_inst_func import MapInstMixin
 from apps.components.Map_Editor.depends.map_overlay_func import MapOverlayMixin
 from apps.components.Map_Editor.depends.map_terrain_func import MapTerrainMixin
+from apps.components.Map_Editor.depends.map_zone_func import MapZoneMixin
 from apps.components.Map_Editor.depends.map_widgets_func import (
     App_name, DEBUG_STANDALONE, MapSettings, _write_ipl_lines)
 
@@ -98,6 +99,7 @@ from apps.components.Map_Editor.depends.map_widgets_func import (
 # MapEditMixin - map_edit_func.py
 # MapInstMixin - map_inst_func.py
 # MapOverlayMixin - map_overlay_func.py
+# MapZoneMixin - map_zone_func.py
 # helper classes, MapSettings, constants - map_widgets_func.py
 # RibbonIconsMixin - methods/ribbon_dialog.py
 # DockPanelsMixin - methods/dock_panels.py
@@ -107,7 +109,7 @@ _MODEL_WORKSHOP_INSTANCE_COUNT = 0
 
 
 class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelMixin, MapWorldMixin, MapIplMixin, MapEditMixin, MapInstMixin, MapOverlayMixin, MapTerrainMixin,
-                    DockPanelsMixin, GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 7
+                    MapZoneMixin, DockPanelsMixin, GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 8
     """Model Workshop - Main window"""
 
     # Compact button height for grafted Control Panel widgets
@@ -386,7 +388,7 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
         QTimer.singleShot(0, self._apply_gamepad_setting)
 
 
-    def setup_ui(self): #vers 19
+    def setup_ui(self): #vers 20
         """Setup the main UI layout.
 
         EXPERIMENTAL (Jul 2026): three independent QMainWindows, nested:
@@ -572,6 +574,12 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
         outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, terrain_dock)
         outer_mw.tabifyDockWidget(ipl_controls_dock, terrain_dock)
         terrain_dock.hide()
+
+        zones_dock = self._create_zones_dock()
+        self._make_dock_collapsible(zones_dock, "Zones")
+        outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, zones_dock)
+        outer_mw.tabifyDockWidget(ipl_controls_dock, zones_dock)
+        ipl_controls_dock.raise_()
 
         #This breaks the docking.
         #outer_mw.splitDockWidget(object_browser_dock, ipl_inst_file_dock, Qt.Orientation.Vertical)

@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 8
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 10
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -1245,7 +1245,7 @@ class DirectoryTreeBrowser(QWidget):
                 w._dir_tree_selected_file = file_path
 
 
-    def on_item_double_clicked(self, item, column): #vers 3
+    def on_item_double_clicked(self, item, column): #vers 5
         """Handle item double-click — routes to smart editor for known data files."""
         file_path = item.data(0, Qt.ItemDataRole.UserRole)
         if os.path.isdir(file_path):
@@ -1255,7 +1255,7 @@ class DirectoryTreeBrowser(QWidget):
             if ext == '.dtz':                          # LCS / VCS world
                 self._open_dtz_in(file_path, 'map')
                 return
-            if ext in ('.dat', '.cfg'):
+            if ext in ('.dat', '.cfg', '.cut', '.zon'):
                 try:
                     from apps.methods.smart_file_router import get_editor_label, open_smart_editor
                     if get_editor_label(file_path):
@@ -1267,7 +1267,7 @@ class DirectoryTreeBrowser(QWidget):
             self.file_opened.emit(file_path)
 
 
-    def show_context_menu(self, position): #vers 6
+    def show_context_menu(self, position): #vers 7
         """Show context menu - tracks which tree triggered it"""
         # Identify which tree sent the signal
         sender = self.sender()
@@ -1434,6 +1434,14 @@ class DirectoryTreeBrowser(QWidget):
                 asset_action.triggered.connect(
                     lambda _=False, p=file_path: self._show_asset_checker(p))
                 menu.addAction(asset_action)
+
+            if file_ext in ('.img', '.dir'):                # cuts.img / cuts.dir: Cutscene Workshop
+                from apps.methods.smart_file_router import get_editor_label
+                if get_editor_label(file_path):
+                    cut_action = QAction(f"Open in {get_editor_label(file_path)}", self)
+                    cut_action.triggered.connect(
+                        lambda _=False, p=file_path: self._open_smart_editor(p))
+                    menu.addAction(cut_action)
 
             #    Text-editable types get an "Edit" action               
             _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',

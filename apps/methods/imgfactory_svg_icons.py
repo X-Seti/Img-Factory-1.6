@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 89
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 100
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -12,6 +12,8 @@ from PyQt6.QtGui import QPixmap, QPainter, QIcon, QColor
 from PyQt6.QtCore import Qt
 
 ##Methods list -
+# _create_icon
+# _file_io_svg
 # add_icon
 # add_surface_icon
 # alpha_circle_icon
@@ -36,12 +38,15 @@ from PyQt6.QtCore import Qt
 # bumpmap_icon
 # bumpmap_imp_icon
 # bw_view_icon
+# cam_marker_icon
 # capture_workshop_icon
 # checkerboard_icon
 # chip_icon
 # clear_face_groups_icon
 # clear_parts_icon
 # close_icon
+# col_export_icon
+# col_import_icon
 # col_workshop_icon
 # color_picker_icon
 # colour_to_alpha_icon
@@ -52,9 +57,9 @@ from PyQt6.QtCore import Qt
 # copy_icon
 # copy_lod_icon
 # create_face_icon
-# _create_icon
 # create_shadow_icon
 # create_texture_icon
+# cutscene_app_icon
 # database_icon
 # delay_timer_icon
 # delete_face_icon
@@ -64,6 +69,8 @@ from PyQt6.QtCore import Qt
 # delete_vertex_icon
 # desktop_capture_icon
 # detach_faces_icon
+# dff_export_icon
+# dff_import_icon
 # duplicate_check_icon
 # duplicate_surface_icon
 # edit_icon
@@ -81,6 +88,7 @@ from PyQt6.QtCore import Qt
 # format_convert_icon
 # frame_next_icon
 # frame_prev_icon
+# game_view_icon
 # generate_alpha_icon
 # generate_mipmaps_icon
 # gizmo_axes_icon
@@ -88,6 +96,16 @@ from PyQt6.QtCore import Qt
 # guide_layer_icon
 # handling_app_icon
 # hex_app_icon
+# hex_bookmark_icon
+# hex_copy_text_icon
+# hex_goto_icon
+# hex_hash_icon
+# hex_insert_bytes_icon
+# hex_insert_mode_icon
+# hex_offset_base_icon
+# hex_save_as_icon
+# hex_save_copy_icon
+# hex_select_all_icon
 # hide_faces_icon
 # import_exchange_icon
 # import_icon
@@ -115,6 +133,7 @@ from PyQt6.QtCore import Qt
 # mesh_icon
 # minimize_icon
 # mirror_icon
+# onion_skin_icon
 # open_icon
 # optimum_bounds_icon
 # package_icon
@@ -124,9 +143,10 @@ from PyQt6.QtCore import Qt
 # path_app_icon
 # pause_icon
 # ped_app_icon
-# onion_skin_icon
 # ped_view_icon
 # play_icon
+# png_export_icon
+# png_import_icon
 # prim_select_icon
 # properties_icon
 # record_icon
@@ -139,9 +159,15 @@ from PyQt6.QtCore import Qt
 # reset_icon
 # rotate_ccw_icon
 # rotate_cw_icon
+# rw_append_icon
+# rw_game_convert_icon
+# rw_section_size_icon
+# rw_texture_list_icon
+# rw_userdata_frame_icon
+# rw_version_icon
+# save_all_icon
 # save_icon
 # save_selection_icon
-# save_all_icon
 # saveas_icon
 # scm_app_icon
 # screenshot_icon
@@ -154,6 +180,7 @@ from PyQt6.QtCore import Qt
 # show_backfaces_icon
 # show_face_groups_icon
 # show_vertices_icon
+# skip_start_icon
 # sphere_icon
 # sphere_to_mesh_icon
 # split_faces_icon
@@ -171,7 +198,10 @@ from PyQt6.QtCore import Qt
 # timecyc_app_icon
 # trash_icon
 # triad_icon
+# txd_export_icon
+# txd_import_icon
 # txd_workshop_icon
+# txd_xbox_icon
 # uncompress_icon
 # undo_icon
 # unhide_faces_icon
@@ -184,6 +214,7 @@ from PyQt6.QtCore import Qt
 # view_reset_icon
 # volume_down_icon
 # volume_up_icon
+# weapon_app_icon
 # window_capture_icon
 # zoom_in_icon
 # zoom_out_icon
@@ -368,6 +399,79 @@ class SVGIconFactory: #vers 8
         """Previous frame - step line with reverse bar"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M18 5 L9 12 L18 19 Z" fill="currentColor"/><rect x="5.5" y="5" width="2.5" height="14" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def _file_io_svg(letters: str, export: bool) -> str: #vers 1
+        """File type letters over a tray; blue arrow out (export) or red arrow in (import)."""
+        arrow = ('<path d="M12 22v-8M8.5 17.5L12 14l3.5 3.5" stroke="#3B8FE0"' if export else
+                 '<path d="M12 14v8M8.5 18.5L12 22l3.5-3.5" stroke="#E04848"')
+        return f'''<svg viewBox="0 0 24 24">
+            <text x="12" y="10" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif"
+                  font-size="8.5" font-weight="bold" fill="currentColor">{letters}</text>
+            <path d="M3 15v5a1.5 1.5 0 001.5 1.5h15A1.5 1.5 0 0021 20v-5" stroke="currentColor" stroke-width="1.8"
+                  fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            {arrow} stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+
+    @staticmethod
+    def dff_export_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """DFF export: letters over a blue arrow out"""
+        return SVGIconFactory._create_icon(SVGIconFactory._file_io_svg("DFF", True), size, color)
+
+    @staticmethod
+    def dff_import_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """DFF import: letters over a red arrow in"""
+        return SVGIconFactory._create_icon(SVGIconFactory._file_io_svg("DFF", False), size, color)
+
+    @staticmethod
+    def txd_export_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """TXD export: letters over a blue arrow out"""
+        return SVGIconFactory._create_icon(SVGIconFactory._file_io_svg("TXD", True), size, color)
+
+    @staticmethod
+    def txd_import_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """TXD import: letters over a red arrow in"""
+        return SVGIconFactory._create_icon(SVGIconFactory._file_io_svg("TXD", False), size, color)
+
+    @staticmethod
+    def col_export_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """COL export: letters over a blue arrow out"""
+        return SVGIconFactory._create_icon(SVGIconFactory._file_io_svg("COL", True), size, color)
+
+    @staticmethod
+    def col_import_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """COL import: letters over a red arrow in"""
+        return SVGIconFactory._create_icon(SVGIconFactory._file_io_svg("COL", False), size, color)
+
+    @staticmethod
+    def png_export_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """PNG export: letters over a blue arrow out"""
+        return SVGIconFactory._create_icon(SVGIconFactory._file_io_svg("PNG", True), size, color)
+
+    @staticmethod
+    def png_import_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """PNG import: letters over a red arrow in"""
+        return SVGIconFactory._create_icon(SVGIconFactory._file_io_svg("PNG", False), size, color)
+
+    @staticmethod
+    def game_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Game view - 4:3 screen with side bars and a camera"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1.5" y="4" width="21" height="15" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <path d="M1.5 5.5v12M22.5 5.5v12" stroke="currentColor" stroke-width="4"/>
+            <rect x="7" y="9" width="7" height="5.5" rx="1" fill="currentColor"/>
+            <path d="M14 11l3.5-2v6.5L14 13.5z" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def skip_start_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Back to start - bar with two reverse triangles"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="3.5" y="5" width="2.5" height="14" fill="currentColor"/>
+            <path d="M13 5L6.5 12L13 19ZM20.5 5L14 12L20.5 19Z" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -624,6 +728,214 @@ class SVGIconFactory: #vers 8
             <path d="M12 4.5v15M4 6.5h16M8 20.5h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
             <path d="M5 6.5L2.5 13M5 6.5L7.5 13M19 6.5L16.5 13M19 6.5L21.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
             <path d="M2 13h6a3 3 0 0 1-6 0zM16 13h6a3 3 0 0 1-6 0z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_copy_text_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Copy as text: two pages, front one with a T"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="12" height="14" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <rect x="8" y="7" width="13" height="14" rx="1.5" stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M11 11h7M14.5 11v7" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_select_all_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Select all: dashed frame round filled rows"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2.5" y="2.5" width="19" height="19" rx="1.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2" fill="none"/>
+            <path d="M7 8h10M7 12h10M7 16h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_goto_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Go to offset: arrow into a marked row"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M2 12h11M9 8l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M17 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M20 7v10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_bookmark_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Bookmark: ribbon tag"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M6 3h12v18l-6-4.5L6 21z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+            <path d="M12 7v5M9.5 9.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_insert_mode_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Insert mode: text cursor between two bytes"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="1.5" y="8" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <rect x="15.5" y="8" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M12 4v16M9.5 4h5M9.5 20h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_insert_bytes_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Insert N bytes: byte row with a plus"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="13" width="6" height="7" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <rect x="9" y="13" width="6" height="7" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <rect x="16" y="13" width="6" height="7" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M12 2v8M8 6h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_offset_base_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Offsets decimal / hex: 0x over 10"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <ellipse cx="6" cy="7" rx="3" ry="4.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <path d="M12 4l6 6M18 4l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M4 15.5l2-1.5v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <ellipse cx="15" cy="18" rx="3" ry="4" stroke="currentColor" stroke-width="1.8" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_hash_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Hashes: number sign"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M9 3L7 21M17 3l-2 18M4 8.5h17M3 15.5h17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def rw_section_size_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """RW section sizes: ruler"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="8" width="20" height="8" rx="1" stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M6 8v4M10 8v3M14 8v4M18 8v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def rw_version_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """RW version: tag with a V"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 4h10l8 8-8 8H3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+            <path d="M6 9l2.5 6L11 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def rw_append_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """RW append sections: stacked blocks with a plus"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="3" width="13" height="5" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <rect x="2" y="10" width="13" height="5" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <rect x="2" y="17" width="9" height="4" rx="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 1.5" fill="none"/>
+            <path d="M19 14v8M15 18h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_save_as_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Save As: disk with a pencil"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3H14l4 4v4" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+            <path d="M3 4.5V19.5A1.5 1.5 0 0 0 4.5 21H10" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+            <path d="M7 3v5h6V3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M13 21l1-3.5 6.5-6.5 2.5 2.5-6.5 6.5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def rw_texture_list_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """RW texture names: checker swatch beside list lines"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="4" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M2 8.5h9M6.5 4v9" stroke="currentColor" stroke-width="1"/>
+            <rect x="2" y="4" width="4.5" height="4.5" fill="currentColor"/>
+            <rect x="6.5" y="8.5" width="4.5" height="4.5" fill="currentColor"/>
+            <path d="M14 6h8M14 10h8M3 17h19M3 21h19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def rw_game_convert_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Convert between game versions: up and down arrows beside a file"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 3h7l3 3v15H3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/>
+            <path d="M15 20V5M12 8l3-3 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M20 4v15M17 16l3 3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hex_save_copy_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Save Copy As: disk behind a second disk"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 15V4.5A1.5 1.5 0 0 1 4.5 3H12l3 3v1" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
+            <path d="M9 10.5A1.5 1.5 0 0 1 10.5 9H18l3 3v7.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 9 19.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+            <path d="M12 9v4h5V9M12 21v-4h6v4" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def rw_userdata_frame_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """User Data to Frame: data card arrow to a named frame"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="4" width="8" height="10" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M4 7.5h4M4 10.5h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M8 18h6M11.5 15.5L14 18l-2.5 2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M15 4h7v7h-7z" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <path d="M18.5 11v7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="18.5" cy="7.5" r="1.3" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def txd_xbox_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """PC TXD to console TXD: swatch arrow to a console box"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="3" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <rect x="2" y="3" width="4" height="4" fill="currentColor"/>
+            <rect x="6" y="7" width="4" height="4" fill="currentColor"/>
+            <path d="M12 7h5M15 4.5L17.5 7 15 9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <rect x="4" y="14" width="18" height="7" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <path d="M8 17.5h3M17 16.5l2 2M19 16.5l-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cutscene_app_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cutscene Workshop: clapperboard"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2.5" y="9" width="19" height="12" rx="1.5" stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M2.5 9L20 4.2l.9 3.3L3.4 12.3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/>
+            <path d="M7.5 7.6l2.2 2.9M12.6 6.2l2.2 2.9M17.5 4.9l2 2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M10 13.5v4.5l4-2.25z" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cam_marker_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cutscene path camera marker: blue movie camera facing right"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="8" width="13" height="9" rx="1.5" fill="#2F7FE0" stroke="#FFFFFF" stroke-width="1"/>
+            <path d="M15 11l6-3.5v10L15 14z" fill="#2F7FE0" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round"/>
+            <circle cx="5.5" cy="5.5" r="2.5" fill="none" stroke="#2F7FE0" stroke-width="1.6"/>
+            <circle cx="11" cy="5.5" r="2.5" fill="none" stroke="#2F7FE0" stroke-width="1.6"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def weapon_app_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Weapon Workshop: pistol side view"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M2 6h19v4H10l-1 2H6l-1.5 7.5a1 1 0 0 1-1 .5H2.5a1 1 0 0 1-1-1.2L3 11 2 10z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/>
+            <path d="M9 12v2.5a1 1 0 0 0 1 1h1.5M18 10v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+            <path d="M21 6V4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -4619,7 +4931,6 @@ class SVGIconFactory: #vers 8
             <rect x="15" y="2" width="7" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/>
             <rect x="8.5" y="14" width="7" height="8" rx="1" fill="#e03030" opacity="0.9"/>
             <path d="M5.5,11.5 L5.5,13 C5.5,15 7,16.5 8.2,17" fill="none" stroke="currentColor" stroke-width="1.4"/>
-            <path d="M18.5,11.5 L18.5,13 C18.5,15 17,16.5 15.8,17" fill="none" stroke="currentColor" stroke-width="1.4"/>
         </svg>''', size, color)
 
     @staticmethod
@@ -5188,23 +5499,13 @@ class SVGIconFactory: #vers 8
 
 
 
-def get_extract_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """Extract icon - dotted border box with downward arrow"""
-    icon = SVGIconFactory.get_extract_icon(size, color)
-    if bg_color:
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt, QRect
-        pm = QPixmap(size, size)
-        pm.fill(Qt.GlobalColor.transparent)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor(bg_color))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(0, 0, size, size, 4, 4)
-        icon.paint(p, QRect(2, 2, size-4, size-4))
-        p.end()
-        return QIcon(pm)
-    return icon
+def get_extract_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """Extract - dashed box, green arrow pulling out right"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2.5" y="4" width="13" height="16" rx="2" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="3 2"/>
+        <path d="M8 12h13.5M17.5 8l4 4-4 4" stroke="#3CB371" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
 
 def get_checkmark_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_checkmark_icon"""
@@ -5266,9 +5567,12 @@ def get_cut_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_cut_icon"""
     return SVGIconFactory.get_cut_icon(size, color)
 
-def get_rename_icon(size: int = 24, color: str = None) -> QIcon:
-    """Wrapper for SVGIconFactory.get_rename_icon"""
-    return SVGIconFactory.get_rename_icon(size, color)
+def get_rename_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Rename - text line, yellow pencil"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 20h8" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <path d="M15.5 4.5l4 4L10 18H6v-4z" stroke="#F0B030" stroke-width="2.2" fill="#F0B030" fill-opacity="0.35" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
 
 def get_terminal_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_terminal_icon"""
@@ -5382,24 +5686,13 @@ def get_open_icon(size: int = 24, color: str = None, bg_color: str = None) -> QI
         return QIcon(pm)
     return icon
 
-def get_refresh_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """Wrapper for SVGIconFactory.get_refresh_icon"""
-    icon = SVGIconFactory.get_refresh_icon(size, color)
-    if bg_color:
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
-        pm = QPixmap(size, size)
-        pm.fill(Qt.GlobalColor.transparent)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor(bg_color))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(0, 0, size, size, 4, 4)
-        from PyQt6.QtCore import QRect
-        icon.paint(p, QRect(2, 2, size-4, size-4))
-        p.end()
-        return QIcon(pm)
-    return icon
+def get_refresh_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """Refresh - two green circling arrows"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 8a8.5 8.5 0 00-15-1.5M4 16a8.5 8.5 0 0015 1.5" stroke="#3CB371" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M20 3v5h-5M4 21v-5h5" stroke="#3CB371" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
 
 def get_search_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_search_icon"""
@@ -5420,43 +5713,20 @@ def get_search_icon(size: int = 24, color: str = None, bg_color: str = None) -> 
         return QIcon(pm)
     return icon
 
-def get_export_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """Wrapper for SVGIconFactory.get_export_icon"""
-    icon = SVGIconFactory.get_export_icon(size, color)
-    if bg_color:
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
-        pm = QPixmap(size, size)
-        pm.fill(Qt.GlobalColor.transparent)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor(bg_color))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(0, 0, size, size, 4, 4)
-        from PyQt6.QtCore import QRect
-        icon.paint(p, QRect(2, 2, size-4, size-4))
-        p.end()
-        return QIcon(pm)
-    return icon
+def get_export_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """Export - tray with blue arrow going out"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 14v5a2 2 0 002 2h14a2 2 0 002-2v-5" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 15V3M7 8l5-5 5 5" stroke="#3B8FE0" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
 
-def get_import_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """Wrapper for SVGIconFactory.get_import_icon"""
-    icon = SVGIconFactory.get_import_icon(size, color)
-    if bg_color:
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
-        pm = QPixmap(size, size)
-        pm.fill(Qt.GlobalColor.transparent)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor(bg_color))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(0, 0, size, size, 4, 4)
-        from PyQt6.QtCore import QRect
-        icon.paint(p, QRect(2, 2, size-4, size-4))
-        p.end()
-        return QIcon(pm)
-    return icon
+
+def get_import_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """Import - tray with red arrow coming in"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 14v5a2 2 0 002 2h14a2 2 0 002-2v-5" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 3v12M7 10l5 5 5-5" stroke="#E04848" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
 
 def get_warning_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_warning_icon"""
@@ -5664,24 +5934,13 @@ def get_save_icon(size: int = 24, color: str = None, bg_color: str = None) -> QI
         return QIcon(pm)
     return icon
 
-def get_remove_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """Wrapper for SVGIconFactory.get_remove_icon"""
-    icon = SVGIconFactory.get_remove_icon(size, color)
-    if bg_color:
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
-        pm = QPixmap(size, size)
-        pm.fill(Qt.GlobalColor.transparent)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QColor(bg_color))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(0, 0, size, size, 4, 4)
-        from PyQt6.QtCore import QRect
-        icon.paint(p, QRect(2, 2, size-4, size-4))
-        p.end()
-        return QIcon(pm)
-    return icon
+def get_remove_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """Remove - bin with red cross"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M9.5 10.5l5 5M14.5 10.5l-5 5" stroke="#E04848" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
 
 def get_view_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_view_icon"""
@@ -5971,12 +6230,15 @@ def get_merge_icon(size: int = 24, color: str = None, bg_color: str = None) -> Q
         <rect x="8.5" y="18" width="7" height="4" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>''', size, color, bg_color)
 
-def get_split_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """One file splitting into two - handdrawn outline"""
+def get_split_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """One file splitting into two: the merge icon flipped vertically"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <rect x="8.5" y="2" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M12 7v4M6 11H4v8h7v-8H6z" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M18 11h2v8h-7v-8h5z" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <g transform="translate(0 24) scale(1 -1)">
+        <rect x="2" y="2" width="8" height="7" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="14" y="2" width="8" height="7" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M6 9v3h12V9M12 12v6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="8.5" y="18" width="7" height="4" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
     </svg>''', size, color, bg_color)
 
 def get_convert_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
@@ -5988,64 +6250,77 @@ def get_convert_icon(size: int = 24, color: str = None, bg_color: str = None) ->
         <path d="M21 16H3" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
     </svg>''', size, color, bg_color)
 
-def get_import_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """Import with options - down arrow + small gear"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <path d="M16 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l4 4 4-4M11 14V3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="19" cy="6" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
-        <circle cx="19" cy="6" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+def get_reload_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Reload from disk - document with blue circling arrow"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M13 2v5h5M18 7v3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M21 16a4.5 4.5 0 11-1.3-3.2M21 11.5v3.3h-3.3" stroke="#3B8FE0" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>''', size, color, bg_color)
 
-def get_export_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """Export with options - up arrow + small gear"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <path d="M16 9v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4M7 14l4-4 4 4M11 10v11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="19" cy="18" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
-        <circle cx="19" cy="18" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+def get_import_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Import via - tray, red arrow in, orange options dot"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 14v5a2 2 0 002 2h14a2 2 0 002-2v-5" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M11 3v12M6.5 10.5L11 15l4.5-4.5" stroke="#E04848" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="18.5" cy="5.5" r="4" fill="#F0A030"/>
+        <circle cx="18.5" cy="5.5" r="1.5" fill="#202020"/>
     </svg>''', size, color, bg_color)
 
-def get_dump_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """Dump all entries - document with downward burst"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
+def get_export_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Export via - tray, blue arrow out, orange options dot"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 14v5a2 2 0 002 2h9" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M11 14V3M6.5 7.5L11 3l4.5 4.5" stroke="#3B8FE0" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="18.5" cy="18.5" r="4" fill="#F0A030"/>
+        <circle cx="18.5" cy="18.5" r="1.5" fill="#202020"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_dump_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Dump all entries - document, purple arrow out of the bottom"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-        <path d="M14 2v6h6M12 11v6M9 14l3 3 3-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14 2v6h6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 10v8M8.5 14.5L12 18l3.5-3.5" stroke="#A070E8" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>''', size, color, bg_color)
 
-def get_remove_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """Remove with options - minus + gear"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="19" cy="18" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
-        <circle cx="19" cy="18" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
-    </svg>''', size, color, bg_color)
-
-def get_select_all_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """Select all - dashed border with tick - handdrawn"""
+def get_remove_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Remove via - bin, red cross, orange options dot"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="5 2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M7 12l4 4 6-6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M3 6h14M7.5 6V4h5v2M5 6l1 14h7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M7.5 10.5l4.5 4.5M12 10.5L7.5 15" stroke="#E04848" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="18.5" cy="18.5" r="4" fill="#F0A030"/>
+        <circle cx="18.5" cy="18.5" r="1.5" fill="#202020"/>
     </svg>''', size, color, bg_color)
 
-def get_select_inverse_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """Inverse selection - two overlapping boxes"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <rect x="3" y="3" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-        <rect x="9" y="9" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="3 2" stroke-linejoin="round"/>
-        <path d="M9 9h6v6H9z" stroke="none" fill="currentColor" fill-opacity="0.3"/>
-    </svg>''', size, color, bg_color)
 
-def get_sort_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """Sort - three lines + down arrow - handdrawn"""
+def get_select_all_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """Select all - dashed border, green tick"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3 6h18M3 12h12M3 18h7" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <path d="M19 10v9M16 16l3 3 3-3" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2.2" fill="none" stroke-dasharray="5 2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M7 12l4 4 6-6" stroke="#3CB371" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>''', size, color, bg_color)
 
-def get_pin_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """Pin/thumbtack - handdrawn outline"""
+def get_select_inverse_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Inverse selection - outline box, blue filled box"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M9 3h6v5l2 3H7l2-3V3z" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M12 11v10M9 11h6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <rect x="3" y="3" width="12" height="12" rx="1" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+        <rect x="9" y="9" width="12" height="12" rx="1" stroke="#3B8FE0" stroke-width="2" fill="#3B8FE0" fill-opacity="0.45" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
+def get_sort_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """Sort - three lines, orange down arrow"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 6h18M3 12h12M3 18h7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+        <path d="M19 10v9M16 16l3 3 3-3" stroke="#F0A030" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
+def get_pin_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """Pin - red thumbtack head, grey needle"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 3h6v5l2 3H7l2-3V3z" stroke="#E04848" stroke-width="2" fill="#E04848" fill-opacity="0.55" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 11v10" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/>
     </svg>''', size, color, bg_color)
 
 def get_col_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
@@ -6398,10 +6673,12 @@ def get_peds_icon(size: int = 24, color: str = None, bg_color: str = None) -> QI
     </svg>''', size, color, bg_color)
 
 
-def get_ipf_anim_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """IFP animation - running figure with motion lines"""
+def get_ipf_anim_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """IFP animation - coloured IFP letters"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="14" cy="4" r="2.2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M13 7l-2 6 4 3v5M11 13l-4 3M13 8l4 3M2 9h4M1 13h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="1" y="17" font-family="DejaVu Sans, Arial, sans-serif" font-size="11" font-weight="bold" fill="#E04848">I</text>
+        <text x="6" y="17" font-family="DejaVu Sans, Arial, sans-serif" font-size="11" font-weight="bold" fill="#3CB371">F</text>
+        <text x="14" y="17" font-family="DejaVu Sans, Arial, sans-serif" font-size="11" font-weight="bold" fill="#3B8FE0">P</text>
     </svg>''', size, color, bg_color)
 
 
@@ -6455,26 +6732,13 @@ def get_tba_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIc
     </svg>''', size, color, bg_color)
 
 
-def get_dat_browser_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """DAT Browser — database table with rows"""
+def get_dat_browser_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """DAT Browser - table with DAT letters over it"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <!-- Table outline -->
-        <rect x="3" y="4" width="18" height="16" rx="2"
-              stroke="currentColor" stroke-width="2" fill="none"/>
-        <!-- Header row divider -->
-        <line x1="3" y1="9" x2="21" y2="9"
-              stroke="currentColor" stroke-width="2"/>
-        <!-- Column divider -->
-        <line x1="10" y1="4" x2="10" y2="20"
-              stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
-        <!-- Data rows -->
-        <line x1="3" y1="13" x2="21" y2="13"
-              stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
-        <line x1="3" y1="17" x2="21" y2="17"
-              stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
-        <!-- Header fill hint -->
-        <rect x="3" y="4" width="18" height="5" rx="2"
-              fill="currentColor" fill-opacity="0.12"/>
+        <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="2" fill="none" opacity="0.55"/>
+        <line x1="3" y1="9" x2="21" y2="9" stroke="currentColor" stroke-width="2" opacity="0.55"/>
+        <line x1="3" y1="15" x2="21" y2="15" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>
+        <text x="12" y="17" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="9.5" font-weight="bold" fill="currentColor" stroke="none">DAT</text>
     </svg>''', size, color, bg_color)
 
 

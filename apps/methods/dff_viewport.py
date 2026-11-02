@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 48
+# this belongs in apps/methods/dff_viewport.py - Version: 52
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -11,6 +11,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.__init__
 # DFFViewport._anim_tick
 # DFFViewport._apply_move
+# DFFViewport._apply_lookat
 # DFFViewport._apply_rotate
 # DFFViewport._apply_selection_click
 # DFFViewport._auto_fit
@@ -21,6 +22,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._constraint_axis
 # DFFViewport._cycle_constraint
 # DFFViewport._draw_assembly
+# DFFViewport._draw_assembly_arrays
 # DFFViewport._draw_axes
 # DFFViewport._draw_brush_ring
 # DFFViewport._draw_skeleton
@@ -71,6 +73,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._pad_begin_grab
 # DFFViewport._pad_end_grab
 # DFFViewport._pad_pick_centre
+# DFFViewport._paint_orbit_camera
 # DFFViewport._paint_scene
 # DFFViewport._pick_edge
 # DFFViewport._pick_face
@@ -133,6 +136,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.set_ambient
 # DFFViewport.set_animation
 # DFFViewport.set_animation_speed
+# DFFViewport.set_array_assembly
 # DFFViewport.set_assembly_mode
 # DFFViewport.set_backface
 # DFFViewport.set_backface_cull
@@ -156,6 +160,8 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.set_gizmo_rotate_callback
 # DFFViewport.set_gizmo_target
 # DFFViewport.set_light_dir
+# DFFViewport.set_lookat
+# DFFViewport.set_lookat_aspect
 # DFFViewport.set_mesh_face_mode
 # DFFViewport.set_mesh_face_mode_callback
 # DFFViewport.set_mesh_gizmo_mode
@@ -1123,7 +1129,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glClear(GL_COLOR_BUFFER_BIT)
         glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE)
 
-    def _paint_scene(self): #vers 3
+    def _paint_scene(self): #vers 5
         """Scene body of paintGL (was paintGL vers 15)."""
         self._gizmo2d = None                     # mesh gizmo screen data, set by _draw_mesh_gizmo
         self._gizmo_overlay.update()
@@ -1131,23 +1137,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
-        gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
-        glRotatef(-self._pitch, 1, 0, 0)
-        glRotatef(self._yaw, 0, 0, 1)
-        # Sky drawn here - after yaw/pitch rotate the scene, before pan
-        # translates it (Aug 20 2026)
-        if self._skybox_path or (self._timecyc_playing and self._sky_gradient_top
-                                 and self._sky_gradient_bot):
-            glPushMatrix()                      # camera-centred: rotate only, no zoom/pan
-            glLoadIdentity()
-            glRotatef(-self._pitch, 1, 0, 0)
-            glRotatef(self._yaw, 0, 0, 1)
-            if self._skybox_path:
-                self._draw_skybox()
-            else:
-                self._draw_sky_gradient()
-            glPopMatrix()
-        glTranslatef(self._pan_x, self._pan_y, 0)
+        if getattr(self, '_lookat', None) is not None:      # fixed camera (cutscene playback)
+            self._apply_lookat()
+        else:
+            self._paint_orbit_camera()
         if self._backface_cull:
             glEnable(GL_CULL_FACE); glCullFace(GL_BACK)
         else:
@@ -1169,6 +1162,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if self._show_radar_tex_layer:
                 self._draw_radar_tex_layer()
             self._draw_world_instances()
+            if has_geoms and getattr(self, '_array_assembly', False):
+                self._draw_assembly()                    # animated models over a world backdrop
             self._draw_2dfx_lights()
             if self.show_paths:
                 self._draw_paths()
@@ -4119,8 +4114,83 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_show_lod(self, enabled: bool): #vers 1
         self._show_lod = enabled; self.update()
 
-    def _draw_assembly(self): #vers 3
+    def set_array_assembly(self, on: bool): #vers 1
+        """Draw _all_geoms with vertex arrays (fast; for per-frame animated scenes)."""
+        self._array_assembly = bool(on)
+        self.update()
+
+    def _draw_assembly_arrays(self, entry): #vers 1
+        """One _all_geoms entry by vertex arrays, batched per material."""
+        from OpenGL.raw.GL.VERSION.GL_1_1 import (glColorPointer as raw_color_ptr,
+                                                  glDrawElements as raw_draw_elements,
+                                                  glNormalPointer as raw_normal_ptr,
+                                                  glTexCoordPointer as raw_tex_ptr,
+                                                  glVertexPointer as raw_vertex_ptr)
+        verts, norms, uvs, tris, mats, prelit = entry[:6]
+        flags = entry[6] if len(entry) > 6 else self._geom_flags()
+        if not verts or not tris:
+            return
+        cache = self.__dict__.setdefault('_asm_index_cache', {})
+        groups = cache.get(id(tris))
+        if groups is None or groups[0] is not tris:           # tris list fixed per model
+            t = np.asarray(tris, dtype=np.int64)
+            groups = (tris, {int(m): np.ascontiguousarray(t[t[:, 3] == m, :3].ravel(), dtype=np.uint32)
+                             for m in np.unique(t[:, 3])})
+            cache[id(tris)] = groups
+        V = np.ascontiguousarray(verts, dtype=np.float32)
+        n = len(V)
+        N = np.ascontiguousarray(norms, dtype=np.float32) if len(norms) == n else None
+        UV = np.ascontiguousarray(uvs, dtype=np.float32) if len(uvs) == n else None
+        use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and N is not None
+        use_modulate = bool(flags & self.rpGEOMETRYMODULATEMATERIALCOLOR)
+        use_p = ((flags & self.rpGEOMETRYPRELIT) or self._use_prelight) and len(prelit) == n
+        P = np.ascontiguousarray(prelit, dtype=np.uint8)[:, :4] if use_p else None
+        textured = self._mode == 'textured'
+        alpha_mul = 0.5 if self._mode == 'semi_solid' else 1.0
+        (glEnable if use_lighting else glDisable)(GL_LIGHTING)
+        glEnableClientState(GL_VERTEX_ARRAY)
+        raw_vertex_ptr(3, GL_FLOAT, 0, V.ctypes.data_as(ctypes.c_void_p))
+        if N is not None:
+            glEnableClientState(GL_NORMAL_ARRAY)
+            raw_normal_ptr(GL_FLOAT, 0, N.ctypes.data_as(ctypes.c_void_p))
+        if textured and UV is not None:
+            glEnableClientState(GL_TEXTURE_COORD_ARRAY)
+            raw_tex_ptr(2, GL_FLOAT, 0, UV.ctypes.data_as(ctypes.c_void_p))
+        if P is not None:
+            glEnableClientState(GL_COLOR_ARRAY)
+            raw_color_ptr(4, GL_UNSIGNED_BYTE, 0, P.ctypes.data_as(ctypes.c_void_p))
+        if textured:
+            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE if use_modulate else GL_REPLACE)
+            glEnable(GL_ALPHA_TEST)
+            glAlphaFunc(GL_GREATER, 0.5)
+        for mid, idx in groups[1].items():
+            r, g, b, a = self._face_color(mid)[:4]
+            a *= alpha_mul
+            tname = getattr(mats[mid], 'texture_name', '') if mats and 0 <= mid < len(mats) else ''
+            gl_id = self._tex_ids.get((tname or '').lower(), 0) if textured and UV is not None else 0
+            if gl_id:
+                glEnable(GL_TEXTURE_2D)
+                glBindTexture(GL_TEXTURE_2D, gl_id)
+            else:
+                glDisable(GL_TEXTURE_2D)
+            if P is None:
+                glColor4f(r, g, b, a) if use_modulate else glColor4f(1.0, 1.0, 1.0, a)
+            blend = a < 0.99
+            if blend:
+                glEnable(GL_BLEND); glDepthMask(False)
+            raw_draw_elements(GL_TRIANGLES, len(idx), GL_UNSIGNED_INT, idx.ctypes.data_as(ctypes.c_void_p))
+            if blend:
+                glDepthMask(True); glDisable(GL_BLEND)
+        for st in (GL_COLOR_ARRAY, GL_TEXTURE_COORD_ARRAY, GL_NORMAL_ARRAY, GL_VERTEX_ARRAY):
+            glDisableClientState(st)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_TEXTURE_2D)
+        glDisable(GL_ALPHA_TEST)
+        glEnable(GL_LIGHTING)
+
+    def _draw_assembly(self): #vers 4
         if not OPENGL_AVAILABLE: return
+        fast = getattr(self, '_array_assembly', False) and self._mode in ('textured', 'solid', 'semi_solid')
         for entry in getattr(self,'_all_geoms',[]):
             verts,norms,uvs,tris,mats,prelit = entry[:6]
             geom_flags = entry[6] if len(entry) > 6 else self._current_geom_flags
@@ -4131,7 +4201,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._vertices=verts; self._normals=norms; self._uvs=uvs
             self._triangles=tris; self._materials=mats; self._prelit=prelit
             self._current_geom_flags=geom_flags
-            if   self._mode=='wireframe': self._draw_wireframe()
+            if fast:                                     # vertex arrays (animated scenes)
+                self._draw_assembly_arrays(entry)
+            elif self._mode=='wireframe': self._draw_wireframe()
             elif self._mode=='solid':     self._draw_solid()
             elif self._mode=='semi_solid': self._draw_solid(alpha_multiplier=0.5)
             elif self._mode=='textured':  self._draw_textured()
@@ -6540,6 +6612,77 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._pan_x = 0.0
         self._pan_y = 0.0
         self.update()
+
+    def _paint_orbit_camera(self): #vers 1
+        """Orbit camera (zoom, yaw, pitch, pan) and the sky behind it."""
+        gluLookAt(0, 0, self._dist, 0, 0, 0, 0, 1, 0)
+        glRotatef(-self._pitch, 1, 0, 0)
+        glRotatef(self._yaw, 0, 0, 1)
+        # Sky drawn here - after yaw/pitch rotate the scene, before pan
+        # translates it (Aug 20 2026)
+        if self._skybox_path or (self._timecyc_playing and self._sky_gradient_top
+                                 and self._sky_gradient_bot):
+            glPushMatrix()                      # camera-centred: rotate only, no zoom/pan
+            glLoadIdentity()
+            glRotatef(-self._pitch, 1, 0, 0)
+            glRotatef(self._yaw, 0, 0, 1)
+            if self._skybox_path:
+                self._draw_skybox()
+            else:
+                self._draw_sky_gradient()
+            glPopMatrix()
+        glTranslatef(self._pan_x, self._pan_y, 0)
+
+    def set_lookat(self, eye=None, target=None, roll: float = 0.0, fov: float = 45.0): #vers 1
+        """Fixed camera at eye looking at target (Z up, roll degrees, fov); eye None: orbit camera."""
+        self._lookat = None if eye is None else (tuple(eye), tuple(target), float(roll), float(fov))
+        if eye is None and OPENGL_AVAILABLE and self.isValid():
+            self.makeCurrent()
+            self.resizeGL(self.width(), self.height())       # back to the orbit projection
+            self.doneCurrent()
+        self.update()
+
+    def set_lookat_aspect(self, aspect=None): #vers 1
+        """Fixed camera picture shape (e.g. 4/3, black side bars); None fills the widget."""
+        self._lookat_aspect = aspect
+        self.update()
+
+    def _apply_lookat(self): #vers 2
+        """Projection and view for set_lookat; optional fixed aspect with black bars."""
+        import math
+        eye, tgt, roll, fov = self._lookat
+        aspect = max(1, self.width()) / max(1, self.height())
+        mask = getattr(self, '_lookat_aspect', None)
+        if mask:
+            dpr = self.devicePixelRatioF()
+            W, H = max(1, int(self.width() * dpr)), max(1, int(self.height() * dpr))
+            vw, vh = (int(H * mask), H) if W / H > mask else (W, int(W / mask))
+            x, y = (W - vw) // 2, (H - vh) // 2
+            glClearColor(0.0, 0.0, 0.0, 1.0)
+            glClear(GL_COLOR_BUFFER_BIT)
+            bg = self._get_bg_color()
+            glEnable(GL_SCISSOR_TEST)
+            glScissor(x, y, vw, vh)
+            glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            glDisable(GL_SCISSOR_TEST)
+            glViewport(x, y, vw, vh)
+            aspect = mask
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        gluPerspective(max(1.0, min(170.0, fov)), aspect, 0.05, 100000.0)
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+        d = [t - e for t, e in zip(tgt, eye)]
+        n = math.sqrt(sum(x * x for x in d)) or 1.0
+        d = [x / n for x in d]
+        up = (0.0, 0.0, 1.0) if abs(d[2]) < 0.99 else (0.0, 1.0, 0.0)
+        r = math.radians(roll)
+        if r:                                            # roll: turn up about the view direction
+            c, s_ = math.cos(r), math.sin(r)
+            cr = (d[1] * up[2] - d[2] * up[1], d[2] * up[0] - d[0] * up[2], d[0] * up[1] - d[1] * up[0])
+            up = tuple(u * c + k * s_ for u, k in zip(up, cr))
+        gluLookAt(*eye, *tgt, *up)
 
     def set_camera_state(self, dist=None, pan_x=None, pan_y=None,
                           yaw=None, pitch=None): #vers 1

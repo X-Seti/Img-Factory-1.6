@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 9
+#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 10
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop world load
 
 """
@@ -2485,7 +2485,7 @@ class MapWorldMixin: #vers 1
         finally:
             table.itemSelectionChanged.connect(self._on_compact_col_selected)
 
-    def _fill_texture_pane(self, model_name, txd_name, note=''): #vers 1
+    def _fill_texture_pane(self, model_name, txd_name, note=''): #vers 2
         """Textures dock: the model's TXD / WTD plus textures inside the model (GTA IV)."""
         model_cache = getattr(self, '_model_cache', None)
         tex_list = getattr(self, '_tex_list', None)
@@ -2497,6 +2497,7 @@ class MapWorldMixin: #vers 1
             tex_list.setRowCount(0)
             if hasattr(self, '_tex_count_lbl'):
                 self._tex_count_lbl.setText(f"No TXD name found for {model_name} (check its IDE entry)")
+                self._tex_count_lbl.setToolTip('')
             return
         textures, source, _status = (self._get_txd_textures(txd_name) if model_cache and txd_name
                                      else (None, None, 'missing'))
@@ -2516,14 +2517,16 @@ class MapWorldMixin: #vers 1
             tex_list.setItem(i, 3, QTableWidgetItem(tex.get('format', '')))
         if hasattr(self, '_tex_count_lbl'):
             if textures:
-                where = f"{txd_file}, from {source}" if source else "in the model"
+                where = f"{txd_file}, from {os.path.basename(source)}" if source else "in the model"
                 if embedded and source:
                     where += f" + {len(embedded)} in the model"
                 self._tex_count_lbl.setText(
                     f"{len(textures)} texture{'s' if len(textures) != 1 else ''} ({where}){note}")
+                self._tex_count_lbl.setToolTip(source or '')      # full path: right-click Copy path
             else:
                 self._tex_count_lbl.setText(
                     f"{txd_file} not found in any indexed IMG archive or as a loose file{note}")
+                self._tex_count_lbl.setToolTip('')
 
     def _on_ipl_model_row_selected(self, row): #vers 4
         """Show one model's info (Model Name/IDE/ID/TXD fields) and

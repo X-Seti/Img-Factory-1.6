@@ -1,4 +1,4 @@
-#this belongs in apps/methods/rw_chunks.py - Version: 3
+#this belongs in apps/methods/rw_chunks.py - Version: 4
 # X-Seti - September 2026 - IMG Factory 1.6 - RenderWare stream section tree
 
 """rw_chunks.py - Parse a RenderWare binary stream (.dff .txd .rws .anm .bsp ...)
@@ -33,6 +33,9 @@ All functions work on / return plain bytes, so a hex editor can apply them as on
 # replace_payload
 # string_payload
 # node_at
+# load_section_types
+# userdata_sets
+# userdata_to_frame
 
 import struct
 from typing import Dict, List, Optional, Tuple
@@ -94,6 +97,7 @@ CONTAINERS = {0x03, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0E, 0x0F, 0x10, 0x12, 
               0x1A, 0x1C, 0x2C}
 # data-only sections
 LEAVES = {0x01, 0x02, 0x13, 0x0D}
+_BASE_NAMES, _BASE_CONTAINERS = dict(CHUNK_NAMES), set(CONTAINERS)
 
 
 def chunk_name(t: int) -> str:
@@ -396,3 +400,105 @@ def node_at(roots: List[RWNode], offset: int) -> Optional[RWNode]: #vers 1
             best = n
             stack = list(n.children)
     return best
+
+
+def load_section_types(path: str) -> int: #vers 1
+    """Extra section names from a text file: '0x1234 = Name' or '0x1234 = Name, container'."""
+    CHUNK_NAMES.clear()
+    CHUNK_NAMES.update(_BASE_NAMES)
+    CONTAINERS.clear()
+    CONTAINERS.update(_BASE_CONTAINERS)
+    try:
+        with open(path, encoding='utf-8') as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return 0
+    n = 0
+    for line in lines:
+        line = line.split('#', 1)[0].strip()
+        if '=' not in line:
+            continue
+        key, val = (x.strip() for x in line.split('=', 1))
+        parts = [x.strip() for x in val.split(',')]
+        try:
+            t = int(key, 0)
+        except ValueError:
+            continue
+        if parts[0]:
+            CHUNK_NAMES[t] = parts[0]
+            if 'container' in (x.lower() for x in parts[1:]):
+                CONTAINERS.add(t)
+            n += 1
+    return n
+
+
+def userdata_sets(data: bytes, node: RWNode) -> List[Tuple[str, int, list]]: #vers 1
+    """User Data PLG payload -> [(set name, type 1 int / 2 float / 3 string, values)]."""
+    p, end, out = node.data_start, node.end, []
+
+    def u32():
+        nonlocal p
+        if p + 4 > end:
+            raise ValueError("cut short")
+        v = struct.unpack_from('<I', data, p)[0]
+        p += 4
+        return v
+
+    def text(n):
+        nonlocal p
+        if p + n > end:
+            raise ValueError("cut short")
+        v = bytes(data[p:p + n]).split(b"\0", 1)[0].decode('latin-1')
+        p += n
+        return v
+
+    try:
+        for _ in range(u32()):
+            name = text(u32())
+            kind, count = u32(), u32()
+            if kind == 1:
+                vals = [struct.unpack('<i', struct.pack('<I', u32()))[0] for _ in range(count)]
+            elif kind == 2:
+                vals = [struct.unpack('<f', struct.pack('<I', u32()))[0] for _ in range(count)]
+            elif kind == 3:
+                vals = [text(u32()) for _ in range(count)]
+            else:
+                break
+            out.append((name, kind, vals))
+    except ValueError:
+        pass
+    return out
+
+
+def _userdata_frame_name(data: bytes, node: RWNode) -> str: #vers 1
+    """Frame name held in a User Data PLG: set 'name', else the first string set."""
+    sets = [s for s in userdata_sets(data, node) if s[1] == 3 and s[2]]
+    pick = next((s for s in sets if s[0].lower() == 'name'), sets[0] if sets else None)
+    return pick[2][0] if pick else ''
+
+
+def userdata_to_frame(data: bytes) -> Tuple[bytes, int]: #vers 1
+    """Frame List extensions: User Data PLG frame names become Frame (0x0253F2FE) sections."""
+    buf, done, skip = bytes(data), 0, set()
+    while True:
+        hit = None
+        for r in parse_rw(buf):
+            for x in r.walk():
+                if x.type == 0x03 and x.parent is not None and x.parent.type == 0x0E:
+                    kids = {c.type: c for c in x.children}
+                    ud = kids.get(0x11F)
+                    if ud is not None and 0x0253F2FE not in kids and ud.offset not in skip:
+                        name = _userdata_frame_name(buf, ud)
+                        if name:
+                            hit = (ud, name)
+                            break
+                        skip.add(ud.offset)
+            if hit:
+                break
+        if hit is None:
+            return buf, done
+        ud, name = hit
+        buf = insert_section(buf, ud, make_section(0x0253F2FE, ud.stamp, name.encode('latin-1')))
+        old = node_at(parse_rw(buf), ud.offset)
+        buf = delete_section(buf, old)
+        done += 1

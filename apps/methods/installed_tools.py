@@ -1,4 +1,4 @@
-#this belongs in apps/methods/installed_tools.py - Version: 2
+#this belongs in apps/methods/installed_tools.py - Version: 3
 # X-Seti - October 29 2026 - IMG Factory 1.6 - Installed tools
 
 """
@@ -29,7 +29,8 @@ OPTION_COMPONENTS = {
     'edit_peds_file': 'Ped_Workshop', 'edit_ipf_file': 'Ped_Workshop', 'edit_paths_map': 'Path_Workshop',
     'edit_vehi_file': 'Vehicle_Workshop', 'edit_handling': 'Handling_Editor', 'edit_carcols': 'Vehicle_Workshop',
     'edit_timecyc': 'Timecyc_Editor', 'editscm': 'Scm_Workshop',
-    'edit_zones_cull': '', 'edit_weap_file': '', 'editgxt': '', 'editmenu': '',   # no tool yet
+    'edit_weap_file': 'Weapon_Workshop', 'edit_cutscenes': 'Cutscene_Workshop',
+    'edit_zones_cull': '', 'editgxt': '', 'editmenu': '',   # no tool yet
 }
 
 

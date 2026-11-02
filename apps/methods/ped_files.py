@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ped_files.py - Version: 4
+#this belongs in apps/methods/ped_files.py - Version: 5
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped data files (III / VC / SA / IV)
 
 """
@@ -48,7 +48,7 @@ def _resolve(root: str, rel: str) -> Optional[str]: #vers 1
 
 PED_DATA_FILES = ('ped.dat', 'pedgrp.dat', 'pedstats.dat', 'animgrp.dat', 'clothes.dat',
                   'shopping.dat', 'popcycle.dat', 'pedpersonality.dat', 'pedpopulation.dat',
-                  'pedProps.dat', 'pedVariations.dat')
+                  'pedProps.dat', 'pedVariations.dat', 'fistfite.dat', 'animviewer.dat')
 
 
 def ped_data_files(root: str) -> List[Tuple[str, str]]: #vers 2

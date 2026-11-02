@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 3
+#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop overlays
 
 """
@@ -1350,7 +1350,7 @@ class MapOverlayMixin: #vers 1
             vp.set_prelight(checked)
             vp.repaint()
 
-    def _on_load_generic_txd_clicked(self): #vers 3
+    def _on_load_generic_txd_clicked(self): #vers 4
         """Load generic.txd and show it in the Textures dock. Looks
         it up in the game's indexed IMG archives only, no loose-file
         fallback (Aug 1 2026)"""
@@ -1365,7 +1365,8 @@ class MapOverlayMixin: #vers 1
         self._generic_textures = textures
         if hasattr(self, '_tex_count_lbl'):
             self._tex_count_lbl.setText(
-                f"{len(textures)} texture{'s' if len(textures) != 1 else ''} (generic.txd, from {source})")
+                f"{len(textures)} texture{'s' if len(textures) != 1 else ''} (generic.txd, from {os.path.basename(source)})")
+            self._tex_count_lbl.setToolTip(source or '')
         tex_list = getattr(self, '_tex_list', None)
         if tex_list is not None:
             tex_list.setRowCount(len(textures))
@@ -2336,9 +2337,11 @@ class MapOverlayMixin: #vers 1
         if checked:
             self._refresh_cull_box_visualization()
 
-    def _refresh_zone_box_visualization(self): #vers 1
+    def _refresh_zone_box_visualization(self): #vers 2
         """Push the currently visible IPLs' map zones to the
         viewport's wireframe-box overlay (Aug 16 2026)"""
+        if hasattr(self, '_refresh_zones_table'):
+            self._refresh_zones_table()           # Zones dock follows every change
         vp = getattr(self, 'preview_widget', None)
         if vp is None or not hasattr(vp, 'set_zone_boxes'):
             return

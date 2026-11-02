@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_model_func.py - Version: 5
+#this belongs in apps/components/Map_Editor/depends/map_model_func.py - Version: 6
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop models
 
 """
@@ -162,6 +162,7 @@ Model, COL, DFF, texture and IDE handling (Model Workshop base) for ModelWorksho
 # _stop_thumbnail_spin
 # _tbl_item
 # _tex_context_menu
+# _tex_source_menu
 # _texture_back_from_dp5
 # _tick_thumbnail_spin
 # _toggle_backface_cull
@@ -2508,7 +2509,17 @@ class MapModelMixin: #vers 1
 
     # - Texture management
 
-    def _create_texture_panel(self): #vers 6
+    def _tex_source_menu(self, pos): #vers 1
+        """Texture count label: Copy path of the source archive."""
+        from PyQt6.QtWidgets import QApplication, QMenu
+        path = self._tex_count_lbl.toolTip()
+        menu = QMenu(self)
+        act = menu.addAction("Copy path")
+        act.setEnabled(bool(path))
+        act.triggered.connect(lambda: QApplication.clipboard().setText(path))
+        menu.exec(self._tex_count_lbl.mapToGlobal(pos))
+
+    def _create_texture_panel(self): #vers 7
         """Collapsible texture panel in middle column.
         Shows textures loaded from TXD files.
         Toggle between List view (table) and Thumbnail view (64x64 grid).
@@ -2526,6 +2537,8 @@ class MapModelMixin: #vers 1
         # bar already shows "Textures", a second label here was duplicate)
         self._tex_count_lbl = QLabel("0 textures")       # shown in the dock title bar
         self._tex_count_lbl.setFont(self.panel_font)
+        self._tex_count_lbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tex_count_lbl.customContextMenuRequested.connect(self._tex_source_menu)
 
         # View toggle: list ⇔ thumbnails
         self._tex_view_mode = 'list'
@@ -3298,7 +3311,7 @@ class MapModelMixin: #vers 1
         except Exception as e:
             print(f"Add textures error: {e}")
 
-    def _populate_texture_list(self): #vers 3
+    def _populate_texture_list(self): #vers 4
         """Fill the texture QTableWidget from self._mod_textures."""
         from PyQt6.QtGui import QImage, QPixmap, QIcon
         tbl = self._tex_list
@@ -3350,6 +3363,7 @@ class MapModelMixin: #vers 1
         count = len(self._mod_textures)
         if hasattr(self, '_tex_count_lbl'):
             self._tex_count_lbl.setText(f"{count} texture{'s' if count != 1 else ''}")
+            self._tex_count_lbl.setToolTip('')
         has = count > 0
         for btn in ('tex_pass_btn', 'tex_dp5_btn', 'tex_save_btn'):
             b = getattr(self, btn, None)

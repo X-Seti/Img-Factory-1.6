@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 51
+#this belongs in apps/gui/gui_layout.py - Version: 53
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -28,7 +28,7 @@ from apps.methods.imgfactory_svg_icons import (
     get_save_icon, get_export_icon, get_import_icon, get_remove_icon,
     get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
     get_rebuild_icon, get_rebuild_all_icon, get_merge_icon, get_split_icon, get_convert_icon,
-    get_import_via_icon, get_export_via_icon, get_dump_icon,
+    get_import_via_icon, get_export_via_icon, get_dump_icon, get_reload_icon, get_rename_icon,
     get_remove_via_icon, get_select_all_icon, get_select_inverse_icon,
     get_sort_icon, get_pin_icon, get_col_workshop_icon, get_txd_workshop_icon,
     get_hybrid_load_icon, get_scan_folder_icon,
@@ -417,7 +417,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
         self.method_mappings = self._create_method_mappings()
 
 
-    def _create_method_mappings(self): #vers 7
+    def _create_method_mappings(self): #vers 8
         """Create centralized method mappings for all buttons"""
         method_mappings = {
             # Nav Operations - Keep hidden unless custom theme requires these 3 buttons.
@@ -493,7 +493,8 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             'edit_hex':      lambda: getattr(self.main_window, 'open_hex_workshop_docked', lambda: None)(),
             'edit_dat_file': lambda: self._open_dat_browser(),
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
-            'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
+            'edit_weap_file': lambda: getattr(self.main_window, 'open_weapon_workshop_docked', lambda: None)(),
+            'edit_cutscenes': lambda: getattr(self.main_window, 'open_cutscene_workshop_docked', lambda: None)(),
             'edit_vehi_file': lambda: self._open_vehicle_workshop(),
             'edit_peds_file': lambda: getattr(self.main_window, 'open_ped_workshop_docked', lambda: None)(),
             'edit_radar_map': lambda: getattr(self.main_window, 'open_radar_map', lambda: None)(),
@@ -729,7 +730,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
         ]
 
 
-    def _get_entry_buttons_data(self): #vers 3
+    def _get_entry_buttons_data(self): #vers 4
         """Get Entry buttons data with theme colors"""
         colors = self._get_button_theme_template()
         return [
@@ -742,7 +743,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             #("Quick Exp", "quick_export", "document-send", colors['export_action'], "quick_export_selected"),
             ("Remove", "remove", "edit-delete", colors['remove_action'], "remove_selected"),
             ("Remove via", "remove_via", "document-remvia", colors['remove_action'], "remove_via_entries"),
-            ("Extract", "extract", "document-export", colors['export_action'], "extract_textures"),
+            ("Extract", "extract", "extract", colors['export_action'], "extract_textures"),
             ("Rename", "rename", "edit-rename", colors['edit_action'], "rename_selected"),
             ("Select All", "select_all", "edit-select-all", colors['select_action'], "select_all_entries"),
             ("Inverse", "sel_inverse", "edit-select", colors['select_action'], "select_inverse"),
@@ -758,7 +759,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
         colors = self._get_button_theme_template()
         return [b for b in self._options_buttons_all(colors) if option_available(b[4])]
 
-    def _options_buttons_all(self, colors): #vers 1
+    def _options_buttons_all(self, colors): #vers 2
         """Every Editing Options button (label, attr, icon, colour, method)."""
         return [
             ("Dir Tree",   "dir_tree",   "dir-tree",   colors['editor_data'],    "toggle_dir_tree"), #Dir_tree
@@ -792,6 +793,8 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             ("SCM code",   "scm_code",   "scm-code",   colors['editor_script'],  "editscm"),
             ("GXT font",   "gxt_font",   "gxt-font",   colors['editor_script'],  "editgxt"),
             ("Menu Edit",  "menu_font",  "menu-font",  colors['editor_script'],  "editmenu"),
+
+            ("Cutscenes",  "cuts_edit",  "cuts-edit",  colors['editor_script'],  "edit_cutscenes"),
         ]
 
 
@@ -1575,13 +1578,13 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             return color
 
 
-    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 6
+    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 9
         """Get SVG icon based on icon name identifier"""
         icon_map = {
             # IMG file actions
             "new": get_add_icon,            "document-new": get_add_icon,
             "open": get_open_icon,          "document-open": get_open_icon,
-            "reload": get_refresh_icon,     "document-reload": get_refresh_icon,
+            "reload": get_reload_icon,      "document-reload": get_reload_icon,
             "view-refresh": get_refresh_icon, "document-send": get_export_icon,
             "rebuild": get_rebuild_icon,    "view-rebuild": get_rebuild_icon,
             "rebuild-all": get_rebuild_all_icon,
@@ -1603,7 +1606,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             "remove": get_remove_icon,      "edit-delete": get_remove_icon,
             "remove_via": get_remove_via_icon, "document-remvia": get_remove_via_icon,
             "extract": get_extract_icon,
-            "rename": get_edit_icon,        "edit-rename": get_edit_icon,
+            "rename": get_rename_icon,      "edit-rename": get_rename_icon,
             "select_all": get_select_all_icon, "edit-select-all": get_select_all_icon,
             "sel_inverse": get_select_inverse_icon, "edit-select": get_select_inverse_icon,
             "sort": get_sort_icon,          "view-sort": get_sort_icon,
@@ -1623,14 +1626,15 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
 
             # Editor buttons (same icons as the Intro tiles)
             "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.mesh_icon(size, '#4a9fd4'),
-            "ipf-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.ped_app_icon(size),
+            "ipf-edit": get_ipf_anim_icon,
             "ide-edit": get_ide_editor_icon,
             "ipl-edit": lambda size=24, color=None, bg_color=None: get_ipl_editor_icon(size),
             "dat-edit": get_dat_browser_icon,
             "dir-tree": lambda size=24, color=None, bg_color=None: get_tree_icon(size, color),
             "water-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.water_workshop_icon(size),
             "zones-cull": lambda size=24, color=None, bg_color=None: get_cull_zone_icon(size, color),
-            "weap-edit": get_weapons_icon,
+            "weap-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.weapon_app_icon(size, color),
+            "cuts-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.cutscene_app_icon(size, color),
             "vehi-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.vehicle_app_icon(size),
             "peds-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.ped_app_icon(size),
             "carcols": get_carcols_icon,

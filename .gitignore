@@ -72,3 +72,13 @@ apps/components/Map_Editor/config/
 apps/components/Img_Factory/config/
 *.kate-swp
 Img-Factory-1-6-Full.zip.m4ztj9.part
+/*_dist/
+/*.exe
+/_internal/
+/*.app/
+/Img_Factory
+/Img_Factory_Full
+/*_Workshop
+/*_Editor
+/*_Viewer
+/*_Browser

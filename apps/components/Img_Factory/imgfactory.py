@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 128
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 130
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -4749,6 +4749,24 @@ class IMGFactory(QMainWindow):
         """Open Terrain Workshop in a tab."""
         from apps.components.Terrain_Workshop.terrain_workshop import open_terrain_workshop
         return open_terrain_workshop(self)
+
+    def open_cutscene_workshop_docked(self, file_path=None): #vers 2
+        """Open Cutscene Workshop in a tab; no file: the loaded game's anim/cuts.img."""
+        ws = self._open_workshop_tab('apps.components.Cutscene_Workshop.cutscene_workshop',
+                                     'CutsceneWorkshop', None, "Cutscene", file_path)
+        if ws is not None and not file_path and not getattr(ws, '_cs_names', None):
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(150, lambda: ws._cs_autoload(getattr(self, 'game_root', '') or ''))
+        return ws
+
+    def open_weapon_workshop_docked(self, file_path=None): #vers 1
+        """Open Weapon Workshop in a tab; no file: the loaded game's data folder."""
+        ws = self._open_workshop_tab('apps.components.Weapon_Workshop.weapon_workshop',
+                                     'WeaponWorkshop', None, "Weapons", file_path)
+        if ws is not None and not file_path and not getattr(ws, '_wp_paths', None):
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(150, lambda: ws._wp_autoload(getattr(self, 'game_root', '') or ''))
+        return ws
 
     def open_disc_workshop_docked(self, file_path=None): #vers 1
         """Open Disc Workshop (CD / DVD images) in a tab."""

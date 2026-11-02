@@ -1,5 +1,75 @@
-#this belongs in root /ChangeLog.md - Version: 410
+#this belongs in root /ChangeLog.md - Version: 445
 
+
+- Nov 02 2026 - Cutscene View settings: Model height (saved, default 1 m), timecyc sky and light with hour. Timecyc needs Timecyc_Editor (not in standalone yet).
+
+- Nov 02 2026 - Licence MIT (LICENSE added here and in all tools). Standalone docs: Weapon / Cutscene / Terrain READMEs, missing ChangeLogs, README fixes. buildscript skips projects.json.
+
+- Nov 02 2026 - Cutscene Workshop: SA models raised 1 m (anim root is 1 m below the model), now on map ground and framed by the locked camera.
+
+- Nov 02 2026 - Weapon Workshop: Export / Import ribbons get own icons (DFF, TXD, COL, PNG letters; blue arrow out, red arrow in). New SVGIconFactory _file_io_svg, 8 icons.
+
+- Nov 02 2026 - Weapon Workshop: Weapons panel (default.ide list), 3D model view, texture thumbnails; Export / Import DFF, TXD, COL, PNG. III weapons.dff / generic.txd, loose weapons.col handled.
+
+- Nov 02 2026 - Cutscene Workshop: Game view (4:3, zoom 0), Map button loads SA map around the .cut offset (new methods/world_scene.py, gta_int.img streams). Viewport: set_lookat_aspect.
+
+- Nov 02 2026 - Cutscene Workshop: back / forward one frame (1/30 s) buttons, frame number by the time. New skip_start_icon for Back to start.
+
+- Nov 02 2026 - DFFViewport: vertex-array drawing for animated scenes (set_array_assembly). Cutscene Workshop uses it, timer 16 ms, green LCD fps counter top left.
+
+- Nov 02 2026 - Cutscene Workshop: View settings dialog (render mode, wire, camera zoom, grid), defaults textured no wire, camera zoom -50 %.
+
+- Nov 02 2026 - Cutscene Workshop standalone: X11 / GLX backend on Linux (EGL context error 3009 on Wayland), as other 3D workshops.
+
+- Nov 02 2026 - Cutscene Workshop: close crash fixed, settings button with Show grid. New Reload icon; colour Import, Import via, Dump, Rename, Select all, Inverse, Sort, Pin.
+
+- Nov 02 2026 - New methods/sa_streams.py: SA audio/streams track table, XOR decrypt, Ogg out; cutscene name to track table. Cutscene Workshop plays SA cutscene sound in sync.
+
+- Nov 02 2026 - Cutscene Workshop: Lock camera; free cam from cutscene view, Ctrl+- zoom, FOV fix. Path view: cam icon, numbered shots, trail. III/VC sound sync.
+
+- Nov 02 2026 - fistfite.dat, animviewer.dat added to Ped Workshop data files. Decision .ped / .grp / PedEvent.txt routed to Ped Workshop; launcher finds game root from subfolders.
+
+- Nov 02 2026 - File router: coverage() and annotate_checklist() mark SA / VC data checklists (editor, planned, ignore, none). Ignore list added; VC maps/mapN.dat to DAT Browser.
+
+- Nov 02 2026 - Path Workshop reads GTA IV paths.img / nodesN.nod. Router: III/VC data files, numbered nodes / chase / tracks / flight patterns, shared route lookup.
+
+- Nov 02 2026 - Map Workshop: Zones dock (filters, table, add/edit/delete/save), zone edit dialog with undo. .zon files open in Zones. Delete zone index fix. Weapon-Workshop repo created.
+
+- Nov 02 2026 - New colour icons: Refresh, Export, Export via, Remove, Remove via, Extract (own icon now). DAT letters over DAT Browser icon. IFP Edit gets coloured IFP letters.
+
+- Nov 02 2026 - Cutscene and Weapon Workshops added to intro page and Editing Options panel/ribbon with own icons. Split icon now the merge icon flipped vertically.
+
+- Nov 02 2026 - New Weapon Workshop: weapon.dat (III/VC/SA), melee.dat combos, ar_stats.dat tables, flag tooltips, in-place edits. Cutscene Workshop: tear-off panels, ribbons, preview centre; stray cuts.dir fix.
+
+- Nov 02 2026 - File router: every SA data/ file grouped to its editor (vehicles.ide, SA_water, melee, .ide, gta.dat, main.sc ...); planned editors labelled (weapon, zones, surfinfo, procobj, fonts).
+
+- Nov 02 2026 - CJ from player.img (shopping.dat items, clothes.dat SETC/HIDE/CUTS): real CJ in Cutscene preview; Ped Workshop Open > CJ wardrobe, export one DFF + TXD (methods/cj_player.py).
+
+- Nov 02 2026 - Cutscene Workshop auto-opens the game's anim/cuts.img (else last); cuts.img/.dir/.cut route to it from Dir tree. New Cutscene-Workshop repo. IV .rrr confirmed.
+
+- Nov 02 2026 - Cutscene Workshop stage 3: III/VC cuts (.dir archives, .dat list, models from IFP names); drag camera/target keys in the path view. Ped Workshop: cs peds picked from cutscene.img.
+
+- Nov 02 2026 - Cutscene Workshop stage 2: Preview tab plays the cutscene in 3D (models from cutscene.img / gta3.img, cutscene IFP, camera path). Viewport set_lookat; IFP bone names ignore leading spaces.
+
+- Nov 02 2026 - New Cutscene Workshop (stage 1): cuts.img or .cut/.dat; script sections table + text, camera tracks table, top-down path view with time slider; saves back. Tools menu.
+
+- Nov 02 2026 - Ped Workshop: Open > Cutscene ped to in-game converts cs*.dff to the 32-bone SA ped skeleton (face/finger weights merged), copies TXD (methods/ped_cs_convert.py).
+
+- Nov 02 2026 - Hex Workshop, RW Analyze port: UserData to Frame, PC TXD to Xbox, Frame name edit, section types file + reload, Data View for more structs/plugins, expand/collapse, Save Copy As.
+
+- Nov 02 2026 - Hex Workshop: every ribbon button has its own icon; 14 new SVG icons (save as, copy text, insert, select all, go to, bookmark, offsets, hash, RW size/version/append/textures/convert).
+
+- Nov 02 2026 - Map Textures pane: shows archive file name only; full path in tooltip, right-click Copy path.
+
+- Nov 02 2026 - Core pack: core / full builds bundle every library any workshop imports (OpenGL, scipy, pygame...), so add-on or hand-copied workshops run.
+
+- Nov 02 2026 - tools/buildscript.py: --addon --<workshop> (Setup.exe / install_addon.sh for core installs), --new Foo_Workshop placeholder workshop, --new-repo Foo_Workshop sibling standalone repo.
+
+- Nov 02 2026 - Buildscripts --drop copies exe and _internal/ into repo root (git-ignored). Tools > Standalone lists and starts exes found in sibling repo folders (methods/standalone_tools.py).
+
+- Nov 02 2026 - tools/buildscript.py: --core, --full, --<workshop> (e.g. --txd_workshop) builds one workshop standalone; --list; tools/settings/ copied beside the exe.
+
+- Nov 02 2026 - Builds: output in <os>_<arch>_dist/ (wins_x86_64_dist); Windows version resource for Defender; build.yml Python set up first (Windows fix), tools/buildscript.py path.
 
 - Oct 29 2026 - Status bar: removed 22pt fonts and fixed 24px cap; zero margins, 16px icons, contents vertically centred and fully visible.
 

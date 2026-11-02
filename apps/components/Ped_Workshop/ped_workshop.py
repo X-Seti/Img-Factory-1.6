@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ped_Workshop/ped_workshop.py - Version: 20
+#this belongs in apps/components/Ped_Workshop/ped_workshop.py - Version: 22
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop
 
 """
@@ -46,6 +46,7 @@ from PyQt6.QtWidgets import QApplication
 from apps.components.Model_Editor.model_workshop import ModelWorkshop
 from apps.components.Ped_Workshop.depends.ped_anim_func import PedAnimMixin
 from apps.components.Ped_Workshop.depends.ped_anim_library_func import PedAnimLibraryMixin
+from apps.components.Ped_Workshop.depends.ped_wardrobe_func import PedWardrobeMixin
 from apps.components.Ped_Workshop.depends.ped_data_func import PedDataMixin
 from apps.components.Ped_Workshop.depends.ped_iv_func import PedIVMixin
 from apps.components.Ped_Workshop.depends.ped_pad_func import PedPadMixin
@@ -57,7 +58,7 @@ GRID_PATTERNS = {'squares': ('lines', "Squares"), 'hex': ('honeycomb', "Hex"),  
                  'solid': ('squares', "Solid"), 'checker': ('checker', "Checkerboard")}
 
 
-class PedWorkshop(PedDataMixin, PedIVMixin, PedAnimMixin, PedAnimLibraryMixin, PedPadMixin, PedSkinMixin, ModelWorkshop): #vers 6
+class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedAnimLibraryMixin, PedPadMixin, PedSkinMixin, ModelWorkshop): #vers 7
     """Model Workshop plus ped data and animation docks."""
     _OUTER_LAYOUT_VERSION = 13           # own dock layout (Peds / Animation / Bones)
 
@@ -242,8 +243,8 @@ class PedWorkshop(PedDataMixin, PedIVMixin, PedAnimMixin, PedAnimLibraryMixin, P
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2))
 
-    def _ped_open_menu(self): #vers 1
-        """Open: game folder (remembered), IFP, or a single DFF / TXD."""
+    def _ped_open_menu(self): #vers 3
+        """Open: game folder, IFP, a single DFF / TXD, cutscene ped convert, CJ wardrobe."""
         from PyQt6.QtWidgets import QMenu
         from PyQt6.QtGui import QCursor
         m = QMenu(self)
@@ -256,6 +257,9 @@ class PedWorkshop(PedDataMixin, PedIVMixin, PedAnimMixin, PedAnimLibraryMixin, P
         m.addSeparator()
         m.addAction("IFP animation file...", lambda: self._anim_open_ifp(''))
         m.addAction("Model / TXD file...", self._open_file)
+        m.addSeparator()
+        m.addAction("Cutscene ped to in-game...", self._cs_ped_convert)
+        m.addAction("CJ wardrobe (SA)...", self._cj_wardrobe)
         m.exec(QCursor.pos())
 
     def _ped_dirty_items(self) -> list: #vers 2

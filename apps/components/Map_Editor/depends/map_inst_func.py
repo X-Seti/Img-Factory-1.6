@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_inst_func.py - Version: 2
+#this belongs in apps/components/Map_Editor/depends/map_inst_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop IPL inst panel
 
 """
@@ -1346,7 +1346,7 @@ class MapInstMixin: #vers 1
         self._push_map_undo(_do_remove, _do_add, f"Add zone '{new_zone['name']}'")
         self._set_status(f"Added zone '{new_zone['name']}' - not yet saved to disk")
 
-    def _delete_zone(self): #vers 1
+    def _delete_zone(self): #vers 2
         """Delete the currently cycled/selected zone, .per:
         "we need to finish the add, del, save functions for zon" (Aug
         21 2026) - IN MEMORY ONLY until Save Zones is used. Acts on
@@ -1362,19 +1362,25 @@ class MapInstMixin: #vers 1
             return
         _, box_index = sel
         zones = getattr(loader, 'zones', [])
-        if not (0 <= box_index < len(zones)):
+        owners = getattr(vp, '_zone_box_owners', [])
+        if 0 <= box_index < len(owners):          # box index -> zone, hidden IPLs skipped
+            removed_zone = owners[box_index]
+        elif 0 <= box_index < len(zones):
+            removed_zone = zones[box_index]
+        else:
             return
-        removed_zone = zones[box_index]
-        removed_name = removed_zone.get('name', box_index)
+        zone_index = next((i for i, q in enumerate(zones) if q is removed_zone), None)
+        if zone_index is None:
+            return
+        removed_name = removed_zone.get('name', zone_index)
 
         def _do_remove():
-            if removed_zone in loader.zones:
-                loader.zones.remove(removed_zone)
+            loader.zones[:] = [q for q in loader.zones if q is not removed_zone]
             vp._selected_box = None
             self._refresh_zone_box_visualization()
 
         def _do_restore():
-            loader.zones.insert(min(box_index, len(loader.zones)), removed_zone)
+            loader.zones.insert(min(zone_index, len(loader.zones)), removed_zone)
             self._refresh_zone_box_visualization()
 
         _do_remove()

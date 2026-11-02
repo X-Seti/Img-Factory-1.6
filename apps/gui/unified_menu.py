@@ -1,4 +1,4 @@
-#this belongs in apps/gui/unified_menu.py - Version: 4
+#this belongs in apps/gui/unified_menu.py - Version: 7
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Unified Menu System
 """
 UnifiedMenuSystem — single menu source for all apps and UI modes.
@@ -223,7 +223,7 @@ class UnifiedMenuSystem: #vers 1
         self._add(m, "rem_via",      "Remove via…",     None,      "delete_icon")
         self._menus['img'] = m
 
-    def _build_tools_menu(self): #vers 2
+    def _build_tools_menu(self): #vers 5
         m = QMenu("Tools")
         self._add(m, "open_txd",     "TXD Workshop",    None,      None)
         self._add(m, "open_col",     "COL Workshop",    None,      None)
@@ -231,11 +231,17 @@ class UnifiedMenuSystem: #vers 1
         self._add(m, "open_dp5",     "DP5 Paint",       None,      None)
         self._add(m, "open_radar",   "Radar Workshop",  None,      None)
         self._add(m, "open_capture", "Capture Workshop", None,     None)
+        self._add(m, "open_cutscene", "Cutscene Workshop", None,   None)
+        self._add(m, "open_weapon",   "Weapon Workshop", None,     None)
         m.addSeparator()
         self._add(m, "open_dat",     "DAT Browser",     None,      None)
         self._add(m, "open_dir",     "File Browser",    None,      "folder_icon")
         m.addSeparator()
         self._add(m, "open_ai",      "AI Workshop",     None,      None)
+        m.addSeparator()
+        from apps.methods.standalone_tools import fill_standalone_menu
+        sub = m.addMenu("Standalone")                   # exes in sibling repo folders
+        sub.aboutToShow.connect(lambda: fill_standalone_menu(sub))
         self._menus['tools'] = m
 
     def _build_project_menu(self): #vers 2
@@ -334,7 +340,7 @@ class UnifiedMenuSystem: #vers 1
                 pass
         return None
 
-    def wire_standard_callbacks(self): #vers 3
+    def wire_standard_callbacks(self): #vers 4
         """Wire standard imgfactory callbacks from the main window."""
         mw = self.mw
         standard = {
@@ -373,6 +379,8 @@ class UnifiedMenuSystem: #vers 1
             'open_dir':      getattr(mw, 'toggle_dir_tree',       None),
             'open_ai':       getattr(mw, 'open_ai_workshop',      None),
             'open_capture':  getattr(mw, 'open_capture_workshop', None),
+            'open_cutscene': getattr(mw, 'open_cutscene_workshop_docked', None),
+            'open_weapon':   getattr(mw, 'open_weapon_workshop_docked', None),
             # Settings
             'open_settings': getattr(mw, 'show_gui_settings',     None),
             'about':         getattr(mw, 'show_about',            None),

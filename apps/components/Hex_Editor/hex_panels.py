@@ -1,4 +1,4 @@
-#this belongs in apps/components/Hex_Editor/hex_panels.py - Version: 4
+#this belongs in apps/components/Hex_Editor/hex_panels.py - Version: 5
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop side panels
 
 """hex_panels.py - Inspector (values at the cursor), Structure (RenderWare section tree with
@@ -13,6 +13,7 @@ The panels never touch bytes themselves: they emit signals / call the host's cal
 # BookmarksPanel
 # ComparePanel
 # parse_search_pattern
+# section_types_path
 # find_all
 # diff_ranges
 
@@ -32,6 +33,13 @@ from apps.methods import rw_chunks as rw
 
 
 # ---------------------------------------------------------------- helpers
+def section_types_path() -> str: #vers 1
+    """settings/rw_section_types.txt beside the app."""
+    import os
+    from apps.methods.standalone_tools import app_root
+    return os.path.join(app_root(), 'settings', 'rw_section_types.txt')
+
+
 def parse_search_pattern(kind: str, text: str) -> bytes:
     """User text -> bytes to look for. kind: hex | text | utf16 | u8/i16.. | f32 | f64 (+ ' BE')."""
     t = text.strip()
@@ -209,6 +217,7 @@ class StructurePanel(QWidget):
         self.roots: List[rw.RWNode] = []
         self.mode = "none"
         self._clip: Optional[bytes] = None
+        rw.load_section_types(section_types_path())
 
     # -- build
     def rebuild(self, data: bytes, filename: str = ""):
@@ -329,12 +338,10 @@ class StructurePanel(QWidget):
             self.goto.emit(*v)
         self._show_fields(self.node_of(item))
 
-    def _show_fields(self, n): #vers 1
-        """Named, editable fields for known Struct sections (Clump, Frame List, Geometry...)."""
-        from apps.methods.rw_structs import decode_struct
-        rows = []
-        if n is not None and n.type == 0x01 and n.parent is not None:
-            rows = decode_struct(self.data, n, n.parent.type, rw.version_of(n.stamp))
+    def _show_fields(self, n): #vers 2
+        """Named, editable fields for known Struct and plugin sections (Data View)."""
+        from apps.methods.rw_structs import decode_section
+        rows = decode_section(self.data, n, rw.version_of(n.stamp)) if n is not None else []
         self._fields_loading = True
         self.fields.setRowCount(len(rows))
         for r, (name, off, fmt, val) in enumerate(rows):
@@ -413,7 +420,7 @@ class StructurePanel(QWidget):
     def node_of(self, item) -> Optional[rw.RWNode]:
         return item.data(1, Qt.ItemDataRole.UserRole) if item else None
 
-    def _menu(self, pos): #vers 3
+    def _menu(self, pos): #vers 4
         it = self.tree.itemAt(pos)
         m = QMenu(self)
         if it is not None:
@@ -437,8 +444,11 @@ class StructurePanel(QWidget):
                 m.addAction("Add empty section after...", lambda: self._add_empty(n, first_child=False))
                 if n.type in rw.CONTAINERS:
                     m.addAction("Add empty section as first child...", lambda: self._add_empty(n, first_child=True))
-                if n.type in (0x02, 0x06, 0x15):
-                    m.addAction("Rename...", lambda: self._rename(n))
+                if n.type in (0x02, 0x06, 0x15, 0x0253F2FE):
+                    m.addAction("Edit name...", lambda: self._rename(n))
+                if it.childCount():
+                    m.addAction("Expand everything inside", lambda: self._expand(it, True))
+                    m.addAction("Collapse everything inside", lambda: self._expand(it, False))
                 m.addSeparator()
                 m.addAction("Clear payload (keep header)", lambda: self._emit(rw.clear_section(self.data, n), f"Clear {n.name}"))
                 m.addAction("Delete section", lambda: self._delete(n))
@@ -449,6 +459,15 @@ class StructurePanel(QWidget):
             m.addAction("Append a file's sections...", self.append_file)
             m.addAction("Copy tree as text", self.copy_text)
             m.addAction("Texture names...", self.show_textures)
+            m.addAction("UserData to Frame names", self.userdata_to_frame)
+            m.addAction("Convert PC TXD to Xbox", self.txd_to_xbox)
+        if self.tree.topLevelItemCount():
+            m.addSeparator()
+            m.addAction("Expand all", self.tree.expandAll)
+            m.addAction("Collapse all", self.tree.collapseAll)
+        m.addSeparator()
+        m.addAction("Reload section types", self.reload_types)
+        m.addAction("Edit section types file...", self.edit_types)
         if not m.isEmpty():
             m.exec(self.tree.viewport().mapToGlobal(pos))
 
@@ -503,8 +522,8 @@ class StructurePanel(QWidget):
         else:
             self._emit(rw.insert_section(self.data, n, chunk), f"Add {rw.chunk_name(t)}")
 
-    def _rename(self, n): #vers 1
-        """Rename a String, a Texture (its name String) or a Texture Native (fixed 32-byte name)."""
+    def _rename(self, n): #vers 2
+        """Edit the name of a String, Texture, Texture Native (32 bytes) or Frame section."""
         if n.type == 0x15:
             st = next((c for c in n.children if c.type == 0x01), None)
             if st is None or st.size < 40:
@@ -522,6 +541,13 @@ class StructurePanel(QWidget):
                 buf = bytearray(self.data)
                 buf[o:o + 32] = raw
                 self._emit(bytes(buf), f"Rename texture {cur} -> {txt.strip()}")
+            return
+        if n.type == 0x0253F2FE:                         # Frame: raw name, no terminator
+            cur = bytes(self.data[n.data_start:n.end]).split(b"\0", 1)[0].decode('latin-1')
+            txt, ok = QInputDialog.getText(self, "Frame name", "Name:", text=cur)
+            if ok and txt.strip() and txt.strip() != cur:
+                self._emit(rw.replace_payload(self.data, n, txt.strip().encode('latin-1')),
+                           f"Frame {cur} -> {txt.strip()}")
             return
         target = n if n.type == 0x02 else next((c for c in n.children if c.type == 0x02), None)
         if target is None:
@@ -576,6 +602,60 @@ class StructurePanel(QWidget):
     def show_textures(self):
         names = rw.texture_names(self.data)
         QMessageBox.information(self, "Textures", "\n".join(names) if names else "No textures found.")
+
+    def _expand(self, item, on: bool): #vers 1
+        """Expand or collapse item and everything inside it."""
+        stack = [item]
+        while stack:
+            x = stack.pop()
+            x.setExpanded(on)
+            stack += [x.child(i) for i in range(x.childCount())]
+
+    def userdata_to_frame(self): #vers 1
+        """User Data PLG frame names (3ds Max export) to Frame sections."""
+        if self.mode != "rw":
+            return
+        new, n = rw.userdata_to_frame(self.data)
+        if not n:
+            QMessageBox.information(self, "UserData to Frame", "No User Data frame names to convert.")
+            return
+        self._emit(new, f"UserData to Frame ({n} frames)")
+
+    def txd_to_xbox(self): #vers 1
+        """Whole PC TXD re-encoded as an Xbox TXD (one undoable edit)."""
+        if self.mode != "rw" or not self.roots or self.roots[0].type != 0x16:
+            QMessageBox.information(self, "TXD to Xbox", "Open a PC TXD first.")
+            return
+        from apps.methods.txd_platform_xbox import pc_txd_to_xbox
+        try:
+            new = pc_txd_to_xbox(self.data)
+        except ValueError as e:
+            QMessageBox.warning(self, "TXD to Xbox", str(e))
+            return
+        self._emit(new, "PC TXD to Xbox")
+
+    def reload_types(self): #vers 1
+        """Re-read the section types file and rebuild the tree."""
+        n = rw.load_section_types(section_types_path())
+        if self.mode == "rw":
+            self.tree.clear()
+            self._build_rw()
+        QMessageBox.information(self, "Section types", f"{n} section type(s) loaded from\n{section_types_path()}")
+
+    def edit_types(self): #vers 1
+        """Open the section types file (made with examples when missing)."""
+        import os
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+        path = section_types_path()
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write("# Extra RenderWare section types for Hex Workshop (Reload section types after editing)\n"
+                        "# 0xID = Name            data section\n"
+                        "# 0xID = Name, container section holding other sections\n"
+                        "# 0x0253F2F5 = Rockstar Unknown\n")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
 
 # ---------------------------------------------------------------- search

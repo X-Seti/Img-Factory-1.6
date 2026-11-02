@@ -1,4 +1,4 @@
-#this belongs in apps/methods/sa_path_parser.py - Version: 4
+#this belongs in apps/methods/sa_path_parser.py - Version: 5
 # X-Seti - Aug 14 2026 - IMG Factory 1.6 - SA Path Node Parser (nodesXX.dat)
 
 """
@@ -20,7 +20,8 @@ from typing import Dict, List, Optional
 # parse_rrr #vers 2
 # load_all_nodes_dat_from_dir #vers 1
 # load_nodes_dat #vers 1
-# load_nodes_dat_from_img_entry #vers 1
+# load_nodes_dat_from_img_entry #vers 2
+# parse_iv_nod #vers 1
 # parse_nodes_dat #vers 2
 
 
@@ -165,6 +166,33 @@ class SAPathFile: #vers 2
         on-disk order, so index arithmetic against link_id ranges
         (which address into this combined list) stays correct."""
         return self.vehicle_nodes + self.ped_nodes
+
+
+def parse_iv_nod(data: bytes, area_id: int, source_path: str = "") -> Optional[SAPathFile]: #vers 1
+    """GTA IV nodesN.nod (paths.img): 32-byte nodes, 8-byte links."""
+    if len(data) < 16:
+        return None
+    num_nodes, num_vehicle, num_ped, num_links = struct.unpack_from('<4I', data, 0)
+    pf = SAPathFile(area_id=area_id, source_path=source_path)
+    if num_nodes == 0:
+        return pf
+    if 16 + num_nodes * 32 + num_links * 8 > len(data):
+        pf.parse_errors.append("file shorter than its node / link counts")
+        return pf
+    for i in range(num_nodes):
+        # mem, zero, area, node, unknown, heuristic, link_id, x, y, z, 4 bytes, flags
+        (mem, _z, n_area, n_id, _u, _h, link_id, rx, ry, rz,
+         _b0, _b1, _b2, _b3, flags) = struct.unpack_from('<IIHHIHHhhhBBBBH', data, 16 + i * 32)
+        node = SAPathNode(x=rx / 8.0, y=ry / 8.0, z=rz / 8.0, link_id=link_id,
+                          link_count=flags & 0xF, area_id=n_area, node_id=n_id,
+                          path_width=0.0, flood_fill=0, flags=flags,
+                          is_ped=(i >= num_vehicle), mem_addr=mem)
+        (pf.ped_nodes if node.is_ped else pf.vehicle_nodes).append(node)
+    base = 16 + num_nodes * 32
+    for i in range(num_links):
+        a, n, info, _flags = struct.unpack_from('<4H', data, base + i * 8)
+        pf.links.append(SAPathLink(area_id=a, node_id=n, length=info & 0xFF))
+    return pf
 
 
 def parse_nodes_dat(data: bytes, area_id: int, source_path: str = "") -> Optional[SAPathFile]: #vers 2
@@ -315,7 +343,7 @@ def parse_nodes_dat(data: bytes, area_id: int, source_path: str = "") -> Optiona
         filler=filler, trailing=bytes(data[offset:]))
 
 
-_NODES_DAT_RE = re.compile(r'nodes(\d+)\.dat$', re.IGNORECASE)
+_NODES_DAT_RE = re.compile(r'nodes(\d+)\.(?:dat|nod)$', re.IGNORECASE)   # .nod: GTA IV paths.img
 
 
 def load_nodes_dat(path: str) -> Optional[SAPathFile]: #vers 1
@@ -358,7 +386,7 @@ def load_all_nodes_dat_from_dir(directory: str) -> Dict[int, SAPathFile]: #vers 
     return result
 
 
-def find_nodes_dat_in_img(img) -> Dict[int, object]: #vers 1
+def find_nodes_dat_in_img(img) -> Dict[int, object]: #vers 2
     """Scan an already-open IMGFile (apps.methods.img_core_classes)
     for nodesN.dat entries, keyed by area_id - the wiki's documented
     normal location ("in gta3.img, or any other archive"), matching
@@ -378,7 +406,7 @@ def find_nodes_dat_in_img(img) -> Dict[int, object]: #vers 1
     return result
 
 
-def load_nodes_dat_from_img_entry(img, entry, area_id: int) -> Optional[SAPathFile]: #vers 1
+def load_nodes_dat_from_img_entry(img, entry, area_id: int) -> Optional[SAPathFile]: #vers 2
     """Read one nodesN.dat IMGEntry's bytes from an already-open
     IMGFile and parse it - the actual load step for an entry found
     via find_nodes_dat_in_img. Kept as a separate call (rather than
@@ -396,6 +424,8 @@ def load_nodes_dat_from_img_entry(img, entry, area_id: int) -> Optional[SAPathFi
     if not data:
         return None
     source = f"{getattr(img, 'file_path', getattr(img, 'path', ''))}:{getattr(entry, 'name', '')}"
+    if getattr(entry, 'name', '').lower().endswith('.nod'):
+        return parse_iv_nod(data, area_id, source_path=source)
     return parse_nodes_dat(data, area_id, source_path=source)
 
 

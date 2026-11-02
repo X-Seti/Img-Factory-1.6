@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/txd_platform_xbox.py - Version: 2
+#this belongs in apps/methods/txd_platform_xbox.py - Version: 3
 # X-Seti - October05 2026 - IMG Factory 1.6 - Xbox TXD platform
 
 """
@@ -25,6 +25,7 @@ PAL4 indices are stored one per byte.
 # build_xbox_chunk
 # detect_xbox_txd
 # parse_xbox_nativetex
+# pc_txd_to_xbox
 
 import io
 import struct
@@ -240,3 +241,23 @@ def build_xbox_chunk(tex: Dict, rw_ver: int, ext_payload: bytes = b'') -> bytes:
             + struct.pack('<IHHHHBBBBI', rf, 1 if has_alpha else 0, 0, w, h, depth, len(out), 4,
                           comp, len(pixels)) + stored_pal + pixels)
     return _join_native(rw_ver, [(0x01, body), (0x03, _with_ext(ext_payload, tex, rw_ver))])
+
+
+def pc_txd_to_xbox(data: bytes) -> bytes: #vers 1
+    """PC (D3D8 / D3D9) TXD -> Xbox TXD, same RW version, every texture re-encoded."""
+    from apps.methods.txd_parser import parse_txd
+    from apps.methods.rw_chunks import version_of
+    texs = parse_txd(data, levels=True)
+    if not texs:
+        raise ValueError("No textures found")
+    if len(texs) != struct.unpack_from('<H', data, 24)[0]:
+        raise ValueError("Some textures could not be read; nothing converted")
+    bad = [t.get('name', '?') for t in texs if t.get('platform_id') not in (8, 9)]
+    if bad:
+        raise ValueError("Only PC textures convert: " + ", ".join(bad[:5]))
+    ver = struct.unpack_from('<I', data, 8)[0]
+    out = [build_xbox_chunk(t, ver) for t in texs]
+    dev = 8 if version_of(ver) >= 0x36000 else 0           # Xbox SA TXDs use device 8
+    inner = (struct.pack('<III', 1, 4, ver) + struct.pack('<HH', len(out), dev)
+             + b''.join(out) + struct.pack('<III', 3, 0, ver))
+    return struct.pack('<III', 0x16, len(inner), ver) + inner
