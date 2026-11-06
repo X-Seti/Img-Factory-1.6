@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_core_classes.py - Version: 21
+#this belongs in apps/methods/img_core_classes.py - Version: 22
 # X-Seti - November29 2025 - IMG Factory 1.5 - IMG Core Classes with Fixed RW Version Detection
 
 """
@@ -123,6 +123,7 @@ class IMGVersion(Enum):
     VERSION_DTZ_LCS = 47  # GAME.DTZ LCS PS2/PSP — zlib blob with Relocatable Chunk header
     VERSION_IRX     = 48  # PS2 IOP MIPS ELF module (.irx) — read-only system file
     VERSION_1_IOS   = 54  # iOS GTA3/VC (*_pvr.img) - 12-byte entries, 512-byte sectors, no names
+    VERSION_RPF2    = 70  # GTA IV .rpf - RPF2, AES table, folders as 'dir/name' entries
     VERSION_XBOX        = 50  # Xbox GTA3/VC - DIR+IMG pair, LZO-compressed entries, 2048-byte sectors
     VERSION_SA_ANDROID  = 51  # Android SA - VER2 header, 2048-byte sectors, mobile texture DB
     VERSION_LCS_ANDROID = 52  # Android LCS - VER2 header, TXD version 0x1005FFFF embedded in IMG
@@ -521,13 +522,14 @@ class IMGEntry:
         """Set reference to parent IMG file"""
         self._img_file = img_file
 
-    def detect_file_type_and_version(self): #vers 4
+    def detect_file_type_and_version(self): #vers 5
         """Detect file type and RW version. Robust against garbage bytes after the null
         terminator or after the extension in DIR entry name fields.
 
         """
         try:
-            self.name = _parse_entry_name(self.name.encode('ascii', errors='replace'))
+            if getattr(getattr(self, '_img_file', None), 'version', None) != IMGVersion.VERSION_RPF2:
+                self.name = _parse_entry_name(self.name.encode('ascii', errors='replace'))   # RPF: 'dir/name' kept
 
             if '.' in self.name:
                 self.extension = self.name.split('.')[-1].upper()
@@ -1071,7 +1073,7 @@ class IMGFile:
             self.last_error = f"Save As failed: {e}"
             return False
 
-    def rebuild_img_file(self) -> bool: #vers 2
+    def rebuild_img_file(self) -> bool: #vers 3
         """Rebuild IMG file based on version"""
         try:
             if self.version == IMGVersion.VERSION_1:
@@ -1080,14 +1082,18 @@ class IMGFile:
                 return self._rebuild_version2()
             elif self.version in (IMGVersion.VERSION_3, IMGVersion.VERSION_3_ENC):
                 return self._rebuild_version3()
+            elif self.version == IMGVersion.VERSION_RPF2:
+                return self._rebuild_rpf2()
             else:
                 return False
 
         except Exception as e:
             return False
 
-    def _sanitize_filename(self, filename: str) -> str: #vers 1
+    def _sanitize_filename(self, filename: str) -> str: #vers 2
         """CRITICAL: Clean corrupted filenames before encoding"""
+        if self.version == IMGVersion.VERSION_RPF2:             # RPF: folder paths, no 24-char limit
+            return ''.join(c for c in filename if 32 <= ord(c) <= 126).strip().strip('/')
         try:
             # Remove corrupted bytes that show as garbage in table
             clean_name = filename.replace('\x00', '').replace('\xcd', '').replace('\xff', '')
@@ -1107,6 +1113,51 @@ class IMGFile:
         except Exception:
             return f"file_{len(self.entries):04d}.dat"
 
+
+    def _open_rpf2(self) -> bool: #vers 1
+        """GTA IV .rpf: one entry per file, folders in the name ('dir/file')."""
+        from apps.methods.rpf_archive import read_rpf
+        try:
+            self._rpf_head, files = read_rpf(self.file_path)
+        except (OSError, ValueError) as e:
+            self.last_error = str(e)
+            return False
+        for info in files:
+            entry = IMGEntry()
+            entry.name = info['path']
+            entry.offset, entry.size = info['offset'], info['size']
+            entry.rpf_info = info
+            entry.set_img_file(self)
+            self.entries.append(entry)
+        return True
+
+    def _rebuild_rpf2(self) -> bool: #vers 1
+        """Write the .rpf again: replaced / added data in, unchanged files copied as stored."""
+        from apps.methods.rpf_archive import pack_data, write_rpf
+        _out = getattr(self, '_rebuild_target', None) or self.file_path
+        head = getattr(self, '_rpf_head', {'encrypted': 0xFFFFFFFF, 'unknown': 0, 'root': '/'})
+        try:
+            items = []
+            with open(self.file_path, 'rb') as f:
+                for e in self.entries:
+                    new = getattr(e, '_cached_data', None) or e.__dict__.get('data')
+                    info = getattr(e, 'rpf_info', None)
+                    if new is None and info is not None:            # as stored (no re-encode)
+                        f.seek(info['offset'])
+                        items.append((e.name, f.read(info['size']), info))
+                    else:
+                        stored, ninfo = pack_data(bytes(new if new is not None else b''), bool(head.get('encrypted')))
+                        items.append((e.name, stored, ninfo))
+            write_rpf(_out + '.rebuild.tmp', head, items)
+            os.replace(_out + '.rebuild.tmp', _out)
+            self.entries.clear()
+            self.file_path = _out
+            return self._open_rpf2()
+        except Exception as e:
+            self.last_error = f"Rebuild failed: {e}"
+            if os.path.exists(_out + '.rebuild.tmp'):
+                os.unlink(_out + '.rebuild.tmp')
+            return False
 
     def _rebuild_version3(self) -> bool: #vers 2
         """Rebuild GTA IV IMG (V3); table re-encrypted when it was."""
@@ -1514,7 +1565,7 @@ class IMGFile:
             return 0
 
 
-    def detect_version(self) -> IMGVersion: #vers 6
+    def detect_version(self) -> IMGVersion: #vers 7
         """Detect IMG version and platform from file"""
         try:
             if not os.path.exists(self.file_path):
@@ -1539,6 +1590,15 @@ class IMGFile:
                     ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                     self.version = ver
                     return ver
+
+            # GTA IV RPF2 archive (.rpf)
+            try:
+                with open(self.file_path, 'rb') as _f:
+                    if _f.read(4) == b'RPF2':
+                        self.version = IMGVersion.VERSION_RPF2
+                        return IMGVersion.VERSION_RPF2
+            except OSError:
+                pass
 
             # Check for PS2 IRX (IOP MIPS ELF modules - CDSTREAM.IRX etc.)
             if self.file_path.lower().endswith('.irx'):
@@ -1730,7 +1790,7 @@ class IMGFile:
         self.version = IMGVersion.UNKNOWN
         return IMGVersion.UNKNOWN
 
-    def open(self) -> bool: #vers 6
+    def open(self) -> bool: #vers 7
         """Open and parse IMG file - FIXED WITH PROPER ENTRY PARSING"""
         try:
             if self.is_open:
@@ -1784,6 +1844,8 @@ class IMGFile:
             elif self.version in (IMGVersion.VERSION_DTZ_VCS,
                                   IMGVersion.VERSION_DTZ_LCS):
                 success = self._open_dtz()
+            elif self.version == IMGVersion.VERSION_RPF2:
+                success = self._open_rpf2()
             elif self.version == IMGVersion.VERSION_IRX:
                 # IRX = single ELF module, show as one entry
                 try:
@@ -2210,7 +2272,7 @@ class IMGFile:
         except Exception:
             return False
 
-    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 4
+    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 5
         """Entry bytes: pending replacement data first, else read from file."""
         pending = entry.__dict__.get('data')
         if pending:
@@ -2250,6 +2312,10 @@ class IMGFile:
                 with open(self.file_path, 'rb') as f:
                     f.seek(entry.offset)
                     data = f.read(entry.size)
+
+            if self.version == IMGVersion.VERSION_RPF2 and getattr(entry, 'rpf_info', None):
+                from apps.methods.rpf_archive import unpack_data
+                data = unpack_data(data, entry.rpf_info)          # plain files: AES / zlib undone
 
             # Transparent Xbox LZO decompression
             if self.platform == IMGPlatform.XBOX and _is_xbox_lzo(data):

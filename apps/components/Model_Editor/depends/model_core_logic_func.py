@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 9
+#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 10
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop file logic
 
 """
@@ -81,6 +81,7 @@ Open, import, export, save, IDE/IMG links and COL data for ModelWorkshop.
 # _show_shadow_mesh
 # _show_surface_info
 # _sync_open_imgs
+# _txd_by_model_name
 
 import os
 from PyQt6.QtCore import Qt
@@ -926,7 +927,14 @@ class ModelCoreLogicMixin: #vers 1
             xref = getattr(mw, 'xref', None)
         return xref
 
-    def _lookup_ide_for_dff(self, dff_path: str): #vers 2
+    def _txd_by_model_name(self, stem: str): #vers 1
+        """No IDE entry (cutscene models): TXD of the same name as the model."""
+        if hasattr(self, 'info_txd_name'):
+            self.info_txd_name.setText(f"{stem} (same name)")
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: self._auto_load_txd_from_imgs(stem))
+
+    def _lookup_ide_for_dff(self, dff_path: str): #vers 3
         """Look up IDEObject for a DFF file path via DAT Browser xref.
         Updates info panel labels and enables/disables TXD/IDE buttons.
         Handles /tmp paths where DFF was extracted with a random suffix."""
@@ -940,6 +948,7 @@ class ModelCoreLogicMixin: #vers 1
             stem = raw_stem.lower()
 
         xref = self._get_xref()
+        self._ide_txd_name, self._current_ide_obj = '', None     # no stale TXD from the last model
 
         # Reset labels
         for lbl, val in [
@@ -982,6 +991,7 @@ class ModelCoreLogicMixin: #vers 1
                 return obj
             if hasattr(self, 'info_ide_section'):
                 self.info_ide_section.setText('No DAT loaded')
+            self._txd_by_model_name(stem)
             return None
 
         obj = xref.model_map.get(stem)
@@ -996,6 +1006,7 @@ class ModelCoreLogicMixin: #vers 1
         if obj is None:
             if hasattr(self, 'info_ide_section'):
                 self.info_ide_section.setText('Not in IDE')
+            self._txd_by_model_name(stem)
             return None
 
         # Populate labels

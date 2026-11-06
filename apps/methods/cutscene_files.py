@@ -1,19 +1,23 @@
-#this belongs in apps/methods/cutscene_files.py - Version: 1
+#this belongs in apps/methods/cutscene_files.py - Version: 2
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene .cut / .dat files
 
 """
 GTA III / VC / SA cutscene files (anim/cuts.img): the .cut script (sections
 info, model, text, uncompress, motion, remove, extracol, peffect ... each
 closed by 'end') and the .dat camera path (four keyframe tracks: FOV,
-roll, camera position, target position).
+roll, camera position, target position). GTA IV .cut: [TAG] ... [/TAG]
+blocks, one [SECTION_START] .. [SECTION_END] group per .wad part.
 """
 
 ##Methods list -
 # build_cam_dat
 # build_cut
+# build_iv_cut
 # cam_at
+# iv_cut_parts
 # parse_cam_dat
 # parse_cut
+# parse_iv_cut
 
 from typing import List, Tuple
 
@@ -29,6 +33,17 @@ CUT_COLUMNS = {
     'peffect': ["Effect", "Time ms", "Object", "Bone", "Attach", "X", "Y", "Z", "Dir X", "Dir Y", "Dir Z"],
 }
 CAM_TRACKS = ("FOV", "Roll", "Camera position", "Target position")
+# GTA IV .cut tags (rows split at spaces / tabs)
+IV_CUT_COLUMNS = {
+    'models': ["Index", "Model", "Animation", "Face animation"],
+    'text': ["Start ms", "Length ms", "GXT key"],
+    'variation': ["Model", "Component", "Drawable", "Texture", "Palette"],
+    'remove': ["X", "Y", "Z", "Model"],
+    'draw_distance': ["Time ms", "Flag", "Distance"],
+    'offset': ["X", "Y", "Z"], 'player_start': ["X", "Y", "Z"],
+    'cutscene_header': ["Value 1", "Value 2", "Value 3", "Value 4"],
+}
+IV_MARKERS = ('section_start', 'section_end')
 
 
 def parse_cut(text: str) -> List[Tuple[str, List[str]]]: #vers 1
@@ -106,3 +121,63 @@ def cam_at(track, t: float) -> List[float]: #vers 1
             k = 0.0 if t1 == t0 else (t - t0) / (t1 - t0)
             return [x + (y - x) * k for x, y in zip(a, b)]
     return list(track[-1][1])
+
+
+def parse_iv_cut(text: str) -> Tuple[List[Tuple[str, List[str]]], list]: #vers 1
+    """GTA IV .cut: ([(tag, rows)], [rows span or None]); markers have no rows."""
+    import re
+    secs, spans, cur, pos = [], [], None, 0
+    for line in text.splitlines(keepends=True):
+        s = line.strip()
+        m = re.fullmatch(r'\[(/?)([A-Za-z_0-9]+)\]', s)
+        if m and not m.group(1):
+            tag = m.group(2).lower()
+            if tag in IV_MARKERS:
+                secs.append((tag, []))
+                spans.append(None)
+            elif cur is None:
+                cur = (tag, [], pos + len(line))
+        elif m and cur is not None and m.group(2).lower() == cur[0]:
+            secs.append((cur[0], cur[1]))
+            spans.append((cur[2], pos))
+            cur = None
+        elif cur is not None and s:
+            cur[1].append(s)
+        pos += len(line)
+    return secs, spans
+
+
+def build_iv_cut(text: str, spans: list, sections: List[Tuple[str, List[str]]]) -> str: #vers 1
+    """IV .cut text with changed blocks' rows rewritten; the rest kept as it was."""
+    old, _ = parse_iv_cut(text)
+    nl = '\r\n' if '\r\n' in text else '\n'
+    for (tag, rows), (_t, was), span in sorted(zip(sections, old, spans), key=lambda x: -(x[2] or (0,))[0]):
+        if span is None or rows == was:
+            continue
+        a, b = span
+        text = text[:a] + nl + ''.join(r + nl for r in rows) + text[b:]
+    return text
+
+
+def iv_cut_parts(sections: List[Tuple[str, List[str]]]) -> List[dict]: #vers 1
+    """One dict per IV section: models [(index, model, anim, face anim)], anim, camera, duration s."""
+    parts, cur = [], None
+    for tag, rows in sections:
+        if tag == 'section_start':
+            cur = {'models': [], 'anim': '', 'camera': '', 'duration': 0.0, 'variation': []}
+            parts.append(cur)
+        elif tag == 'section_end':
+            cur = None
+        elif cur is not None:
+            if tag == 'models':
+                for r in rows:
+                    f = r.split()
+                    if len(f) >= 3:
+                        cur['models'].append((f[0], f[1], f[2], f[3] if len(f) > 3 else ''))
+            elif tag in ('anim', 'camera') and rows:
+                cur[tag] = rows[0].strip()
+            elif tag == 'duration' and rows:
+                cur['duration'] = float(rows[0]) / 1000.0
+            elif tag == 'variation':
+                cur['variation'] = [[int(x) for x in r.split()] for r in rows if r.split()]
+    return parts

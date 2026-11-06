@@ -1,4 +1,4 @@
-#this belongs in components/ img_version2.py - Version: 2
+#this belongs in components/ img_version2.py - Version: 3
 # X-Seti - July16 2025 - Img Factory 1.5
 
 """
@@ -20,7 +20,7 @@ class IMGVersion2Creator:
         self.entries = []
         self.file_path = ""
         
-    def create_version_2(self, output_path: str, initial_size_mb: int, compression_enabled: bool = False) -> bool:
+    def create_version_2(self, output_path: str, initial_size_mb: int, compression_enabled: bool = False) -> bool: #vers 1
         """Create IMG version 2 (single file) - COMPLETE IMPLEMENTATION"""
         try:
             # Convert MB to bytes
@@ -81,7 +81,7 @@ class IMGVersion2Creator:
             return True
 
         except Exception as e:
-            print(f"❌ Error creating Version 2 IMG: {e}")
+            print(f"Error creating Version 2 IMG: {e}")
             return False
 
     def _create_dummy_dff(self) -> bytes:
@@ -106,7 +106,7 @@ class IMGVersion2Creator:
         
         self.entries.append(dummy_entry)
     
-    def create_sa_version_2(self, output_path: str, initial_size_mb: int, game_preset: Dict[str, Any]) -> bool:
+    def create_sa_version_2(self, output_path: str, initial_size_mb: int, game_preset: Dict[str, Any]) -> bool: #vers 1
         """Create SA-specific Version 2 IMG with proper settings"""
         try:
             # SA-specific settings
@@ -116,14 +116,14 @@ class IMGVersion2Creator:
             success = self.create_version_2(output_path, initial_size_mb, compression_enabled)
             
             if success:
-                print(f"✅ SA Version 2 IMG created: {output_path}")
+                print(f"SA Version 2 IMG created: {output_path}")
                 print(f"   Size: {initial_size_mb}MB")
                 print(f"   Compression: {'Enabled' if compression_enabled else 'Disabled'}")
             
             return success
             
         except Exception as e:
-            print(f"❌ Error creating SA Version 2 IMG: {e}")
+            print(f"Error creating SA Version 2 IMG: {e}")
             return False
     
     def get_creation_info(self) -> Dict[str, Any]:

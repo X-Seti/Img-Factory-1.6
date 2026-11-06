@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_viewport_func.py - Version: 6
+#this belongs in apps/components/Model_Editor/depends/model_viewport_func.py - Version: 7
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop viewport
 
 """
@@ -43,12 +43,12 @@ class ModelViewportMixin: #vers 1
 
 
 
-    def _cycle_view_render_style(self): #vers 3
-        """Cycle viewport render: wireframe -> solid -> textured.
+    def _cycle_view_render_style(self): #vers 4
+        """Cycle viewport render: wireframe -> solid -> textured -> texture only.
         Applied to every visible viewport (single or all 4 quad panes)."""
         pw = getattr(self, 'preview_widget', None)
         if not pw: return
-        modes = ['wireframe', 'solid', 'textured']
+        modes = ['wireframe', 'solid', 'textured', 'texture_only']
         cur = getattr(pw, '_mode', 'solid')
         nxt = modes[(modes.index(cur) + 1) % len(modes)] if cur in modes else 'solid'
         for vp in self._live_viewports():
@@ -63,7 +63,7 @@ class ModelViewportMixin: #vers 1
 
 
 
-    def _open_render_settings_dialog(self): #vers 2
+    def _open_render_settings_dialog(self): #vers 3
         """Render & background settings dialog."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                                      QComboBox, QPushButton, QColorDialog,
@@ -83,8 +83,8 @@ class ModelViewportMixin: #vers 1
         sg = QHBoxLayout(style_grp)
         sg.addWidget(QLabel("Style:"))
         style_combo = QComboBox()
-        style_combo.addItems(["Wireframe", "Solid", "Textured"])
-        mapping = {"wireframe": "Wireframe", "solid": "Solid", "textured": "Textured"}
+        style_combo.addItems(["Wireframe", "Solid", "Textured", "Texture only"])
+        mapping = {"wireframe": "Wireframe", "solid": "Solid", "textured": "Textured", "texture_only": "Texture only"}
         cur_mode = getattr(pw, '_mode', 'solid')
         style_combo.setCurrentText(mapping.get(cur_mode, "Solid"))
         sg.addWidget(style_combo)
@@ -120,7 +120,7 @@ class ModelViewportMixin: #vers 1
         btns.rejected.connect(dlg.reject)
         def _apply():  #vers 1
             s = style_combo.currentText()
-            rev = {"Wireframe": "wireframe", "Solid": "solid", "Textured": "textured"}
+            rev = {"Wireframe": "wireframe", "Solid": "solid", "Textured": "textured", "Texture only": "texture_only"}
             pw.set_render_mode(rev.get(s, "solid"))
             if bg_preview.property("reset_to_theme"):
                 pw.set_checkerboard_background()

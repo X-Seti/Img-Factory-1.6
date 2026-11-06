@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 10
+#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 11
 # X-Seti - May10 2026 - IMG Factory 1.6 - DFF Model Viewer
 """
 DFF Model Viewer - OpenGL hardware 3D viewer for GTA RenderWare DFF files.
@@ -208,7 +208,7 @@ class ModelViewer(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
     WS_DEFAULTS     = {"last_dir": "", "recent": []}
     DROP_EXTS       = ('.dff', '.txd')
     _ribbon_name = "model_viewer"
-    _RIBBON_LAYOUT_VERSION = 2     # 2 = File ribbon (Tools moved to titlebar)
+    _RIBBON_LAYOUT_VERSION = 3     # 2 = File ribbon (Tools moved to titlebar)
     _RIBBON_WIDGET_ITEMS = True    # Ribbon Manager saves moved ribbon buttons
 
     def _build_menus_into_qmenu(self, pm): #vers 1
@@ -257,7 +257,7 @@ class ModelViewer(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
 
     # - setup_ui
 
-    def setup_ui(self): #vers 5
+    def setup_ui(self): #vers 6
         """Titlebar / Model dock | ribbons + viewport | View dock / status bar."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
@@ -271,7 +271,7 @@ class ModelViewer(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         main_layout.addWidget(self._tb_frame)
         docks = [("Model", self._create_left_panel(), 180, Qt.DockWidgetArea.LeftDockWidgetArea),
                  ("View", self._create_right_panel(), 160, Qt.DockWidgetArea.RightDockWidgetArea)]
-        main_layout.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()), docks), 1)
+        main_layout.addWidget(self.ribbon_host(self._dock_layout(self._create_centre_panel(), docks)), 1)
         self._inner_mw = self._ribbon_mw                 # Ribbon Manager works on these ribbons
         self._build_ribbons()
         status_bar = self._create_status_bar()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Retro_GTA_Workshop/retro_gta_workshop.py - Version: 23
+#this belongs in apps/components/Retro_GTA_Workshop/retro_gta_workshop.py - Version: 24
 # X-Seti - October 23 2026 - IMG Factory 1.6 - Retro GTA Workshop
 # Built on GUIWorkshop base (same as Capture / Water Workshop)
 
@@ -111,7 +111,7 @@ class RetroGTAWorkshop(RetroBlockMixin, RetroMapDataMixin, RetroMapImageMixin, R
     WS_DEFAULTS     = {"game_folder": "", "last_map": "", "full_paths": False}
     DROP_EXTS       = ('.gmp', '.sty', '.cmp', '.g24', '.gry', '.vsr', '.fxt', '.gxt', '.sdt', '.str', '.wav')
     _ribbon_name    = "retro_gta_workshop"
-    _RIBBON_LAYOUT_VERSION = 8          # New blank map, Save as, Data overlay
+    _RIBBON_LAYOUT_VERSION = 9          # New blank map, Save as, Data overlay
     _RIBBON_WIDGET_ITEMS = True         # Ribbon Manager saves moved ribbon buttons
 
     def __init__(self, parent=None, main_window=None): #vers 2
@@ -125,7 +125,7 @@ class RetroGTAWorkshop(RetroBlockMixin, RetroMapDataMixin, RetroMapImageMixin, R
         if folder and os.path.isdir(folder):
             self._open_game_folder(folder)
 
-    def setup_ui(self): #vers 7
+    def setup_ui(self): #vers 8
         """Titlebar / Files dock | ribbons + Map, Sprites, Text, Media, Data tabs | Block and Tiles docks."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -149,7 +149,7 @@ class RetroGTAWorkshop(RetroBlockMixin, RetroMapDataMixin, RetroMapImageMixin, R
         docks = [("Files", self._create_files_dock(), 150, Qt.DockWidgetArea.LeftDockWidgetArea),
                  ("Block", self._create_block_dock(), 180, Qt.DockWidgetArea.RightDockWidgetArea),
                  ("Tiles", self._create_tiles_dock(), 150, Qt.DockWidgetArea.RightDockWidgetArea)]
-        ml.addWidget(self._dock_layout(self.ribbon_wrap(tabs), docks), 1)
+        ml.addWidget(self.ribbon_host(self._dock_layout(tabs, docks)), 1)
         self._inner_mw = self._ribbon_mw                  # Ribbon Manager works on these ribbons
         self._block_help_button(self._outer_docks[1])
         self._build_ribbons()

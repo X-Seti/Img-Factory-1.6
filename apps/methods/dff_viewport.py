@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 52
+# this belongs in apps/methods/dff_viewport.py - Version: 54
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -1129,7 +1129,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glClear(GL_COLOR_BUFFER_BIT)
         glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE)
 
-    def _paint_scene(self): #vers 5
+    def _paint_scene(self): #vers 6
         """Scene body of paintGL (was paintGL vers 15)."""
         self._gizmo2d = None                     # mesh gizmo screen data, set by _draw_mesh_gizmo
         self._gizmo_overlay.update()
@@ -1225,7 +1225,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if   self._mode == 'wireframe': self._draw_wireframe()
             elif self._mode == 'solid':     self._draw_solid()
             elif self._mode == 'semi_solid': self._draw_solid(alpha_multiplier=0.5)
-            elif self._mode == 'textured':  self._draw_textured()
+            elif self._mode in ('textured', 'texture_only'):  self._draw_textured()
             self._draw_wire_hint()
             self._draw_detached_wires()
             self._draw_selection_overlay()
@@ -1911,14 +1911,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._skybox_tex_id = None
         self.update()
 
-    def set_timecyc_path(self, path, known_game=None): #vers 2
+    def set_timecyc_path(self, path, known_game=None): #vers 3
         """Load a timecyc.dat file."""
         self._timecyc_path = path or ''
         self._timecyc_entries = []
         if not path:
             return
         try:
-            from apps.components.Timecyc_Editor.timecyc_workshop import TimecycParser
+            from apps.methods.timecyc_parser import TimecycParser
             parser = TimecycParser()
             if parser.load(path, known_game=known_game):
                 self._timecyc_entries = list(parser.rows)
@@ -2279,12 +2279,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glDisable(GL_POLYGON_OFFSET_LINE)
 
-    def _draw_textured(self): #vers 5
+    def _draw_textured(self): #vers 6
         if not OPENGL_AVAILABLE: return
         flags = self._geom_flags()
-        use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and bool(self._normals)
-        use_prelit   = bool(flags & self.rpGEOMETRYPRELIT) and bool(self._prelit)
-        use_modulate = bool(flags & self.rpGEOMETRYMODULATEMATERIALCOLOR)
+        flat = self._mode == 'texture_only'               # textures only: no light, prelit or tint
+        use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and bool(self._normals) and not flat
+        use_prelit   = bool(flags & self.rpGEOMETRYPRELIT) and bool(self._prelit) and not flat
+        use_modulate = bool(flags & self.rpGEOMETRYMODULATEMATERIALCOLOR) and not flat
         if use_lighting:
             glEnable(GL_LIGHTING)
         else:
@@ -2295,7 +2296,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         # Alpha-textured objects (Aug 1 2026)
         glEnable(GL_ALPHA_TEST)
         glAlphaFunc(GL_GREATER, 0.5)
-        use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
+        use_p = (use_prelit or self._use_prelight) and bool(self._prelit) and not flat
         mats  = self._materials
         batches: Dict[tuple,list] = {}
         no_tex = []
@@ -4119,7 +4120,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._array_assembly = bool(on)
         self.update()
 
-    def _draw_assembly_arrays(self, entry): #vers 1
+    def _draw_assembly_arrays(self, entry): #vers 2
         """One _all_geoms entry by vertex arrays, batched per material."""
         from OpenGL.raw.GL.VERSION.GL_1_1 import (glColorPointer as raw_color_ptr,
                                                   glDrawElements as raw_draw_elements,
@@ -4145,7 +4146,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         use_modulate = bool(flags & self.rpGEOMETRYMODULATEMATERIALCOLOR)
         use_p = ((flags & self.rpGEOMETRYPRELIT) or self._use_prelight) and len(prelit) == n
         P = np.ascontiguousarray(prelit, dtype=np.uint8)[:, :4] if use_p else None
-        textured = self._mode == 'textured'
+        textured = self._mode in ('textured', 'texture_only')
+        if self._mode == 'texture_only':                 # flat textures: no light, prelit or tint
+            use_lighting = use_modulate = False
+            use_p, P = False, None
         alpha_mul = 0.5 if self._mode == 'semi_solid' else 1.0
         (glEnable if use_lighting else glDisable)(GL_LIGHTING)
         glEnableClientState(GL_VERTEX_ARRAY)
@@ -4188,9 +4192,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDisable(GL_ALPHA_TEST)
         glEnable(GL_LIGHTING)
 
-    def _draw_assembly(self): #vers 4
+    def _draw_assembly(self): #vers 5
         if not OPENGL_AVAILABLE: return
-        fast = getattr(self, '_array_assembly', False) and self._mode in ('textured', 'solid', 'semi_solid')
+        fast = getattr(self, '_array_assembly', False) and self._mode in ('textured', 'texture_only', 'solid',
+                                                                           'semi_solid')
         for entry in getattr(self,'_all_geoms',[]):
             verts,norms,uvs,tris,mats,prelit = entry[:6]
             geom_flags = entry[6] if len(entry) > 6 else self._current_geom_flags
@@ -4206,7 +4211,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             elif self._mode=='wireframe': self._draw_wireframe()
             elif self._mode=='solid':     self._draw_solid()
             elif self._mode=='semi_solid': self._draw_solid(alpha_multiplier=0.5)
-            elif self._mode=='textured':  self._draw_textured()
+            elif self._mode in ('textured', 'texture_only'):  self._draw_textured()
             self._draw_wire_hint()
             (self._vertices,self._normals,self._uvs,
              self._triangles,self._materials,self._prelit,
@@ -4306,7 +4311,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dots_cube_list_id = list_id
         return list_id
 
-    def _draw_world_instances(self): #vers 6
+    def _draw_world_instances(self): #vers 7
         """Per instance: glPushMatrix/translate/rotate/scale, then
         replay a pre-compiled display list (Aug 1 2026)"""
         if not OPENGL_AVAILABLE: return
@@ -4404,7 +4409,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 if   self._mode=='wireframe': self._draw_wireframe()
                 elif self._mode=='solid':     self._draw_solid()
                 elif self._mode=='semi_solid': self._draw_solid(alpha_multiplier=0.5)
-                elif self._mode=='textured':  self._draw_textured()
+                elif self._mode in ('textured', 'texture_only'):  self._draw_textured()
                 glEndList()
                 self._world_display_lists[cache_key] = list_id
             glPushMatrix()
@@ -5243,10 +5248,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._sync_mesh_chips()
         self.update()
 
-    def cycle_render_mode(self): #vers 1
-        """V: wireframe -> solid -> semi -> textured."""
-        modes = ['wireframe', 'solid', 'semi_solid', 'textured']
-        self.set_render_mode(modes[(modes.index(self._mode) + 1) % 4] if self._mode in modes else 'solid')
+    def cycle_render_mode(self): #vers 2
+        """V: wireframe -> solid -> semi -> textured -> texture only."""
+        modes = ['wireframe', 'solid', 'semi_solid', 'textured', 'texture_only']
+        self.set_render_mode(modes[(modes.index(self._mode) + 1) % len(modes)] if self._mode in modes else 'solid')
 
     def set_wire_hint(self, on): #vers 1
         """Thin wireframe drawn over solid / semi / textured models."""
@@ -5254,7 +5259,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._sync_mesh_chips()
         self.update()
 
-    def _draw_wire_hint(self): #vers 1
+    def _draw_wire_hint(self): #vers 2
         """Faint edges over the shaded model (not in wireframe mode)."""
         if not OPENGL_AVAILABLE or not self._wire_hint or self._mode == 'wireframe' or self._world_instances:
             return
@@ -5265,7 +5270,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_POLYGON_OFFSET_LINE); glPolygonOffset(-1.0, -1.0)
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
         glLineWidth(1.0)
-        glColor4f(0.05, 0.05, 0.08, 0.45) if self._mode == 'textured' else glColor4f(0.75, 0.85, 1.0, 0.35)
+        glColor4f(0.05, 0.05, 0.08, 0.45) if self._mode in ('textured', 'texture_only') \
+            else glColor4f(0.75, 0.85, 1.0, 0.35)
         glBegin(GL_TRIANGLES)
         for v1, v2, v3, _m in self._visible_tris():
             self._emit_verts(v1, v2, v3)
@@ -5318,7 +5324,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 self._mesh_gizmo_mode, self._wire_hint, tris, verts,
                 self._mesh_face_mode, getattr(self, '_select_mode', 'object'))
 
-    def _sync_mesh_chips(self): #vers 2
+    def _sync_mesh_chips(self): #vers 3
         """Build / refresh the render and gizmo chips and the count label."""
         state = self._mesh_chip_state()
         self._mesh_chip_shown = state
@@ -5348,7 +5354,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             lay.addWidget(self._chip_render); lay.addWidget(self._chip_gizmo); lay.addWidget(self._chip_faces)
             self._mesh_chips = bar
         if self._mesh_chips is not None:
-            names = {'wireframe': "Wire", 'solid': "Solid", 'semi_solid': "Semi", 'textured': "Textured"}
+            names = {'wireframe': "Wire", 'solid': "Solid", 'semi_solid': "Semi", 'textured': "Textured",
+                     'texture_only': "Tex only"}
             self._chip_render.setText(f"[V] {names.get(mode, mode)}" + (" +Wire" if wire and mode != 'wireframe' else ""))
             self._chip_gizmo.setText({'move': "Move [G]", 'rotate': "Rotate [R]", 'scale': "Scale [S]"}[gmode])
             self._chip_gizmo.setVisible(gizmo)
@@ -5369,12 +5376,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if self._mesh_info.isVisible():
             self._mesh_info.move(6, max(0, self.height() - self._mesh_info.height() - 4))
 
-    def _mesh_render_menu(self, pos): #vers 1
+    def _mesh_render_menu(self, pos): #vers 2
         """Chip right-click: pick a render mode, toggle the wire hint."""
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
         for mode, label in (('wireframe', "Wireframe"), ('solid', "Solid"),
-                            ('semi_solid', "Semi-transparent"), ('textured', "Textured")):
+                            ('semi_solid', "Semi-transparent"), ('textured', "Textured"),
+                            ('texture_only', "Texture only (no lighting)")):
             act = menu.addAction(label, lambda m=mode: self.set_render_mode(m))
             act.setCheckable(True); act.setChecked(self._mode == mode)
         menu.addSeparator()

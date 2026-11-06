@@ -1,4 +1,4 @@
-#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_ui_func.py - Version: 12
+#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_ui_func.py - Version: 13
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene Workshop UI
 
 """
@@ -273,13 +273,14 @@ class CutsceneUIMixin: #vers 1
         vp.set_timecyc_hour(int(self.WS.get('hour', 12)))
         vp.set_timecyc_playing(on and bool(vp._timecyc_entries))
 
-    def _cs_view_settings(self): #vers 3
+    def _cs_view_settings(self): #vers 4
         """View settings: render, wire, zoom, grid, map radius, model height, timecyc (saved)."""
         from PyQt6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox
         dlg = QDialog(self)
         dlg.setWindowTitle("Cutscene view settings")
         form = QFormLayout(dlg)
-        modes = [('Textured', 'textured'), ('Semi solid', 'semi_solid'), ('Solid', 'solid'), ('Wireframe', 'wireframe')]
+        modes = [('Textured', 'textured'), ('Texture only', 'texture_only'), ('Semi solid', 'semi_solid'),
+                 ('Solid', 'solid'), ('Wireframe', 'wireframe')]
         mode = QComboBox()
         for label, key in modes:
             mode.addItem(label, key)

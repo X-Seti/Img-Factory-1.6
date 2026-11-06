@@ -1,4 +1,4 @@
-#this belongs in gui/ gui_search.py - Version: 1
+#this belongs in gui/ gui_search.py - Version: 2
 # X-Seti - July13 2025 - IMG Factory 1.5 - Consolidated Search Functions
 
 """
@@ -377,7 +377,7 @@ class SearchManager:
         
         self._jump_to_current_match()
     
-    def _jump_to_current_match(self):
+    def _jump_to_current_match(self): #vers 1
         """Jump to current match in table"""
         try:
             if (self.current_matches and 
@@ -393,7 +393,7 @@ class SearchManager:
                     table.scrollToItem(table.item(match_row, 0))
                     
                     self.main_window.log_message(
-                        f"🔍 Match {self.current_match_index + 1} of {len(self.current_matches)}"
+                        f"Match {self.current_match_index + 1} of {len(self.current_matches)}"
                     )
                     
         except Exception as e:
@@ -694,7 +694,7 @@ def show_search_dialog(main_window):
 
 
 # Quick setup function for main window
-def install_search_system(main_window):
+def install_search_system(main_window): #vers 1
     """Install complete search system on main window"""
     try:
         # Create search manager
@@ -710,12 +710,12 @@ def install_search_system(main_window):
         main_window.find_previous = main_window.search_manager.find_previous
         
         if success:
-            main_window.log_message("✅ Complete search system installed")
+            main_window.log_message("Complete search system installed")
         
         return success
         
     except Exception as e:
-        main_window.log_message(f"❌ Search system installation error: {e}")
+        main_window.log_message(f"Search system installation error: {e}")
         return False
 
 __all__ = [

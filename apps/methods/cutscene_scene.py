@@ -1,4 +1,4 @@
-#this belongs in apps/methods/cutscene_scene.py - Version: 4
+#this belongs in apps/methods/cutscene_scene.py - Version: 6
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene playback scene
 
 """
@@ -6,7 +6,9 @@ Cutscene playback: the .cut 'model' list loaded (DFF + TXD), each posed by
 its animation from the cutscene .ifp at a time, as viewport geometry.
 The player (csplay) is built from models/player.img parts (default outfit,
 clothes.dat CUTS swaps); a stand-in ped when player.img isn't found. III / VC have no .cut (the script is
-in main.scm): the models are then the IFP's animation names.
+in main.scm): the models are then the IFP's animation names. GTA IV: one .wad
+per .cut section; peds are .wdd components on the .wft skeleton, moved by
+the anim's mover track; props (.wdr) by their root bone.
 """
 
 ##Methods list -
@@ -14,9 +16,13 @@ in main.scm): the models are then the IFP's animation names.
 ##class CutsceneScene: -
 # __init__
 # _add_item
-# _player_parts
 # _bone_map
+# _geo_of
+# _item_ltms
+# _iv_item
 # _locals
+# _player_parts
+# from_iv
 # geoms_at
 # textures
 
@@ -83,7 +89,7 @@ class CutsceneScene: #vers 1
             found = self._add_item(f"{name}:{comp}", dff, txd, anim, skin_all=bool(txd)) or found
         return found
 
-    def _add_item(self, name: str, dff: bytes, txd: Optional[bytes], anim, skin_all: bool = False) -> bool: #vers 1
+    def _add_item(self, name: str, dff: bytes, txd: Optional[bytes], anim, skin_all: bool = False) -> bool: #vers 2
         """Parse one model (+ textures) into a scene item. skin_all: its TXD's first texture on
         every material (player parts carry no texture names)."""
         model = parse_model_any(dff, name)
@@ -100,6 +106,14 @@ class CutsceneScene: #vers 1
                 for m in g.materials:
                     if not getattr(m, 'texture_name', ''):
                         m.texture_name = texs[0]['name']
+        sk = read_skeleton(dff)
+        self.items.append({'name': name, 'sk': sk, 'anim': anim, 'geo': self._geo_of(model),
+                           'bones': self._bone_map(sk, anim)})
+        return True
+
+    @staticmethod
+    def _geo_of(model) -> dict: #vers 1
+        """{geometry index: (verts, normals, uvs, tris, prelit, materials, flags)} arrays."""
         geo = {}
         for gi, g in enumerate(model.geometries):
             geo[gi] = (np.array([(v.x, v.y, v.z) for v in g.vertices], dtype=np.float64),
@@ -108,9 +122,82 @@ class CutsceneScene: #vers 1
                        [(t.v1, t.v2, t.v3, t.material_id) for t in g.triangles],
                        [(c.r, c.g, c.b, c.a) for c in g.colors] if g.colors else [],
                        g.materials, getattr(g, 'flags', 0))
-        sk = read_skeleton(dff)
-        self.items.append({'name': name, 'sk': sk, 'anim': anim, 'geo': geo, 'bones': self._bone_map(sk, anim)})
-        return True
+        return geo
+
+    @classmethod
+    def from_iv(cls, parts: list, wads: dict, fetch: Callable[[str, str], Optional[bytes]],
+                names=frozenset()): #vers 2
+        """GTA IV scene: parts from iv_cut_parts, wads {anim name lower: .wad bytes}, fetch(name, ext);
+        names: file names (lower) in the model archives (Niko's parts in playerped.rpf)."""
+        from apps.methods.iv_anim import parse_wad, wad_extra_tracks
+        self = cls.__new__(cls)
+        self.items, self.notes, self._tex, self.lift = [], [], [], 0.0
+        self._fetch, self._rules, self._names = fetch, None, names
+        by_model, t0 = {}, 0.0
+        for part in parts:
+            raw = wads.get(part['anim'].lower())
+            if raw is None:
+                self.notes.append(f"{part['anim']}.wad not found")
+                t0 += part['duration']
+                continue
+            anims = {a.name.lower(): a for a in parse_wad(raw, part['anim']).anims}
+            extra = wad_extra_tracks(raw)
+            dur = part['duration'] or max((a.duration() for a in anims.values()), default=0.0)
+            for idx, name, body, face in part['models']:
+                key = name.lower()
+                if key not in by_model:
+                    var = [v for v in part['variation'] if v and str(v[0]) == idx]
+                    it = self._iv_item(name, var)
+                    by_model[key] = it
+                    if it is not None:
+                        self.items.append(it)
+                it = by_model[key]
+                if it is None:
+                    continue
+                bones = self._bone_map(it['sk'], anims.get(body.lower()))
+                if face:
+                    bones.update(self._bone_map(it['sk'], anims.get(face.lower())))
+                mover = extra.get(body.lower(), {})
+                it['segs'].append((t0, t0 + dur, bones, mover.get('mover_pos'), mover.get('mover_rot')))
+            t0 += dur
+        self.duration = t0
+        return self
+
+    def _iv_item(self, name: str, variation: list): #vers 2
+        """Scene item of an IV ped (.wdd + .wft), prop (.wdr) or fragment (.wft); None if missing."""
+        from apps.methods.dff_skin import Skeleton
+        from apps.methods.wdr_model import parse_wdr, parse_wft
+        from apps.methods.xtd_textures import parse_iv_wtd
+        wdd, wft, wdr = self._fetch(name, '.wdd'), self._fetch(name, '.wft'), self._fetch(name, '.wdr')
+        wtd = self._fetch(name, '.wtd')
+        texs = parse_iv_wtd(wtd) if wtd else []
+        self._tex += texs
+        if wdd is not None and wft is not None:
+            from apps.methods.iv_anim import iv_skeleton, iv_skins
+            from apps.methods.ped_files import iv_default_picks, iv_ped_model
+            model = iv_ped_model(wdd, iv_default_picks(wdd, [t['name'] for t in texs], variation), name)
+            sk = iv_skeleton(wft)
+            iv_skins(sk, model.geometries)
+        elif name.lower() == 'player' and wft is not None and any(n.endswith('.wdr') for n in self._names):
+            from apps.methods.iv_anim import iv_skeleton, iv_skins          # Niko: playerped.rpf
+            from apps.methods.ped_files import iv_player_model
+            model, ptex = iv_player_model(self._names, self._fetch, variation)
+            self._tex += ptex
+            sk = iv_skeleton(wft)
+            iv_skins(sk, model.geometries)
+        elif wdr is not None or wft is not None:
+            model = parse_wdr(wdr, name) if wdr is not None else parse_wft(wft, name)
+            sk = Skeleton()                                   # props: whole model on the root bone
+            sk.frames.append({'name': name, 'local': np.eye(4), 'node_id': 0, 'parent': -1})
+            sk.atomics = {gi: 0 for gi in range(len(model.geometries))}
+        else:
+            self.notes.append(f"{name}: model not found" + (" (Niko: needs models/cdimages/playerped.rpf)"
+                                                             if name.lower() == 'player' else ""))
+            return None
+        if not model.geometries:
+            self.notes.append(f"{name}: model not readable")
+            return None
+        return {'name': name, 'sk': sk, 'anim': None, 'geo': self._geo_of(model), 'bones': {}, 'segs': []}
 
     @staticmethod
     def _bone_map(sk, anim) -> dict: #vers 1
@@ -147,12 +234,34 @@ class CutsceneScene: #vers 1
         """Every loaded texture (for the viewport upload)."""
         return self._tex
 
-    def geoms_at(self, t: float) -> list: #vers 2
+    def _item_ltms(self, it: dict, t: float) -> list: #vers 1
+        """Frame matrices of one item at t (IV: the section's anim and mover)."""
+        sk = it['sk']
+        if 'segs' not in it:
+            return sk.pose_ltms(self._locals(sk, it['bones'], t))
+        if not it['segs']:
+            return sk.pose_ltms({})
+        seg = next((s for s in it['segs'] if s[0] <= t < s[1]), it['segs'][-1] if t >= it['segs'][-1][0]
+                   else it['segs'][0])
+        lt = max(0.0, t - seg[0])
+        ltms = sk.pose_ltms(self._locals(sk, seg[2], lt))
+        pos, rot = seg[3], seg[4]
+        if pos is not None or rot is not None:
+            f = int(lt * 30.0)
+            M = np.eye(4)
+            if rot is not None:
+                M[:3, :3] = quat_to_matrix(tuple(rot[min(f, len(rot) - 1)]))
+            if pos is not None:
+                M[3, :3] = pos[min(f, len(pos) - 1)]
+            ltms = [L @ M for L in ltms]
+        return ltms
+
+    def geoms_at(self, t: float) -> list: #vers 3
         """Viewport geometry tuples of every model posed at time t (scene space)."""
         out = []
         for it in self.items:
             sk = it['sk']
-            ltms = sk.pose_ltms(self._locals(sk, it['bones'], t))
+            ltms = self._item_ltms(it, t)
             for gi, (V, N, uvs, tris, prelit, mats, flags) in it['geo'].items():
                 fi = sk.atomics.get(gi, 0)
                 M = ltms[fi] if fi < len(ltms) else np.eye(4)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 12
+#this belongs in apps/components/Capture_Workshop/capture_workshop.py - Version: 13
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Capture Workshop
 # Built on GUIWorkshop base (same as Water Workshop)
 
@@ -117,7 +117,7 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonIconsMixin, RibbonMixin, GUIWorksh
                        "audio_enabled": True, "audio_device": "",
                        "streams": [], "stream_index": 0}      # streams: user settings only
     _ribbon_name    = "capture_workshop"
-    _RIBBON_LAYOUT_VERSION = 2          # Source / Capture / Output / Bugs ribbons
+    _RIBBON_LAYOUT_VERSION = 3          # Source / Capture / Output / Bugs ribbons
 
     def __init__(self, parent=None, main_window=None): #vers 5
         self._device = DeviceSource()
@@ -152,15 +152,15 @@ class CaptureWorkshop(CaptureBugsMixin, RibbonIconsMixin, RibbonMixin, GUIWorksh
                 btn.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 3
+    def setup_ui(self): #vers 4
         """Titlebar / Captures dock | ribbon-wrapped preview / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
         ml.addWidget(self._create_toolbar())
         left = self._create_left_panel()
-        ml.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()),
-                                       [("Captures Controls", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
+        ml.addWidget(self.ribbon_host(self._dock_layout(self._create_centre_panel(),
+                                       [("Captures Controls", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea)])), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)

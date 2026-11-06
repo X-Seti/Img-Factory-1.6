@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 15
+#this belongs in apps/components/Hex_Editor/hex_workshop.py - Version: 16
 # X-Seti - September 2026 - IMG Factory 1.6 - Hex Workshop
 """
 Hex Workshop - a working hex editor for any file, with the section-tree tools of Steve-M's
@@ -66,7 +66,7 @@ class HexWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop):  #vers 5
     config_key = config_key
     _ribbon_name = "hex_workshop"
     # Bump when the set of ribbons changes (2 = File/Edit/Search/View/Tools)
-    _RIBBON_LAYOUT_VERSION = 2
+    _RIBBON_LAYOUT_VERSION = 3
 
     def __init__(self, parent=None, main_window=None): #vers 4
         self._defer_setup_ui = True
@@ -92,7 +92,7 @@ class HexWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop):  #vers 5
                 b.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 7
+    def setup_ui(self): #vers 8
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
@@ -132,8 +132,8 @@ class HexWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop):  #vers 5
         self._tabs.addTab(self.bookmarks, "Bookmarks")
         self._tabs.addTab(self.compare, "Compare")
 
-        ml.addWidget(self._dock_layout(self.ribbon_wrap(centre), [
-            ("Inspector", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea), ("Tools", self._tabs, 300, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
+        ml.addWidget(self.ribbon_host(self._dock_layout(centre, [
+            ("Inspector", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea), ("Tools", self._tabs, 300, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)

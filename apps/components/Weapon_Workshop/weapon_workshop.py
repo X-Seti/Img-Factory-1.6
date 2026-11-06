@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Weapon_Workshop/weapon_workshop.py - Version: 5
+#this belongs in apps/components/Weapon_Workshop/weapon_workshop.py - Version: 6
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Weapon Workshop
 
 """
@@ -49,7 +49,7 @@ class WeaponWorkshop(RibbonIconsMixin, RibbonMixin, WeaponUIMixin, WeaponLogicMi
     App_description = "Weapon, melee and stat data - IMG Factory 1.6"
     App_icon = "weapon_app_icon"
     _ribbon_name = "weapon_workshop"
-    _RIBBON_LAYOUT_VERSION = 2
+    _RIBBON_LAYOUT_VERSION = 3
     _OUTER_LAYOUT_VERSION = 2
     DROP_EXTS = ('.dat',)
     WS_DEFAULTS = {'last_path': ''}
@@ -59,16 +59,16 @@ class WeaponWorkshop(RibbonIconsMixin, RibbonMixin, WeaponUIMixin, WeaponLogicMi
         super().__init__(parent, main_window)
         self.setup_ui()
 
-    def setup_ui(self): #vers 2
+    def setup_ui(self): #vers 3
         """Ribbons over the tables; files, weapons and the 3D model are tear-off panels."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
         ml.addWidget(self._create_toolbar())
-        ml.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()), [
+        ml.addWidget(self.ribbon_host(self._dock_layout(self._create_centre_panel(), [
             ("Files", self._create_left_panel(), 150, Qt.DockWidgetArea.LeftDockWidgetArea),
             ("Weapons", self._create_weapons_panel(), 200, Qt.DockWidgetArea.LeftDockWidgetArea),
-            ("Model", self._create_model_view(), 320, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
+            ("Model", self._create_model_view(), 320, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)

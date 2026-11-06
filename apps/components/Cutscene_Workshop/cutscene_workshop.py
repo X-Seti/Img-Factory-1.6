@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Cutscene_Workshop/cutscene_workshop.py - Version: 11
+#this belongs in apps/components/Cutscene_Workshop/cutscene_workshop.py - Version: 14
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene Workshop
 
 """
-Cutscene Workshop - GTA III / VC / SA cutscenes (anim/cuts.img): edit the
-.cut script sections and the .dat camera path, with a top-down path view.
+Cutscene Workshop - GTA III / VC / SA / IV cutscenes (anim/cuts.img): edit the
+.cut script sections and the .dat camera path, with a top-down path view;
+swap, add, export and convert the cast for in-game use.
 """
 
 ##Methods list -
@@ -34,17 +35,19 @@ from apps.methods.gui_workshop import GUIWorkshop
 from apps.methods.ribbon_dialog import RibbonIconsMixin
 from apps.methods.ribbon_system import RibbonMixin
 from apps.methods.statusbar_func import register_statusbar
+from apps.components.Cutscene_Workshop.depends.cutscene_cast_func import CutsceneCastMixin
 from apps.components.Cutscene_Workshop.depends.cutscene_logic_func import CutsceneLogicMixin
 from apps.components.Cutscene_Workshop.depends.cutscene_ui_func import CutsceneUIMixin
 
 App_name = "Cutscene Workshop"
 
 
-class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneLogicMixin, GUIWorkshop): #vers 4
+class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneLogicMixin, CutsceneCastMixin,
+                       GUIWorkshop): #vers 5
     """Cutscene Workshop window: preview in the centre, list / script / camera as tear-off panels."""
     App_name = App_name
     config_key = "cutscene_workshop"
-    App_description = "Cutscene scripts and camera paths - IMG Factory 1.6"
+    App_description = "Cutscene scripts, camera paths and cast (III / VC / SA / IV) - IMG Factory 1.6"
     App_icon = "cutscene_app_icon"
     DROP_EXTS = ('.cut', '.dat', '.img', '.dir')
     WS_DEFAULTS = {'last_path': '', 'show_grid': True, 'render_mode': 'textured',
@@ -52,16 +55,16 @@ class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneL
                    'show_map': False, 'map_radius': 150,
                    'model_lift': 1.0, 'timecyc': False, 'hour': 12}
     _ribbon_name = "cutscene_workshop"
-    _RIBBON_LAYOUT_VERSION = 1
-    _OUTER_LAYOUT_VERSION = 1
+    _RIBBON_LAYOUT_VERSION = 3
+    _OUTER_LAYOUT_VERSION = 2
 
     def __init__(self, parent=None, main_window=None): #vers 2
         self._defer_setup_ui = True
         super().__init__(parent, main_window)
         self.setup_ui()
 
-    def setup_ui(self): #vers 1
-        """Ribbons over the 3D preview; Cutscenes, Script and Camera panels dock / float."""
+    def setup_ui(self): #vers 3
+        """Ribbons over the 3D preview; Cutscenes, Script, Camera and Cast panels dock / float."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
@@ -72,10 +75,13 @@ class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneL
         self._cs_tabs.addTab(self._cs_script_tab(), "Sections")
         self._cs_tabs.addTab(self._cs_text_tab(), "Text")
         self._cs_tabs.currentChanged.connect(self._cs_tab_changed)
-        ml.addWidget(self._dock_layout(self.ribbon_wrap(centre), [
+        ml.addWidget(self.ribbon_host(self._dock_layout(centre, [
             ("Cutscenes", self._create_left_panel(), 160, Qt.DockWidgetArea.LeftDockWidgetArea),
             ("Script", self._cs_tabs, 300, Qt.DockWidgetArea.RightDockWidgetArea),
-            ("Camera", self._cs_camera_tab(), 300, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
+            ("Camera", self._cs_camera_tab(), 300, Qt.DockWidgetArea.RightDockWidgetArea),
+            ("Cast", self._create_cast_panel(), 300, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
+        self._outer_mw.tabifyDockWidget(self._outer_docks[1], self._outer_docks[3])   # Cast beside Script
+        self._outer_docks[1].raise_()
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)
@@ -86,8 +92,8 @@ class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneL
         from apps.methods.ui_sizes import fit_inputs
         fit_inputs(self)                                 # compact inputs
 
-    def _build_ribbons(self): #vers 6
-        """File, Script, Camera and Playback ribbons (one icon per action)."""
+    def _build_ribbons(self): #vers 7
+        """File, Script, Camera, Cast and Playback ribbons (one icon per action)."""
         B = self.ribbon_button
         tb = self.ribbon_toolbar("File")
         B(tb, "open_icon", "Open anim/cuts.img, a .cut or a .dat  (Ctrl+O)", self._open_file, text="Open")
@@ -98,6 +104,19 @@ class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneL
         tb = self.ribbon_toolbar("Camera")
         B(tb, "key_set_icon", "Add a camera key after the selected one", self._cam_add_key, text="+Key")
         B(tb, "key_delete_icon", "Remove the selected camera key", self._cam_del_key, text="-Key")
+        tb = self.ribbon_toolbar("Cast")
+        for icon, tip, slot, text in (
+                ("cast_swap_icon", "Play the picked part with another model (preview)", self._cast_swap, "Swap"),
+                ("cast_clear_icon", "Back to the original model", self._cast_clear, "Orig"),
+                ("cast_add_icon", "Add a model to the .cut (SA)", self._cast_add, "+Cast"),
+                ("cast_remove_icon", "Remove the picked model from the .cut (SA)", self._cast_remove, "-Cast"),
+                ("cast_import_icon", "Stand-in from a DFF / TXD file", self._cast_import, "Import"),
+                ("cast_export_icon", "Save the picked model's DFF / TXD as they are", self._cast_export, "Export"),
+                ("cast_game_icon", "Save converted for in-game use (ped skeleton / donor car)",
+                 lambda: self._cast_export_game(), "Game"),
+                ("cast_send_icon", "Open in the Ped / Vehicle / Model Workshop", self._cast_send, "Send"),
+                ("cast_write_icon", "Write the stand-ins into the game IMG", self._cast_apply, "Write")):
+            B(tb, icon, tip, slot, text=text)
         tb = self.ribbon_toolbar("Playback")
         B(tb, "skip_start_icon", "Back to the start", lambda: self._pv_slider.setValue(0), text="|<")
         B(tb, "frame_prev_icon", "Back one frame (1/30 s)", lambda: self._cs_preview_step(-1), text="<|")

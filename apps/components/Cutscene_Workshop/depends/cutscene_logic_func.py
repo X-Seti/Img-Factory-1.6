@@ -1,10 +1,11 @@
-#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_logic_func.py - Version: 19
+#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_logic_func.py - Version: 22
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene Workshop logic
 
 """
 Cutscene Workshop: open cuts.img or a folder of .cut / .dat files, edit the
 script sections and camera tracks, save back (IMG entries or loose files),
-and play the cutscene in 3D (models from cutscene.img / gta3.img).
+and play the cutscene in 3D (models from cutscene.img / gta3.img; GTA IV:
+cuts.img .cut + .wad, models from cutsprops.img / componentpeds.img).
 """
 
 ##Methods list -
@@ -25,7 +26,11 @@ and play the cutscene in 3D (models from cutscene.img / gta3.img).
 # _cs_clothes_rules
 # _cs_del_row
 # _cs_fetch
+# _cs_locate
+# _cs_model_arcs
+# _cs_cut_text
 # _cs_fill_list
+# _cs_iv_camera
 # _cs_map_load
 # _cs_map_offset
 # _cs_map_toggle
@@ -55,12 +60,43 @@ import os
 
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QTableWidgetItem
 
-from apps.methods.cutscene_files import (CUT_COLUMNS, build_cam_dat, build_cut, cam_at,
-                                         parse_cam_dat, parse_cut)
+from apps.methods.cutscene_files import (CUT_COLUMNS, IV_CUT_COLUMNS, build_cam_dat, build_cut, build_iv_cut,
+                                         cam_at, iv_cut_parts, parse_cam_dat, parse_cut, parse_iv_cut)
 
 
 class CutsceneLogicMixin: #vers 1
     """Open / edit / save cutscene scripts and camera paths."""
+
+    def _cs_cut_text(self) -> str: #vers 1
+        """The .cut text of the current sections (IV: original layout kept)."""
+        if getattr(self, '_cs_iv', False):
+            return build_iv_cut(self._cs_iv_text, self._cs_iv_spans, self._cs_sections)
+        return build_cut(self._cs_sections)
+
+    def _cs_iv_camera(self) -> list: #vers 1
+        """GTA IV camera (.wad camera anims) as FOV / roll / position / target tracks."""
+        import math
+        import numpy as np
+        from apps.methods.dff_skin import quat_to_matrix
+        from apps.methods.iv_anim import wad_extra_tracks
+        tracks, t0 = [[], [], [], []], 0.0
+        for part in iv_cut_parts(self._cs_sections):
+            raw = self._cs_iv_wads.get(part['anim'].lower())
+            cam = wad_extra_tracks(raw).get(part['camera'].lower(), {}) if raw else {}
+            pos, rot, fov = cam.get('cam_pos'), cam.get('cam_rot'), cam.get('cam_fov')
+            if pos is not None and rot is not None:
+                for f in range(0, len(pos), 2):              # every 2nd frame (15 keys / s)
+                    t = t0 + f / 30.0
+                    R = quat_to_matrix(tuple(rot[min(f, len(rot) - 1)]))
+                    fwd, right, up = np.array([0, 1, 0]) @ R, np.array([1, 0, 0]) @ R, np.array([0, 0, 1]) @ R
+                    v = float(fov[min(f, len(fov) - 1)][0]) if fov is not None else 45.0
+                    h = math.degrees(2 * math.atan(math.tan(math.radians(v) / 2) / 0.75))   # vertical -> 4:3 h
+                    tracks[0].append((t, [h]))
+                    tracks[1].append((t, [math.degrees(math.atan2(-right[2], up[2]))]))
+                    tracks[2].append((t, [float(x) for x in pos[f]]))
+                    tracks[3].append((t, [float(x) for x in pos[f] + fwd * 5.0]))
+            t0 += part['duration']
+        return tracks
 
     def _open_file(self, path=None): #vers 3
         """cuts.img, or a .cut / .dat (its folder's cutscenes are listed)."""
@@ -142,7 +178,7 @@ class CutsceneLogicMixin: #vers 1
         self.WS.save()
         self._cs_map_load()
 
-    def _cs_map_load(self): #vers 1
+    def _cs_map_load(self): #vers 2
         """Load the game map once (background thread), then show objects around the offset."""
         import threading
         vp = self._pv_vp
@@ -154,7 +190,7 @@ class CutsceneLogicMixin: #vers 1
         offset = self._cs_map_offset()
         if offset is None:
             vp.clear_world_instances()
-            self._set_status(f"{self._cs_cur}: no offset in the .cut (III / VC), no map")
+            self._set_status(f"{self._cs_cur}: no SA offset in the .cut (III / VC / IV), no map")
             return
         base = os.path.dirname(self._cs_img.file_path) if self._cs_img is not None else self._cs_dir
         root = os.path.dirname(base or '')
@@ -231,7 +267,7 @@ class CutsceneLogicMixin: #vers 1
         safe_write_bytes(os.path.join(self._cs_dir, match[0] if match else filename), data)
         return True
 
-    def _cs_select(self, name: str): #vers 4
+    def _cs_select(self, name: str): #vers 6
         """Load a cutscene's .cut and .dat (asks to save edits first)."""
         if not name or name == getattr(self, '_cs_cur', None):
             return
@@ -240,21 +276,31 @@ class CutsceneLogicMixin: #vers 1
                                      QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard)
             if r == QMessageBox.StandardButton.Save:
                 self._save_file()
+        raw_cut = self._cs_read(name + '.cut')
+        iv = raw_cut.lstrip().startswith('[')            # GTA IV: [TAG] blocks, camera in the .wad
         try:
-            sections = parse_cut(self._cs_read(name + '.cut'))
-            tracks = parse_cam_dat(self._cs_read(name + '.dat'))
+            if iv:
+                sections, spans = parse_iv_cut(raw_cut)
+            else:
+                sections = parse_cut(raw_cut)
+                tracks = parse_cam_dat(self._cs_read(name + '.dat'))
         except (ValueError, IndexError) as e:
             QMessageBox.warning(self, self.App_name, f"{name}: camera / script file not readable ({e})")
             return
         self._cs_cur = name
+        self._cs_iv = iv
         self._cs_sections = sections
+        if iv:
+            self._cs_iv_text, self._cs_iv_spans = raw_cut, spans
+            self._cs_iv_wads = {p['anim'].lower(): self._cs_fetch(p['anim'], '.wad') for p in iv_cut_parts(sections)}
+            tracks = self._cs_iv_camera()
         if not self._cs_sections:
             self._set_status(f"{name}: no .cut (III / VC keep the script in main.scm); camera and preview only")
         self._cam_tracks = tracks
         self._cs_loading = True
         self._cs_sec_combo.clear()
         self._cs_sec_combo.addItems([f"{s}  ({len(r)})" for s, r in self._cs_sections])
-        self._cs_text.setPlainText(build_cut(self._cs_sections).replace('\r\n', '\n'))
+        self._cs_text.setPlainText(self._cs_cut_text().replace('\r\n', '\n'))
         self._cs_loading = False
         self._cs_show_section(0)
         end = max((tr[-1][0] for tr in self._cam_tracks if tr), default=0.0)
@@ -262,9 +308,11 @@ class CutsceneLogicMixin: #vers 1
         self._cam_show_track(self._cam_combo.currentIndex())
         self._cs_dirty = False
         self._set_status(f"{name}: {len(self._cs_sections)} sections, camera {end:.2f} s")
+        self._cast_swaps = {}                            # stand-ins belong to one cutscene
+        self._cast_fill()
         self._cs_preview_load()                          # preview is always on show
 
-    def _cs_show_section(self, idx: int): #vers 1
+    def _cs_show_section(self, idx: int): #vers 2
         """Fill the table with one section's rows split at commas."""
         secs = getattr(self, '_cs_sections', [])
         self._cs_loading = True
@@ -275,9 +323,11 @@ class CutsceneLogicMixin: #vers 1
             self._cs_loading = False
             return
         name, rows = secs[idx]
-        sep = None if name == 'info' else ','
-        cells = [[c.strip() for c in (r.split(None, 1) if sep is None else r.split(','))] for r in rows]
-        cols = list(CUT_COLUMNS.get(name, []))
+        iv = getattr(self, '_cs_iv', False)
+        sep = None if name == 'info' or iv else ','
+        cells = [[c.strip() for c in (r.split() if iv else r.split(None, 1) if sep is None else r.split(','))]
+                 for r in rows]
+        cols = list((IV_CUT_COLUMNS if iv else CUT_COLUMNS).get(name, []))
         width = max([len(c) for c in cells] + [len(cols), 1])
         cols += [f"Value {i + 1}" for i in range(len(cols), width)]
         t.setColumnCount(width)
@@ -289,7 +339,7 @@ class CutsceneLogicMixin: #vers 1
         t.resizeColumnsToContents()
         self._cs_loading = False
 
-    def _cs_table_changed(self, _item=None): #vers 1
+    def _cs_table_changed(self, _item=None): #vers 2
         """Table edited: rebuild the section's rows."""
         if getattr(self, '_cs_loading', False):
             return
@@ -303,7 +353,11 @@ class CutsceneLogicMixin: #vers 1
             while vals and not vals[-1]:
                 vals.pop()
             if vals:
-                rows.append(' '.join(vals) if name == 'info' else ','.join(vals))
+                if getattr(self, '_cs_iv', False):           # IV: tabs or spaces, as the file had
+                    tab = any('\t' in x for x in self._cs_sections[idx][1])
+                    rows.append(('\t' if tab else ' ').join(vals))
+                else:
+                    rows.append(' '.join(vals) if name == 'info' else ','.join(vals))
         self._cs_sections[idx] = (name, rows)
         self._cs_dirty = True
 
@@ -317,16 +371,24 @@ class CutsceneLogicMixin: #vers 1
             t.removeRow(t.currentRow())
             self._cs_table_changed()
 
-    def _cs_tab_changed(self, idx: int): #vers 4
+    def _cs_tab_changed(self, idx: int): #vers 5
         """Script text tab: show the .cut text on entry, take it back on leaving."""
         text_tab = self._cs_tabs.indexOf(self._cs_text)
         prev, self._cs_prev_tab = getattr(self, '_cs_prev_tab', -1), idx
         if getattr(self, '_cs_cur', None) is None:
             return
         if idx == text_tab:
-            self._cs_text.setPlainText(build_cut(self._cs_sections).replace('\r\n', '\n'))
+            self._cs_text.setPlainText(self._cs_cut_text().replace('\r\n', '\n'))
         elif prev == text_tab:
-            new = parse_cut(self._cs_text.toPlainText())
+            text = self._cs_text.toPlainText()
+            if getattr(self, '_cs_iv', False):
+                if text == self._cs_cut_text().replace('\r\n', '\n'):
+                    return
+                text = text.replace('\n', '\r\n') if '\r\n' in self._cs_iv_text else text
+                new, self._cs_iv_spans = parse_iv_cut(text)
+                self._cs_iv_text = text
+            else:
+                new = parse_cut(text)
             if new != self._cs_sections:
                 self._cs_sections = new
                 self._cs_dirty = True
@@ -458,7 +520,7 @@ class CutsceneLogicMixin: #vers 1
         if f:
             self._cam_time_lbl.setText(f"{now_t:.2f} / {end:.2f} s   FOV {f[0]:.1f}")
 
-    def _save_file(self): #vers 2
+    def _save_file(self): #vers 3
         """Write the current cutscene's .cut and .dat back."""
         name = getattr(self, '_cs_cur', None)
         if not name:
@@ -466,29 +528,29 @@ class CutsceneLogicMixin: #vers 1
         if self._cs_tabs.currentWidget() is self._cs_text:
             self._cs_tab_changed(-1)                         # take the edited text
             self._cs_prev_tab = self._cs_tabs.currentIndex()
-        ok = self._cs_write(name + '.cut', build_cut(self._cs_sections))
-        ok = self._cs_write(name + '.dat', build_cam_dat(self._cam_tracks)) and ok
+        ok = self._cs_write(name + '.cut', self._cs_cut_text())
+        iv = getattr(self, '_cs_iv', False)
+        if not iv:
+            ok = self._cs_write(name + '.dat', build_cam_dat(self._cam_tracks)) and ok
         if ok:
             self._cs_dirty = False
-            self._set_status(f"Saved {name}.cut and {name}.dat")
+            self._set_status(f"Saved {name}.cut" + (" (IV camera is in the .wad: not saved)" if iv
+                                                     else f" and {name}.dat"))
         else:
             QMessageBox.warning(self, self.App_name, f"Couldn't save {name}")
 
-    def _cs_fetch(self, name: str, ext: str): #vers 3
-        """Bytes of name+ext: cutscene folder, then models/cutscene.img, gta3.img, player.img."""
-        want = (name + ext).lower()
-        if self._cs_dir is not None:
-            hit = [f for f in os.listdir(self._cs_dir) if f.lower() == want]
-            if hit:
-                with open(os.path.join(self._cs_dir, hit[0]), 'rb') as f:
-                    return f.read()
-        if ext == '.ifp' and self._cs_img is not None:
-            e = next((x for x in self._cs_img.entries if x.name.lower() == want), None)
-            return self._cs_img.read_entry_data(e) if e is not None else None
+    def _cs_model_arcs(self) -> list: #vers 3
+        """[(path, IMGFile)] of the model IMGs (SA cutscene / gta3 / player; IV cutsprops / peds / cars)."""
         base = os.path.dirname(self._cs_img.file_path) if self._cs_img is not None else self._cs_dir
+        if not base:
+            return []
         root = os.path.dirname(base)
         cache = self.__dict__.setdefault('_cs_arcs', {})
-        for rel in (('models', 'cutscene.img'), ('models', 'gta3.img'), ('models', 'player.img')):
+        out = []
+        for rel in (('models', 'cutscene.img'), ('models', 'gta3.img'), ('models', 'player.img'),
+                    ('anim', 'cutsprops.img'), ('models/cdimages', 'componentpeds.img'),     # GTA IV
+                    ('models/cdimages', 'pedprops.img'), ('models/cdimages', 'vehicles.img'),
+                    ('models/cdimages', 'playerped.rpf')):
             path = next((os.path.join(d, rel[1]) for d in (os.path.join(root, rel[0]), os.path.join(base, rel[0]))
                          if os.path.isfile(os.path.join(d, rel[1]))), None)
             if path is None:
@@ -499,10 +561,34 @@ class CutsceneLogicMixin: #vers 1
                 if arc is None:
                     continue
                 cache[path] = arc
+            out.append((path, arc))
+        return out
+
+    def _cs_locate(self, name: str, ext: str): #vers 2
+        """Where name+ext is: ('file', path), (IMGFile, entry), or None."""
+        want = (name + ext).lower()
+        if self._cs_dir is not None:
+            hit = [f for f in os.listdir(self._cs_dir) if f.lower() == want]
+            if hit:
+                return 'file', os.path.join(self._cs_dir, hit[0])
+        if ext in ('.ifp', '.wad') and self._cs_img is not None:
+            e = next((x for x in self._cs_img.entries if x.name.lower() == want), None)
+            return (self._cs_img, e) if e is not None else None
+        for _path, arc in self._cs_model_arcs():
             e = next((x for x in arc.entries if x.name.lower() == want), None)
             if e is not None:
-                return arc.read_entry_data(e)
+                return arc, e
         return None
+
+    def _cs_fetch(self, name: str, ext: str): #vers 4
+        """Bytes of name+ext: cutscene folder, then models/cutscene.img, gta3.img, player.img."""
+        hit = self._cs_locate(name, ext)
+        if hit is None:
+            return None
+        if hit[0] == 'file':
+            with open(hit[1], 'rb') as f:
+                return f.read()
+        return hit[0].read_entry_data(hit[1])
 
     def _cs_clothes_rules(self): #vers 1
         """data/clothes.dat of the game around the cutscenes, parsed (None if missing)."""
@@ -518,7 +604,7 @@ class CutsceneLogicMixin: #vers 1
                         return parse_clothes_dat(f.read())
         return None
 
-    def _cs_preview_load(self): #vers 9
+    def _cs_preview_load(self): #vers 12
         """Build the 3D scene and sound for the current cutscene (viewport made on first use)."""
         if self._pv_vp is None:
             from PyQt6.QtCore import QObject, Qt
@@ -550,9 +636,14 @@ class CutsceneLogicMixin: #vers 1
         self._set_status(f"Loading {self._cs_cur} models...")
         if self._pv_play.isChecked():
             self._pv_play.setChecked(False)
-        self._pv_scene = CutsceneScene(self._cs_sections, self._cs_fetch(self._cs_cur, '.ifp'), self._cs_fetch,
-                                       self._cs_clothes_rules())
-        self._pv_scene.lift = float(self.WS.get('model_lift', 1.0))   # SA: 1 m = map ground
+        if getattr(self, '_cs_iv', False):
+            names = frozenset(e.name.lower() for _p, a in self._cs_model_arcs() for e in a.entries)
+            self._pv_scene = CutsceneScene.from_iv(iv_cut_parts(self._cs_sections), self._cs_iv_wads,
+                                                   self._cs_cast_fetch, names)
+        else:
+            self._pv_scene = CutsceneScene(self._cs_sections, self._cs_fetch(self._cs_cur, '.ifp'),
+                                           self._cs_cast_fetch, self._cs_clothes_rules())
+            self._pv_scene.lift = float(self.WS.get('model_lift', 1.0))   # SA: 1 m = map ground
         self._pv_for = self._cs_cur
         self._pv_vp.clear_textures()
         self._pv_vp._upload_textures(self._pv_scene.textures())

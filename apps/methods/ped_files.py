@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ped_files.py - Version: 5
+#this belongs in apps/methods/ped_files.py - Version: 7
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped data files (III / VC / SA / IV)
 
 """
@@ -12,6 +12,10 @@ Rows are edited in place; every other line is written back unchanged.
 # _resolve
 # game_ped_paths
 # iv_component_names
+# _iv_set_texture
+# iv_default_picks
+# iv_ped_model
+# iv_player_model
 # ped_data_files
 # read_ped_ide
 # read_ped_variations
@@ -144,6 +148,79 @@ def iv_component_names(hashes: List[int]) -> Dict[int, str]: #vers 1
                 if h in want:
                     out[h] = n
     return out
+
+
+IV_COMP_ORDER = ('head', 'uppr', 'lowr', 'suse', 'hand', 'feet', 'jack', 'hair', 'sus2', 'teef', 'face')
+
+
+def _iv_set_texture(geometry, slot: str, tex) -> None: #vers 1
+    """Point a component's diffuse materials at the chosen texture variation."""
+    import re
+    for mat in geometry.materials:
+        if tex and re.match(rf"{slot}_diff_\d{{3}}_", (mat.texture_name or '').lower()):
+            mat.texture_name = tex
+
+
+def iv_ped_model(wdd: bytes, picks, name: str = ''): #vers 2
+    """DFFModel of picked components [(slot, component, texture or None)] from a ped .wdd."""
+    from apps.methods.dff_classes import Atomic, DFFModel, Frame
+    from apps.methods.wdr_model import parse_wdd
+    from apps.methods.xtd_textures import iv_hash
+    model = DFFModel(source_path=name + '.wdd')
+    for slot, comp, tex in picks:
+        m = parse_wdd(wdd, iv_hash(comp), comp)
+        for g in (m.geometries if m else []):
+            _iv_set_texture(g, slot, tex)
+            model.geometries.append(g)
+    model.frames = [Frame(name=name)]                        # one root frame: all meshes drawn
+    model.atomics = [Atomic(0, i) for i in range(len(model.geometries))]
+    return model
+
+
+def iv_default_picks(wdd: bytes, tex_names, variation=()): #vers 1
+    """Drawable 000 of every slot, changed by .cut VARIATION rows (component, drawable, texture)."""
+    from apps.methods.wdr_model import wdd_hashes
+    comps = set(iv_component_names(wdd_hashes(wdd)).values())
+    want = {}
+    for v in variation:
+        if len(v) >= 4 and 0 <= v[1] < len(IV_COMP_ORDER):
+            want[IV_COMP_ORDER[v[1]]] = (v[2], v[3])
+    picks = []
+    for slot in IV_SLOTS:
+        d, t = want.get(slot, (0, 0))
+        comp = next((c for c in sorted(comps) if c.startswith(f"{slot}_{d:03d}_")), None)
+        if comp is None:
+            continue
+        pre = f"{slot}_diff_{d:03d}_{chr(97 + t)}"
+        tex = next((n for n in sorted(tex_names) if n.lower().startswith(pre)), None)
+        picks.append((slot, comp, tex))
+    return picks
+
+
+def iv_player_model(names, fetch, variation=()): #vers 1
+    """Niko (playerped.rpf): (DFFModel, textures) from one .wdr per slot and per-texture .wtd files.
+    names: file names held (lower); fetch(stem, ext) -> bytes."""
+    from apps.methods.dff_classes import Atomic, DFFModel, Frame
+    from apps.methods.wdr_model import parse_wdr
+    from apps.methods.xtd_textures import parse_iv_wtd
+    want = {IV_COMP_ORDER[v[1]]: (v[2], v[3]) for v in variation if len(v) >= 4 and 0 <= v[1] < len(IV_COMP_ORDER)}
+    model, texs = DFFModel(source_path='player.wft'), []
+    for slot in IV_SLOTS:
+        d, t = want.get(slot, (0, 0))
+        comp = next((c for c in (f"{slot}_{d:03d}_u", f"{slot}_{d:03d}_r") if c + '.wdr' in names), None)
+        if comp is None:
+            continue
+        m = parse_wdr(fetch(comp, '.wdr'), comp)
+        pre = f"{slot}_diff_{d:03d}_{chr(97 + t)}"
+        wtd = next((n[:-4] for n in sorted(names) if n.startswith(pre) and n.endswith('.wtd')), None)
+        if wtd:
+            texs += parse_iv_wtd(fetch(wtd, '.wtd'))
+        for g in m.geometries:
+            _iv_set_texture(g, slot, wtd)
+            model.geometries.append(g)
+    model.frames = [Frame(name='player')]
+    model.atomics = [Atomic(0, i) for i in range(len(model.geometries))]
+    return model, texs
 
 
 def read_ped_variations(path: str) -> Dict[str, List[Tuple[str, int]]]: #vers 1

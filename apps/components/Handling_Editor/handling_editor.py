@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 10
+#this belongs in apps/components/Handling_Editor/handling_editor.py - Version: 11
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Handling Editor
 
 """
@@ -160,7 +160,7 @@ class HandlingEditor(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
     config_key = "handling_editor"
     _ribbon_name = "handling_editor"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Tools)
-    _RIBBON_LAYOUT_VERSION = 1
+    _RIBBON_LAYOUT_VERSION = 2
     DROP_EXTS = ('.cfg',)          # handling.cfg
 
     def __init__(self, main_window=None, parent=None): #vers 3
@@ -431,11 +431,11 @@ class HandlingEditor(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
         self._last_undo_key = None
         self._apply_snap(self._redo_stack.pop())
 
-    def _create_centre_panel(self): #vers 2
+    def _create_centre_panel(self): #vers 3
         """Fields central; vehicle list and stats as docks."""
-        return self._dock_layout(self.ribbon_wrap(self._build_centre_panel(self)), [
+        return self.ribbon_host(self._dock_layout(self._build_centre_panel(self), [
             ("Vehicles.ide", self._build_left_panel(self), 180, Qt.DockWidgetArea.LeftDockWidgetArea),
-            ("Stats", self._build_right_panel(self), 180, Qt.DockWidgetArea.RightDockWidgetArea)])
+            ("Stats", self._build_right_panel(self), 180, Qt.DockWidgetArea.RightDockWidgetArea)]))
 
     def _open_file(self, path=None): #vers 2
         if path is None:

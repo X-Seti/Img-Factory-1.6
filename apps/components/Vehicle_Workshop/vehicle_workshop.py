@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 18
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 19
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -130,7 +130,7 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
     _ribbon_name = "vehicle_workshop"
     _OUTER_LAYOUT_VERSION = 1      # Assets + Tools docks
     # Bump when the set of ribbons changes (1 = File ribbon)
-    _RIBBON_LAYOUT_VERSION = 1
+    _RIBBON_LAYOUT_VERSION = 2
 
     def __init__(self, main_window=None, parent=None): #vers 6
         super().__init__(parent, main_window=main_window)   # docked: no corner handles
@@ -162,7 +162,7 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         lay.addWidget(self._tabs)
         return panel
 
-    def setup_ui(self): #vers 7
+    def setup_ui(self): #vers 8
         """Titlebar / Assets + Tools docks around ribbons and tabs / status bar."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
@@ -176,9 +176,9 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
             if b:
                 b.setVisible(False)
         left, right = self._create_left_panel(), self._create_right_panel()
-        main_layout.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()), [
+        main_layout.addWidget(self.ribbon_host(self._dock_layout(self._create_centre_panel(), [
             ("Assets", left, 180, Qt.DockWidgetArea.LeftDockWidgetArea),
-            ("Tools", right, 155, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
+            ("Tools", right, 155, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         main_layout.addWidget(self._status_widget)

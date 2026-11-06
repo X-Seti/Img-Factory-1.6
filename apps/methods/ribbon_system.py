@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ribbon_system.py - Version: 10
+#this belongs in apps/methods/ribbon_system.py - Version: 12
 # X-Seti - September 20 2026 - IMG Factory 1.6 - Shared ribbon (toolbar) system
 
 """ribbon_system.py - Ribbon toolbars for QWidget-based workshops (same
@@ -16,6 +16,7 @@ an older ribbon structure is rejected via _RIBBON_LAYOUT_VERSION."""
 # RibbonMixin.ribbon_toolbar
 # RibbonMixin.ribbon_side_toolbar
 # RibbonMixin.ribbon_fit_side
+# RibbonMixin.ribbon_host
 # RibbonMixin.ribbon_button
 # RibbonMixin.ribbon_label
 # RibbonMixin.ribbon_context_menu
@@ -47,6 +48,11 @@ class RibbonMixin(InputBindingsMixin):
         mw = QMainWindow()
         mw.setWindowFlags(Qt.WindowType.Widget)
         mw.setCentralWidget(central)
+        self._ribbon_mw = mw
+        return mw
+
+    def ribbon_host(self, mw) -> QMainWindow: #vers 1
+        """Ribbons on the outer dock window: dock on any edge."""
         self._ribbon_mw = mw
         return mw
 
@@ -178,7 +184,7 @@ class RibbonMixin(InputBindingsMixin):
     def _ribbon_path(self) -> Path: #vers 2
         return get_user_config_dir() / f'{self._ribbon_name}_ribbons.json'
 
-    def ribbon_save_state(self): #vers 2
+    def ribbon_save_state(self): #vers 3
         """Ribbon layout and icon size to <name>_ribbons.json."""
         mw = getattr(self, '_ribbon_mw', None)
         if mw is None:
@@ -192,6 +198,8 @@ class RibbonMixin(InputBindingsMixin):
                 'toolbar_state_version': self._RIBBON_LAYOUT_VERSION,
                 'icon_scale': tb.iconSize().width() if tb else self._RIBBON_ICON,
             }, indent=2))
+            if mw is getattr(self, '_outer_mw', None) and hasattr(self, '_save_outer_layout'):
+                self._save_outer_layout()              # same window: keep both saves equal
             if hasattr(self, '_set_status'):
                 self._set_status("Ribbon config saved")
         except Exception as e:

@@ -1,4 +1,4 @@
-#this belongs in core/ open.py - Version: 12
+#this belongs in core/ open.py - Version: 13
 # X-Seti - November10 2025 - IMG Factory 1.5 - Open Functions with Tab System
 
 """
@@ -18,13 +18,13 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 # _load_txd_file
 # open_file_dialog
 
-def open_file_dialog(main_window): #vers 17
+def open_file_dialog(main_window): #vers 18
     """Unified file dialog for IMG, COL, TXD, CST, 3DS, HXD, MXD, AGR files"""
     file_paths, _ = QFileDialog.getOpenFileNames(
         main_window,
         "Open Archive",
         "",
-        "All Supported (*.img *.col *.txd *.wtd *.nft *.xtx *.chk *.cst *.3ds *.hxd *.mxd *.agr *.lvz *.iso *.bin);;IMG Archives (*.img);;Disc Images (*.img *.bin *.iso);;COL Archives (*.col);;Textures (*.txd *.wtd *.nft *.xtx *.chk);;CST Files (*.cst);;3DS Models (*.3ds);;Bully Anim (*.hxd *.mxd *.agr);;LVZ Archives (*.lvz);;All Files (*)"
+        "All Supported (*.img *.rpf *.col *.txd *.wtd *.nft *.xtx *.chk *.cst *.3ds *.hxd *.mxd *.agr *.lvz *.iso *.bin);;IMG Archives (*.img);;RPF Archives (*.rpf);;Disc Images (*.img *.bin *.iso);;COL Archives (*.col);;Textures (*.txd *.wtd *.nft *.xtx *.chk);;CST Files (*.cst);;3DS Models (*.3ds);;Bully Anim (*.hxd *.mxd *.agr);;LVZ Archives (*.lvz);;All Files (*)"
     )
 
     if file_paths:

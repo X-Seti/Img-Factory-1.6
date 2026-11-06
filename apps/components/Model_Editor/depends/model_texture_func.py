@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_texture_func.py - Version: 4
+#this belongs in apps/components/Model_Editor/depends/model_texture_func.py - Version: 5
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop textures
 
 """
@@ -464,7 +464,7 @@ class ModelTextureMixin: #vers 1
             holder[0] = None
 
 
-    def _auto_load_txd_from_imgs(self, txd_stem: str = '') -> bool: #vers 2
+    def _auto_load_txd_from_imgs(self, txd_stem: str = '') -> bool: #vers 3
         """Search all open IMG tabs and current_img for txd_stem.txd.
         Extracts and loads it into the texture cache. Returns True if found.
         Falls back to the current DFF's own filename (same-folder-same-name
@@ -474,9 +474,9 @@ class ModelTextureMixin: #vers 1
             # Try to get txd_stem from IDE link
             txd_stem = (getattr(self, '_ide_txd_name', '') or '').strip().lower()
             if not txd_stem:
-                # No IDE link either - fall back to the DFF's own filename
-                # stem (same-folder-same-name convention).
-                dff_path = getattr(self, '_current_dff_path', '') or ''
+                # No IDE link either - fall back to the model's own name: the IMG entry
+                # name when extracted to a temp file, else the DFF file name.
+                dff_path = getattr(self, '_original_dff_name', '') or getattr(self, '_current_dff_path', '') or ''
                 if dff_path:
                     txd_stem = os.path.splitext(os.path.basename(dff_path))[0].lower()
                 if not txd_stem:
@@ -577,7 +577,7 @@ class ModelTextureMixin: #vers 1
         return self._auto_load_from_texlist(txd_stem_lo)
 
 
-    def _auto_load_from_texlist(self, txd_stem: str = '') -> bool: #vers 1
+    def _auto_load_from_texlist(self, txd_stem: str = '') -> bool: #vers 2
         """Scan the configured texlist/ folder recursively for image files
         matching the textures needed by the current DFF model.
         Supports PNG, IFF/ILBM, TGA, BMP.  Returns True if at least one
@@ -676,7 +676,7 @@ class ModelTextureMixin: #vers 1
 
         if found_count:
             if pw:
-                pw.set_render_mode('textured')
+                pw.set_render_mode('texture_only' if getattr(pw, '_mode', '') == 'texture_only' else 'textured')
                 pw.update()
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(
@@ -811,7 +811,7 @@ class ModelTextureMixin: #vers 1
             print(f"_parse_txd_lightweight error: {e}")
             return []
 
-    def _add_embedded_textures(self, model): #vers 1
+    def _add_embedded_textures(self, model): #vers 2
         """Model's own textures (GTA IV .wdr / .wft) into the texture pane and viewport;
         names already loaded from its TXD / WTD are kept."""
         emb = list((getattr(model, 'embedded_textures', None) or {}).values())
@@ -831,11 +831,11 @@ class ModelTextureMixin: #vers 1
         pw = getattr(self, 'preview_widget', None)
         if pw is not None and hasattr(pw, '_upload_textures'):
             pw._upload_textures(new, additive=True)
-            pw.set_render_mode('textured')
+            pw.set_render_mode('texture_only' if getattr(pw, '_mode', '') == 'texture_only' else 'textured')
             pw.update()
         self._set_status(f"{len(new)} embedded texture(s) from the model")
 
-    def _load_txd_file(self, path: str): #vers 4
+    def _load_txd_file(self, path: str): #vers 5
         """Parse a TXD file, populate texture panel, and feed textures into viewport."""
         try:
             with open(path, 'rb') as f:
@@ -866,12 +866,12 @@ class ModelTextureMixin: #vers 1
             pw = getattr(self, 'preview_widget', None)
             if pw and hasattr(pw, '_upload_textures'):
                 pw._upload_textures(textures)
-                pw.set_render_mode('textured')
+                pw.set_render_mode('texture_only' if getattr(pw, '_mode', '') == 'texture_only' else 'textured')
                 pw.update()
             elif pw and hasattr(pw, 'load_textures'):
                 pw.load_textures(textures)
                 if len(textures) > 0:
-                    pw.set_render_mode('textured')
+                    pw.set_render_mode('texture_only' if getattr(pw, '_mode', '') == 'texture_only' else 'textured')
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "TXD Error",

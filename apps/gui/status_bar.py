@@ -1,4 +1,4 @@
-#this belongs in gui/status_bar.py - Version: 16
+#this belongs in gui/status_bar.py - Version: 17
 # X-Seti - Aug06 2025 - IMG Factory 1.5 - Universal Theme Status Bar
 # UPDATED: Removed StatusBarTheme class, now uses AppSettings universal theme system
 # PRESERVES: 100% of existing functionality - all widgets, methods, and features
@@ -428,7 +428,7 @@ class IMGStatusWidget(QWidget):
         self.version_label = QLabel("Version: Unknown")
         layout.addWidget(self.version_label)
     
-    def update_img_status(self, img_file=None, filename="", entry_count=0, file_size=0, version="Unknown"): #vers 2 Fixed
+    def update_img_status(self, img_file=None, filename="", entry_count=0, file_size=0, version="Unknown"): #vers 3 Fixed
         """Update IMG file status display"""
         if img_file:
             import os
@@ -462,6 +462,7 @@ class IMGStatusWidget(QWidget):
                     IMGVersion.VERSION_DTZ_VCS:    "VCS DTZ (PS2/PSP)",
                     IMGVersion.VERSION_DTZ_LCS:    "LCS DTZ (PS2/PSP)",
                     IMGVersion.VERSION_IRX:        "PS2 IRX Module",
+                    IMGVersion.VERSION_RPF2:       "GTA IV RPF2",
                     IMGVersion.VERSION_STREAMING_SEG: "Streaming Seg",
                 }
                 version = _vmap.get(img_file.version,

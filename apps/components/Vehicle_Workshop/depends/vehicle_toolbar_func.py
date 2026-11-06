@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 5
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 6
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop toolbar
 
 """
@@ -601,21 +601,19 @@ class VehicleToolbarMixin: #vers 1
             return db2
         return None
 
-    def _lookup_txd_for_stem(self, stem: str) -> str: #vers 1
-        """Return txd_name from IDE DB for model stem, or empty string."""
+    def _lookup_txd_for_stem(self, stem: str) -> str: #vers 2
+        """txd_name from the IDE DB for a model stem; not in an IDE (cutscene models): the stem."""
         db = self._get_ide_db()
-        if not db:
-            return ''
-        obj = db.model_map.get(stem.lower())
-        if obj:
-            return obj.txd_name.lower()
-        # Try stripped stem
-        base = self._strip_tex_suffix(stem.lower())
-        if base != stem.lower():
-            obj = db.model_map.get(base)
+        if db:
+            obj = db.model_map.get(stem.lower())
             if obj:
                 return obj.txd_name.lower()
-        return ''
+            base = self._strip_tex_suffix(stem.lower())          # try stripped stem
+            if base != stem.lower():
+                obj = db.model_map.get(base)
+                if obj:
+                    return obj.txd_name.lower()
+        return stem.lower()
 
     def _collect_needed_textures(self): #vers 2
         """Return set of texture names the current DFF needs.

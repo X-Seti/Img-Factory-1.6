@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ipl_Editor/ipl_workshop.py - Version: 8
+#this belongs in apps/components/Ipl_Editor/ipl_workshop.py - Version: 9
 # X-Seti - Apr 2026 - IMG Factory 1.6 - IPL Workshop
 # Item Placement List editor for GTA III / VC / SA / SOL
 # Built on GUIWorkshop base (temp_workshop pattern)
@@ -815,7 +815,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
     config_key      = "ipl_workshop"
     _ribbon_name    = "ipl_workshop"
     # Bump when the set of ribbons changes (3 = Sort buttons added)
-    _RIBBON_LAYOUT_VERSION = 3
+    _RIBBON_LAYOUT_VERSION = 4
     DROP_EXTS = ('.ipl', '.ide', '.ifx')
 
     # Column indices for the instance table
@@ -1632,7 +1632,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 btn.setVisible(False)
         return tb
 
-    def setup_ui(self): #vers 4
+    def setup_ui(self): #vers 5
         """Titlebar / Sections dock | ribbon-wrapped tabs / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -1640,8 +1640,8 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         ml.addWidget(self._create_toolbar())
         left = self._create_left_panel()
         self._draw_btns = {}
-        ml.addWidget(self._dock_layout(self.ribbon_wrap(self._create_centre_panel()),
-                                       [("Sections", left, 180, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
+        ml.addWidget(self.ribbon_host(self._dock_layout(self._create_centre_panel(),
+                                       [("Sections", left, 180, Qt.DockWidgetArea.LeftDockWidgetArea)])), 1)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         ml.addWidget(self._status_widget)

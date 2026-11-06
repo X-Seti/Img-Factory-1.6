@@ -1,11 +1,12 @@
-#this belongs in apps/methods/iv_anim.py - Version: 1
+#this belongs in apps/methods/iv_anim.py - Version: 2
 # X-Seti - October 23 2026 - IMG Factory 1.6 - GTA IV ped skeleton and WAD anims
 
 """
 GTA IV ped animation: the skeleton of a ped .wft as a dff_skin Skeleton
 (frames carry the IV bone ids), skins for the .wdd component meshes, and
 .wad anim dictionaries (RSC5 crAnimation: quantized / static / raw float
-channels) read into IFPAnim objects so Ped Workshop plays them like IFPs.
+channels) read into IFPAnim objects so Ped Workshop plays them like IFPs;
+cutscene mover and camera tracks (position, rotation, FOV) per anim.
 """
 
 ##Methods list -
@@ -17,6 +18,7 @@ channels) read into IFPAnim objects so Ped Workshop plays them like IFPs.
 # iv_skins
 # parse_wad
 # wad_anim_list
+# wad_extra_tracks
 
 import struct
 from typing import List
@@ -176,4 +178,43 @@ def wad_anim_list(data: bytes) -> List[tuple]: #vers 1
         na = _ptr(z, vs, a + 0x1C)
         n = z[na:z.index(b'\0', na)].decode('latin-1').split(':/', 1)[-1] if na else f"anim{i}"
         out.append((n[:-5] if n.lower().endswith('.anim') else n, struct.unpack_from('<f', z, a + 0x0C)[0]))
+    return out
+
+
+EXTRA_TRACKS = {5: 'mover_pos', 6: 'mover_rot', 7: 'cam_pos', 8: 'cam_rot', 136: 'cam_fov'}
+
+
+def wad_extra_tracks(data: bytes) -> dict: #vers 1
+    """{anim name (lower): {'mover_pos' / 'mover_rot' / 'cam_pos' / 'cam_rot' / 'cam_fov': (frames, n)}}."""
+    z, vs = _unpack_wad(data)
+    count = struct.unpack_from('<H', z, 0x14)[0]
+    arr = _ptr(z, vs, 0x18)
+    out = {}
+    for i in range(count):
+        a = _ptr(z, vs, arr + 4 * i)
+        frames = struct.unpack_from('<H', z, a + 8)[0]
+        na = _ptr(z, vs, a + 0x1C)
+        aname = z[na:z.index(b'\0', na)].decode('latin-1').split(':/', 1)[-1] if na else f"anim{i}"
+        aname = (aname[:-5] if aname.lower().endswith('.anim') else aname).lower()
+        seqs = [_ptr(z, vs, _ptr(z, vs, a + 0x14) + 4 * s) for s in range(struct.unpack_from('<H', z, a + 0x18)[0])]
+        got = {}
+        for s, sq in enumerate(seqs):
+            sframes = struct.unpack_from('<I', z, sq + 0x0C)[0]
+            dp, n = _ptr(z, vs, sq), struct.unpack_from('<H', z, sq + 4)[0]
+            for k in range(n):
+                td = _ptr(z, vs, dp + 4 * k)
+                tid = struct.unpack_from('<I', z, td)[0]
+                track, fmt = tid & 0xFF, (tid >> 8) & 0xFF
+                if track not in EXTRA_TRACKS or tid >> 16:
+                    continue
+                if fmt & 0x0F == 2:                       # one float
+                    ch = _ptr(z, vs, td + 4)
+                    vp = _ptr(z, vs, ch + 8) if fmt >> 4 == 0 else None
+                    v = (np.full((sframes, 1), struct.unpack_from('<f', z, vp)[0]) if vp is not None
+                         else _channel(z, vs, ch, sframes)[:, None])
+                else:
+                    v = _track_values(z, vs, td, fmt, sframes)
+                got.setdefault(EXTRA_TRACKS[track], []).append(v if s == 0 else v[1:])
+        if got:
+            out[aname] = {k: np.concatenate(v)[:frames] for k, v in got.items()}
     return out

@@ -1,4 +1,4 @@
-#this belongs in components/ img_version1.py - Version: 1
+#this belongs in components/ img_version1.py - Version: 2
 # X-Seti - July16 2025 - Img Factory 1.5
 
 """
@@ -19,7 +19,7 @@ class IMGVersion1Creator:
         self.dir_path = ""
         self.img_path = ""
         
-    def create_version_1(self, output_path: str, initial_size_mb: int) -> bool:
+    def create_version_1(self, output_path: str, initial_size_mb: int) -> bool: #vers 1
         """Create IMG version 1 (DIR+IMG pair) - FIXED METHOD SIGNATURE"""
         try:
             # Determine file paths
@@ -71,7 +71,7 @@ class IMGVersion1Creator:
             return True
             
         except Exception as e:
-            print(f"❌ Error creating Version 1 IMG: {e}")
+            print(f"Error creating Version 1 IMG: {e}")
             return False
     
     def _create_dummy_dff(self) -> bytes:
@@ -96,36 +96,36 @@ class IMGVersion1Creator:
         
         self.entries.append(dummy_entry)
     
-    def create_gta3_version_1(self, output_path: str, initial_size_mb: int, game_preset: Dict[str, Any]) -> bool:
+    def create_gta3_version_1(self, output_path: str, initial_size_mb: int, game_preset: Dict[str, Any]) -> bool: #vers 1
         """Create GTA3-specific Version 1 IMG"""
         try:
             success = self.create_version_1(output_path, initial_size_mb)
             
             if success:
-                print(f"✅ GTA3 Version 1 IMG created: {self.img_path}")
+                print(f"GTA3 Version 1 IMG created: {self.img_path}")
                 print(f"   DIR file: {self.dir_path}")
                 print(f"   Size: {initial_size_mb}MB")
             
             return success
             
         except Exception as e:
-            print(f"❌ Error creating GTA3 Version 1 IMG: {e}")
+            print(f"Error creating GTA3 Version 1 IMG: {e}")
             return False
     
-    def create_vc_version_1(self, output_path: str, initial_size_mb: int, game_preset: Dict[str, Any]) -> bool:
+    def create_vc_version_1(self, output_path: str, initial_size_mb: int, game_preset: Dict[str, Any]) -> bool: #vers 1
         """Create Vice City-specific Version 1 IMG"""
         try:
             success = self.create_version_1(output_path, initial_size_mb)
             
             if success:
-                print(f"✅ Vice City Version 1 IMG created: {self.img_path}")
+                print(f"Vice City Version 1 IMG created: {self.img_path}")
                 print(f"   DIR file: {self.dir_path}")
                 print(f"   Size: {initial_size_mb}MB")
             
             return success
             
         except Exception as e:
-            print(f"❌ Error creating VC Version 1 IMG: {e}")
+            print(f"Error creating VC Version 1 IMG: {e}")
             return False
     
     def get_creation_info(self) -> Dict[str, Any]:

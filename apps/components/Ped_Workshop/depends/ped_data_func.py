@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_data_func.py - Version: 11
+#this belongs in apps/components/Ped_Workshop/depends/ped_data_func.py - Version: 12
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop ped data
 
 """
@@ -145,10 +145,10 @@ class PedDataMixin: #vers 1
                 self._ped_tabs.setCurrentIndex(1)
                 return
 
-    def _cs_ped_convert(self): #vers 2
-        """Cutscene ped (cs*.dff, or picked from cutscene.img) to an in-game ped on the 32-bone skeleton."""
+    def _cs_ped_convert(self): #vers 3
+        """Cutscene ped (cs*.dff, or picked from cutscene.img) to an in-game ped (SA / VC skeleton)."""
         from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
-        from apps.methods.ped_cs_convert import convert_cutscene_ped
+        from apps.methods.ped_cs_convert import convert_cutscene_ped, cutscene_ped_game
         src, _ = QFileDialog.getOpenFileName(self, "Cutscene ped: a cs*.dff or models/cutscene.img", "",
                                              "Cutscene peds (*.dff *.img)")
         if not src:
@@ -178,7 +178,7 @@ class PedDataMixin: #vers 1
                     txd = f.read()
             base, folder = os.path.basename(src), os.path.dirname(src)
         try:
-            new, report = convert_cutscene_ped(raw)
+            new, report = convert_cutscene_ped(raw, cutscene_ped_game(raw))
         except (ValueError, StopIteration) as e:
             QMessageBox.warning(self, "Cutscene ped", f"{base}: {e}")
             return

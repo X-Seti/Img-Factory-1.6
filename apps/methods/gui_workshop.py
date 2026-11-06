@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 18
+#this belongs in apps/methods/gui_workshop.py - Version: 19
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -10,7 +10,7 @@
 #
 # ┌┐
 # │ SECTION 1 │ GUI Core — imports, WorkshopSettings                │
-# │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog [⚙]     │
+# │ SECTION 2 │ Toolbar — Menu, Settings UI, Info [i], Cog         │
 # │ SECTION 3 │ Layout  — setup_ui, left, centre, right, statusbar  │
 # │ SECTION 4 │ Logic   — stubs to override in your subclass        │
 # └┘
@@ -154,20 +154,20 @@ class WorkshopSettings:
 
 
 
-# SECTION 2 — Toolbar: Menu, Settings UI, Info [i], Cog [⚙]
+# SECTION 2 — Toolbar: Menu, Settings UI, Info [i], Cog
 #
 # Need state before setup_ui()? set  self._defer_setup_ui = True  before
 # super().__init__() and call self.setup_ui() yourself when ready.
 #
 # Toolbar layout (left → right):
 #   [Menu] [Settings]  <stretch>  <Title>  <stretch>
-#   [Open] [Save] [Export] [Import]  [Undo]  [ℹ]  [⚙]  [_] [⬜] [✕]
+#   [Open] [Save] [Export] [Import]  [Undo]  [Info]  [Cog]  [_] [Max] [Close]
 #
 # [Menu]     → _on_menu_btn_clicked → _show_dropdown_menu (or toggle topbar)
 # [Settings] → _show_workshop_settings (Fonts / Display / Menu / About tabs)
-# [ℹ  Info]  → _show_about (reads App_author, App_year, App_description)
-# [⚙  Cog]  → _launch_theme_settings (global AppSettings SettingsDialog)
-# [D] dock, [_ ⬜ ✕] minimize / maximize / close (methods/titlebar_func.py)
+# [Info]  → _show_about (reads App_author, App_year, App_description)
+# [Cog]  → _launch_theme_settings (global AppSettings SettingsDialog)
+# [D] dock, [_ Max Close] minimize / maximize / close (methods/titlebar_func.py)
 
 
 class _ToolbarMixin(TitlebarMixin):
@@ -224,10 +224,10 @@ class _ToolbarMixin(TitlebarMixin):
     def _show_popup_menu(self):   # compat alias
         self._show_dropdown_menu()
 
-    #  [ℹ] Info — About dialog
+    #  [Info] — About dialog
 
-    def _show_about(self):
-        """[ℹ] button — show About / Info for this workshop."""
+    def _show_about(self): #vers 1
+        """[Info] button — show About / Info for this workshop."""
         author = getattr(self, "App_author",      __author__)
         year   = getattr(self, "App_year",        __year__)
         desc   = getattr(self, "App_description", "")
@@ -237,10 +237,10 @@ class _ToolbarMixin(TitlebarMixin):
             + f"Copyright \u00a9 {year}  {author}\n"
               f"Part of IMG Factory 1.6 — a GTA modding toolkit.")
 
-    #  [⚙] Cog — Global AppSettings theme dialog
+    #  [Cog] — Global AppSettings theme dialog
 
-    def _launch_theme_settings(self):
-        """[⚙] Cog — opens the global AppSettings / SettingsDialog.
+    def _launch_theme_settings(self): #vers 1
+        """[Cog] — opens the global AppSettings / SettingsDialog.
         Identical pattern to radar_workshop._launch_theme_settings.
         """
         try:
@@ -265,7 +265,7 @@ class _ToolbarMixin(TitlebarMixin):
         """Override: add a workshop's own tab to Settings; return a callable run on OK (or None)."""
         return None
 
-    def _show_workshop_settings(self): #vers 4
+    def _show_workshop_settings(self): #vers 5
         """[Settings] button — workshop-local settings.
         Tabs: Fonts / Display / Menu / About / Keys & Mouse
         Reads/writes WorkshopSettings (per-app JSON).
@@ -345,7 +345,7 @@ class _ToolbarMixin(TitlebarMixin):
 
         ms_grp = QGroupBox("Menu Style"); ms_lo = QVBoxLayout(ms_grp)
         ms_cb  = QComboBox()
-        ms_cb.addItems(["Dropdown  ☰  (default)", "Top menu bar"])
+        ms_cb.addItems(["Dropdown (default)", "Top menu bar"])
         ms_cb.setCurrentIndex(
             0 if ws.get("menu_style","dropdown") == "dropdown" else 1)
         ms_lo.addWidget(ms_cb)

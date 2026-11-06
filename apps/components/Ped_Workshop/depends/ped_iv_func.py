@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_iv_func.py - Version: 2
+#this belongs in apps/components/Ped_Workshop/depends/ped_iv_func.py - Version: 3
 # X-Seti - October 23 2026 - IMG Factory 1.6 - Ped Workshop GTA IV component peds
 
 """
@@ -18,12 +18,10 @@ Components tab: pick each slot's drawable and texture variation.
 # _iv_slot_changed
 
 import os
-import re
 import tempfile
 
 from PyQt6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox, QPushButton, QWidget
 
-from apps.methods.dff_classes import Atomic, DFFModel, Frame
 from apps.methods.ped_files import IV_SLOTS, iv_component_names, read_ped_variations
 
 
@@ -180,27 +178,16 @@ class PedIVMixin: #vers 1
         if build:
             self._iv_build()
 
-    def _iv_build(self, textures: bool = False): #vers 2
+    def _iv_build(self, textures: bool = False): #vers 3
         """Put the picked components together and show them (textures: load the WTD)."""
         from apps.components.Model_Editor.model_workshop import ModelWorkshop
-        from apps.methods.wdr_model import parse_wdd
-        model = DFFModel(source_path=self._iv_ped + '.wdd')
-        for slot, (geo, tex) in self._iv_rows.items():
-            n = geo.currentData()
-            if not n:
-                continue
-            m = parse_wdd(self._iv_wdd, self._iv_hash_of[n], n)
-            pick = tex.currentData()
-            for g in (m.geometries if m else []):
-                for mat in g.materials:
-                    if pick and re.match(rf"{slot}_diff_\d{{3}}_", (mat.texture_name or '').lower()):
-                        mat.texture_name = pick                # chosen variation
-                model.geometries.append(g)
+        from apps.methods.ped_files import iv_ped_model
+        picks = [(slot, geo.currentData(), tex.currentData()) for slot, (geo, tex) in self._iv_rows.items()
+                 if geo.currentData()]
+        model = iv_ped_model(self._iv_wdd, picks, self._iv_ped)
         if not model.geometries:
             self._set_status(f"Ped: {self._iv_ped} - no components picked")
             return
-        model.frames = [Frame(name=self._iv_ped)]            # one root frame: all meshes drawn
-        model.atomics = [Atomic(0, i) for i in range(len(model.geometries))]
         ModelWorkshop._show_dff(self, os.path.join(tempfile.gettempdir(), self._iv_ped + '.wdd'), model)
         self._iv_animator(model)
         if textures and getattr(self, '_iv_wtd_path', None):

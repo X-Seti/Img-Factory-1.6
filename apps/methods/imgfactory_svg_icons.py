@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 100
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 107
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -24,6 +24,7 @@ from PyQt6.QtCore import Qt
 # asset_app_icon
 # attach_dff_icon
 # backface_icon
+# backup_now_icon
 # batch_convert_icon
 # bg_black_icon
 # bg_white_icon
@@ -34,12 +35,25 @@ from PyQt6.QtCore import Qt
 # brush_freehand_icon
 # bug_report_icon
 # build_from_dff_icon
+# build_img_icon
+# build_iso_icon
 # bumpmap_ext_icon
 # bumpmap_icon
 # bumpmap_imp_icon
+# burn_disc_icon
+# burn_image_icon
 # bw_view_icon
 # cam_marker_icon
 # capture_workshop_icon
+# cast_add_icon
+# cast_clear_icon
+# cast_export_icon
+# cast_game_icon
+# cast_import_icon
+# cast_remove_icon
+# cast_send_icon
+# cast_swap_icon
+# cast_write_icon
 # checkerboard_icon
 # chip_icon
 # clear_face_groups_icon
@@ -71,10 +85,34 @@ from PyQt6.QtCore import Qt
 # detach_faces_icon
 # dff_export_icon
 # dff_import_icon
+# disc_catalog_icon
+# drive_app_icon
+# drive_check_icon
+# dscan_backup_icon
+# dscan_catalog_icon
+# dscan_changes_icon
+# dscan_discs_icon
+# dscan_drives_icon
+# dscan_dups_icon
+# dscan_errors_icon
+# dscan_export_icon
+# dscan_find_icon
+# dscan_mark_icon
+# dscan_pack_icon
+# dscan_plan_icon
+# dscan_reclassify_icon
+# dscan_report_icon
+# dscan_smart_icon
+# dscan_space_icon
+# dscan_undo_icon
+# dscan_verify_icon
 # duplicate_check_icon
 # duplicate_surface_icon
 # edit_icon
+# eject_drive_icon
+# error_watch_icon
 # export_cst_icon
+# export_csv_icon
 # export_icon
 # face_groups_icon
 # faces_connected_icon
@@ -95,6 +133,7 @@ from PyQt6.QtCore import Qt
 # globe_icon
 # guide_layer_icon
 # handling_app_icon
+# hard_link_icon
 # hex_app_icon
 # hex_bookmark_icon
 # hex_copy_text_icon
@@ -113,6 +152,10 @@ from PyQt6.QtCore import Qt
 # info_icon
 # invert_alpha_icon
 # isolated_verts_icon
+# keep_folder_icon
+# keep_newest_icon
+# keep_oldest_icon
+# keep_shortest_icon
 # key_all_icon
 # key_delete_icon
 # key_next_icon
@@ -133,6 +176,7 @@ from PyQt6.QtCore import Qt
 # mesh_icon
 # minimize_icon
 # mirror_icon
+# move_extra_icon
 # onion_skin_icon
 # open_icon
 # optimum_bounds_icon
@@ -169,6 +213,7 @@ from PyQt6.QtCore import Qt
 # save_icon
 # save_selection_icon
 # saveas_icon
+# scan_drive_icon
 # scm_app_icon
 # screenshot_icon
 # search_icon
@@ -177,14 +222,18 @@ from PyQt6.QtCore import Qt
 # select_none_icon
 # selection_lock_icon
 # settings_icon
+# share_blocks_icon
 # show_backfaces_icon
 # show_face_groups_icon
 # show_vertices_icon
 # skip_start_icon
+# smart_health_icon
+# smart_history_icon
 # sphere_icon
 # sphere_to_mesh_icon
 # split_faces_icon
 # stop_icon
+# surface_scan_icon
 # surfaces_from_dff_icon
 # svg_edit_icon
 # swap_arrows_icon
@@ -204,10 +253,12 @@ from PyQt6.QtCore import Qt
 # txd_xbox_icon
 # uncompress_icon
 # undo_icon
+# undo_move_icon
 # unhide_faces_icon
 # uv_map_icon
 # vc_to_sa_icon
 # vehicle_app_icon
+# verify_disc_icon
 # vertex_position_icon
 # video_device_icon
 # view_icon
@@ -926,6 +977,439 @@ class SVGIconFactory: #vers 8
             <path d="M15 11l6-3.5v10L15 14z" fill="#2F7FE0" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round"/>
             <circle cx="5.5" cy="5.5" r="2.5" fill="none" stroke="#2F7FE0" stroke-width="1.6"/>
             <circle cx="11" cy="5.5" r="2.5" fill="none" stroke="#2F7FE0" stroke-width="1.6"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def scan_drive_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Scan drive: disk with a magnifier"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="5" width="14" height="9" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <circle cx="12.5" cy="9.5" r="1" fill="currentColor"/>
+            <circle cx="17" cy="16" r="3.5" stroke="#3B8FE0" stroke-width="2" fill="none"/>
+            <path d="M19.5 18.5L22 21" stroke="#3B8FE0" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def keep_newest_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Keep newest: file with a green star"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M5 2h8l5 5v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+            <path d="M11 10l1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z" fill="#3CB371"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def keep_oldest_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Keep oldest: file with an amber clock"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M5 2h8l5 5v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+            <circle cx="11" cy="14" r="4.5" stroke="#F0A030" stroke-width="1.8" fill="none"/>
+            <path d="M11 11.5V14l1.8 1.3" stroke="#F0A030" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def keep_shortest_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Keep shortest path: short and long bars"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 7h6M3 12h12M3 17h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="7" r="2.5" fill="#3CB371"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def keep_folder_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Keep from a chosen folder: folder with a tick"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M2 6a1 1 0 011-1h6l2 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+            <path d="M8 13.5l3 3 5-5.5" stroke="#3CB371" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def move_extra_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Move extra copies: file going into a red bin"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M4 9h12l-1 12H5z" stroke="#E04848" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+            <path d="M3 9h14M8 9V7h4v2" stroke="#E04848" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <path d="M18 2v7M15.5 6.5L18 9l2.5-2.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def share_blocks_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Share disk blocks: two files joined to one block"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="3" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <rect x="15" y="3" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <path d="M5.5 11v3h13v-3M12 14v3" stroke="#3CB371" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+            <rect x="8" y="17" width="8" height="5" rx="1" fill="#3CB371"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def smart_health_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Drive health: disk with a green pulse line"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <path d="M4 12h4l2-4 3 8 2-4h5" stroke="#3CB371" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def drive_check_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Drive check: disk with an amber question mark"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="6" width="13" height="12" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <circle cx="11.5" cy="15" r="1" fill="currentColor"/>
+            <path d="M16.5 8.5a2.8 2.8 0 115 1.8c-.8.9-1.9 1.3-1.9 2.7" stroke="#F0A030" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <circle cx="19.6" cy="17" r="1.2" fill="#F0A030"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def eject_drive_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Unmount: eject triangle over a bar"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M12 4l8 9H4z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+            <rect x="4" y="16" width="16" height="3" rx="1" fill="#3B8FE0"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_drives_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Drives list: three stacked drive bays"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="5" rx="1" stroke="currentColor" stroke-width="1.6" fill="none"/><rect x="3" y="10" width="18" height="5" rx="1" stroke="currentColor" stroke-width="1.6" fill="none"/><rect x="3" y="17" width="18" height="4" rx="1" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="18" cy="5.5" r="1" fill="#3B8FE0"/><circle cx="18" cy="12.5" r="1" fill="#3B8FE0"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_dups_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Duplicates: two overlapping pages with equals"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="11" height="14" rx="1.5" stroke="currentColor" stroke-width="1.6" fill="none"/><rect x="10" y="7" width="11" height="14" rx="1.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M13 12h5M13 15h5" stroke="#E0A030" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_errors_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Errors: red warning triangle"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M12 3l9 16H3z" stroke="#E04040" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M12 9v5" stroke="#E04040" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.5" r="1.1" fill="#E04040"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_find_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Find: magnifier over a file"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M4 3h8l3 3v6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M4 3v16h6" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="15" cy="15" r="4" stroke="#3B8FE0" stroke-width="1.8" fill="none"/><path d="M18 18l3.5 3.5" stroke="#3B8FE0" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_mark_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Mark: folder with a flag"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 7h6l2 2h10v10H3z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M13 18V3M13 3h7l-2 2.5 2 2.5h-7" stroke="#E0A030" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_pack_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Pack: box with a disc going in"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 11h18v10H3z" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3 11l3-4h12l3 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><circle cx="12" cy="5" r="3" stroke="#3B8FE0" stroke-width="1.6" fill="none"/><path d="M9 15h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_plan_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Plan: disc split into segments"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M12 3v7M12 14v7M3 12h7" stroke="#3B8FE0" stroke-width="1.6"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_reclassify_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Reclassify: tag with circular arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 4h7l4 4-7 7-4-4z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><circle cx="6" cy="7" r="1" fill="currentColor"/><path d="M14 19a5 5 0 0 0 7-5M21 14l1.5 2M21 14l-2 1" stroke="#3B8FE0" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_report_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Report: page with ruled lines and a tick"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="5" y="3" width="14" height="18" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 8h8M8 12h8M8 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M14 17l1.5 1.5L19 15" stroke="#3CB371" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_verify_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Verify: disc with check mark"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="10" cy="12" r="8" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="10" cy="12" r="1.5" fill="currentColor"/><path d="M14 17l3 3 6-7" stroke="#3CB371" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def backup_now_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Back up: drive with up arrow to second drive"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="15" width="20" height="6" rx="1.5" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="18" cy="18" r="1" fill="currentColor"/><path d="M12 13V3M8 7l4-4 4 4" stroke="#3CB371" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def build_img_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Build IMG: disc image file"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M5 2h10l4 4v16H5z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><circle cx="12" cy="13" r="4.5" stroke="#3B8FE0" stroke-width="1.6" fill="none"/><circle cx="12" cy="13" r="1" fill="#3B8FE0"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def build_iso_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Build ISO: disc with ISO label"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><text x="12" y="21.5" font-size="6" text-anchor="middle" fill="#3B8FE0" font-family="sans-serif" font-weight="bold">ISO</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def burn_disc_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Burn disc: disc with flame"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="10" cy="13" r="8" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="10" cy="13" r="1.5" fill="currentColor"/><path d="M18 2c2 3 4 4 4 7a3.5 3.5 0 0 1-7 0c0-1.5 1-2.5 1.5-3.5.3 1 1 1.5 1.5 1.5 0-2-.5-3.5 0-5z" fill="#E0A030"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def burn_image_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Burn image: file to disc arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M2 3h7l3 3v6H2z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><circle cx="16" cy="16" r="6" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="16" cy="16" r="1.2" fill="currentColor"/><path d="M7 15v4h4M7 19l3-3" stroke="#E0A030" stroke-width="1.7" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def disc_catalog_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Disc catalogue: stacked discs with list"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <ellipse cx="9" cy="7" rx="7" ry="3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M2 7v4c0 1.7 3.1 3 7 3s7-1.3 7-3V7M2 11v4c0 1.7 3.1 3 7 3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M15 15h7M15 18h7M15 21h5" stroke="#B060D0" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_backup_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Command backup: folder with up arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 7h6l2 2h10v11H3z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M12 18v-6M9.5 14.5L12 12l2.5 2.5" stroke="#3CB371" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_catalog_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Command catalog: disc with plus"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="10" cy="12" r="8" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="10" cy="12" r="1.5" fill="currentColor"/><path d="M19 3v6M16 6h6" stroke="#B060D0" stroke-width="1.9" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_changes_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Command changes: plus minus delta"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M12 3l9 17H3z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M9 14h6" stroke="#E04040" stroke-width="1.8"/><path d="M12 9v3M10.5 10.5h3" stroke="#3CB371" stroke-width="1.6"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_discs_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Command discs: three discs in a row"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="6" cy="12" r="4.5" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="18" cy="12" r="4.5" stroke="#B060D0" stroke-width="1.6" fill="none"/><circle cx="18" cy="12" r="1" fill="#B060D0"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_export_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Command export: page with out arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M4 2h9l4 4v6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M4 2v20h9" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M13 17h9M19 14l3 3-3 3" stroke="#E0A030" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_smart_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Command smart: heart beat line"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M2 12h4l2-5 3 10 3-8 2 3h6" stroke="#E04040" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/><rect x="2" y="3" width="20" height="18" rx="2" stroke="currentColor" stroke-width="1.6" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_space_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Command space: horizontal size bars"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 5h18M3 10h12M3 15h7M3 20h4" stroke="#3B8FE0" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dscan_undo_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Command undo: counter-clockwise arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M5 9a8 8 0 1 1 1 7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M5 4v5h5" stroke="#3CB371" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def error_watch_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Error watch: eye with red alert dot"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="19.5" cy="5" r="2.5" fill="#E04040"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def export_csv_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """CSV export: table grid with arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="3" y="4" width="13" height="16" rx="1" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3 9h13M3 14h13M8 4v16" stroke="currentColor" stroke-width="1.2"/><path d="M16 12h6M19.5 9.5L22 12l-2.5 2.5" stroke="#3CB371" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def hard_link_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Hard link: two files joined by chain"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="3" width="8" height="11" rx="1" stroke="currentColor" stroke-width="1.6" fill="none"/><rect x="14" y="10" width="8" height="11" rx="1" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M9 17h3a2 2 0 0 0 2-2M15 7h-3a2 2 0 0 0-2 2" stroke="#3B8FE0" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def smart_history_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """SMART history: line graph with clock"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 3v18h18" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M6 16l4-5 3 3 5-7" stroke="#3B8FE0" stroke-width="1.8" fill="none" stroke-linejoin="round"/><circle cx="18" cy="17" r="3.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M18 15.5V17h1.3" stroke="currentColor" stroke-width="1.3"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def undo_move_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Undo move: curved arrow out of a bin"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M6 10h12l-1 11H7z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M4 10h16" stroke="currentColor" stroke-width="1.6"/><path d="M9 6a5 5 0 0 1 8 2M9 6V2.5M9 6h3.5" stroke="#3CB371" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def verify_disc_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Verify disc: disc with md5 shield"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="10" cy="11" r="8" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="10" cy="11" r="1.5" fill="currentColor"/><path d="M18 12l4 1.5v3c0 2.5-2 4.5-4 5.5-2-1-4-3-4-5.5v-3z" stroke="#3CB371" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_add_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast add: figure with plus"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M4 20c0-3.5 2.7-6 6-6s6 2.5 6 6" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M19 8v6M16 11h6" stroke="#3CB371" stroke-width="1.9" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_clear_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast original: figure with undo arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="7" r="3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M6 20c0-3.5 2.7-6 6-6s6 2.5 6 6" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3 9a5 5 0 0 1 4-5M3 9V5.5M3 9h3.5" stroke="#3CB371" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_export_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast export: arrow out of figure"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="9" cy="7" r="3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M15 12h7M19.5 9.5L22 12l-2.5 2.5" stroke="#E0A030" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_game_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast to game: figure on a gamepad"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="5" r="2.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M8 12c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M4 15h16a2 2 0 0 1 2 2v1a3 3 0 0 1-5 2l-1-1H8l-1 1a3 3 0 0 1-5-2v-1a2 2 0 0 1 2-2z" stroke="#B060D0" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_import_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast import: arrow into figure"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="15" cy="7" r="3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M9 20c0-3.5 2.7-6 6-6s6 2.5 6 6" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M2 12h7M6.5 9.5L9 12l-2.5 2.5" stroke="#3B8FE0" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_remove_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast remove: figure with minus"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M4 20c0-3.5 2.7-6 6-6s6 2.5 6 6" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M16 11h6" stroke="#E04040" stroke-width="1.9" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_send_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast send: figure to window arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="12" y="4" width="10" height="14" rx="1.5" stroke="#3B8FE0" stroke-width="1.6" fill="none"/><circle cx="5.5" cy="8" r="2.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M1.5 17c0-2.5 1.8-4.5 4-4.5s4 2 4 4.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M9 6h6M13 4l2 2-2 2" stroke="#E0A030" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_swap_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast swap: two figures with swap arrows"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M2 14c0-2.5 1.8-4 4-4s4 1.5 4 4" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="18" cy="12" r="2.5" stroke="#3B8FE0" stroke-width="1.6" fill="none"/><path d="M14 20c0-2.5 1.8-4 4-4s4 1.5 4 4" stroke="#3B8FE0" stroke-width="1.6" fill="none"/><path d="M12 4h5l-1.5-1.5M12 20H7l1.5 1.5" stroke="#E0A030" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def cast_write_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Cast write: figure into IMG archive"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 13h18v8H3z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M3 13l3-3h12l3 3M9 17h6" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="12" cy="4.5" r="2" stroke="#3CB371" stroke-width="1.5" fill="none"/><path d="M12 7v4M10 9.5l2 2 2-2" stroke="#3CB371" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def surface_scan_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Surface scan: platter with read head and latency bars"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="9" cy="12" r="7" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <circle cx="9" cy="12" r="1.5" fill="currentColor"/>
+            <path d="M9 12l5-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M18 18v-3M20.5 18v-6M23 18v-9" stroke="#E0A030" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def drive_app_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Drive Utility Workshop: two drives with a shared copy mark"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="4" width="15" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <rect x="2" y="14" width="15" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <circle cx="13.5" cy="7" r="1" fill="currentColor"/>
+            <circle cx="13.5" cy="17" r="1" fill="currentColor"/>
+            <path d="M20 6v12M18 8l2-2 2 2M18 16l2 2 2-2" stroke="#3CB371" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

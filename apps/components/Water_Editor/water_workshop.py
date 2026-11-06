@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 28
+#this belongs in apps/components/Water_Editor/water_workshop.py - Version: 29
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
 
@@ -1378,7 +1378,7 @@ class WaterWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
     WS_DEFAULTS     = {"depth_colour": False, "depth_gauge_side": "", "object_snap": 2.0}
     _ribbon_name    = "water_workshop"
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
-    _RIBBON_LAYOUT_VERSION = 3
+    _RIBBON_LAYOUT_VERSION = 4
     DROP_EXTS = ('.dat',)          # waterpro.dat / water.dat
 
 
@@ -1423,7 +1423,7 @@ class WaterWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         return tb
 
 
-    def setup_ui(self): #vers 5
+    def setup_ui(self): #vers 6
         """Titlebar / Water dock | ribbon-wrapped canvas tabs / status bar."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
@@ -1432,8 +1432,8 @@ class WaterWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         left_panel = self._create_left_panel()
         centre_panel = self._create_centre_panel()
         self._draw_btns = {}
-        ml.addWidget(self._dock_layout(self.ribbon_wrap(centre_panel),
-                                       [("Water Levels / Rects", left_panel, 200, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
+        ml.addWidget(self.ribbon_host(self._dock_layout(centre_panel,
+                                       [("Water Levels / Rects", left_panel, 200, Qt.DockWidgetArea.LeftDockWidgetArea)])), 1)
         self._build_ribbons()
 
         self._status_widget = self._create_status_bar()

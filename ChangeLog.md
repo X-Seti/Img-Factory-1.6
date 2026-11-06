@@ -1,5 +1,33 @@
-#this belongs in root /ChangeLog.md - Version: 445
+#this belongs in root /ChangeLog.md - Version: 456
 
+
+- Nov 06 2026 - GTA IV .rpf (RPF2) read and write: IMG Factory opens, extracts, replaces, adds; rpf_archive.py new. Niko from playerped.rpf in Cutscene Workshop.
+
+- Nov 06 2026 - Bugs: cutscene models load the same-name TXD when not in an IDE (Model, Vehicle Workshop). Texture only render mode (flat, no lighting).
+
+- Nov 06 2026 - Cutscene Workshop GTA IV: cuts.img .cut (layout kept) and .wad parts, 3D preview (peds on .wft skeleton, mover, props), camera from .wad, IV cast swap/add/remove/write.
+
+- Nov 06 2026 - iv_anim v2 wad_extra_tracks; ped_files iv_ped_model / iv_default_picks shared by Ped Workshop IV and cutscenes.
+
+- Nov 06 2026 - Cutscene Workshop Cast panel/ribbon: swap, add, remove, import, export, for game, send to workshop, write stand-ins (originals to cutscene_backup/). veh_cs_convert.py new.
+
+- Nov 06 2026 - ped_cs_convert v2: VC cutscene peds to 24-bone game skeleton; Ped Workshop converts SA and VC. 9 cast icons, synced.
+
+- Nov 04 2026 - 20 Drive Utility Workshop icons (disc burn, catalogue, SMART history, error watch, link, undo, back up, CSV, dscan commands); synced to repos.
+
+- Nov 04 2026 - ribbon_save_state also saves outer layout when ribbons share it; moved ribbons now stay put after restart.
+
+- Nov 04 2026 - ribbon_host added; 12 workshops host ribbons on the outer dock window so ribbons dock on any edge. Synced to repos.
+
+- Nov 04 2026 - Emojis removed: gui_workshop.py, gui_search.py, img_version1.py, img_version2.py; synced to all repos.
+
+- Nov 04 2026 - dscan_*_icon set (report, drives, reclassify, errors, find, dups, mark, plan, pack, verify) for Drive Utility Workshop Commands ribbon.
+
+- Nov 04 2026 - surface_scan_icon added (Drive Utility Workshop diskscan button), synced to all repos.
+
+- Nov 04 2026 - Drive Utility Workshop icons (drive_app_icon, scan, keep, move, share, SMART, check, eject) for the new standalone Drive-Utility-Workshop repo.
+
+- Nov 03 2026 - TimecycParser moved to methods/timecyc_parser.py (shared); Timecyc Workshop and DFFViewport import it. Cutscene timecyc sky now works standalone.
 
 - Nov 02 2026 - Cutscene View settings: Model height (saved, default 1 m), timecyc sky and light with hour. Timecyc needs Timecyc_Editor (not in standalone yet).
 

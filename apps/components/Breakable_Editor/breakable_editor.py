@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 9
+#this belongs in apps/components/Breakable_Editor/breakable_editor.py - Version: 10
 # X-Seti - May08 2026 - Img Factory 1.6 - Breakable Objects Editor
 
 """
@@ -326,7 +326,7 @@ class BreakableEditor(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
     config_key = "breakable_editor"
     _ribbon_name = "breakable_editor"
     # Bump when the set of ribbons changes (1 = File/Edit/Tools)
-    _RIBBON_LAYOUT_VERSION = 1
+    _RIBBON_LAYOUT_VERSION = 2
     DROP_EXTS = ('.dat',)          # object.dat
 
     def __init__(self, main_window=None, parent=None): #vers 3
@@ -590,12 +590,12 @@ class BreakableEditor(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
         dup = [f"   {n} x{k}" for n, k in c.items() if k > 1]
         show_integrity_dialog(self, f"Duplicate object names: {len(dup)}\n\n" + "\n".join(dup))
 
-    def _create_centre_panel(self): #vers 2
+    def _create_centre_panel(self): #vers 3
         """Fields form central; object list and reference as docks."""
         L, R = Qt.DockWidgetArea.LeftDockWidgetArea, Qt.DockWidgetArea.RightDockWidgetArea
-        return self._dock_layout(self.ribbon_wrap(self._build_centre_panel(self)), [
+        return self.ribbon_host(self._dock_layout(self._build_centre_panel(self), [
             ("Object Controls", self._build_left_panel(self), 180, L),
-            ("Reference", self._build_right_panel(self), 160, R)])
+            ("Reference", self._build_right_panel(self), 160, R)]))
 
     def _open_file(self, path=None): #vers 2
         if path is None or path is False or path is True:
