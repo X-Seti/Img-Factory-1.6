@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 23
+#this belongs in apps/methods/gta_dat_parser.py - Version: 24
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -1087,7 +1087,7 @@ class IDEParser: #vers 3
         # IV only: next synthetic model ID to assign
         self.next_id = 1
 
-    def parse(self, ide_path: str) -> bool: #vers 4
+    def parse(self, ide_path: str) -> bool: #vers 5
         if not os.path.isfile(ide_path):
             self.stats.errors.append(f"IDE not found: {ide_path}")
             return False
@@ -1102,6 +1102,7 @@ class IDEParser: #vers 3
         current_section        = None
         current_ide_path_group = None   # Aug 16 2026 - "path" section state
         basename               = os.path.basename(ide_path)
+        mlo_obj                = None   # IV mlo collecting entities
 
         for lineno, raw in enumerate(lines, 1):
             line = raw.split("#")[0].strip()
@@ -1113,10 +1114,16 @@ class IDEParser: #vers 3
                 current_ide_path_group = None
                 continue
             if current_section == "mlo" and self.game == GTAGame.IV:
-                obj = self._parse_iv_mlo(raw, line, low, basename, lineno)
-                if obj:
-                    self.objects.append(obj)
-                    self.stats.objects_loaded += 1
+                if low in ("mloroomstart", "mloend"):           # entity list ends at the rooms
+                    mlo_obj = None
+                elif raw[:1] in ('\t', ' ') and mlo_obj is not None:
+                    self._parse_iv_mlo_entity(mlo_obj, line)
+                else:
+                    obj = self._parse_iv_mlo(raw, line, low, basename, lineno)
+                    if obj:
+                        self.objects.append(obj)
+                        self.stats.objects_loaded += 1
+                        mlo_obj = obj
                 continue
             if low in self._valid or (re.match(r'^[a-z0-9_]{2,8}$', low) and "," not in line):
                 current_section = low
@@ -1201,6 +1208,18 @@ class IDEParser: #vers 3
         obj = IDEObject(self.next_id, parts[0], "", "interior", "mlo", extra, source, lineno)
         self.next_id += 1
         return obj
+
+    def _parse_iv_mlo_entity(self, mlo: IDEObject, line: str) -> None: #vers 1
+        """IV mlo entity: name, pos 3f, quat 4f, lod level, flags (lod levels skipped)."""
+        parts = [p for p in re.split(r"[\s,]+", line) if p]
+        try:
+            pos = tuple(float(v) for v in parts[1:4])
+            rot = tuple(float(v) for v in parts[4:8])
+            lod = int(parts[8])
+        except (ValueError, IndexError):
+            return
+        if lod == 0:
+            mlo.extra.setdefault("mlo_entities", []).append((parts[0], pos, rot))
 
     def _parse_iv_line(self, section: str, line: str, source: str, lineno: int) -> Optional[IDEObject]: #vers 1
         """Parse one IV IDE line; assigns synthetic sequential model IDs."""

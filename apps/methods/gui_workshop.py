@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/gui_workshop.py - Version: 19
+#this belongs in apps/methods/gui_workshop.py - Version: 20
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # GUIWorkshop — the ONE shared base class for all workshop tools.
 #
@@ -100,10 +100,12 @@ class WorkshopSettings:
         "menu_dropdown_font_size": 9,
         # Status bar
         # Fonts
-        "font_title_family":  "Arial",        "font_title_size":   14,
-        "font_panel_family":  "Arial",        "font_panel_size":   10,
-        "font_button_family": "Arial",        "font_button_size":  10,
+        "font_title_family":  "PT Sans Narrow", "font_title_size":   14,
+        "font_panel_family":  "PT Sans Narrow", "font_panel_size":   10,
+        "font_button_family": "PT Sans Narrow", "font_button_size":  10,
+        "font_body_family":   "PT Sans Narrow", "font_body_size":    10,
         "font_info_family":   "Courier New",  "font_info_size":     9,
+        "fonts_set":          0,                # 1: compact fonts applied once
         # Display
         "button_display_mode": "both",         # "both"|"icons"|"text"
         "sidebar_width":       82,
@@ -265,7 +267,7 @@ class _ToolbarMixin(TitlebarMixin):
         """Override: add a workshop's own tab to Settings; return a callable run on OK (or None)."""
         return None
 
-    def _show_workshop_settings(self): #vers 5
+    def _show_workshop_settings(self): #vers 6
         """[Settings] button — workshop-local settings.
         Tabs: Fonts / Display / Menu / About / Keys & Mouse
         Reads/writes WorkshopSettings (per-app JSON).
@@ -304,8 +306,23 @@ class _ToolbarMixin(TitlebarMixin):
             "font_panel_family",  "font_panel_size",  "Arial",       10)
         fc_btn, sc_btn = _font_row("Button Font",
             "font_button_family", "font_button_size", "Arial",       10)
+        fc_body, sc_body = _font_row("Lists, Fields and Labels Font",
+            "font_body_family",   "font_body_size",   "PT Sans Narrow", 10)
         fc_inf, sc_inf = _font_row("Info Bar Font",
             "font_info_family",   "font_info_size",   "Courier New",  9)
+        from apps.methods.app_fonts import workshop_font_names
+        set_grp = QGroupBox("Compact font for everything (bundled)"); set_row = QHBoxLayout(set_grp)
+        set_cb = QComboBox()
+        set_cb.addItems(workshop_font_names())
+        set_btn = QPushButton("Use for all")
+        set_btn.setToolTip("Title, panel, button and list fonts set to this font")
+        set_btn.clicked.connect(lambda: [__import__("apps.methods.app_fonts", fromlist=["x"])
+                                         .set_workshop_font_family(set_cb.currentText())] + [fc.setCurrentFont(__import__("PyQt6.QtGui", fromlist=["QFont"])
+                                                           .QFont(set_cb.currentText()))
+                                         for fc in (fc_tit, fc_pan, fc_btn, fc_body)])
+        set_row.addWidget(set_cb, 1)
+        set_row.addWidget(set_btn)
+        fl.insertWidget(0, set_grp)
         fl.addStretch()
         tabs.addTab(ft, "Fonts")
 
@@ -406,6 +423,8 @@ class _ToolbarMixin(TitlebarMixin):
         ws.set("font_panel_size",          sc_pan.value())
         ws.set("font_button_family",       fc_btn.currentFont().family())
         ws.set("font_button_size",         sc_btn.value())
+        ws.set("font_body_family",         fc_body.currentFont().family())
+        ws.set("font_body_size",           sc_body.value())
         ws.set("font_info_family",         fc_inf.currentFont().family())
         ws.set("font_info_size",           sc_inf.value())
         ws.set("button_display_mode",      ["both","icons","text"][bm_cb.currentIndex()])
@@ -420,6 +439,8 @@ class _ToolbarMixin(TitlebarMixin):
 
         # Live-apply without restart where possible
         self._load_fonts_from_settings()
+        from apps.methods.app_fonts import apply_font
+        apply_font(self, self.body_font)
         if hasattr(self, "title_label"):
             self.title_label.setFont(self.title_font)
         set_statusbar_shown(self, sb_chk.isChecked())
@@ -867,8 +888,16 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         if self.DROP_EXTS:
             self.setAcceptDrops(True)       # dropped files open via _open_file
 
-    def _load_fonts_from_settings(self):
+    def _load_fonts_from_settings(self): #vers 2
+        """Fonts from the workshop settings; bundled compact fonts loaded and applied once."""
+        from apps.methods.app_fonts import load_fonts, workshop_font_family
+        load_fonts()
         ws = self.WS
+        if ws.get("fonts_set", 0) < 1:                  # first run: compact font everywhere
+            for key in ("font_title_family", "font_panel_family", "font_button_family", "font_body_family"):
+                ws.set(key, workshop_font_family())
+            ws.set("fonts_set", 1)
+            ws.save()
         self.title_font   = QFont(ws.get("font_title_family",  "Arial"),
                                   ws.get("font_title_size",     14))
         self.panel_font   = QFont(ws.get("font_panel_family",  "Arial"),
@@ -879,6 +908,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
                                   ws.get("font_info_size",       9))
         self.button_display_mode = ws.get("button_display_mode", "both")
         self.section_title_font = QFont(self.panel_font.family(), 11, QFont.Weight.Bold)
+        self.body_font = QFont(ws.get("font_body_family", "PT Sans Narrow"), ws.get("font_body_size", 10))
+        self.setFont(self.body_font)                     # lists, fields, labels inherit it
 
     def get_content_margins(self):
         return (self.contmergina, self.contmerginb,
@@ -904,7 +935,12 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             setattr(self, f"hotkey_tool_{tool}", sc)
 
     #  Window chrome
-    def showEvent(self, ev): #vers 3
+    def showEvent(self, ev): #vers 4
+        """First show: body font onto docks built after __init__ (deferred setup_ui)."""
+        if not getattr(self, '_font_applied', False):
+            self._font_applied = True
+            from apps.methods.app_fonts import apply_font
+            apply_font(self, self.body_font)
         super().showEvent(ev)
 
     def paintEvent(self, ev): #vers 1

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_anim_func.py - Version: 18
+#this belongs in apps/components/Ped_Workshop/depends/ped_anim_func.py - Version: 20
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop animation
 
 """
@@ -76,6 +76,7 @@ from PyQt6.QtWidgets import (
     QSpinBox, QVBoxLayout, QWidget)
 
 from apps.methods.dff_skin import quat_to_matrix, read_skeleton
+from apps.methods.flow_layout import FlowLayout
 from apps.methods.ifp_format import IFPAnim, IFPBone, IFPKey, load_ifp, save_ifp
 
 FPS = 30.0
@@ -396,7 +397,7 @@ class PedAnimator: #vers 1
 class PedAnimMixin: #vers 1
     """Animation dock for PedWorkshop."""
 
-    def _create_anim_dock(self): #vers 11
+    def _create_anim_dock(self): #vers 12
         """Anim info + filter, anim list, transport, time slider.
         The IFP combo and load / save / new go in the title bar (title_widgets)."""
         self._animator = None
@@ -429,8 +430,7 @@ class PedAnimMixin: #vers 1
         self._anim_list.setMinimumHeight(60)
         self._anim_list.currentItemChanged.connect(lambda cur, _p: self._anim_select(cur))
         lay.addWidget(self._anim_list, 1)
-        row = QHBoxLayout()
-        row.setSpacing(2)
+        row = FlowLayout()                                     # wraps in a narrow dock
         row.addWidget(tb('key_prev_icon', "Previous key of this bone", lambda: self._anim_jump_key(-1)))
         row.addWidget(tb('frame_prev_icon', "Previous frame", lambda: self._anim_step(-1)))
         self._play_btn = tb('play_icon', "Play / pause", None, checkable=True)
@@ -438,7 +438,6 @@ class PedAnimMixin: #vers 1
         row.addWidget(self._play_btn)
         row.addWidget(tb('frame_next_icon', "Next frame", lambda: self._anim_step(1)))
         row.addWidget(tb('key_next_icon', "Next key of this bone", lambda: self._anim_jump_key(1)))
-        row.addSpacing(6)
         self._loop_chk = tb('loop_icon', "Loop", None, checkable=True, checked=True)
         self._inplace_chk = tb('in_place_icon', "In place: no root walk motion", None, checkable=True, checked=True)
         self._inplace_chk.toggled.connect(lambda on: (setattr(self._animator, 'in_place', on)
@@ -454,7 +453,6 @@ class PedAnimMixin: #vers 1
                            None, checkable=True)
         self._pad_btn.toggled.connect(self._ped_pad_toggle)
         row.addWidget(self._pad_btn)
-        row.addStretch(1)
         self._speed_spin = QDoubleSpinBox()
         self._speed_spin.setRange(0.05, 4.0)
         self._speed_spin.setSingleStep(0.1)
@@ -478,7 +476,7 @@ class PedAnimMixin: #vers 1
         self._anim_dock = dock
         return dock
 
-    def _create_bones_dock(self): #vers 3
+    def _create_bones_dock(self): #vers 5
         """Bone list, pose fields and key row; view toggles go in the title bar."""
         tb = self._anim_tool_button
         self._show_mesh_btn = tb('mesh_icon', "Show the mesh", None, checkable=True, checked=True)
@@ -524,18 +522,18 @@ class PedAnimMixin: #vers 1
                 sp.setSingleStep(step)
                 sp.setPrefix(f"{axis} ")
                 sp.setWrapping(label == "Rot")
+                sp.setMaximumWidth(sp.fontMetrics().horizontalAdvance(f"{axis} -{rng:.{dec}f}") + 26)   # fits its value
                 sp.valueChanged.connect(self._anim_euler_changed)
                 grid.addWidget(sp, r, i + 1, Qt.AlignmentFlag.AlignVCenter)
                 spins.append(sp)
+        grid.setColumnStretch(4, 1)                      # spare width to the right, not the boxes
         bl.addLayout(grid)
-        row = QHBoxLayout()
-        row.setSpacing(2)
+        row = FlowLayout()                                     # wraps in a narrow dock
         row.addWidget(tb('key_set_icon', "Set key: this bone's pose at this frame", self._anim_set_key))
         row.addWidget(tb('key_delete_icon', "Delete this bone's key at this frame", self._anim_delete_key))
         row.addWidget(tb('key_all_icon', "Key all bones: whole pose at this frame", self._anim_key_all))
         row.addWidget(tb('copy_icon', "Copy pose (all bones) at this frame", self._anim_copy_pose))
         row.addWidget(tb('paste_icon', "Paste pose onto this frame (keys every bone)", self._anim_paste_pose))
-        row.addSpacing(6)
         self._auto_key_chk = tb('record_icon', "Auto key: key every change straight away", None, checkable=True)
         self._auto_step_chk = tb('frame_next_icon', "Stop motion: step forward after Set key", None, checkable=True)
         row.addWidget(self._auto_key_chk)
@@ -547,7 +545,7 @@ class PedAnimMixin: #vers 1
         self._step_spin.setToolTip("Frames to step after a key")
         row.addWidget(self._step_spin)
         self._key_info = QLabel("")                        # key count, frames in its tooltip
-        row.addWidget(self._key_info, 1)
+        row.addWidget(self._key_info)
         for i in range(row.count()):                       # one centre line for the whole row
             w = row.itemAt(i).widget()
             if w is not None:

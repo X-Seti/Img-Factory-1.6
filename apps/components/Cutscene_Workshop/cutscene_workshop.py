@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Cutscene_Workshop/cutscene_workshop.py - Version: 14
+#this belongs in apps/components/Cutscene_Workshop/cutscene_workshop.py - Version: 17
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene Workshop
 
 """
 Cutscene Workshop - GTA III / VC / SA / IV cutscenes (anim/cuts.img): edit the
-.cut script sections and the .dat camera path, with a top-down path view;
-swap, add, export and convert the cast for in-game use.
+.cut script sections, the .dat camera as keys or a shot list, actor routes in
+the Plan view; swap, add, export and convert the cast for in-game use.
 """
 
 ##Methods list -
@@ -37,13 +37,14 @@ from apps.methods.ribbon_system import RibbonMixin
 from apps.methods.statusbar_func import register_statusbar
 from apps.components.Cutscene_Workshop.depends.cutscene_cast_func import CutsceneCastMixin
 from apps.components.Cutscene_Workshop.depends.cutscene_logic_func import CutsceneLogicMixin
+from apps.components.Cutscene_Workshop.depends.cutscene_shots_func import CutsceneShotsMixin
 from apps.components.Cutscene_Workshop.depends.cutscene_ui_func import CutsceneUIMixin
 
 App_name = "Cutscene Workshop"
 
 
 class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneLogicMixin, CutsceneCastMixin,
-                       GUIWorkshop): #vers 5
+                       CutsceneShotsMixin, GUIWorkshop): #vers 6
     """Cutscene Workshop window: preview in the centre, list / script / camera as tear-off panels."""
     App_name = App_name
     config_key = "cutscene_workshop"
@@ -52,19 +53,19 @@ class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneL
     DROP_EXTS = ('.cut', '.dat', '.img', '.dir')
     WS_DEFAULTS = {'last_path': '', 'show_grid': True, 'render_mode': 'textured',
                    'wire': False, 'cam_zoom': -50, 'game_view': False,
-                   'show_map': False, 'map_radius': 150,
+                   'show_map': False, 'map_radius': 150, 'show_plan': True,
                    'model_lift': 1.0, 'timecyc': False, 'hour': 12}
     _ribbon_name = "cutscene_workshop"
     _RIBBON_LAYOUT_VERSION = 3
-    _OUTER_LAYOUT_VERSION = 2
+    _OUTER_LAYOUT_VERSION = 3
 
     def __init__(self, parent=None, main_window=None): #vers 2
         self._defer_setup_ui = True
         super().__init__(parent, main_window)
         self.setup_ui()
 
-    def setup_ui(self): #vers 3
-        """Ribbons over the 3D preview; Cutscenes, Script, Camera and Cast panels dock / float."""
+    def setup_ui(self): #vers 4
+        """Ribbons over the 3D preview; Cutscenes, Script, Camera, Shots and Cast panels dock / float."""
         ml = QVBoxLayout(self)
         ml.setContentsMargins(*self.get_content_margins())
         ml.setSpacing(self.setspacing)
@@ -79,8 +80,10 @@ class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneL
             ("Cutscenes", self._create_left_panel(), 160, Qt.DockWidgetArea.LeftDockWidgetArea),
             ("Script", self._cs_tabs, 300, Qt.DockWidgetArea.RightDockWidgetArea),
             ("Camera", self._cs_camera_tab(), 300, Qt.DockWidgetArea.RightDockWidgetArea),
-            ("Cast", self._create_cast_panel(), 300, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
+            ("Cast", self._create_cast_panel(), 300, Qt.DockWidgetArea.RightDockWidgetArea),
+            ("Shots", self._create_shots_panel(), 300, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
         self._outer_mw.tabifyDockWidget(self._outer_docks[1], self._outer_docks[3])   # Cast beside Script
+        self._outer_mw.tabifyDockWidget(self._outer_docks[2], self._outer_docks[4])   # Shots beside Camera
         self._outer_docks[1].raise_()
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
@@ -92,7 +95,7 @@ class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneL
         from apps.methods.ui_sizes import fit_inputs
         fit_inputs(self)                                 # compact inputs
 
-    def _build_ribbons(self): #vers 7
+    def _build_ribbons(self): #vers 9
         """File, Script, Camera, Cast and Playback ribbons (one icon per action)."""
         B = self.ribbon_button
         tb = self.ribbon_toolbar("File")
@@ -126,9 +129,12 @@ class CutsceneWorkshop(RibbonIconsMixin, RibbonMixin, CutsceneUIMixin, CutsceneL
         self._pv_game_btn = B(tb, "game_view_icon", "Game view: cutscene camera as in game (4:3, zoom 0 %)",
                               self._cs_game_view, checkable=True, text="Game")
         self._pv_game_btn.setChecked(bool(self.WS.get('game_view', False)))
-        self._pv_map_btn = B(tb, "map_app_icon", "Map around the scene (SA: from the .cut offset)",
+        self._pv_map_btn = B(tb, "map_app_icon", "Map around the scene (SA / IV: from the .cut offset)",
                              self._cs_map_toggle, checkable=True, text="Map")
         self._pv_map_btn.setChecked(bool(self.WS.get('show_map', False)))
+        self._pv_plan_btn = B(tb, "plan_view_icon", "Plan view beside the 3D view: camera, view area, actor routes",
+                              self._cs_plan_toggle, checkable=True, text="Plan")
+        self._pv_plan_btn.setChecked(bool(self.WS.get('show_plan', True)))
         B(tb, "fit_icon", "Free camera: fit the models", self._cs_preview_centre, text="Fit")
         self._pv_settings_btn = B(tb, "settings_icon", "View settings: render, zoom, grid", self._cs_view_settings, text="Set")
 

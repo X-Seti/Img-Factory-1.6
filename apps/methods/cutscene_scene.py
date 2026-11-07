@@ -1,4 +1,4 @@
-#this belongs in apps/methods/cutscene_scene.py - Version: 6
+#this belongs in apps/methods/cutscene_scene.py - Version: 10
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene playback scene
 
 """
@@ -22,8 +22,11 @@ the anim's mover track; props (.wdr) by their root bone.
 # _iv_item
 # _locals
 # _player_parts
+# actor_at
+# actor_paths
 # from_iv
 # geoms_at
+# move_actor
 # textures
 
 from typing import Callable, List, Optional
@@ -43,13 +46,14 @@ class CutsceneScene: #vers 1
     """Models, skeletons and animations of one cutscene."""
 
     def __init__(self, sections, ifp_bytes: Optional[bytes], fetch: Callable[[str, str], Optional[bytes]],
-                 clothes_rules: Optional[dict] = None): #vers 4
+                 clothes_rules: Optional[dict] = None): #vers 5
         """sections: parse_cut output; fetch(name, '.dff' / '.txd') -> bytes or None;
         clothes_rules: parse_clothes_dat output (player cutscene parts)."""
         self.items, self.notes, self._tex = [], [], []
         self.lift = 0.0                                  # SA: models sit 1 m above the anim root
         self._fetch, self._rules = fetch, clothes_rules
         ifp = parse_ifp(ifp_bytes) if ifp_bytes else None
+        self.ifp = ifp                                   # kept for actor route edits
         anims = {a.name.lower(): a for a in (ifp.anims if ifp else [])}
         self.duration = max((a.duration() for a in anims.values()), default=0.0)
         rows = dict(sections).get('model', [])
@@ -163,8 +167,8 @@ class CutsceneScene: #vers 1
         self.duration = t0
         return self
 
-    def _iv_item(self, name: str, variation: list): #vers 2
-        """Scene item of an IV ped (.wdd + .wft), prop (.wdr) or fragment (.wft); None if missing."""
+    def _iv_item(self, name: str, variation: list): #vers 4
+        """Scene item of an IV ped (.wdd + .wft), prop (.wdr) or fragment / car (.wft); None if missing."""
         from apps.methods.dff_skin import Skeleton
         from apps.methods.wdr_model import parse_wdr, parse_wft
         from apps.methods.xtd_textures import parse_iv_wtd
@@ -186,7 +190,14 @@ class CutsceneScene: #vers 1
             sk = iv_skeleton(wft)
             iv_skins(sk, model.geometries)
         elif wdr is not None or wft is not None:
+            from apps.methods.wdr_model import wdr_embedded_textures
             model = parse_wdr(wdr, name) if wdr is not None else parse_wft(wft, name)
+            self._tex += wdr_embedded_textures(wdr if wdr is not None else wft)   # props carry their textures
+            if wdr is None and not getattr(self, '_vehshare', False) and any(
+                    m.texture_name.lower().startswith('vehicle_generic') for g in model.geometries for m in g.materials):
+                self._vehshare = True                         # cars: shared vehicle textures
+                share = self._fetch('vehshare', '.wtd')
+                self._tex += parse_iv_wtd(share) if share else []
             sk = Skeleton()                                   # props: whole model on the root bone
             sk.frames.append({'name': name, 'local': np.eye(4), 'node_id': 0, 'parent': -1})
             sk.atomics = {gi: 0 for gi in range(len(model.geometries))}
@@ -255,6 +266,57 @@ class CutsceneScene: #vers 1
                 M[3, :3] = pos[min(f, len(pos) - 1)]
             ltms = [L @ M for L in ltms]
         return ltms
+
+    def actor_paths(self, step: float = 0.25, only: Optional[int] = None) -> list: #vers 2
+        """[(name, [(t, x, y)])]: each item's centre over the scene (for the plan view); only: one item."""
+        out = []
+        n = max(1, int(self.duration / step) + 1)
+        for it in (self.items if only is None else [self.items[only]]):
+            pts = []
+            for k in range(n):
+                t = min(k * step, self.duration)
+                L = self._item_ltms(it, t)
+                if L:
+                    c = np.mean([m[3, :2] for m in L], axis=0)
+                    pts.append((t, float(c[0]), float(c[1])))
+            out.append((it['name'], pts))
+        return out
+
+    def actor_at(self, index: int, t: float) -> tuple: #vers 1
+        """Scene-space centre (x, y, z) of an item at t (models' lift included)."""
+        t = min(max(t, 0.0), self.duration)
+        L = self._item_ltms(self.items[index], t)
+        c = np.mean([m[3, :3] for m in L], axis=0) if L else np.zeros(3)
+        return float(c[0]), float(c[1]), float(c[2] + (self.lift or 0.0))
+
+    def move_actor(self, index: int, t: float, dx: float, dy: float, window: float = 1.0) -> bool: #vers 1
+        """Bend an item's route: shift its root translation keys by (dx, dy) at t, fading out over window s."""
+        import math
+        it = self.items[index]
+        if 'segs' in it or not it['bones']:
+            return False                                 # IV routes live in the .wad mover
+        sk = it['sk']
+
+        def depth(i):
+            d = 0
+            while sk.frames[i]['parent'] >= 0:
+                i, d = sk.frames[i]['parent'], d + 1
+            return d
+        movers = [i for i, b in it['bones'].items() if any(k.trans is not None for k in b.keys)]
+        if not movers:
+            return False
+        fi = min(movers, key=depth)
+        parent = sk.frames[fi]['parent']
+        ltms = self._item_ltms(it, t)
+        R = ltms[parent][:3, :3] if parent >= 0 else np.eye(3)
+        d = np.array([dx, dy, 0.0]) @ R.T                # world shift into the parent's space
+        for k in it['bones'][fi].keys:
+            gap = abs(k.time - t)
+            if k.trans is None or gap >= window:
+                continue
+            w = 0.5 * (1 + math.cos(math.pi * gap / window))
+            k.trans = tuple(float(a + w * b) for a, b in zip(k.trans, d))
+        return True
 
     def geoms_at(self, t: float) -> list: #vers 3
         """Viewport geometry tuples of every model posed at time t (scene space)."""

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 224
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 225
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -162,7 +162,7 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
     _RIBBON_LAYOUT_VERSION = 4
 
 
-    def __init__(self, parent=None, main_window=None): #vers 11
+    def __init__(self, parent=None, main_window=None): #vers 12
         """initialize_features"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
@@ -194,17 +194,20 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
 
         # Set default fonts
         from PyQt6.QtGui import QFont
-        default_font = QFont("Fira Sans Condensed", 14)
+        from apps.methods.app_fonts import load_fonts, workshop_font_family
+        load_fonts()
+        fam = workshop_font_family()                     # compact font, Settings > Fonts
+        default_font = QFont(fam, 10)
         self.setFont(default_font)
-        self.title_font = QFont("Arial", 14)
-        self.panel_font = QFont("Arial", 10)
-        self.button_font = QFont("Arial", 10)
+        self.title_font = QFont(fam, 14)
+        self.panel_font = QFont(fam, 10)
+        self.button_font = QFont(fam, 10)
         self.infobar_font = QFont("Courier New", 9)
         # Section titles (Models/Frame Hierarchy/Textures/Files dock
         # titles, panel headers) - one consistent size, slightly larger
         # than panel_font, instead of the mix of ad-hoc sizes (9/10/11)
         # scattered across different panels previously.
-        self.section_title_font = QFont("Arial", 11, QFont.Weight.Bold)
+        self.section_title_font = QFont(fam, 11, QFont.Weight.Bold)
         self.standalone_mode = (main_window is None)
 
         if main_window and hasattr(main_window, 'app_settings'):
@@ -290,6 +293,8 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
 
         # Apply theme ONCE at the end
         self._apply_theme()
+        from apps.methods.app_fonts import apply_font
+        apply_font(self, default_font)                   # docks built by setup_ui
 
 
     def setup_ui(self): #vers 19

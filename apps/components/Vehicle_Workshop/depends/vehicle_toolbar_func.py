@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 6
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 7
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop toolbar
 
 """
@@ -341,7 +341,7 @@ class VehicleToolbarMixin: #vers 1
             self._set_status(f"IDE ({game_ver}): {len(self._sa_vehicle_data)} vehicles")
         except Exception as e:
             self._set_status(f"IDE parse error: {e}")
-    def _toggle_show_wheels(self, enabled: bool): #vers 2
+    def _toggle_show_wheels(self, enabled: bool): #vers 3
         """Load wheels.DFF + wheels.txd if needed and trigger re-assembly."""
         vp = self.viewport
         vp._show_wheels = enabled
@@ -361,6 +361,8 @@ class VehicleToolbarMixin: #vers 1
                         wheels_path = p; break
             if wheels_path and not getattr(vp, '_wheels_model', None):
                 vp.load_wheels_dff(wheels_path)
+            if not wheels_path and not getattr(vp, '_wheels_model', None):
+                self._set_status("Wheels: models/generic/wheels.dff not found, set the game folder")
             # Log what wheel type will be used
             wheel_data = vp._get_wheel_geom_data()
             if wheel_data:
@@ -371,7 +373,8 @@ class VehicleToolbarMixin: #vers 1
             if game_root:
                 import os as _os
                 # VC/GTA3/LC: wheel textures are in misc.txd (+ generic.txd)
-                for fname in ['misc.txd','MISC.TXD','wheels.txd','wheels.TXD','generic.txd']:
+                for fname in ['misc.txd','MISC.TXD','wheels.txd','wheels.TXD','generic.txd',
+                              'generic/wheels.txd','Generic/wheels.txd']:   # SA: models/generic
                     p = _os.path.join(game_root,'models', fname)
                     if _os.path.isfile(p):
                         try:
@@ -695,9 +698,8 @@ class VehicleToolbarMixin: #vers 1
         except Exception as e:
             return 0
 
-    def _find_game_root(self): #vers 1
-        """Try to find the GTA SA game root from the DFF path or main_window settings."""
-        # From main_window app_settings
+    def _find_game_root(self): #vers 2
+        """Game root: main window, then walk up from the DFF, IMG or data files."""
         mw = self.main_window
         if mw:
             for attr in ('game_root','_game_root','game_directory'):
@@ -708,9 +710,15 @@ class VehicleToolbarMixin: #vers 1
                 for key in ('game_root','game_directory','sa_root'):
                     val = getattr(settings,'get',lambda k,d=None:d)(key)
                     if val and os.path.isdir(str(val)): return str(val)
-        # Walk up from DFF path looking for models/ or data/ folder
-        if self._current_dff_path:
-            p = os.path.dirname(self._current_dff_path)
+        starts = [self._current_dff_path]                    # DFF from IMG is a temp copy
+        for img in (getattr(self, '_current_img', None), getattr(mw, 'current_img', None)):
+            starts.append(getattr(img, 'file_path', None))
+        starts += list((getattr(mw, 'vehicle_data_paths', None) or {}).values())
+        starts.append(getattr(self, '_handling_path', None))
+        for start in starts:
+            if not start:
+                continue
+            p = os.path.dirname(str(start))
             for _ in range(8):
                 if os.path.isdir(os.path.join(p,'models')) and os.path.isdir(os.path.join(p,'data')):
                     return p
@@ -1037,7 +1045,7 @@ class VehicleToolbarMixin: #vers 1
         self._set_status(f'+{len(new)} shared textures loaded')
         self.viewport.update()
 
-    def load_txd(self, path: str): #vers 2
+    def load_txd(self, path: str): #vers 3
         try:
             from apps.methods.txd_parser import parse_txd
             from PyQt6.QtGui import QIcon, QImage, QPixmap
@@ -1073,6 +1081,7 @@ class VehicleToolbarMixin: #vers 1
                         item.setIcon(QIcon(px))
                     except Exception: pass
                 self._tex_list.addItem(item)
+            self._skin_set_textures(textures, data, path)
             self._set_status(f'Textures: {len(textures)} from {os.path.basename(path)}')
         except Exception as e:
             import traceback; traceback.print_exc()

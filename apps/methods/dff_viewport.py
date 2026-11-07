@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 54
+# this belongs in apps/methods/dff_viewport.py - Version: 56
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -111,6 +111,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.dragEnterEvent
 # DFFViewport.dragMoveEvent
 # DFFViewport.dropEvent
+# DFFViewport.drop_textures
 # DFFViewport.fit_to_window
 # DFFViewport.flip_horizontal
 # DFFViewport.flip_vertical
@@ -186,6 +187,11 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.wheelEvent
 # DFFViewport.zoom_in
 # DFFViewport.zoom_out
+# VehicleViewport._drive_key
+# VehicleViewport._paint_orbit_camera
+# VehicleViewport.keyPressEvent
+# VehicleViewport.keyReleaseEvent
+# VehicleViewport.set_drive
 """
 
 import ctypes
@@ -300,7 +306,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     Shared base for Model Viewer, Model Workshop, Vehicle Workshop.
     """
 
-    def __init__(self, parent=None): #vers 4
+    def __init__(self, parent=None): #vers 5
         super().__init__(parent)
         # Mouse tracking (Aug 19 2026)
         self.setMouseTracking(True)
@@ -637,6 +643,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._gizmo_overlay = _GizmoOverlay(self)  # mesh gizmo drawn with QPainter
         self._mesh_hover = None                   # hovered vertex / edge / face (mesh edit)
         self._mesh_gizmo_hover = None             # hovered gizmo axis (gold)
+        self._mesh_drag = None                    # active mesh gizmo drag (mouse move reads it)
         self._mesh_gizmo_mode = 'move'            # 'move' | 'rotate' | 'scale'
         self._mesh_xform_cb = None                # fn(kind, vert_ids, axis, value, pivot)
         self._mesh_face_mode = 'connected'        # face move: 'connected' | 'detach' | 'extrude'
@@ -2485,6 +2492,17 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             downsampled = arr[row_idx][:, col_idx]
         return downsampled.tobytes(), target, target
 
+    def drop_textures(self, names): #vers 1
+        """Free named GL textures so a re-upload replaces them."""
+        ids = [self._tex_ids.pop(n.lower()) for n in names if n and n.lower() in self._tex_ids]
+        for n in names:
+            self._tex_wrap.pop((n or '').lower(), None)
+        if OPENGL_AVAILABLE and ids:
+            try:
+                self.makeCurrent(); glDeleteTextures(len(ids), ids); self.doneCurrent()
+            except Exception:
+                pass
+
     def clear_textures(self): #vers 2
         if OPENGL_AVAILABLE and self._tex_ids:
             try: glDeleteTextures(len(self._tex_ids), list(self._tex_ids.values()))
@@ -2681,9 +2699,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._radar_grid_half_extent = half_extent
         self.update()
 
-    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 5
+    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 6
         self._all_geoms = []
         self._vertices  = []  # clear single-geom data
+        self._assembly_args = (geometries, materials_list, frames, atomics, damaged)   # steer rebuilds
         # Use flags from first geometry as representative
         if geometries:
             self._current_geom_flags = getattr(geometries[0], 'flags', 0)
@@ -2735,10 +2754,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     is_left  = 'wheel_l' in fn2
                     is_front = 'wheel_lf' in fn2 or 'wheel_rf' in fn2
                     scale    = front_scale if is_front else rear_scale
+                    steer    = math.radians(getattr(self, '_wheel_heading', 0.0)) if is_front else 0.0
+                    cs, sn   = math.cos(steer), math.sin(steer)
+                    if is_left:
+                        sn = -sn                        # left side is mirrored below
                     v2 = []
                     for vx,vy,vz in wv:
-                        # Scale wheel geometry around its local origin
+                        # Scale wheel geometry around its local origin, front wheels steered
                         svx, svy, svz = vx*scale, vy*scale, vz*scale
+                        svx, svy = svx*cs - svy*sn, svx*sn + svy*cs
                         wx = r2[0]*svx+r2[1]*svy+r2[2]*svz+tx2
                         wy = r2[3]*svx+r2[4]*svy+r2[5]*svz+ty2
                         wz = r2[6]*svx+r2[7]*svy+r2[8]*svz+tz2
@@ -2750,7 +2774,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                            r2[6]*nx+r2[7]*ny+r2[8]*nz) for nx,ny,nz in wn] if wn else []
                     self._all_geoms.append((v2,n2,wu,wt,wm,wp,wflags))
         all_pts=[p for g in self._all_geoms for p in g[0]]
-        if all_pts:
+        if all_pts and not getattr(self, '_keep_camera', False):   # drive / steer rebuilds keep the view
             xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
             diag=math.sqrt(max(1,(max(xs)-min(xs))**2+(max(ys)-min(ys))**2))
             self._dist=max(diag*2.0,2.0)
@@ -5259,9 +5283,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._sync_mesh_chips()
         self.update()
 
-    def _draw_wire_hint(self): #vers 2
+    def _draw_wire_hint(self): #vers 3
         """Faint edges over the shaded model (not in wireframe mode)."""
-        if not OPENGL_AVAILABLE or not self._wire_hint or self._mode == 'wireframe' or self._world_instances:
+        if not OPENGL_AVAILABLE or not self._wire_hint or self._mode in ('wireframe', 'texture_only') \
+                or self._world_instances:
             return
         glPushAttrib(GL_ENABLE_BIT | GL_LINE_BIT | GL_CURRENT_BIT | GL_POLYGON_BIT | GL_DEPTH_BUFFER_BIT)
         glDisable(GL_LIGHTING); glDisable(GL_TEXTURE_2D)
@@ -5314,7 +5339,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glColor4f(0.3, 0.95, 1.0, 0.9); glLineWidth(2.0)
             glBegin(GL_LINE_LOOP); self._emit_verts(v1, v2, v3); glEnd()
 
-    def _mesh_chip_state(self): #vers 2
+    def _mesh_chip_state(self): #vers 3
         """(render chip shown, gizmo chip shown, mode, gizmo mode, wire hint, counts)."""
         model = bool(self._vertices or getattr(self, '_all_geoms', None)) and not self._world_instances
         edit = model and getattr(self, '_select_mode', 'object') != 'object'
@@ -5322,9 +5347,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         verts = len(self._vertices) if self._vertices else sum(len(e[0]) for e in getattr(self, '_all_geoms', []) or [])
         return (model, edit and getattr(self, '_mesh_gizmo_cb', None) is not None, self._mode,
                 self._mesh_gizmo_mode, self._wire_hint, tris, verts,
-                self._mesh_face_mode, getattr(self, '_select_mode', 'object'))
+                self._mesh_face_mode, getattr(self, '_select_mode', 'object'), self._show_grid)
 
-    def _sync_mesh_chips(self): #vers 3
+    def _sync_mesh_chips(self): #vers 5
         """Build / refresh the render and gizmo chips and the count label."""
         state = self._mesh_chip_state()
         self._mesh_chip_shown = state
@@ -5347,16 +5372,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._chip_gizmo.setToolTip("Gizmo: Move G, Rotate R, Scale S (click to cycle)")
             self._chip_gizmo.clicked.connect(lambda: self.set_mesh_gizmo_mode(
                 {'move': 'rotate', 'rotate': 'scale', 'scale': 'move'}[self._mesh_gizmo_mode]))
+            self._chip_wire = QToolButton(bar)
+            self._chip_wire.setCheckable(True)
+            self._chip_wire.setToolTip("Wireframe over the textures on / off")
+            self._chip_wire.clicked.connect(lambda on: self.set_wire_hint(on))
             self._chip_faces = QToolButton(bar)
             self._chip_faces.setToolTip("Face move: keep connected, detach, or extrude (click to cycle)")
             self._chip_faces.clicked.connect(lambda: self.set_mesh_face_mode(
                 {'connected': 'detach', 'detach': 'extrude', 'extrude': 'connected'}[self._mesh_face_mode]))
-            lay.addWidget(self._chip_render); lay.addWidget(self._chip_gizmo); lay.addWidget(self._chip_faces)
+            self._chip_grid = QToolButton(bar)
+            self._chip_grid.setCheckable(True)
+            self._chip_grid.setToolTip("Ground grid on / off")
+            self._chip_grid.clicked.connect(self.set_show_grid)
+            lay.addWidget(self._chip_render); lay.addWidget(self._chip_wire); lay.addWidget(self._chip_grid)
+            lay.addWidget(self._chip_gizmo); lay.addWidget(self._chip_faces)
             self._mesh_chips = bar
         if self._mesh_chips is not None:
             names = {'wireframe': "Wire", 'solid': "Solid", 'semi_solid': "Semi", 'textured': "Textured",
                      'texture_only': "Tex only"}
-            self._chip_render.setText(f"[V] {names.get(mode, mode)}" + (" +Wire" if wire and mode != 'wireframe' else ""))
+            self._chip_render.setText(f"[V] {names.get(mode, mode)}")
+            self._chip_wire.setText("Wire on" if wire else "Wire off")
+            self._chip_wire.setChecked(bool(wire))
+            self._chip_wire.setVisible(mode not in ('wireframe', 'texture_only'))
+            self._chip_grid.setText("Grid on" if self._show_grid else "Grid off")
+            self._chip_grid.setChecked(bool(self._show_grid))
             self._chip_gizmo.setText({'move': "Move [G]", 'rotate': "Rotate [R]", 'scale': "Scale [S]"}[gmode])
             self._chip_gizmo.setVisible(gizmo)
             self._chip_faces.setText({'connected': "Faces: Connected", 'detach': "Faces: Detach",
@@ -6774,6 +6813,59 @@ class VehicleViewport(DFFViewport):
         from PyQt6.QtCore import Qt
         self._drag_btn          = Qt.MouseButton.NoButton
 
+    def set_drive(self, on: bool, sim=None) -> str: #vers 1
+        """Drive mode on / off (apps/methods/vehicle_drive.py); status line."""
+        from apps.methods.vehicle_drive import DriveController
+        drive = getattr(self, '_drive', None)
+        if drive is not None:
+            drive.stop()
+            self._drive = None
+        if not on:
+            self._show_grid = getattr(self, '_grid_before_drive', self._show_grid)
+            self.update()
+            return "Drive off"
+        pts = [p for g in (getattr(self, '_all_geoms', None) or []) for p in g[0]]
+        self._drive_ground = min((p[2] for p in pts), default=0.0)
+        self._grid_before_drive, self._show_grid = self._show_grid, False
+        self._yaw, self._pitch = 0.0, 72.0                    # chase view from behind
+        self._drive = DriveController(self, sim)
+        self.setFocus()
+        return self._drive.start()
+
+    def _paint_orbit_camera(self): #vers 1
+        """Orbit camera, then the drive ground and props under the car."""
+        super()._paint_orbit_camera()
+        drive = getattr(self, '_drive', None)
+        if drive is not None:
+            drive.draw(getattr(self, '_drive_ground', 0.0))
+
+    def keyPressEvent(self, event): #vers 1
+        """Drive keys while driving, else the normal viewport keys."""
+        k = self._drive_key(event)
+        if k:
+            if not event.isAutoRepeat():
+                self._drive.key(k, True)
+            return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event): #vers 1
+        k = self._drive_key(event)
+        if k:
+            if not event.isAutoRepeat():
+                self._drive.key(k, False)
+            return
+        super().keyReleaseEvent(event)
+
+    def _drive_key(self, event): #vers 1
+        """Drive action for a key, or None (not driving / other key)."""
+        if getattr(self, '_drive', None) is None:
+            return None
+        from PyQt6.QtCore import Qt
+        K = Qt.Key
+        return {K.Key_W: 'fwd', K.Key_Up: 'fwd', K.Key_S: 'back', K.Key_Down: 'back',
+                K.Key_A: 'left', K.Key_Left: 'left', K.Key_D: 'right', K.Key_Right: 'right',
+                K.Key_Space: 'hand'}.get(event.key())
+
     def set_animation(self, enabled: bool): #vers 1
         self._anim_enabled = enabled
         if enabled:
@@ -6823,12 +6915,16 @@ class VehicleViewport(DFFViewport):
     def set_animation_speed(self, speed: float): #vers 1
         self._anim_speed = max(0.1, speed)
 
-    def set_wheel_heading(self, angle_deg: float): #vers 1
+    def set_wheel_heading(self, angle_deg: float): #vers 2
+        """Front wheel steer angle; the last assembly is rebuilt, view kept."""
         self._wheel_heading = angle_deg
-        if getattr(self,'_assembly_mode',False) and getattr(self,'_dff_model',None):
-            m = self._dff_model
-            self.load_all_geometries(m.geometries,[g.materials for g in m.geometries],
-                                     m.frames, m.atomics, getattr(self,'_damaged',False))
+        args = getattr(self, '_assembly_args', None)
+        if args and getattr(self, '_show_wheels', False):
+            keep, self._keep_camera = getattr(self, '_keep_camera', False), True
+            try:
+                self.load_all_geometries(*args)
+            finally:
+                self._keep_camera = keep
 
     def load_wheels_dff(self, path: str, wheel_type: str = 'wheel_saloon_l0'): #vers 1
         try:

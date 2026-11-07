@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 19
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 21
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
 Vehicle Workshop — tabbed editor for GTA III/VC/SA vehicle data files.
-Tabs: Handling (handling.cfg) | Car Colours (carcols.dat) | Car Mods (carmods.dat SA)
+Tabs: Handling (handling.cfg) | Car Colours (carcols.dat) | Car Mods (carmods.dat SA) | Slots
 
 Parsers are self-contained. Handling parser imported from Handling_Editor.
 """
@@ -67,6 +67,10 @@ from apps.components.Vehicle_Workshop.depends.vehicle_layout_func import Vehicle
 from apps.components.Vehicle_Workshop.depends.vehicle_logic_func import VehicleLogicMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_toolbar_func import VehicleToolbarMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_win_func import VehicleWinMixin
+from apps.components.Vehicle_Workshop.depends.vehicle_slots_func import VehicleSlotsTab
+from apps.components.Vehicle_Workshop.depends.vehicle_skin_func import VehicleSkinMixin
+from apps.components.Vehicle_Workshop.depends.vehicle_stories_func import VehicleStoriesMixin
+from apps.components.Vehicle_Workshop.depends.vehicle_drive_func import VehicleDriveMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_tabs_func import (
     CarColoursTab, CarModsTab, HandlingTab)
 
@@ -123,18 +127,26 @@ DEBUG_STANDALONE = False
 # VehicleLayoutMixin - vehicle_layout_func.py
 # VehicleLogicMixin - vehicle_logic_func.py
 # HandlingTab, CarColoursTab, CarModsTab - vehicle_tabs_func.py
+# VehicleSlotsTab - vehicle_slots_func.py
+# VehicleSkinMixin - vehicle_skin_func.py
+# VehicleStoriesMixin - vehicle_stories_func.py
+# VehicleDriveMixin - vehicle_drive_func.py
 # Shared imports and flags - vehicle_common_func.py
 
-class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWinMixin,
-                      VehicleToolbarMixin, VehicleLayoutMixin, VehicleLogicMixin, GUIWorkshop): #vers 7
+class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWinMixin, VehicleSkinMixin,
+                      VehicleStoriesMixin, VehicleDriveMixin, VehicleToolbarMixin, VehicleLayoutMixin,
+                      VehicleLogicMixin, GUIWorkshop): #vers 11
     _ribbon_name = "vehicle_workshop"
+    config_key = "vehicle_workshop"
+    WS_DEFAULTS = {'slots_root': '', 'stories_img': ''}
     _OUTER_LAYOUT_VERSION = 1      # Assets + Tools docks
-    # Bump when the set of ribbons changes (1 = File ribbon)
-    _RIBBON_LAYOUT_VERSION = 2
+    # Bump when the set of ribbons changes (1 = File ribbon, 3 = + Drive)
+    _RIBBON_LAYOUT_VERSION = 3
 
-    def __init__(self, main_window=None, parent=None): #vers 6
+    def __init__(self, main_window=None, parent=None): #vers 7
         super().__init__(parent, main_window=main_window)   # docked: no corner handles
         self.main_window = main_window
+        self.viewport._show_wheels = True                   # wheels on by default
         self.__dict__.setdefault('_dff_model', None)        # set on DFF load
         self.__dict__.setdefault('_current_dff_path', None)
         self._handling_path: Optional[str] = None
@@ -145,7 +157,7 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         # setup_ui() already called by GUIWorkshop.__init__ via super().__init__()
 
-    def _create_centre_panel(self): #vers 1
+    def _create_centre_panel(self): #vers 2
         from PyQt6.QtWidgets import QFrame, QVBoxLayout
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
         lay = QVBoxLayout(panel); lay.setContentsMargins(0,0,0,0); lay.setSpacing(0)
@@ -159,6 +171,8 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         self._tabs.addTab(self._tab_handling, "Handling")
         self._tabs.addTab(self._tab_carcols,  "Car Colours")
         self._tabs.addTab(self._tab_carmods,  "Car Mods (SA)")
+        self._tab_slots = VehicleSlotsTab(self.WS, self._get_game_root)
+        self._tabs.addTab(self._tab_slots, "Slots")
         lay.addWidget(self._tabs)
         return panel
 
@@ -187,13 +201,15 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         self._inner_mw = self._ribbon_mw      # Ribbon Manager target
         self._apply_ribbon_layout()
 
-    def _build_ribbons(self): #vers 1
+    def _build_ribbons(self): #vers 3
         B = self.ribbon_button
         tb = self.ribbon_toolbar("File")
         B(tb, "open_icon",   "Open a DFF, TXD, handling.cfg, carcols.dat or carmods.dat  (Ctrl+O)", self._open_file)
         self.save_btn = B(tb, "save_icon", "Save the file on the current tab  (Ctrl+S) - backs up first", self._save_file)
         B(tb, "saveas_icon", "Save the current tab's file as...", self._save_as)
         B(tb, "export_icon", "Save every changed data file", self._save_all, text="All")
+        B(tb, "import_icon", "Extract LCS / VCS vehicles as DFF + TXD", self._stories_extract, text="LCS/VCS")
+        self._build_drive_ribbon()
 
     def _create_preview_tab(self): #vers 1
         """Build the 3D Preview tab with DFFViewport and vehicle controls."""
@@ -380,7 +396,7 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         except Exception as e:
             self._vw_status.setText(f'Error: {e}')
 
-    def _vw_load_txd(self, path: str): #vers 2
+    def _vw_load_txd(self, path: str): #vers 3
         try:
             from apps.methods.txd_parser import parse_txd
             with open(path,'rb') as f: data=f.read()
@@ -407,6 +423,7 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
                             item.setIcon(QIcon(px))
                         except Exception: pass
                     self._tex_list.addItem(item)
+                self._skin_set_textures(textures, data, path)
         except Exception as e:
             self._vw_status.setText(f'TXD error: {e}')
 
@@ -565,9 +582,11 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
             return False
         return True
 
-    def _save_file(self): #vers 2
-        """Save the file on the current tab (the old version saved by tab NUMBER with
-        the numbers off by one, so it wrote the wrong data to the wrong file)."""
+    def _save_file(self): #vers 3
+        """Save the file on the current tab (Slots: its changed data files)."""
+        if self._tabs.currentWidget() is getattr(self, '_tab_slots', None):
+            self._tab_slots._save()
+            return
         entry = self._current_data_tab()
         if entry is None:
             self._save_all()
@@ -628,7 +647,7 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         path, _ = QFileDialog.getOpenFileName(self, f"Open {kind}", "", f)
         if path: self._open_file(path)
 
-    def _build_menus_into_qmenu(self, pm): #vers 1
+    def _build_menus_into_qmenu(self, pm): #vers 2
         fm = pm.addMenu("File")
         fm.addAction("Open…",              self._open_file)
         fm.addAction("Save",               self._save_file)
@@ -637,6 +656,7 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         fm.addAction("Open handling.cfg",  lambda: self._open_specific("handling"))
         fm.addAction("Open carcols.dat",   lambda: self._open_specific("carcols"))
         fm.addAction("Open carmods.dat",   lambda: self._open_specific("carmods"))
+        fm.addAction("Extract LCS / VCS vehicles...", self._stories_extract)
         fm.addSeparator()
         fm.addAction("Close", self.close)
 

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_logic_func.py - Version: 22
+#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_logic_func.py - Version: 27
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene Workshop logic
 
 """
@@ -28,9 +28,11 @@ cuts.img .cut + .wad, models from cutsprops.img / componentpeds.img).
 # _cs_fetch
 # _cs_locate
 # _cs_model_arcs
+# _cs_actor_drag
 # _cs_cut_text
 # _cs_fill_list
 # _cs_iv_camera
+# _cs_iv_camera_save
 # _cs_map_load
 # _cs_map_offset
 # _cs_map_toggle
@@ -73,30 +75,55 @@ class CutsceneLogicMixin: #vers 1
             return build_iv_cut(self._cs_iv_text, self._cs_iv_spans, self._cs_sections)
         return build_cut(self._cs_sections)
 
-    def _cs_iv_camera(self) -> list: #vers 1
+    def _cs_iv_camera(self) -> list: #vers 2
         """GTA IV camera (.wad camera anims) as FOV / roll / position / target tracks."""
         import math
-        import numpy as np
-        from apps.methods.dff_skin import quat_to_matrix
-        from apps.methods.iv_anim import wad_extra_tracks
+        from apps.methods.iv_anim import cam_quat_view, wad_extra_tracks
         tracks, t0 = [[], [], [], []], 0.0
         for part in iv_cut_parts(self._cs_sections):
             raw = self._cs_iv_wads.get(part['anim'].lower())
             cam = wad_extra_tracks(raw).get(part['camera'].lower(), {}) if raw else {}
             pos, rot, fov = cam.get('cam_pos'), cam.get('cam_rot'), cam.get('cam_fov')
             if pos is not None and rot is not None:
-                for f in range(0, len(pos), 2):              # every 2nd frame (15 keys / s)
+                for f in range(len(pos)):                    # every frame: camera cuts stay sharp
                     t = t0 + f / 30.0
-                    R = quat_to_matrix(tuple(rot[min(f, len(rot) - 1)]))
-                    fwd, right, up = np.array([0, 1, 0]) @ R, np.array([1, 0, 0]) @ R, np.array([0, 0, 1]) @ R
+                    fwd, roll = cam_quat_view(rot[min(f, len(rot) - 1)])
                     v = float(fov[min(f, len(fov) - 1)][0]) if fov is not None else 45.0
                     h = math.degrees(2 * math.atan(math.tan(math.radians(v) / 2) / 0.75))   # vertical -> 4:3 h
                     tracks[0].append((t, [h]))
-                    tracks[1].append((t, [math.degrees(math.atan2(-right[2], up[2]))]))
+                    tracks[1].append((t, [roll]))
                     tracks[2].append((t, [float(x) for x in pos[f]]))
                     tracks[3].append((t, [float(x) for x in pos[f] + fwd * 5.0]))
             t0 += part['duration']
         return tracks
+
+    def _cs_iv_camera_save(self) -> list: #vers 1
+        """Edited camera tracks back into each section's .wad; names of the .wads written."""
+        import math
+        import numpy as np
+        from apps.methods.iv_anim import cam_view_quat, wad_extra_tracks, write_wad_camera
+        tr, done, t0 = self._cam_tracks, [], 0.0
+        for part in iv_cut_parts(self._cs_sections):
+            raw = self._cs_iv_wads.get(part['anim'].lower())
+            cam = wad_extra_tracks(raw).get(part['camera'].lower(), {}) if raw else {}
+            old_rot, n = cam.get('cam_rot'), len(cam.get('cam_pos', []))
+            if n and old_rot is not None:
+                pos, rot, fov = np.zeros((n, 3)), np.zeros((n, 4)), np.zeros((n, 1))
+                for f in range(n):
+                    t = t0 + f / 30.0
+                    e, g = np.array(cam_at(tr[2], t)[:3]), np.array(cam_at(tr[3], t)[:3])
+                    roll = cam_at(tr[1], t)
+                    h = cam_at(tr[0], t)
+                    pos[f] = e
+                    rot[f] = cam_view_quat(g - e, roll[0] if roll else 0.0, old_rot[min(f, len(old_rot) - 1)])
+                    hv = h[0] if h else 45.0
+                    fov[f] = math.degrees(2 * math.atan(math.tan(math.radians(hv) / 2) * 0.75))
+                new = write_wad_camera(raw, part['camera'], pos, rot, fov)
+                self._cs_write(part['anim'] + '.wad', new)
+                self._cs_iv_wads[part['anim'].lower()] = new
+                done.append(part['anim'] + '.wad')
+            t0 += part['duration']
+        return done
 
     def _open_file(self, path=None): #vers 3
         """cuts.img, or a .cut / .dat (its folder's cutscenes are listed)."""
@@ -161,13 +188,20 @@ class CutsceneLogicMixin: #vers 1
         arc = IMGFile(img if ver2 else (d or path))
         return arc if arc.open() else None
 
-    def _cs_map_offset(self): #vers 1
-        """SA .cut info 'offset x y z', or None."""
+    def _cs_map_offset(self): #vers 2
+        """(x, y, z, heading): SA .cut info offset, IV first [OFFSET] / [ORIENT]; or None."""
+        if getattr(self, '_cs_iv', False):
+            secs = dict(reversed(self._cs_sections or []))      # first of each tag
+            try:
+                x, y, z = (float(v) for v in secs['offset'][0].split()[:3])
+                return x, y, z, float(secs.get('orient', ['0'])[0].split()[0])
+            except (KeyError, IndexError, ValueError):
+                return None
         for row in dict(self._cs_sections or []).get('info', []):
             parts = row.replace(',', ' ').split()
             if len(parts) == 4 and parts[0].lower() == 'offset':
                 try:
-                    return tuple(float(v) for v in parts[1:])
+                    return tuple(float(v) for v in parts[1:]) + (0.0,)
                 except ValueError:
                     return None
         return None
@@ -178,7 +212,7 @@ class CutsceneLogicMixin: #vers 1
         self.WS.save()
         self._cs_map_load()
 
-    def _cs_map_load(self): #vers 2
+    def _cs_map_load(self): #vers 4
         """Load the game map once (background thread), then show objects around the offset."""
         import threading
         vp = self._pv_vp
@@ -186,23 +220,31 @@ class CutsceneLogicMixin: #vers 1
             return
         if not self.WS.get('show_map', False):
             vp.clear_world_instances()
+            self._cam_view.set_backdrop([])
             return
         offset = self._cs_map_offset()
         if offset is None:
             vp.clear_world_instances()
-            self._set_status(f"{self._cs_cur}: no SA offset in the .cut (III / VC / IV), no map")
+            self._cam_view.set_backdrop([])
+            self._set_status(f"{self._cs_cur}: no offset in the .cut (III / VC), no map")
             return
         base = os.path.dirname(self._cs_img.file_path) if self._cs_img is not None else self._cs_dir
         root = os.path.dirname(base or '')
+        game = 'iv' if getattr(self, '_cs_iv', False) else 'sa'
+        if game == 'iv':                                      # pc/anim -> game root (common/ + pc/)
+            root = os.path.dirname(root)
+        offset, heading = offset[:3], offset[3]
         world = getattr(self, '_cs_world', None)
         if world is not None and world[0] == root:
             if world[1] is None:                              # still loading
                 return
             from apps.methods.world_scene import build_entries, instances_near
             near = instances_near(world[1], offset, float(self.WS.get('map_radius', 150)))
-            entries, tex = build_entries(world[2], near, offset)
+            entries, tex = build_entries(world[2], near, offset, heading)
             vp._upload_textures(tex, additive=True)
             vp.set_world_instances(entries, auto_fit=False)
+            from apps.methods.world_scene import footprints
+            self._cam_view.set_backdrop(footprints(entries))      # plan view: map from above
             self._set_status(f"{self._cs_cur}: map, {len(entries)} objects around "
                              f"{offset[0]:.0f}, {offset[1]:.0f}, {offset[2]:.0f}")
             return
@@ -212,7 +254,7 @@ class CutsceneLogicMixin: #vers 1
 
         def work():
             from apps.methods.world_scene import load_world
-            result['w'] = load_world(root, 'sa')
+            result['w'] = load_world(root, game)
         threading.Thread(target=work, daemon=True).start()
         from PyQt6.QtCore import QTimer
         timer = QTimer(self)
@@ -256,9 +298,9 @@ class CutsceneLogicMixin: #vers 1
             data = open(p, 'rb').read() if os.path.isfile(p) else b''
         return data.rstrip(b'\0').decode('latin-1')
 
-    def _cs_write(self, filename: str, text: str) -> bool: #vers 1
-        """Write a cutscene file back (IMG entry replaced, or loose file)."""
-        data = text.encode('latin-1')
+    def _cs_write(self, filename: str, text) -> bool: #vers 2
+        """Write a cutscene file back (IMG entry replaced, or loose file); text or bytes."""
+        data = text if isinstance(text, bytes) else text.encode('latin-1')
         if self._cs_img is not None:
             e = next((x for x in self._cs_img.entries if x.name.lower() == filename.lower()), None)
             return self._cs_img.add_entry(e.name if e else filename, data)
@@ -267,7 +309,7 @@ class CutsceneLogicMixin: #vers 1
         safe_write_bytes(os.path.join(self._cs_dir, match[0] if match else filename), data)
         return True
 
-    def _cs_select(self, name: str): #vers 6
+    def _cs_select(self, name: str): #vers 7
         """Load a cutscene's .cut and .dat (asks to save edits first)."""
         if not name or name == getattr(self, '_cs_cur', None):
             return
@@ -294,6 +336,8 @@ class CutsceneLogicMixin: #vers 1
             self._cs_iv_text, self._cs_iv_spans = raw_cut, spans
             self._cs_iv_wads = {p['anim'].lower(): self._cs_fetch(p['anim'], '.wad') for p in iv_cut_parts(sections)}
             tracks = self._cs_iv_camera()
+            import copy
+            self._cam_orig = copy.deepcopy(tracks)               # camera saved only when edited
         if not self._cs_sections:
             self._set_status(f"{name}: no .cut (III / VC keep the script in main.scm); camera and preview only")
         self._cam_tracks = tracks
@@ -400,7 +444,7 @@ class CutsceneLogicMixin: #vers 1
                 self._cs_sec_combo.blockSignals(False)
                 self._cs_show_section(self._cs_sec_combo.currentIndex())
 
-    def _cam_show_track(self, idx: int): #vers 1
+    def _cam_show_track(self, idx: int): #vers 2
         """Fill the key table for one camera track."""
         tracks = getattr(self, '_cam_tracks', None)
         if not tracks:
@@ -422,6 +466,8 @@ class CutsceneLogicMixin: #vers 1
         t.resizeColumnsToContents()
         self._cs_loading = False
         self._cam_update_view()
+        if hasattr(self, '_shots_tbl'):
+            self._shots_fill()                           # shot list follows the keys
 
     def _cam_table_changed(self, _item=None): #vers 1
         """Key table edited: rebuild the track (sorted by time)."""
@@ -520,7 +566,7 @@ class CutsceneLogicMixin: #vers 1
         if f:
             self._cam_time_lbl.setText(f"{now_t:.2f} / {end:.2f} s   FOV {f[0]:.1f}")
 
-    def _save_file(self): #vers 3
+    def _save_file(self): #vers 5
         """Write the current cutscene's .cut and .dat back."""
         name = getattr(self, '_cs_cur', None)
         if not name:
@@ -530,14 +576,48 @@ class CutsceneLogicMixin: #vers 1
             self._cs_prev_tab = self._cs_tabs.currentIndex()
         ok = self._cs_write(name + '.cut', self._cs_cut_text())
         iv = getattr(self, '_cs_iv', False)
+        anim = ''
+        if getattr(self, '_pv_anim_dirty', False) and getattr(self._pv_scene, 'ifp', None):
+            from apps.methods.ifp_format import build_ifp
+            ok = self._cs_write(name + '.ifp', build_ifp(self._pv_scene.ifp)) and ok   # moved routes
+            self._pv_anim_dirty, anim = False, f", {name}.ifp"
+        wads = []
         if not iv:
             ok = self._cs_write(name + '.dat', build_cam_dat(self._cam_tracks)) and ok
+        elif self._cam_tracks != getattr(self, '_cam_orig', None):
+            try:
+                wads = self._cs_iv_camera_save()               # IV camera lives in the .wad parts
+                import copy
+                self._cam_orig = copy.deepcopy(self._cam_tracks)
+            except ValueError as e:
+                QMessageBox.warning(self, self.App_name, f"Camera not saved: {e}")
         if ok:
             self._cs_dirty = False
-            self._set_status(f"Saved {name}.cut" + (" (IV camera is in the .wad: not saved)" if iv
-                                                     else f" and {name}.dat"))
+            self._set_status(f"Saved {name}.cut" + (f" and {', '.join(wads)}" if wads else "" if iv
+                                                     else f" and {name}.dat") + anim)
         else:
             QMessageBox.warning(self, self.App_name, f"Couldn't save {name}")
+
+    def _cs_actor_drag(self, n: int, t: float, x: float, y: float, finished: bool): #vers 1
+        """Plan view: an actor node dragged to (x, y): bend its route around time t."""
+        sc = getattr(self, '_pv_scene', None)
+        paths = getattr(self, '_pv_paths', None)
+        if sc is None or not paths or n >= len(paths) or not paths[n][1]:
+            return
+        for _ in range(3):                               # node lands on the cursor (keys between frames)
+            cur = min(paths[n][1], key=lambda r: abs(r[0] - t))
+            if abs(x - cur[1]) + abs(y - cur[2]) < 0.02:
+                break
+            if not sc.move_actor(n, t, x - cur[1], y - cur[2]):
+                self._set_status(f"{paths[n][0]}: route can't be moved here (GTA IV mover, or no root track)")
+                return
+            for i, it in enumerate(sc.items):            # items sharing the anim move too
+                if it.get('anim') is sc.items[n].get('anim'):
+                    paths[i] = sc.actor_paths(only=i)[0]
+        self._cs_preview_draw()
+        if finished:
+            self._pv_anim_dirty = self._cs_dirty = True
+            self._set_status(f"{paths[n][0]}: route moved at {t:.1f} s (Save writes {self._cs_cur}.ifp)")
 
     def _cs_model_arcs(self) -> list: #vers 3
         """[(path, IMGFile)] of the model IMGs (SA cutscene / gta3 / player; IV cutsprops / peds / cars)."""
@@ -604,7 +684,7 @@ class CutsceneLogicMixin: #vers 1
                         return parse_clothes_dat(f.read())
         return None
 
-    def _cs_preview_load(self): #vers 12
+    def _cs_preview_load(self): #vers 13
         """Build the 3D scene and sound for the current cutscene (viewport made on first use)."""
         if self._pv_vp is None:
             from PyQt6.QtCore import QObject, Qt
@@ -645,6 +725,7 @@ class CutsceneLogicMixin: #vers 1
                                            self._cs_cast_fetch, self._cs_clothes_rules())
             self._pv_scene.lift = float(self.WS.get('model_lift', 1.0))   # SA: 1 m = map ground
         self._pv_for = self._cs_cur
+        self._pv_paths = self._pv_scene.actor_paths()              # plan view routes
         self._pv_vp.clear_textures()
         self._pv_vp._upload_textures(self._pv_scene.textures())
         sc = self._pv_scene
@@ -662,7 +743,7 @@ class CutsceneLogicMixin: #vers 1
         if self.WS.get('show_map', False):
             self._cs_map_load()
 
-    def _cs_preview_draw(self): #vers 4
+    def _cs_preview_draw(self): #vers 5
         """Pose models at the preview time; cutscene camera when locked; path view follows."""
         import math
         sc, vp = self._pv_scene, self._pv_vp
@@ -674,6 +755,8 @@ class CutsceneLogicMixin: #vers 1
         tr = self._cam_tracks
         end = max(sc.duration, getattr(self, '_cam_end', 0.0)) or 1.0
         self._pv_time.setText(f"{t:.2f} / {end:.2f} s  F{round(t * 30)}")
+        if not self._cam_view.isHidden():                # plan view shown
+            self._cam_view.set_actors(getattr(self, '_pv_paths', []), t)
         if self._pv_camera.isChecked() and tr[2] and tr[3]:
             fov, roll = cam_at(tr[0], t), cam_at(tr[1], t)
             h = fov[0] if fov else 70.0                  # game FOV is horizontal at 4:3

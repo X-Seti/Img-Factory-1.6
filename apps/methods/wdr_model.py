@@ -1,4 +1,4 @@
-#this belongs in apps/methods/wdr_model.py - Version: 6
+#this belongs in apps/methods/wdr_model.py - Version: 7
 # X-Seti - October 07 2026 - IMG Factory 1.6 - GTA IV drawables
 
 """
@@ -7,6 +7,7 @@ GTA IV .wdr / .wdd / .wft (RSC5 drawables) to DFFModel geometry for Map Workshop
 
 ##Methods list -
 # _bone_matrices
+# _bone_names
 # _collection
 # _cstr
 # _decode_blend
@@ -276,20 +277,35 @@ def parse_wdr(data: bytes, name: str = '') -> DFFModel: #vers 2
     return _drawable_model(z, vs, 0, name)
 
 
-def parse_wft(data: bytes, name: str = '') -> DFFModel: #vers 1
-    """GTA IV .wft fragment: every child's undamaged drawable merged."""
+def parse_wft(data: bytes, name: str = '') -> DFFModel: #vers 2
+    """GTA IV .wft fragment: main drawable plus rotors (vehicles), else every child's drawable."""
     z, vs = _unpack(data)
     main = _ptr(z, vs, 0xB4)
     if main is None:
         raise ValueError(f"{name}: fragment has no drawable")
     textures, bones = _shader_textures(z, vs, main), _bone_matrices(z, vs, main)
     out = DFFModel(source_path=name)
+    whole = False
+    try:
+        _drawable_model(z, vs, main, name, textures, bones, out)
+        whole = True                     # vehicles: children copy its parts, rotors excepted
+    except ValueError:
+        pass                             # props: geometry only in the children
+    names = _bone_names(z, vs, main) if whole else []
     children = _ptr(z, vs, 0xD4)
     for i in range(z[0x1F3] if children is not None else 0):   # child count
         child = _ptr(z, vs, children + 4 * i)
         if child is None or struct.unpack_from('<I', z, child)[0] != _FRAG_CHILD_VTABLE:
             raise ValueError(f"{name}: fragment child {i} unreadable")
         drawable = _ptr(z, vs, child + 0x90)
+        if whole:
+            bone = struct.unpack_from('<H', z, child + 0x0E)[0]   # child's bone
+            if drawable is not None and bone < len(names) and names[bone].startswith('static_rotor'):
+                try:
+                    _drawable_model(z, vs, drawable, name, textures, [bones[bone]] * 256, out)
+                except ValueError:
+                    pass
+            continue
         if drawable is not None:
             try:
                 _drawable_model(z, vs, drawable, name, textures, bones, out)
@@ -297,6 +313,19 @@ def parse_wft(data: bytes, name: str = '') -> DFFModel: #vers 1
                 pass                     # child without geometry
     if not out.geometries:
         raise ValueError(f"{name}: fragment has no geometry")
+    return out
+
+
+def _bone_names(z: bytes, vs: int, drawable: int) -> List[str]: #vers 1
+    """Skeleton bone names, lower case."""
+    sk = _ptr(z, vs, drawable + 0x0C)
+    bones = _ptr(z, vs, sk) if sk is not None else None
+    if bones is None:
+        return []
+    out = []
+    for i in range(struct.unpack_from('<H', z, sk + 0x14)[0]):
+        p = _ptr(z, vs, bones + i * _BONE_SIZE)
+        out.append(_cstr(z, p).lower() if p is not None else '')
     return out
 
 

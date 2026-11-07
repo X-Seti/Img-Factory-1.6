@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 107
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 108
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -977,6 +977,14 @@ class SVGIconFactory: #vers 8
             <path d="M15 11l6-3.5v10L15 14z" fill="#2F7FE0" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round"/>
             <circle cx="5.5" cy="5.5" r="2.5" fill="none" stroke="#2F7FE0" stroke-width="1.6"/>
             <circle cx="11" cy="5.5" r="2.5" fill="none" stroke="#2F7FE0" stroke-width="1.6"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def plan_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Plan view: top-down grid with a camera view cone and a node path"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="2" width="20" height="20" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M5 19l14-9" stroke="currentColor" stroke-width="0.8" stroke-dasharray="1.5 1.5"/><path d="M5 19L9 6 14 17z" fill="#2F7FE0" fill-opacity="0.35" stroke="#2F7FE0" stroke-width="1.3" stroke-linejoin="round"/><circle cx="5" cy="19" r="1.8" fill="#2F7FE0"/><path d="M15 6l3 4 2 5" stroke="#E0A030" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="15" cy="6" r="1.3" fill="#E0A030"/><circle cx="18" cy="10" r="1.3" fill="#E0A030"/><circle cx="20" cy="15" r="1.3" fill="#E0A030"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

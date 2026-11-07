@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_layout_func.py - Version: 2
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_layout_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop layout
 
 """
@@ -68,7 +68,7 @@ class VehicleLayoutMixin:
         main_layout.addWidget(splitter, 1)
         main_layout.addWidget(self._create_status_bar())
 
-    def _create_left_panel(self): #vers 2
+    def _create_left_panel(self): #vers 3
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(180); panel.setMaximumWidth(280)
         outer = QVBoxLayout(panel)
@@ -109,6 +109,7 @@ class VehicleLayoutMixin:
         self._tex_list.setIconSize(QSize(32,32))
         self._tex_list.setViewMode(QListWidget.ViewMode.ListMode)
         tl.addWidget(self._tex_list)
+        tl.addWidget(self._skin_bar())                       # DP5, replace, add, export, save
         splitter.addWidget(tex_sec)
 
         # - Frame Hierarchy section with visibility checkboxes
@@ -175,7 +176,7 @@ class VehicleLayoutMixin:
         return panel
 
         # - right panel — model info
-    def _create_right_panel(self): #vers 4
+    def _create_right_panel(self): #vers 5
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(155); panel.setMaximumWidth(200)
         lay = QVBoxLayout(panel)
@@ -344,7 +345,7 @@ class VehicleLayoutMixin:
 
         #    Wheels                                        
         self._wheels_btn = _tbtn_txt("Wheels", "Show wheels",
-                                     self._toggle_show_wheels, 'col_workshop', True, False)
+                                     self._toggle_show_wheels, 'col_workshop', True, True)
         self._wheels_btn.setFixedWidth(72)
         steer_slider = QSlider(Qt.Orientation.Horizontal)
         steer_slider.setRange(-35, 35); steer_slider.setValue(0)
@@ -584,7 +585,7 @@ class VehicleLayoutMixin:
 
         #    Wheels: [Show Wheels] Steer [--x--] same row  
         self._wheels_btn = _tbtn("Wheels", "Show wheels at dummy positions",
-                                 self._toggle_show_wheels, 'mesh', True, False)
+                                 self._toggle_show_wheels, 'mesh', True, True)
         self._wheels_btn.setFixedWidth(70)
         steer_slider = QSlider(Qt.Orientation.Horizontal)
         steer_slider.setRange(-35, 35); steer_slider.setValue(0)
@@ -827,7 +828,7 @@ class VehicleLayoutMixin:
         lbl_w = QLabel('Wheels'); lbl_w.setFont(self.panel_font)
         lay.addWidget(lbl_w)
         self._wheels_btn = _btn("Show Wheels", "Load and show wheels at dummy positions",
-                                self._toggle_show_wheels, None, True, False)
+                                self._toggle_show_wheels, None, True, True)
         lay.addWidget(self._wheels_btn)
 
         from PyQt6.QtWidgets import QSlider

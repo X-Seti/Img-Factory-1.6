@@ -1,4 +1,4 @@
-#this belongs in apps/methods/iv_anim.py - Version: 2
+#this belongs in apps/methods/iv_anim.py - Version: 3
 # X-Seti - October 23 2026 - IMG Factory 1.6 - GTA IV ped skeleton and WAD anims
 
 """
@@ -6,7 +6,8 @@ GTA IV ped animation: the skeleton of a ped .wft as a dff_skin Skeleton
 (frames carry the IV bone ids), skins for the .wdd component meshes, and
 .wad anim dictionaries (RSC5 crAnimation: quantized / static / raw float
 channels) read into IFPAnim objects so Ped Workshop plays them like IFPs;
-cutscene mover and camera tracks (position, rotation, FOV) per anim.
+cutscene mover and camera tracks (position, rotation, FOV) per anim, and
+edited camera tracks written back in place (same layout, re-quantized).
 """
 
 ##Methods list -
@@ -17,8 +18,12 @@ cutscene mover and camera tracks (position, rotation, FOV) per anim.
 # iv_skeleton
 # iv_skins
 # parse_wad
+# _put_channel
+# cam_quat_view
+# cam_view_quat
 # wad_anim_list
 # wad_extra_tracks
+# write_wad_camera
 
 import struct
 from typing import List
@@ -218,3 +223,127 @@ def wad_extra_tracks(data: bytes) -> dict: #vers 1
         if got:
             out[aname] = {k: np.concatenate(v)[:frames] for k, v in got.items()}
     return out
+
+
+def _put_channel(z: bytearray, vs: int, ch: int, values: np.ndarray) -> bool: #vers 1
+    """Write one channel's values in place; False if it can't hold them (static, too short)."""
+    kind = z[ch + 5]
+    if kind == 4:                                         # static: only when the values don't change
+        if np.ptp(values) > 1e-5:
+            return False
+        struct.pack_into('<f', z, ch + 8, float(values[0]))
+        return True
+    if kind == 1:
+        data, n = _ptr(z, vs, ch + 8), struct.unpack_from('<H', z, ch + 12)[0]
+        z[data:data + 4 * n] = np.resize(values, n).astype('<f4').tobytes()
+        return True
+    if kind == 6:
+        data = _ptr(z, vs, ch + 8)
+        bits, n = struct.unpack_from('<II', z, ch + 12)
+        if bits == 0 or n == 0:
+            if np.ptp(values) > 1e-5:
+                return False
+            struct.pack_into('<f', z, ch + 24, float(values[0]))
+            return True
+        v = np.resize(values, n).astype(np.float64)
+        lo, hi = float(v.min()), float(v.max())
+        top = (1 << bits) - 1
+        scale = (hi - lo) / top if hi > lo else 0.0
+        q = np.round((v - lo) / scale).astype(np.int64) if scale else np.zeros(n, np.int64)
+        q = np.clip(q, 0, top)
+        bitarr = ((q[:, None] >> np.arange(bits)) & 1).astype(np.uint8).reshape(-1)
+        words = (bits * n + 31) // 32
+        packed = np.packbits(np.concatenate([bitarr, np.zeros(words * 32 - len(bitarr), np.uint8)]),
+                             bitorder='little')
+        z[data:data + words * 4] = packed.tobytes()
+        struct.pack_into('<ff', z, ch + 20, scale, lo)
+        return True
+    return False
+
+
+def write_wad_camera(data: bytes, cam_name: str, pos=None, rot=None, fov=None) -> bytes: #vers 1
+    """.wad with one camera anim's position / rotation / FOV (per frame) replaced in place."""
+    import zlib
+    z, vs = _unpack_wad(data)
+    z = bytearray(z)
+    count = struct.unpack_from('<H', z, 0x14)[0]
+    arr = _ptr(z, vs, 0x18)
+    want = {7: pos, 8: rot, 136: fov}
+    done = set()
+    for i in range(count):
+        a = _ptr(z, vs, arr + 4 * i)
+        na = _ptr(z, vs, a + 0x1C)
+        aname = z[na:z.index(b'\0', na)].decode('latin-1').split(':/', 1)[-1] if na else ''
+        aname = (aname[:-5] if aname.lower().endswith('.anim') else aname).lower()
+        if aname != cam_name.lower():
+            continue
+        seqs = [_ptr(z, vs, _ptr(z, vs, a + 0x14) + 4 * s) for s in range(struct.unpack_from('<H', z, a + 0x18)[0])]
+        start = 0
+        for sq in seqs:
+            sframes = struct.unpack_from('<I', z, sq + 0x0C)[0]
+            dp, n = _ptr(z, vs, sq), struct.unpack_from('<H', z, sq + 4)[0]
+            for k in range(n):
+                td = _ptr(z, vs, dp + 4 * k)
+                tid = struct.unpack_from('<I', z, td)[0]
+                track, fmt = tid & 0xFF, (tid >> 8) & 0xFF
+                vals = want.get(track)
+                if vals is None or tid >> 16:
+                    continue
+                seg = np.asarray(vals, np.float64)[start:start + sframes]
+                seg = np.concatenate([seg, np.repeat(seg[-1:], sframes - len(seg), 0)]) if len(seg) < sframes else seg
+                seg = seg.reshape(len(seg), -1)
+                if fmt >> 4 == 0:                         # one static value / vector
+                    if np.ptp(seg, axis=0).max() > 1e-5:
+                        raise ValueError(f"{cam_name}: track {track} is fixed in the file; can't animate it")
+                    ch = _ptr(z, vs, td + 4)
+                    vp = _ptr(z, vs, ch + 8)
+                    if vp is not None:
+                        z[vp:vp + 4 * seg.shape[1]] = seg[0].astype('<f4').tobytes()
+                    else:
+                        struct.pack_into('<f', z, ch + 8, float(seg[0][0]))
+                else:
+                    nch = struct.unpack_from('<I', z, td + 0x14)[0]
+                    for c in range(min(nch, seg.shape[1])):
+                        if not _put_channel(z, vs, _ptr(z, vs, td + 4 + 4 * c), seg[:, c]):
+                            raise ValueError(f"{cam_name}: track {track} channel {c} can't hold the new values")
+                done.add(track)
+            start += sframes - 1                          # 1 frame overlap between sequences
+    if not done:
+        raise ValueError(f"{cam_name}: camera anim not found in the .wad")
+    return bytes(data[:12]) + zlib.compress(bytes(z), 9)
+
+
+def cam_quat_view(q) -> tuple: #vers 1
+    """IV camera quat -> (forward vector, roll degrees); the camera looks along local +Y, up +Z."""
+    import math
+    from apps.methods.dff_skin import quat_to_matrix
+    R = quat_to_matrix(tuple(q))
+    right, fwd, up = R[0], R[1], R[2]
+    return fwd, math.degrees(math.atan2(-right[2], up[2]))
+
+
+def cam_view_quat(fwd, roll: float, near=None) -> np.ndarray: #vers 1
+    """(forward vector, roll degrees) -> IV camera quat (x, y, z, w); sign kept close to near."""
+    import math
+    f = np.asarray(fwd, np.float64)
+    f = f / (np.linalg.norm(f) or 1.0)
+    r0 = np.cross(f, (0.0, 0.0, 1.0))
+    r0 = r0 / (np.linalg.norm(r0) or 1.0)
+    u0 = np.cross(r0, f)
+    a = math.radians(-roll)
+    right, up = r0 * math.cos(a) + u0 * math.sin(a), -r0 * math.sin(a) + u0 * math.cos(a)
+    m = np.array([right, f, up]).T                         # column-vector rotation (rows were v @ M)
+    tr = m[0, 0] + m[1, 1] + m[2, 2]
+    if tr > 0:
+        w = math.sqrt(1.0 + tr) / 2
+        q = np.array([(m[2, 1] - m[1, 2]) / (4 * w), (m[0, 2] - m[2, 0]) / (4 * w), (m[1, 0] - m[0, 1]) / (4 * w), w])
+    else:
+        i = int(np.argmax([m[0, 0], m[1, 1], m[2, 2]]))
+        j, k = (i + 1) % 3, (i + 2) % 3
+        t = math.sqrt(1.0 + m[i, i] - m[j, j] - m[k, k]) * 2
+        q = np.zeros(4)
+        q[i], q[3] = t / 4, (m[k, j] - m[j, k]) / t
+        q[j], q[k] = (m[j, i] + m[i, j]) / t, (m[k, i] + m[i, k]) / t
+    if near is not None and np.dot(q, near) < 0:
+        q = -q
+    return q

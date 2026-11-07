@@ -66,8 +66,8 @@ class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedA
         """Own ribbon and dock layout file."""
         return get_user_config_dir() / 'ped_workshop.json'
 
-    def _default_ped_docks(self, docks): #vers 2
-        """No saved layout: Peds 42 %, Animation 30 %, Bones 28 % of the right column."""
+    def _default_ped_docks(self, docks): #vers 3
+        """No saved layout: narrow side columns; Peds 42 %, Animation 30 %, Bones 28 % on the right."""
         import json
         try:
             data = json.loads(self._ribbon_config_path().read_text())
@@ -75,9 +75,12 @@ class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedA
                 return
         except Exception:
             pass
-        h = max(400, self._outer_mw.height())
-        self._outer_mw.resizeDocks(list(docks), [int(h * 0.42), int(h * 0.3), int(h * 0.28)],
-                                   Qt.Orientation.Vertical)
+        mw = self._outer_mw
+        h = max(400, mw.height())
+        mw.resizeDocks(list(docks), [int(h * 0.42), int(h * 0.3), int(h * 0.28)], Qt.Orientation.Vertical)
+        left = [d for d in (self._middle_dock, self._frame_hierarchy_dock, self._texture_dock) if d is not None]
+        w = max(900, mw.width())
+        mw.resizeDocks(left[:1] + [docks[0]], [int(w * 0.17), int(w * 0.2)], Qt.Orientation.Horizontal)
 
     _PED_VIEWS = (("Front", 180), ("Right", 270), ("Back", 0), ("Left", 90))   # (name, yaw)
 
@@ -316,15 +319,22 @@ class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedA
             self._init_animator(raw)
             self._skin_refresh()
 
-    def setup_ui(self): #vers 17
+    def setup_ui(self): #vers 19
         """Model Workshop layout, then Peds, Animation and Bones docks on the right."""
         super().setup_ui()
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
         self.setWindowIcon(SVGIconFactory.ped_app_icon(32))       # same icon as Intro / right pane
         mw = self._outer_mw
+        from PyQt6.QtWidgets import QWidget as _W
+        for d in (self._middle_dock, self._frame_hierarchy_dock, self._texture_dock):
+            if d is not None:                                    # side columns condense
+                d.setMinimumWidth(170)
+                for w in [d.widget()] + d.widget().findChildren(_W):
+                    if w.minimumWidth() > 170:
+                        w.setMinimumWidth(170)
         docks = (self._create_peds_dock(), self._create_anim_dock(), self._create_bones_dock())
         for dock, title in zip(docks, ("Peds", "Animation", "Bones")):
-            dock.setMinimumWidth(280)
+            dock.setMinimumWidth(200)
             self._make_dock_collapsible(dock, title)
             mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         mw.splitDockWidget(docks[0], docks[1], Qt.Orientation.Vertical)
@@ -347,7 +357,9 @@ class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedA
         from PyQt6.QtWidgets import QAbstractSpinBox, QComboBox, QLineEdit, QSizePolicy
         tb = self._anim_tool_button
         self._ped_root_label.setStyleSheet("padding-left: 6px;")
-        self._ped_search.setMinimumWidth(70)
+        self._ped_root_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._ped_root_label.setMinimumWidth(30)                 # folder text clips, dock narrows
+        self._ped_search.setMinimumWidth(50)
         for w in (self._ped_root_label,          # Peds | folder | folder, open | filter | save, save all | x
                   tb('folder_icon', "Game folder: GTA III, VC, SA or IV install", lambda: self._open_ped_root('')),
                   tb('open_icon', "Open a game folder, IFP or model", self._ped_open_menu),
@@ -376,7 +388,7 @@ class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedA
         self._ped_table.verticalHeader().setDefaultSectionSize(22)
         for w in self._rot_spins + self._pos_spins:            # pose fields shrink with the dock
             w.setMinimumWidth(44)
-            w.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            w.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         from PyQt6.QtWidgets import QToolBar
         from PyQt6.QtGui import QAction
         from apps.methods.imgfactory_svg_icons import SVGIconFactory

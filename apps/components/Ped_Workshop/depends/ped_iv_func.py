@@ -28,14 +28,16 @@ from apps.methods.ped_files import IV_SLOTS, iv_component_names, read_ped_variat
 class PedIVMixin: #vers 1
     """GTA IV component peds for PedWorkshop."""
 
-    def _create_iv_tab(self): #vers 2
+    def _create_iv_tab(self): #vers 3
         """Components tab (GTA IV): one drawable + texture combo row per slot."""
         page = QWidget()
         self._iv_form = QFormLayout(page)
         self._iv_form.setContentsMargins(4, 4, 4, 4)
         self._iv_info = QLabel("GTA IV: pick a ped in the Peds tab")
-        save = QPushButton("Save to componentpeds.img")
-        save.setToolTip("Write changed meshes (.wdd) and textures (.wtd) back (entry backups first)")
+        self._iv_info.setWordWrap(True)                     # narrow dock
+        save = QPushButton("Save")
+        save.setToolTip("Save to componentpeds.img: changed meshes (.wdd) and textures (.wtd), "
+                        "entry backups first")
         save.clicked.connect(lambda _c=False: self._iv_save())
         top = QHBoxLayout()
         top.addWidget(self._iv_info, 1)

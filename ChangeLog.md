@@ -1,5 +1,27 @@
-#this belongs in root /ChangeLog.md - Version: 456
+#this belongs in root /ChangeLog.md - Version: 468
 
+
+- Nov 07 2026 - Vehicle Workshop: wheels default on, steering, Grid chip, skins (DP5, replace, add, save to IMG), LCS/VCS extract, Drive mode. Ped docks condensed.
+- Nov 07 2026 - Workshop fonts: bundled PT Sans Narrow default; Settings picks any bundled compact font for all workshops. Ped Bones value boxes narrower, no overlap.
+- Nov 07 2026 - Bugs: viewport crash on mouse move (_mesh_drag unset). Wire chip on the viewport; no wire in Texture only. Cutscene cast Send keeps the window open.
+
+- Nov 06 2026 - TODO: Cutscene new scene (SA). GXT editor. Icons v108 sync to all repos; remove duplicate get_radar_workshop_icon. VC ID patch awaits source.
+
+- Nov 06 2026 - Cutscene Workshop Shots panel: shot list from the camera .dat; change length, add hold or follow-actor shot, split, delete, reorder (III / VC / SA).
+
+- Nov 06 2026 - Cutscene Workshop: drag actor route nodes in the Plan view (III / VC / SA); route bends around that time, Save writes the .ifp.
+
+- Nov 06 2026 - Vehicle Workshop Slots tab: every vehicle ID with model, TXD, handling, colours; add from a template, swap model, remove, check. vehicles.img made on demand.
+
+- Nov 06 2026 - Cutscene Workshop Plan view beside the 3D view: camera with view area, actor routes, map footprints, zoom / pan. plan_view_icon added.
+
+- Nov 06 2026 - Cutscene Workshop Game view hides back faces, as the game does (walls no longer block the camera).
+
+- Nov 06 2026 - GTA IV .wft vehicles: body from the main drawable, static rotors added (was one wheel only). IV cutscene cars get vehshare textures.
+
+- Nov 06 2026 - Cutscene Workshop Map for GTA IV: scene turned by [OFFSET]/[ORIENT]; IV interiors (mlo entities) placed. IDE parser reads mlo entity lists.
+
+- Nov 06 2026 - IV cutscene props get their embedded textures. IV camera edits saved back into the .wad parts.
 
 - Nov 06 2026 - GTA IV .rpf (RPF2) read and write: IMG Factory opens, extracts, replaces, adds; rpf_archive.py new. Niko from playerped.rpf in Cutscene Workshop.
 

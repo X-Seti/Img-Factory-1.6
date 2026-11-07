@@ -1,4 +1,4 @@
-#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_cast_func.py - Version: 3
+#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_cast_func.py - Version: 4
 # X-Seti - November 06 2026 - IMG Factory 1.6 - Cutscene Workshop cast
 
 """
@@ -55,7 +55,7 @@ WORKSHOPS = {'ped': ('apps.components.Ped_Workshop.ped_workshop', "Ped Workshop"
              'object': ('apps.components.Model_Editor.model_workshop', "Model Workshop")}
 
 
-class CutsceneCastMixin: #vers 1
+class CutsceneCastMixin: #vers 3
     """Cast of the current cutscene: swap, add, remove, import, export, send."""
 
     def _create_cast_panel(self): #vers 1
@@ -63,6 +63,7 @@ class CutsceneCastMixin: #vers 1
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(2, 2, 2, 2)
+
         self._cast_table = QTableWidget(0, len(CAST_COLS))
         self._cast_table.setHorizontalHeaderLabels(CAST_COLS)
         self._cast_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -70,28 +71,75 @@ class CutsceneCastMixin: #vers 1
         self._cast_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self._cast_table.doubleClicked.connect(lambda *_: self._cast_swap())
         lay.addWidget(self._cast_table, 1)
+
         grid = QGridLayout()
-        for i, (text, slot, tip) in enumerate((
-                ("Swap", self._cast_swap, "Play this part with another model (preview)"),
-                ("Clear", self._cast_clear, "Back to the original model"),
-                ("Add", self._cast_add, "Add a model to the .cut (SA)"),
-                ("Remove", self._cast_remove, "Remove the model from the .cut (SA)"),
-                ("Import", self._cast_import, "Stand-in from a DFF / TXD file"),
-                ("Export", self._cast_export, "Save the DFF / TXD as they are"),
-                ("For game", self._cast_export_game, "Save converted for in-game use"),
-                ("Send to", self._cast_send, "Open in the Ped / Vehicle / Model Workshop"),
-                ("Write", self._cast_apply, "Write the stand-ins into the game IMG"))):
-            b = QPushButton(text)
-            b.setToolTip(tip)
-            b.clicked.connect(slot)
-            grid.addWidget(b, i // 3, i % 3)
+
+        # 1. Swap Button
+        self._btn_swap = QPushButton("Swap")
+        self._btn_swap.setToolTip("Play this part with another model (preview)")
+        self._btn_swap.clicked.connect(self._cast_swap)
+        # Example for individual styling/sizing:
+         self._btn_swap.setStyleSheet("background-color: #333; color: white;")
+         self._btn_swap.setFixedSize(100, 30)
+        grid.addWidget(self._btn_swap, 0, 0)
+
+        # 2. Clear Button
+        self._btn_clear = QPushButton("Clear")
+        self._btn_clear.setToolTip("Back to the original model")
+        self._btn_clear.clicked.connect(self._cast_clear)
+        grid.addWidget(self._btn_clear, 0, 1)
+
+        # 3. Add Button
+        self._btn_add = QPushButton("Add")
+        self._btn_add.setToolTip("Add a model to the .cut (SA)")
+        self._btn_add.clicked.connect(self._cast_add)
+        grid.addWidget(self._btn_add, 0, 2)
+
+        # 4. Remove Button
+        self._btn_remove = QPushButton("Remove")
+        self._btn_remove.setToolTip("Remove the model from the .cut (SA)")
+        self._btn_remove.clicked.connect(self._cast_remove)
+        grid.addWidget(self._btn_remove, 1, 0)
+
+        # 5. Import Button
+        self._btn_import = QPushButton("Import")
+        self._btn_import.setToolTip("Stand-in from a DFF / TXD file")
+        self._btn_import.clicked.connect(self._cast_import)
+        grid.addWidget(self._btn_import, 1, 1)
+
+        # 6. Export Button
+        self._btn_export = QPushButton("Export")
+        self._btn_export.setToolTip("Save the DFF / TXD as they are")
+        self._btn_export.clicked.connect(self._cast_export)
+        grid.addWidget(self._btn_export, 1, 2)
+
+        # 7. For Game Button
+        self._btn_export_game = QPushButton("For game")
+        self._btn_export_game.setToolTip("Save converted for in-game use")
+        self._btn_export_game.clicked.connect(self._cast_export_game)
+        grid.addWidget(self._btn_export_game, 2, 0)
+
+        # 8. Send To Button
+        self._btn_send = QPushButton("Send to")
+        self._btn_send.setToolTip("Open in the Ped / Vehicle / Model Workshop")
+        self._btn_send.clicked.connect(self._cast_send)
+        grid.addWidget(self._btn_send, 2, 1)
+
+        # 9. Write Button
+        self._btn_apply = QPushButton("Write")
+        self._btn_apply.setToolTip("Write the stand-ins into the game IMG")
+        self._btn_apply.clicked.connect(self._cast_apply)
+        grid.addWidget(self._btn_apply, 2, 2)
+
         lay.addLayout(grid)
         self._cast_swaps, self._cast_kinds = {}, {}
         return w
 
+
     def _cast_iv(self) -> bool: #vers 1
         """True for a GTA IV cutscene."""
         return bool(getattr(self, '_cs_iv', False))
+
 
     def _cast_model_files(self, name: str) -> dict: #vers 1
         """{ext: bytes} of a model's files (stand-in when swapped)."""
@@ -104,6 +152,7 @@ class CutsceneCastMixin: #vers 1
             if data is not None:
                 out[ext] = data
         return out
+
 
     def _cast_rows(self) -> list: #vers 2
         """[(model, animation, row key or None)] like the preview builds them (IV: first section)."""
@@ -122,6 +171,7 @@ class CutsceneCastMixin: #vers 1
             raw = self._cs_fetch(self._cs_cur, '.ifp')
             out = [(a.name, a.name, None) for a in (parse_ifp(raw).anims if raw else [])]
         return out
+
 
     def _cast_kind(self, name: str) -> str: #vers 3
         """ped / vehicle / object / missing from the model's frames (IV: its file types)."""
@@ -153,6 +203,7 @@ class CutsceneCastMixin: #vers 1
         self._cast_kinds[name.lower()] = kind
         return kind
 
+
     def _cast_fill(self): #vers 2
         """Table of the current cutscene's cast."""
         t = self._cast_table
@@ -168,6 +219,7 @@ class CutsceneCastMixin: #vers 1
             for c, v in enumerate((model, anim, self._cast_kind(model), where, sw['label'] if sw else '')):
                 t.setItem(r, c, QTableWidgetItem(v))
 
+
     def _cast_current(self): #vers 1
         """(model, animation, .cut row) of the selected cast row, or None."""
         r = self._cast_table.currentRow()
@@ -177,12 +229,14 @@ class CutsceneCastMixin: #vers 1
             return None
         return rows[r]
 
+
     def _cs_cast_fetch(self, name: str, ext: str): #vers 2
         """Preview fetch: a stand-in's bytes for a swapped model, else the game's."""
         sw = getattr(self, '_cast_swaps', {}).get(name.lower())
         if sw is not None:
             return sw['files'].get(ext)
         return self._cs_fetch(name, ext)
+
 
     def _cast_model_names(self) -> list: #vers 2
         """Every model name in the game's model IMGs (DFF; IV .wdd / .wdr / .wft)."""
@@ -191,6 +245,7 @@ class CutsceneCastMixin: #vers 1
         for _path, arc in self._cs_model_arcs():
             names.update(e.name[:-4] for e in arc.entries if e.name.lower().endswith(exts))
         return sorted(names, key=str.lower)
+
 
     def _cast_pick_model(self, title: str, start: str = '') -> str: #vers 1
         """Filterable list of the game's models; '' when cancelled."""
@@ -214,7 +269,7 @@ class CutsceneCastMixin: #vers 1
         bb.accepted.connect(dlg.accept)
         bb.rejected.connect(dlg.reject)
         lay.addWidget(bb)
-        dlg.resize(360, 480)
+        #dlg.resize(360, 480)
         if dlg.exec() != QDialog.DialogCode.Accepted or lst.currentItem() is None:
             return ''
         return lst.currentItem().text()
@@ -314,6 +369,7 @@ class CutsceneCastMixin: #vers 1
         secs[idx][1].append(f"1,{model},{anim}")
         self._cast_section_changed(idx)
 
+
     def _cast_remove(self): #vers 2
         """Take the selected model out of the .cut (IV: every section)."""
         cur = self._cast_current()
@@ -338,6 +394,7 @@ class CutsceneCastMixin: #vers 1
         self._cast_swaps.pop(cur[0].lower(), None)
         self._cast_section_changed(idx)
 
+
     def _cast_section_changed(self, idx: int): #vers 2
         """Model section edited: script panel, text, cast and preview follow; unsaved."""
         self._cs_loading = True
@@ -349,6 +406,7 @@ class CutsceneCastMixin: #vers 1
             self._cs_show_section(idx)
         self._cs_dirty = True
         self._cast_refresh()
+
 
     def _cast_for_game(self, model: str, kind: str): #vers 2
         """({ext: bytes}, note, save name) of a model ready for in-game use; None when cancelled."""
@@ -377,6 +435,7 @@ class CutsceneCastMixin: #vers 1
         if kind == 'vehicle':
             return self._cast_map_dialog(model, dff, txd)
         return files, "Object: saved as it is", model
+
 
     def _cast_map_dialog(self, model: str, dff: bytes, txd): #vers 2
         """Donor car and part map for a cutscene vehicle; ({ext: bytes}, note, donor) or None."""
@@ -409,7 +468,7 @@ class CutsceneCastMixin: #vers 1
         bb.accepted.connect(dlg.accept)
         bb.rejected.connect(dlg.reject)
         outer.addWidget(bb)
-        dlg.resize(420, 520)
+        #dlg.resize(420, 520)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return None
         pmap = {d: cb.currentText() for d, cb in combos.items() if cb.currentText() != '-'}
@@ -484,7 +543,7 @@ class CutsceneCastMixin: #vers 1
                                 f"\n\n{note}")
         return paths
 
-    def _cast_send(self): #vers 2
+    def _cast_send(self): #vers 3
         """Open the converted model in its workshop (inside IMG Factory)."""
         cur = self._cast_current()
         if cur is None:
@@ -499,6 +558,7 @@ class CutsceneCastMixin: #vers 1
         paths = self._cast_export_game(tempfile.mkdtemp(prefix='cutscene_'))   # name asked there
         dff = next((p for p in paths if p.endswith(('.dff', '.wdr', '.wft', '.wdd'))), None)
         if dff is None:
+            self._set_status(f"{cur[0]}: not sent (conversion cancelled or no donor)")
             return
         if self._cast_iv():
             kind = 'object'                                          # IV models open in Model Workshop
@@ -507,6 +567,7 @@ class CutsceneCastMixin: #vers 1
         if kind == 'ped':
             from apps.components.Ped_Workshop.ped_workshop import open_ped_workshop
             ws = open_ped_workshop(mw)
+            self._sent_ws = ws                                       # kept so the window stays open
             ws.open_dff_file(dff)
             txd = next((p for p in paths if p.endswith('.txd')), None)
             if txd:
@@ -514,10 +575,11 @@ class CutsceneCastMixin: #vers 1
                     ws._load_txd_file_from_data(f.read(), os.path.basename(txd))
         elif kind == 'vehicle':
             from apps.components.Vehicle_Workshop.vehicle_workshop import open_vehicle_workshop
-            open_vehicle_workshop(mw, dff)
+            self._sent_ws = open_vehicle_workshop(mw, dff)          # kept so the window stays open
         else:
             from apps.components.Model_Editor.model_workshop import open_model_workshop
-            open_model_workshop(mw, dff)
+            self._sent_ws = open_model_workshop(mw, dff)
+        self._set_status(f"{cur[0]}: sent to the {title}")
 
     def _cast_apply(self): #vers 4
         """Write each stand-in into the IMG holding the original (originals backed up)."""
