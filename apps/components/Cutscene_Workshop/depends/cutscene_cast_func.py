@@ -79,8 +79,8 @@ class CutsceneCastMixin: #vers 3
         self._btn_swap.setToolTip("Play this part with another model (preview)")
         self._btn_swap.clicked.connect(self._cast_swap)
         # Example for individual styling/sizing:
-         self._btn_swap.setStyleSheet("background-color: #333; color: white;")
-         self._btn_swap.setFixedSize(100, 30)
+        self._btn_swap.setStyleSheet("background-color: #333; color: white;")
+        self._btn_swap.setFixedSize(100, 30)
         grid.addWidget(self._btn_swap, 0, 0)
 
         # 2. Clear Button

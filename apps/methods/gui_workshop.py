@@ -509,16 +509,24 @@ class _LayoutMixin:
         ml.addWidget(self._create_toolbar())
 
         sp = QSplitter(Qt.Orientation.Horizontal)
+        sp.setChildrenCollapsible(False)  # Ensures panels can't be accidentally squeezed to 0
+
         parts = []          # (factory, stretch, default size)
         if self.SHOW_LEFT_PANEL:
-            parts.append((self._create_left_panel, 1, 200))
+            parts.append((self._create_left_panel, 1, 100))
         parts.append((self._create_centre_panel, 5, 950))
         if self.SHOW_RIGHT_PANEL:
             parts.append((self._create_right_panel, 0,
-                          self.WS.get("sidebar_width", 82)))
+                          self.WS.get("sidebar_width", 50)))
+
         for i, (make, stretch, _w) in enumerate(parts):
-            sp.addWidget(make())
+            widget = make()
+            # Remove any harsh constraints so everything remains fully resizable
+            widget.setMinimumSize(0, 0)
+            widget.setMaximumSize(16777215, 16777215)
+            sp.addWidget(widget)
             sp.setStretchFactor(i, stretch)
+
         sizes = self.SPLITTER_SIZES or [w for _f, _s, w in parts]
         if self.SPLITTER_STRETCH:
             for i, st in enumerate(self.SPLITTER_STRETCH):
@@ -531,12 +539,13 @@ class _LayoutMixin:
         ml.addWidget(self._status_widget)
         register_statusbar(self, self._status_widget)
 
-    def _create_left_panel(self):
+    def _create_left_panel(self): #vers 2
         """Left panel — list + Add/Remove + info label.
         Override to replace with your own content.
         """
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         ll = QVBoxLayout(panel)
         ll.setContentsMargins(*self.get_panel_margins())
 
@@ -548,6 +557,7 @@ class _LayoutMixin:
 
         self._item_list = QListWidget()
         self._item_list.setAlternatingRowColors(True)
+        self._item_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._item_list.currentRowChanged.connect(
             self._on_list_selection_changed)
         ll.addWidget(self._item_list)
@@ -570,18 +580,20 @@ class _LayoutMixin:
 
         return panel
 
-    def _create_centre_panel(self):
+    def _create_centre_panel(self): #vers 3
         """Centre panel — tab view with placeholder tabs.
         Override to replace with your own canvas/tabs.
         """
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         cl = QVBoxLayout(panel)
         cl.setContentsMargins(0, 0, 0, 0)
         cl.setSpacing(0)
 
         self._view_tabs = QTabWidget()
         self._view_tabs.setDocumentMode(True)
+        self._view_tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._view_tabs.currentChanged.connect(self._on_tab_changed)
 
         for label in ("View A", "View B"):
@@ -595,13 +607,14 @@ class _LayoutMixin:
         cl.addWidget(self._view_tabs)
         return panel
 
-    def _create_right_panel(self):
+    def _create_right_panel(self): #vers 4
         """Right panel — sidebar with 2-col tool button grid.
         Override _populate_sidebar() to change tool buttons.
         """
         sidebar = QFrame()
         sidebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        sidebar.setFixedWidth(self.WS.get("sidebar_width", 82))
+        # Removed explicit fixed width locks to let splitter handle resizing freely
+        sidebar.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         sl = QVBoxLayout(sidebar)
         sl.setContentsMargins(2, 4, 2, 4)
         sl.setSpacing(2)
@@ -614,7 +627,7 @@ class _LayoutMixin:
         sl.addStretch(0)
         return sidebar
 
-    def _populate_sidebar(self):
+    def _populate_sidebar(self): #vers 3
         """Build the 2-col icon grid in the right sidebar.
         Override to change or extend the tool set.
         """
@@ -683,8 +696,7 @@ class _LayoutMixin:
 
     def _create_status_bar(self):
         """Status bar — single line at bottom, toggleable via settings."""
-        self._status_bar = QLabel(
-            f"Ready  |  {self.App_name}  {self.App_build}")
+        self._status_bar = QLabel(f"Ready  |  {self.App_name}  {self.App_build}")
         self._status_bar.setFixedHeight(self.statusheight)
         self._status_bar.setFont(self.infobar_font)
         self._status_bar.setStyleSheet("padding:2px 6px;")
@@ -695,11 +707,10 @@ class _LayoutMixin:
             self._status_bar.setText(msg)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
 # SECTION 4 — Logic stubs
 # These are the methods your subclass overrides with actual app logic.
 # Everything above this line is pure UI — do not put app logic there.
-# ═════════════════════════════════════════════════════════════════════════════
+
 
 class _LogicStubsMixin:
     """Stub methods for subclass override.
@@ -859,8 +870,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         # Per-app settings
         self.WS = WorkshopSettings(self.config_key, self.WS_DEFAULTS)
         if self.standalone_mode:
-            self.resize(max(800, self.WS.get("window_w", 1400)),
-                        max(500, self.WS.get("window_h",  800)))
+            self.resize(max(80, self.WS.get("window_w", 1400)),
+                        max(50, self.WS.get("window_h",  800)))
             wx, wy = self.WS.get("window_x", -1), self.WS.get("window_y", -1)
             if wx >= 0 and wy >= 0: self.move(wx, wy)
 
@@ -869,7 +880,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self.setWindowTitle(self.App_name)
         if self.App_icon:
             self.setWindowIcon(getattr(SVGIconFactory, self.App_icon)(64))
-        self.setMinimumSize(800, 500)
+        #self.setMinimumSize(800, 500)
         self._active_tool = "pencil"
         self._draw_btns   = {}
 
