@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 9
+#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 10
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Model Workshop settings
 
 """
@@ -993,7 +993,7 @@ class ModelSettingsMixin: #vers 1
 
 
 
-    def _apply_theme(self): #vers 8
+    def _apply_theme(self): #vers 9
         """Apply theme — matches COL/TXD pattern exactly.
         Sets QApplication stylesheet globally, clears own override to inherit."""
         try:
@@ -1009,8 +1009,17 @@ class ModelSettingsMixin: #vers 1
                 ss = app_settings.get_stylesheet()
                 if ss:
                     QApplication.instance().setStyleSheet(ss)
-            # Clear widget-level override — inherit from QApplication like COL/TXD
-            self.setStyleSheet("")
+            # Own stylesheet: only App Settings fonts (tabs, tables, menus); colours from QApplication
+            from apps.methods.app_fonts import apply_font, font_qss, global_fonts
+            cur = getattr(app_settings, 'current_settings', None)
+            if isinstance(cur, dict):
+                f = self.fonts = global_fonts(cur)
+                self.title_font, self.panel_font, self.button_font = f['title'], f['panel'], f['button']
+                self.infobar_font = f['info']
+                apply_font(self, f['body'])
+                self.setStyleSheet(font_qss(f))
+            else:
+                self.setStyleSheet("")
         except Exception as e:
             print(f"Theme application error: {e}")
 

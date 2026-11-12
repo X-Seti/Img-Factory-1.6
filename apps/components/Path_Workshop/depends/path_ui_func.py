@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 12
+#this belongs in apps/components/Path_Workshop/depends/path_ui_func.py - Version: 13
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Path Workshop UI
 
 """
@@ -928,7 +928,7 @@ class PathUIMixin(TitlebarMixin): #vers 2
         if hasattr(self,'status_label'): self.status_label.setText(msg)
 
     # - Theme & icon helpers (template pattern)
-    def _apply_theme(self): #vers 2
+    def _apply_theme(self): #vers 3
         try:
             if self.app_settings:
                 self.setStyleSheet(self.app_settings.get_stylesheet())
@@ -936,7 +936,7 @@ class PathUIMixin(TitlebarMixin): #vers 2
                     from apps.utils.app_settings_system import apply_panel_effects
                     apply_panel_effects(self, self.app_settings)
             else:
-                self.setStyleSheet("QWidget{background:palette(base);color:palette(mid);} QPushButton{background:palette(button);border:1px solid palette(mid);color:palette(mid);padding:2px 4px;} QPushButton:hover{background:#4a4d50;}")
+                self.setStyleSheet("QWidget{background:palette(base);color:palette(mid);} QPushButton{background:palette(button);border:1px solid palette(mid);color:palette(mid);padding:2px 4px;} QPushButton:hover{background:palette(highlight);}")
         except Exception as e:
             print(f"[{App_name}] Theme error: {e}")
 

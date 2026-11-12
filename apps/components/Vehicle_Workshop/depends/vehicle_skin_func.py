@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_skin_func.py - Version: 1
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_skin_func.py - Version: 2
 # X-Seti - November 07 2026 - IMG Factory 1.6 - Vehicle Workshop skins
 
 """
@@ -20,6 +20,7 @@ vehicle_backup/ beside the IMG).
 # _skin_item
 # _skin_menu
 # _skin_png
+# _skin_recolour
 # _skin_replace
 # _skin_save
 # _skin_selected
@@ -46,13 +47,11 @@ def _pow2(n: int) -> int: #vers 1
 class VehicleSkinMixin: #vers 1
     """Texture skin tools for Vehicle Workshop."""
 
-    def _skin_bar(self) -> QWidget: #vers 1
-        """Buttons under the texture list."""
-        from apps.methods.imgfactory_svg_icons import SVGIconFactory as I
-        bar = QWidget()
-        lay = QHBoxLayout(bar)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(2)
+    def _skin_bar(self) -> QWidget: #vers 2
+        """Buttons under the texture list; text drops to icons when narrow."""
+        from apps.methods.fold_widgets import ButtonRow
+        btns = []
+        self._skin_icons = []
         for text, icon, tip, fn in (("DP5", 'dp5_workshop_icon', "Paint the selected textures in DP5 Workshop",
                                      self._skin_to_dp5),
                                     ("Replace", 'import_icon', "Replace the selected texture with a PNG",
@@ -65,18 +64,21 @@ class VehicleSkinMixin: #vers 1
             b = QToolButton()
             b.setText(text)
             b.setToolTip(tip)
-            try:
-                b.setIcon(getattr(I, icon)())
-                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            except Exception:
-                pass
             b.clicked.connect(fn)
-            lay.addWidget(b)
-        lay.addStretch(1)
+            btns.append(b)
+            self._skin_icons.append((b, icon))
+        self._skin_recolour()
         self._tex_list.setSelectionMode(self._tex_list.SelectionMode.ExtendedSelection)
         self._tex_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tex_list.customContextMenuRequested.connect(self._skin_menu)
-        return bar
+        return ButtonRow(btns)
+
+    def _skin_recolour(self): #vers 1
+        """Skin button icons in the theme's icon colour."""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory as I
+        col = self._get_icon_color()
+        for b, icon in getattr(self, '_skin_icons', []):
+            b.setIcon(getattr(I, icon)(16, col))
 
     def _skin_set_textures(self, textures: list, data: bytes, path: str): #vers 1
         """The car's own TXD (editable); list items carry their texture."""

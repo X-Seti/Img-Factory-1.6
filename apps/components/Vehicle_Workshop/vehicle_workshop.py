@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 21
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 22
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -101,11 +101,13 @@ DEBUG_STANDALONE = False
 ##class VehicleWorkshop: -
 # __init__
 # _build_menus_into_qmenu
+# _build_ribbons
 # _create_centre_panel
 # _create_preview_tab
 # _light_setup_dialog
 # _open_file
 # _open_specific
+# _refresh_icons
 # _ribbon_config_path
 # _save_as
 # _save_file
@@ -138,8 +140,8 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
                       VehicleLogicMixin, GUIWorkshop): #vers 11
     _ribbon_name = "vehicle_workshop"
     config_key = "vehicle_workshop"
-    WS_DEFAULTS = {'slots_root': '', 'stories_img': ''}
-    _OUTER_LAYOUT_VERSION = 1      # Assets + Tools docks
+    WS_DEFAULTS = dict(VehicleWinMixin.WS_DEFAULTS, slots_root='', stories_img='')   # one set
+    _OUTER_LAYOUT_VERSION = 2      # 4 asset docks + Tools
     # Bump when the set of ribbons changes (1 = File ribbon, 3 = + Drive)
     _RIBBON_LAYOUT_VERSION = 3
 
@@ -176,8 +178,8 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         lay.addWidget(self._tabs)
         return panel
 
-    def setup_ui(self): #vers 8
-        """Titlebar / Assets + Tools docks around ribbons and tabs / status bar."""
+    def setup_ui(self): #vers 9
+        """Titlebar / asset docks + Tools docks around ribbons and tabs / status bar."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -190,9 +192,14 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
             if b:
                 b.setVisible(False)
         left, right = self._create_left_panel(), self._create_right_panel()
-        main_layout.addWidget(self.ribbon_host(self._dock_layout(self._create_centre_panel(), [
-            ("Assets", left, 180, Qt.DockWidgetArea.LeftDockWidgetArea),
-            ("Tools", right, 155, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
+        L = Qt.DockWidgetArea.LeftDockWidgetArea
+        main_layout.addWidget(self.ribbon_host(self._dock_layout(self._create_centre_panel(),
+            [(t, w, 180, L) for t, w in left] +
+            [("Tools", right, 155, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
+        ld = self._outer_docks[:len(left)]                   # stacked, each detachable
+        for a, b in zip(ld, ld[1:]):
+            self._outer_mw.splitDockWidget(a, b, Qt.Orientation.Vertical)
+        self._outer_mw.resizeDocks(ld, [300, 160, 180, 200], Qt.Orientation.Vertical)
         self._build_ribbons()
         self._status_widget = self._create_status_bar()
         main_layout.addWidget(self._status_widget)
@@ -200,6 +207,15 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         self.ribbon_restore_state()
         self._inner_mw = self._ribbon_mw      # Ribbon Manager target
         self._apply_ribbon_layout()
+
+    def _refresh_icons(self): #vers 1
+        """Theme change: skin and Open buttons recoloured too."""
+        super()._refresh_icons()
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self._skin_recolour()
+        col = self._get_icon_color()
+        for b in (self._vw_open_dff_btn, self._vw_open_txd_btn):
+            b.setIcon(SVGIconFactory.open_icon(14, col))
 
     def _build_ribbons(self): #vers 3
         B = self.ribbon_button

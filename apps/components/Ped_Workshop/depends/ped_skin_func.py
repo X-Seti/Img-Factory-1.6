@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_skin_func.py - Version: 1
+#this belongs in apps/components/Ped_Workshop/depends/ped_skin_func.py - Version: 2
 # X-Seti - October 23 2026 - IMG Factory 1.6 - Ped Workshop skinning window
 
 """
@@ -15,9 +15,11 @@ and sends the texture to DP5 Workshop to paint.
 # release
 # ring
 # tick
+# _update_ring
 #
 ##class PedSkinMixin: -
 # _skin_close
+# _skin_hits
 # _skin_paint
 # _skin_refresh
 # _skin_save
@@ -43,14 +45,28 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFil
 class WeightBrush: #vers 1
     """Viewport brush: left drag paints the bone weight, Shift removes."""
 
-    def __init__(self, ws): #vers 1
+    def __init__(self, ws): #vers 2
         self.ws, self.pos, self.down, self.remove = ws, None, False, False
+        self._ring = None
 
-    def ring(self): #vers 1
-        return None                                         # heat colours show the result
+    def ring(self): #vers 2
+        """Cached brush circle (built in hover / tick, never during paint)."""
+        return self._ring
 
-    def hover(self, x, y): #vers 1
+    def _update_ring(self): #vers 1
+        """Brush circle on the mesh surface under the mouse, facing the camera."""
+        hit = self.ws._skin_hits(*self.pos) if self.pos is not None else None
+        if hit is None:
+            self._ring = None
+            return
+        hits, o, d, r = hit
+        t = min(h[0] for h in hits)
+        colour = (1.0, 0.35, 0.3) if self.remove and self.down else (0.3, 1.0, 0.5)
+        self._ring = tuple((o + d * t).tolist()), r, colour, None, tuple(d.tolist())
+
+    def hover(self, x, y): #vers 2
         self.pos = (x, y)
+        self._update_ring()
 
     def press(self, x, y, mods): #vers 1
         self.pos, self.down = (x, y), True
@@ -59,9 +75,10 @@ class WeightBrush: #vers 1
                                          for gi, sk in self.ws._animator.sk.skins.items()})
         self.tick()
 
-    def tick(self): #vers 1
+    def tick(self): #vers 2
         if self.down and self.pos is not None:
             self.ws._skin_paint(*self.pos, self.remove)
+            self._update_ring()
 
     def release(self): #vers 1
         self.down = False
@@ -191,18 +208,16 @@ class PedSkinMixin: #vers 1
         an.weight_frame = fi if on and has_bone else -1
         self._anim_render()
 
-    def _skin_paint(self, x: int, y: int, remove: bool): #vers 1
-        """One brush tick at a viewport pixel."""
+    def _skin_hits(self, x: int, y: int): #vers 1
+        """Skinned vertices within brush radius of the mouse ray: (hits, o, d, r) or None."""
         an, vp = self._animator, self.preview_widget
         fi = an.weight_frame if an is not None else -1
         ray = vp._pick_ray(x, y) if fi >= 0 else None
         if ray is None:
-            return
+            return None
         o, d = np.asarray(ray[0], float), np.asarray(ray[1], float)
         d /= np.linalg.norm(d) or 1.0
-        r, step = self._skin_radius.value(), self._skin_strength.value() / 100.0
-        b = an.sk.bone_of_frame()[fi]
-        parent_b = an.sk.bone_of_frame().get(an.sk.frames[fi]['parent'], b)
+        r = self._skin_radius.value()
         hits = []
         for gi, (P, _n) in an.mesh_points(an.pose()).items():
             if gi not in an.sk.skins:
@@ -212,8 +227,19 @@ class PedSkinMixin: #vers 1
             dist = np.linalg.norm(rel - np.outer(t, d), axis=1)
             for vi in np.nonzero(dist < r)[0]:
                 hits.append((t[vi], gi, vi, dist[vi]))
-        if not hits:
+        return (hits, o, d, r) if hits else None
+
+    def _skin_paint(self, x: int, y: int, remove: bool): #vers 2
+        """One brush tick at a viewport pixel."""
+        hit = self._skin_hits(x, y)
+        if hit is None:
             return
+        hits, _o, _d, r = hit
+        an = self._animator
+        fi = an.weight_frame
+        step = self._skin_strength.value() / 100.0
+        b = an.sk.bone_of_frame()[fi]
+        parent_b = an.sk.bone_of_frame().get(an.sk.frames[fi]['parent'], b)
         front = min(h[0] for h in hits) + r * 1.5            # nearest surface only
         for t, gi, vi, dist in hits:
             if t <= front:

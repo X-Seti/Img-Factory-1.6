@@ -1,4 +1,4 @@
-#this belongs in core/ open.py - Version: 13
+#this belongs in core/ open.py - Version: 14
 # X-Seti - November10 2025 - IMG Factory 1.5 - Open Functions with Tab System
 
 """
@@ -184,8 +184,8 @@ def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 8
         if os.path.exists(ide_file_path):
             # Auto-load the IDE file silently
             try:
-                from apps.components.Ide_Editor.ide_editor import open_ide_editor
-                editor = open_ide_editor(main_window)
+                from apps.components.Data_Workshop.data_workshop import open_data_workshop
+                editor = open_data_workshop(main_window, ide=True)
                 if editor:
                     editor.load_ide_file(ide_file_path)
                     main_window.log_message(f"Auto-loaded IDE file: {os.path.basename(ide_file_path)}")
@@ -200,8 +200,8 @@ def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 8
                     # Auto-load this IDE file silently
                     try:
                         ide_path = os.path.join(img_dir, file)
-                        from apps.components.Ide_Editor.ide_editor import open_ide_editor
-                        editor = open_ide_editor(main_window)
+                        from apps.components.Data_Workshop.data_workshop import open_data_workshop
+                        editor = open_data_workshop(main_window, ide=True)
                         if editor:
                             editor.load_ide_file(ide_path)
                             main_window.log_message(f"Auto-loaded IDE file: {file}")

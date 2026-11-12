@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_drive_func.py - Version: 1
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_drive_func.py - Version: 2
 # X-Seti - November 07 2026 - IMG Factory 1.6 - Vehicle Workshop drive mode
 
 """
@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import QFileDialog, QSpinBox
 class VehicleDriveMixin: #vers 1
     """Drive the loaded car in the 3D preview."""
 
-    def _build_drive_ribbon(self): #vers 1
+    def _build_drive_ribbon(self): #vers 2
         B = self.ribbon_button
         tb = self.ribbon_toolbar("Drive")
         self._drive_btn = B(tb, "play_icon", "Drive the car: W/S A/D Space, or a controller (R2 / L2 / stick)",
@@ -36,6 +36,8 @@ class VehicleDriveMixin: #vers 1
         self._drive_hour_spin.valueChanged.connect(self._drive_hour)
         tb.addWidget(self._drive_hour_spin)
         B(tb, "import_icon", "Ground image for drive mode (tiles every 8 m)", self._drive_ground, text="Ground")
+        tb.addSeparator()
+        tb.addWidget(self._vw_grid_button())                     # grid style, as Ped Workshop
 
     def _drive_sim(self): #vers 1
         """DriveSim from the car's handling.cfg line (defaults when none)."""

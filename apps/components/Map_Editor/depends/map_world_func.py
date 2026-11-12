@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 10
+#this belongs in apps/components/Map_Editor/depends/map_world_func.py - Version: 11
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop world load
 
 """
@@ -67,8 +67,10 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _show_world_load_summary
 # _to_gamedata_role_marker
 # _toggle_water_edit
+# _toggle_waterpro_paint
 # _try_auto_water2_from_loader
 # _undo_water_edit
+# _undo_waterpro_paint
 # _water2_offset_mode
 # _water_changed
 # _water_dat_path
@@ -78,6 +80,8 @@ Game folder, DAT/IPL world load, preload, water/radar settings, world render for
 # _water_quad_cells
 # _water_scale
 # _water_shapes_to_cells
+# _waterpro_grid_geometry
+# _waterpro_painted
 # _waterpro_physical_to_cells
 # _waterpro_to_cells
 # _write_water_offsets
@@ -92,7 +96,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QVBoxLayout)
 
 from apps.components.Map_Editor.depends.map_widgets_func import (
-    _FilteredLoaderStub, _IplLoadDialog, _WaterLevelsDialog, _WaterQuadDialog)
+    _FilteredLoaderStub, _IplLoadDialog, _WaterLevelsDialog, _WaterproBrush, _WaterQuadDialog)
 
 
 class MapWorldMixin: #vers 1
@@ -1432,26 +1436,34 @@ class MapWorldMixin: #vers 1
             self._apply_water2_preload()
         self._set_status(f"Water levels applied ({len(heights)}) - Save to write them")
 
-    def _save_water_levels(self): #vers 1
-        """Write waterpro level heights to GAME.DTZ or waterpro.dat (backup first)."""
+    def _save_water_levels(self): #vers 2
+        """Write waterpro level heights (and painted grids) to GAME.DTZ or waterpro.dat."""
         import struct
         from apps.methods.file_backup import safe_write_bytes
+        from apps.methods.gta_dat_parser import waterpro_grid_bytes
         wp = self._world_loader.waterpro
         n = max(1, min(48, wp.level_count))
         heights = [l.height for l in wp.levels[:n]]
+        grids = waterpro_grid_bytes(wp) if getattr(self, '_water_grids_dirty', False) else None
         kind, target = self._water_levels_target()
         if kind == 'dtz':
             target.set_water_levels(heights)
+            if grids is not None:
+                target.set_water_grids(grids)
             target.save(label="Map Workshop")
             name = os.path.basename(target.path)
         else:
             with open(target, 'rb') as f:
                 data = bytearray(f.read())
             struct.pack_into(f'<{n}f', data, 4, *heights)
+            if grids is not None:
+                data[964:964 + len(grids)] = grids
             safe_write_bytes(target, bytes(data), f"Map Workshop: {os.path.basename(target)}")
             name = os.path.basename(target)
         self._water_levels_dirty = False
-        self._set_status(f"Saved {n} water level(s) to {name}")
+        self._water_grids_dirty = False
+        self._set_status(f"Saved {n} water level(s)" + (" and grids" if grids is not None else "")
+                         + f" to {name}")
 
     def _save_water_dat(self): #vers 1
         """Write edited quads back to water.dat (backup first, untouched lines kept)."""
@@ -1491,7 +1503,55 @@ class MapWorldMixin: #vers 1
             return mode
         return 'vc' if self.map_settings.get('water2_offset_vc_only') else 'all'
 
-    def _waterpro_to_cells(self, waterpro, game): #vers 6
+    def _waterpro_grid_geometry(self, waterpro, game, physical): #vers 1
+        """(grid width, cell size, half size) of a waterpro layer in world units."""
+        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS, WATER_GRID_PRESETS
+        # SOL water grid differs from its radar grid (see WATER_GRID_PRESETS)
+        preset = WATER_GRID_PRESETS.get(game) or RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
+        grid_size = preset['grid_size'] * self._water_scale()      # per-game scale (half / normal / twice)
+        gw = waterpro.grid_width * (2 if physical else 1)
+        return gw, grid_size / gw, grid_size / 2.0
+
+    def _toggle_waterpro_paint(self, on): #vers 1
+        """Water Levels dialog: paint the waterpro grid with the view brush."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is None or not hasattr(vp, 'set_brush_tool'):
+            return
+        if on and getattr(getattr(self, '_world_loader', None), 'waterpro', None) is None:
+            self._set_status("No waterpro grid shown - load a world with waterpro first")
+            self._water_levels_dlg.paint_chk.setChecked(False)
+            return
+        if not hasattr(self, '_waterpro_undo'):
+            self._waterpro_undo = []
+        if on:
+            vp.show_water = True
+            vp.set_brush_tool(_WaterproBrush(self, vp))
+            self._set_status("Water grid paint: drag to paint level, Shift dry, Ctrl pick level")
+        elif isinstance(getattr(vp, '_brush_tool', None), _WaterproBrush):
+            vp.set_brush_tool(None)
+            self._set_status("Water grid paint off")
+
+    def _waterpro_painted(self): #vers 1
+        """Grid cells changed: redraw the shown layer, mark for save."""
+        wp = self._world_loader.waterpro
+        game = getattr(self, '_water2_game_source', 'vc')
+        self._water_grids_dirty = True
+        self._water2_cells_pending = (self._waterpro_physical_to_cells(wp, game)
+                                      if getattr(self, '_water2_showing_physical', False)
+                                      else self._waterpro_to_cells(wp, game))
+        self._apply_water2_preload()
+
+    def _undo_waterpro_paint(self): #vers 1
+        """Restore the grids before the last paint stroke."""
+        if not getattr(self, '_waterpro_undo', None):
+            self._set_status("Nothing to undo")
+            return
+        wp = self._world_loader.waterpro
+        wp.visible_map, wp.physical_map = self._waterpro_undo.pop()
+        self._waterpro_painted()
+        self._set_status("Water grid paint undone")
+
+    def _waterpro_to_cells(self, waterpro, game): #vers 7
         """Real, confirmed grid-to-cells logic (Aug 20 2026, re-
         applied) - shared between the manual Preload path and the
         automatic world-load retool below. Skips real "dry"/cutout
@@ -1516,17 +1576,7 @@ class MapWorldMixin: #vers 1
         corner reduces to row driving x directly, col driving y
         directly - see the git history for the full, real derivation
         this was first verified against."""
-        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS, WATER_GRID_PRESETS
-        # SOL's water grid genuinely differs from its radar grid (Sep
-        # 5 2026  own real, uploaded GTASOL-CoreHacks
-        # source - see WATER_GRID_PRESETS' own docstring for the full
-        # derivation) - every other game's water-uses-radar's-size
-        # assumption is already confirmed correct and unchanged here.
-        preset = WATER_GRID_PRESETS.get(game) or RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
-        grid_size = preset['grid_size'] * self._water_scale()      # per-game scale (half / normal / twice)
-        half = grid_size / 2.0
-        gw = waterpro.grid_width
-        cell = grid_size / gw
+        gw, cell, half = self._waterpro_grid_geometry(waterpro, game, False)
         cells = []
         for row in range(gw):
             for col in range(gw):
@@ -1541,7 +1591,7 @@ class MapWorldMixin: #vers 1
                 cells.append((min_x, min_y, min_x + cell, min_y + cell, height))
         return cells
 
-    def _waterpro_physical_to_cells(self, waterpro, game): #vers 5
+    def _waterpro_physical_to_cells(self, waterpro, game): #vers 6
         """The other real water layer (Aug 20 2026,  "when
         you right click the water button, show the other water
         layer") - waterpro.dat's own physical_map, a real, separate
@@ -1552,12 +1602,7 @@ class MapWorldMixin: #vers 1
         the same real coordinate system just finer-grained. Same
         SOL-specific grid-size correction as _waterpro_to_cells too
         (Sep 5 2026) - see WATER_GRID_PRESETS' own docstring."""
-        from apps.methods.gta_dat_parser import RADAR_GRID_PRESETS, WATER_GRID_PRESETS
-        preset = WATER_GRID_PRESETS.get(game) or RADAR_GRID_PRESETS.get(game, RADAR_GRID_PRESETS['vc'])
-        grid_size = preset['grid_size'] * self._water_scale()
-        half = grid_size / 2.0
-        gw = waterpro.grid_width * 2
-        cell = grid_size / gw
+        gw, cell, half = self._waterpro_grid_geometry(waterpro, game, True)
         cells = []
         for row in range(gw):
             for col in range(gw):

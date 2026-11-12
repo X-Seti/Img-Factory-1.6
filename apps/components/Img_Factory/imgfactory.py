@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 130
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 136
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -224,9 +224,11 @@ class IMGLoadThread(QThread):
 
 class IMGFactory(QMainWindow):
     """Main IMG Factory application window"""
-    def __init__(self, settings): #vers 64
+    def __init__(self, settings): #vers 65
         """Initialize IMG Factory with optimized loading order"""
         super().__init__()
+        from apps.methods.edge_cursor import install_edge_cursor_reset
+        install_edge_cursor_reset()                      # resize arrow never sticks
 
         # === PHASE 1: CORE SETUP (Fast) ===
         startup_step("Core setup", 25)
@@ -592,6 +594,7 @@ class IMGFactory(QMainWindow):
         self._restore_settings()
         startup_step("Loading game folder", 92)
         self.autoload_game_root()
+        QTimer.singleShot(800, self._restore_session)       # reopen last file tabs
         startup_step("Final setup", 97)
 
         # Attach unified debug system
@@ -758,15 +761,10 @@ class IMGFactory(QMainWindow):
         if hasattr(self, 'gui_layout') and getattr(self.gui_layout, 'menu_btn', None) is not None:
             self.gui_layout.menu_btn.setVisible(not want_topbar)
 
-    def _update_tool_menu_for_tab(self, tab_widget): #vers 3
+    def _update_tool_menu_for_tab(self, tab_widget): #vers 4
         """Inject or remove tool menu via unified menu system."""
-        ms = getattr(self, 'menu_system', None)
-        if ms:
-            ms.deactivate_tool()
-        elif hasattr(self, 'menu_bar_system'):
-            self.menu_bar_system._remove_tool_menu()
-            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'unregister_tool_menu_btn'):
-                self.gui_layout.unregister_tool_menu_btn()
+        ms = self.menu_system
+        ms.deactivate_tool()
 
         if not tab_widget:
             return
@@ -785,10 +783,7 @@ class IMGFactory(QMainWindow):
         if not tool:
             return
 
-        if ms:
-            ms.activate_tool(tool)
-        elif hasattr(tool, '_register_titlebar_tool_btn'):
-            tool._register_titlebar_tool_btn()
+        ms.activate_tool(tool)                           # tool submenu in Menu only
 
     def set_img_menu_orientation(self, orientation: str): #vers 2
         """Switch imgfactory menu between 'topbar' and 'dropdown'.
@@ -4461,7 +4456,7 @@ class IMGFactory(QMainWindow):
     #  Tool taskbar helpers  
 
     def register_tool(self, key: str, label: str, icon_fn,
-                      target=None, tooltip: str = "") -> None: #vers 2
+                      target=None, tooltip: str = "") -> None: #vers 3
         """Register a tool in the taskbar (creates button if custom UI is active).
 
         target can be:
@@ -4483,6 +4478,8 @@ class IMGFactory(QMainWindow):
                 self.tool_taskbar.update_target(key, target)
             else:
                 self.tool_taskbar.register(key, label, icon, target, tooltip)
+            if isinstance(target, QWidget):              # drop the tab's generic button
+                self._sync_img_taskbar_buttons(self.main_tab_widget.currentIndex())
             # Always re-apply theme so new buttons pick up correct colours
             self.tool_taskbar.apply_theme(colors)
             # Show the taskbar if it was hidden (first tool registered)
@@ -4587,14 +4584,14 @@ class IMGFactory(QMainWindow):
 
 
 
-    def open_ipl_editor(self): #vers 2
-        """Open IPL Workshop docked in a tab."""
+    def open_ipl_editor(self): #vers 3
+        """Open Data Workshop docked in a tab."""
         try:
-            from apps.components.Ipl_Editor.ipl_workshop import open_ipl_workshop
-            open_ipl_workshop(self)
+            from apps.components.Data_Workshop.data_workshop import open_data_workshop
+            open_data_workshop(self)
         except Exception as e:
             import traceback
-            self.log_message(f"IPL Workshop error: {e}")
+            self.log_message(f"Data Workshop error: {e}")
             traceback.print_exc()
 
     def _register_intro_tool(self): #vers 1
@@ -4631,7 +4628,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Dir tree error: {e}")
 
 
-    def _apply_tab_theme(self): #vers 3
+    def _apply_tab_theme(self): #vers 4
         """Apply theme colours to main_tab_widget tab bar.
 
         Sets the stylesheet directly on tabBar() (not the QTabWidget) so it
@@ -4650,6 +4647,8 @@ class IMGFactory(QMainWindow):
             acc2  = colors.get('accent_secondary','#1565c0')
             hover = colors.get('button_hover',   '#e0e0e0')
             brd   = colors.get('border',         '#cccccc')
+            from apps.methods.app_fonts import font_css, global_fonts
+            tab_css = font_css(global_fonts(getattr(self.app_settings, 'current_settings', {}) or {})['tab'])
 
             # Single stylesheet on QTabWidget — includes both tab bar AND pane rules.
             # Must be ONE call; a second setStyleSheet() call resets the first.
@@ -4669,12 +4668,12 @@ class IMGFactory(QMainWindow):
                     color: {txt_s};
                     margin-bottom: 0px;
                     margin-right: 2px;
+                    {tab_css}
                 }}
                 QTabWidget > QTabBar::tab:selected {{
                     background-color: {bg_p};
                     color: {txt_p};
                     border-bottom: 3px solid {acc};
-                    font-weight: bold;
                 }}
                 QTabWidget > QTabBar::tab:hover:!selected {{
                     background-color: {hover};
@@ -4719,11 +4718,11 @@ class IMGFactory(QMainWindow):
         """Open IDE Editor — docked by default, standalone on right-click."""
         self.open_ide_editor_docked()
 
-    def open_ide_editor_docked(self): #vers 2
-        """Open the IDE editor - it lives in the IPL Workshop's IDE tab now."""
+    def open_ide_editor_docked(self): #vers 3
+        """Open the Data Workshop on its IDE tab."""
         try:
-            from apps.components.Ide_Editor.ide_editor import open_ide_editor
-            return open_ide_editor(self)
+            from apps.components.Data_Workshop.data_workshop import open_data_workshop
+            return open_data_workshop(self, ide=True)
         except Exception as e:
             self.log_message(f"Error opening IDE Editor: {e}")
 
@@ -5392,7 +5391,32 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Failed to restore settings: {str(e)}")
 
-    def _save_settings(self): #vers 2
+    def _restore_session(self): #vers 1
+        """Reopen the file tabs open at last close (Settings key resume_session)."""
+        import json
+        from apps.methods.img_factory_settings import get_img_factory_qsettings
+        settings = get_img_factory_qsettings()
+        if not settings.value("resume_session", True, type=bool):
+            return
+        try:
+            files = json.loads(settings.value("session_files", "[]", type=str) or "[]")
+        except ValueError:
+            return
+        tw = getattr(self, 'main_tab_widget', None)
+        open_now = {getattr(tw.widget(i), 'file_path', '') for i in range(tw.count())} if tw else set()
+        files = [f for f in files if os.path.isfile(f) and f not in open_now]
+        for f in files:
+            self.load_file_unified(f)
+        cur = settings.value("session_current", "", type=str)
+        if tw and cur:
+            for i in range(tw.count()):
+                if getattr(tw.widget(i), 'file_path', '') == cur:
+                    tw.setCurrentIndex(i)
+                    break
+        if files:
+            self.log_message(f"Session restored: {len(files)} file(s)")
+
+    def _save_settings(self): #vers 3
         """Save application settings"""
         try:
             from apps.methods.img_factory_settings import get_img_factory_qsettings
@@ -5403,6 +5427,18 @@ class IMGFactory(QMainWindow):
 
             # Save dock layout (sizes too)
             self.gui_layout._save_outer_layout()
+
+            # Session: open file tabs, current tab
+            import json
+            tw = getattr(self, 'main_tab_widget', None)
+            files = []
+            for i in range(tw.count() if tw else 0):
+                fp = getattr(tw.widget(i), 'file_path', '') or ''
+                if fp and os.path.isfile(fp) and fp not in files:
+                    files.append(fp)
+            cur = getattr(tw.currentWidget(), 'file_path', '') if tw else ''
+            settings.setValue("session_files", json.dumps(files))
+            settings.setValue("session_current", cur or '')
 
             self.log_message("Settings saved")
 

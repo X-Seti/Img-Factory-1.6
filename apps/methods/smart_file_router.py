@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/smart_file_router.py - Version: 12
+#this belongs in apps/methods/smart_file_router.py - Version: 13
 # X-Seti - May08 2026 - Img Factory 1.6 - Smart File Router
 
 """
@@ -78,8 +78,8 @@ _ROUTE_MAP = {
     "sa_water1.dat": ("Water Workshop",                "_launch_water_workshop"),
     "water1.dat":    ("Water Workshop",                "_launch_water_workshop"),
     "melee.dat":     ("Weapon Workshop",               "_launch_weapon_workshop"),
-    "default.ide":   ("IDE Editor",                    "_launch_ide_editor"),
-    "txdcut.ide":    ("IDE Editor",                    "_launch_ide_editor"),
+    "default.ide":   ("Data Workshop",                    "_launch_ide_editor"),
+    "txdcut.ide":    ("Data Workshop",                    "_launch_ide_editor"),
     "gta.dat":       ("DAT Browser",                   "_launch_dat_browser"),
     "gta_quick.dat": ("DAT Browser",                   "_launch_dat_browser"),
     "default.dat":   ("DAT Browser",                   "_launch_dat_browser"),
@@ -131,7 +131,7 @@ _IGNORE_MAP = {
 
 # Checklist only: editors by extension (tree / IMG open these directly)
 _EXT_COVER = {
-    ".ide": ("IDE Editor", True), ".ipl": ("IPL Workshop", True),
+    ".ide": ("Data Workshop", True), ".ipl": ("Data Workshop", True),
     ".col": ("COL Workshop", True), ".img": ("IMG Factory", True),
     ".txd": ("TXD Workshop", True), ".dff": ("Model Workshop", True),
     ".ped": ("Ped Workshop (Decision makers)", True),
@@ -221,8 +221,8 @@ def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 8
                 return True
 
             elif launcher == "_launch_ide_editor":
-                from apps.components.Ide_Editor.ide_editor import open_ide_editor
-                editor = open_ide_editor(main_window)
+                from apps.components.Data_Workshop.data_workshop import open_data_workshop
+                editor = open_data_workshop(main_window, ide=True)
                 editor.load_ide_file(file_path)
                 _log(main_window, f"IDE Editor: {os.path.basename(file_path)}")
                 return True

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 21
+#this belongs in apps/components/Model_Editor/depends/model_setup_ui_func.py - Version: 24
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop UI setup
 
 """
@@ -62,11 +62,12 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
 
 
 
-    def _refresh_icons(self): #vers 3
+    def _refresh_icons(self): #vers 4
         """Refresh all button icons after theme change — picks up current text_primary colour."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
         SVGIconFactory.set_theme_color(c)
+        self._recolour_dock_icons()
 
         # Map: attribute name → icon factory method
         _icon_map = [
@@ -523,7 +524,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
                 b.clicked.connect(fn)
 
 
-    def _create_left_panel(self): #vers 8
+    def _create_left_panel(self): #vers 9
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -537,14 +538,14 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         # Only create panel in IMG Factory mode
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(200)
-        panel.setMaximumWidth(300)
+        panel.setMinimumWidth(120)                       # no max: dock column sets the width
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
         # Header label + search button: shown in the Files dock title bar
-        self._left_panel_header = QLabel("No files loaded")
+        from apps.methods.fold_widgets import ElidedLabel
+        self._left_panel_header = ElidedLabel("No files loaded")   # shortens, never overlaps
         self._left_panel_header.setFont(self.panel_font)
 
         self._model_search_btn = QPushButton()
@@ -561,6 +562,9 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         # Search box (hidden by default)
         self._model_search_box = QLineEdit()
         self._model_search_box.setPlaceholderText("Search model files...")
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGs
+        self._model_search_box.addAction(_SVGs.search_icon(16, self._get_icon_color()),
+                                         QLineEdit.ActionPosition.LeadingPosition)   # mag glass on the left
         self._model_search_box.setVisible(False)
         self._model_search_box.textChanged.connect(self._filter_model_list)
         layout.addWidget(self._model_search_box)
@@ -1382,7 +1386,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         self._sel_face_btn   = None
         self._sel_poly_btn   = None
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 6
+    def _toolbar_context_menu(self, toolbar, pos): #vers 7
         """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
         from PyQt6.QtWidgets import QToolBar
         from apps.methods.toolbar_menu import standard_toolbar_menu
@@ -1391,7 +1395,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
             scale = json.loads((self._ribbon_config_path()).read_text()).get('icon_scale', 20)
         except Exception:
             scale = 20
-        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
+        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale, toolbar)
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _switch_icon_set(self, key: str): #vers 3

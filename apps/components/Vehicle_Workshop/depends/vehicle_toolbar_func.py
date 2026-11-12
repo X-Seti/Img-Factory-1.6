@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 7
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 8
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop toolbar
 
 """
@@ -20,6 +20,7 @@ Toolbar, file loading, paint, animation and overlay actions.
 # _load_vehicle_meta
 # _lookup_txd_for_stem
 # _on_img_entry_dclicked
+# _on_img_entry_selected
 # _on_shared_txds_found
 # _open_app_settings
 # _open_dff
@@ -1087,7 +1088,7 @@ class VehicleToolbarMixin: #vers 1
             import traceback; traceback.print_exc()
             self._set_status(f'TXD error: {e}')
 
-    def load_img(self, img): #vers 3
+    def load_img(self, img): #vers 4
         """Populate IMG list with vehicle DFF entries only (from handling.cfg / IDE DB).
         Also auto-loads vehicle data files from mw.vehicle_data_paths if not yet loaded."""
         self._current_img = img
@@ -1115,6 +1116,13 @@ class VehicleToolbarMixin: #vers 1
         if not vehicle_names:
             mw = getattr(self, 'main_window', None)
             vehicle_names = getattr(mw, 'vehicle_names', set())
+        if not vehicle_names:                            # game IDE 'cars' section
+            from apps.methods.vehicle_slots import VehicleSlots
+            root = self._find_game_root()
+            try:
+                vehicle_names = {sl.model.lower() for sl in VehicleSlots(root).slots} if root else set()
+            except (ValueError, OSError):
+                vehicle_names = set()
         for entry in img.entries:
             if not entry.name.lower().endswith('.dff'):
                 continue
@@ -1130,6 +1138,14 @@ class VehicleToolbarMixin: #vers 1
         count = self._img_list.count()
         total = sum(1 for e in img.entries if e.name.lower().endswith('.dff'))
         self._set_status(f"IMG: {count} vehicles ({total} DFFs total)")
+
+    def _on_img_entry_selected(self, item): #vers 1
+        """Click / Enter on IMG entry: load it unless already shown."""
+        key = (id(getattr(self, '_current_img', None)), id(item.data(Qt.ItemDataRole.UserRole)))
+        if key == getattr(self, '_img_entry_shown', None):
+            return
+        self._img_entry_shown = key
+        self._on_img_entry_dclicked(item)
 
     def _on_img_entry_dclicked(self, item): #vers 2
         """Double-click IMG entry — extract and load DFF + auto TXD with progress."""

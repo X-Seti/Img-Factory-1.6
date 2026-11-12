@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 10
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 12
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -1463,8 +1463,13 @@ class DirectoryTreeBrowser(QWidget):
                 edit_action.triggered.connect(
                     lambda _=False, p=file_path: self._edit_text_file(p))
                 menu.addAction(edit_action)
+                if file_ext == '.ipl':
+                    ipl_action = QAction("Open in Data Workshop", self)
+                    ipl_action.triggered.connect(
+                        lambda _=False, p=file_path: self._open_ipl_workshop(p))
+                    menu.addAction(ipl_action)
                 if file_ext == '.ide':
-                    ide_action = QAction("Open in IDE Editor", self)
+                    ide_action = QAction("Open in Data Workshop (IDE)", self)
                     ide_action.triggered.connect(
                         lambda _=False, p=file_path: self._open_ide_editor(p))
                     menu.addAction(ide_action)
@@ -1969,12 +1974,22 @@ class DirectoryTreeBrowser(QWidget):
             if mw and hasattr(mw, "log_message"):
                 mw.log_message(f"Text Editor error: {e}")
 
-    def _open_ide_editor(self, file_path: str): #vers 1
-        """Open an .ide file in the structured IDE Editor."""
+    def _open_ipl_workshop(self, file_path: str): #vers 2
+        """Open an .ipl in the Data Workshop."""
+        mw = getattr(self, "main_window", None)
         try:
-            from apps.components.Ide_Editor.ide_editor import open_ide_editor
+            from apps.components.Data_Workshop.data_workshop import open_data_workshop
+            open_data_workshop(mw, file_path)
+        except Exception as e:
+            if mw and hasattr(mw, "log_message"):
+                mw.log_message(f"Data Workshop error: {e}")
+
+    def _open_ide_editor(self, file_path: str): #vers 2
+        """Open an .ide file in the Data Workshop's IDE tab."""
+        try:
+            from apps.components.Data_Workshop.data_workshop import open_data_workshop
             mw = getattr(self, "main_window", None)
-            editor = open_ide_editor(mw)
+            editor = open_data_workshop(mw, ide=True)
             editor.load_ide_file(file_path)
             if mw and hasattr(mw, "log_message"):
                 mw.log_message(f"IDE Editor: {os.path.basename(file_path)}")

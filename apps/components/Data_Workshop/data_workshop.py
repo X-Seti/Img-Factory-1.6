@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ipl_Editor/ipl_workshop.py - Version: 9
-# X-Seti - Apr 2026 - IMG Factory 1.6 - IPL Workshop
+#this belongs in apps/components/Data_Workshop/data_workshop.py - Version: 12
+# X-Seti - Apr 2026 - IMG Factory 1.6 - Data Workshop (IDE / IPL / DAT)
 # Item Placement List editor for GTA III / VC / SA / SOL
 # Built on GUIWorkshop base (temp_workshop pattern)
 # Section 1: IPL parser / writer
-# Section 2: IPL Workshop UI (GUIWorkshop subclass)
+# Section 2: Data Workshop UI (GUIWorkshop subclass)
 # Section 3: IPL logic - open/save/edit/search/filter
 
 import sys, os, re
@@ -26,12 +26,12 @@ from PyQt6.QtCore import Qt, QSize, pyqtSignal, QSortFilterProxyModel
 
 import sys, os
 from pathlib import Path
-_root = Path(__file__).resolve().parents[3]  # apps/components/Ipl_Editor -> project root
+_root = Path(__file__).resolve().parents[3]  # apps/components/Data_Workshop -> project root
 if str(_root) not in sys.path: sys.path.insert(0, str(_root))
 
 #    GUIWorkshop base                                                           
 from apps.methods.statusbar_func import register_statusbar
-from apps.components.Ipl_Editor.depends.diffcode import GUIWorkshop
+from apps.components.Data_Workshop.depends.diffcode import GUIWorkshop
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -43,8 +43,8 @@ except ImportError:
         search_icon = locate_icon = edit_icon = remove_icon = \
         add_icon = info_icon = staticmethod(_s)
 
-App_name = "IPL Workshop"
-Build    = "Build 1"
+App_name = "Data Workshop"
+Build    = "Build 2"
 
 
 # =============================================================================
@@ -54,11 +54,11 @@ Build    = "Build 1"
 from apps.methods.ipl_file import IPLEntry, IPLSection, IPLFile
 from apps.methods.ribbon_system import RibbonMixin
 from apps.methods.ribbon_dialog import RibbonIconsMixin
-from apps.components.Ide_Editor.ide_editor import IDEPanel
+from apps.components.Data_Workshop.depends.ide_panel import IDEPanel
 
 
 # =============================================================================
-# SECTION 2 — IPL Workshop (GUIWorkshop subclass)
+# SECTION 2 — Data Workshop (GUIWorkshop subclass)
 # =============================================================================
 
 class IPLMapView(QFrame):  # vers 1
@@ -77,7 +77,7 @@ class IPLMapView(QFrame):  # vers 1
     WORLD_MIN_X, WORLD_MAX_X = -3000.0,  3000.0
     WORLD_MIN_Y, WORLD_MAX_Y = -3000.0,  3000.0
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): # vers 1
         super().__init__(parent)
         self.setFrameStyle(QFrame.Shape.StyledPanel)
         self.setMinimumSize(400, 300)
@@ -110,7 +110,7 @@ class IPLMapView(QFrame):  # vers 1
         self._dirty = True
 
     #    Data loading                                                       
-    def load_entries(self, entries: list, ipl_filter: set = None):
+    def load_entries(self, entries: list, ipl_filter: set = None): # vers 1
         """Load IPL entries. ipl_filter: set of source_ipl basenames to show."""
         self._entries = entries or []
         self._selected.clear()
@@ -176,12 +176,12 @@ class IPLMapView(QFrame):  # vers 1
         self._water_rects = rects or []
         self.update()
 
-    def set_ipl_filter(self, active_ipls: set):
+    def set_ipl_filter(self, active_ipls: set): # vers 1
         self._active_ipls = active_ipls
         self.update()
 
     #    Coordinate transform                                               
-    def _world_to_screen(self, wx, wy):
+    def _world_to_screen(self, wx, wy): # vers 1
         """Convert GTA world XY → screen pixel."""
         W, H = self.width(), self.height()
         cx = W / 2 + self._pan_x
@@ -191,7 +191,7 @@ class IPLMapView(QFrame):  # vers 1
         sy =  cy - wy * scale   # Y flipped (screen Y down, world Y up)
         return sx, sy
 
-    def _screen_to_world(self, sx, sy):
+    def _screen_to_world(self, sx, sy): # vers 1
         W, H = self.width(), self.height()
         cx = W / 2 + self._pan_x
         cy = H / 2 + self._pan_y
@@ -200,7 +200,7 @@ class IPLMapView(QFrame):  # vers 1
         wy = (cy - sy) / scale
         return wx, wy
 
-    def _fit_all(self):
+    def _fit_all(self): # vers 1
         """Fit all visible entries in view."""
         visible = self._visible_entries()
         if not visible:
@@ -217,14 +217,14 @@ class IPLMapView(QFrame):  # vers 1
         self._pan_x = -cx * (min(W,H) / (self.WORLD_MAX_X - self.WORLD_MIN_X) * self._zoom)
         self._pan_y =  cy * (min(W,H) / (self.WORLD_MAX_X - self.WORLD_MIN_X) * self._zoom)
 
-    def _visible_entries(self):
+    def _visible_entries(self): # vers 1
         if self._active_ipls:
             return [e for e in self._entries
                     if (e.source_line or '') in self._active_ipls]
         return self._entries
 
     #    Paint                                                              
-    def paintEvent(self, event):
+    def paintEvent(self, event): # vers 1
         from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont
         from PyQt6.QtCore import QRectF
         p = QPainter(self)
@@ -330,7 +330,7 @@ class IPLMapView(QFrame):  # vers 1
 
         p.end()
 
-    def _draw_grid(self, p, W, H):
+    def _draw_grid(self, p, W, H): # vers 1
         from PyQt6.QtGui import QPen, QColor
         from PyQt6.QtCore import QLineF
         # Draw world-space grid at nice intervals
@@ -359,12 +359,12 @@ class IPLMapView(QFrame):  # vers 1
             y += interval
 
     #    Mouse interaction                                                  
-    def wheelEvent(self, event):
+    def wheelEvent(self, event): # vers 1
         factor = 1.15 if event.angleDelta().y() > 0 else 1/1.15
         self._zoom = max(0.05, min(200.0, self._zoom * factor))
         self.update()
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event): # vers 1
         if event.button() == Qt.MouseButton.MiddleButton:
             self._drag_start = event.position()
             self._drag_pan   = True
@@ -373,7 +373,7 @@ class IPLMapView(QFrame):  # vers 1
             self._drag_pan   = False
             self._sel_rect   = None
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event): # vers 1
         if self._drag_start is None:
             return
         dx = event.position().x() - self._drag_start.x()
@@ -391,7 +391,7 @@ class IPLMapView(QFrame):  # vers 1
             self._sel_rect = QRectF(x0, y0, x1-x0, y1-y0)
             self.update()
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event): # vers 1
         if event.button() == Qt.MouseButton.LeftButton and self._drag_start is not None:
             if self._sel_rect and (self._sel_rect.width() > 4 or
                                     self._sel_rect.height() > 4):
@@ -436,7 +436,7 @@ class IPLMapView(QFrame):  # vers 1
         self._drag_start = None
         self._drag_pan   = False
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event): # vers 1
         if event.key() == Qt.Key.Key_A and \
                 event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._selected = set(range(len(self._entries)))
@@ -450,7 +450,7 @@ class IPLMapView(QFrame):  # vers 1
             self._fit_all(); self.update()
 
     #    Selection helpers                                                  
-    def select_by_ipl(self, ipl_name: str, add=False):
+    def select_by_ipl(self, ipl_name: str, add=False): # vers 1
         if not add:
             self._selected.clear()
         for i, e in enumerate(self._entries):
@@ -460,11 +460,11 @@ class IPLMapView(QFrame):  # vers 1
         self.selection_changed.emit(
             [self._entries[i] for i in sorted(self._selected)])
 
-    def selected_entries(self):
+    def selected_entries(self): # vers 1
         return [self._entries[i] for i in sorted(self._selected)]
 
     #    Bulk operations                                                    
-    def translate_selected(self, dx: float, dy: float, dz: float):
+    def translate_selected(self, dx: float, dy: float, dz: float): # vers 1
         """Move selected entries by (dx, dy, dz)."""
         if not self._selected:
             return
@@ -475,7 +475,7 @@ class IPLMapView(QFrame):  # vers 1
             e.pz += dz
         self.update()
 
-    def rotate_selected_yaw(self, degrees: float):
+    def rotate_selected_yaw(self, degrees: float): # vers 1
         """Rotate selected entries around Z axis (yaw) about their centroid."""
         import math
         if not self._selected:
@@ -506,12 +506,12 @@ class IPLMapView(QFrame):  # vers 1
 class IPLMapPanel(QFrame):  # vers 1
     """Full map panel with map view + translate/rotate controls."""
 
-    def __init__(self, workshop, parent=None):
+    def __init__(self, workshop, parent=None): # vers 1
         super().__init__(parent)
         self._ws = workshop
         self._build_ui()
 
-    def _build_ui(self):
+    def _build_ui(self): # vers 1
         from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QGroupBox,
             QDoubleSpinBox, QPushButton, QLabel, QCheckBox, QComboBox)
         root = QVBoxLayout(self)
@@ -630,35 +630,35 @@ class IPLMapPanel(QFrame):  # vers 1
 
         root.addLayout(ctrl)
 
-    def _spin(self, lo, hi, val, tip):
+    def _spin(self, lo, hi, val, tip): # vers 1
         from PyQt6.QtWidgets import QDoubleSpinBox
         s = QDoubleSpinBox(); s.setRange(lo, hi); s.setValue(val)
         s.setDecimals(2); s.setMinimumWidth(84); s.setMinimumHeight(28)
         s.setToolTip(tip)
         return s
 
-    def refresh(self, entries, ipl_filter=None):
+    def refresh(self, entries, ipl_filter=None): # vers 1
         self._map.load_entries(entries, ipl_filter)
 
-    def _fit(self):
+    def _fit(self): # vers 1
         self._map._fit_all(); self._map.update()
 
-    def _select_all(self):
+    def _select_all(self): # vers 1
         self._map._selected = set(range(len(self._map._entries)))
         self._map.update()
         self._on_selection_changed(self._map._entries)
 
-    def _clear_sel(self):
+    def _clear_sel(self): # vers 1
         self._map._selected.clear()
         self._map.update()
         self._on_selection_changed([])
 
-    def _on_selection_changed(self, entries):
+    def _on_selection_changed(self, entries): # vers 1
         n = len(entries)
         self._sel_lbl.setText(
             f"{n:,} object(s) selected" if n else "No selection")
 
-    def _select_by_ipl_dialog(self):
+    def _select_by_ipl_dialog(self): # vers 1
         from PyQt6.QtWidgets import QInputDialog
         ipls = sorted({(e.source_line or '') for e in self._map._entries} - {''})
         if not ipls:
@@ -778,7 +778,7 @@ class IPLMapPanel(QFrame):  # vers 1
         if mw and hasattr(mw,'log_message'):
             mw.log_message(f"IPL Map: radar background loaded from {path}")
 
-    def _apply_translate(self):
+    def _apply_translate(self): # vers 1
         dx = self._tx.value(); dy = self._ty.value(); dz = self._tz.value()
         if dx == dy == dz == 0:
             return
@@ -792,7 +792,7 @@ class IPLMapPanel(QFrame):  # vers 1
             self._ws.main_window.log_message(
                 f"IPL: moved {n} object(s) by X={dx:+.1f} Y={dy:+.1f} Z={dz:+.1f}")
 
-    def _rotate(self, degrees):
+    def _rotate(self, degrees): # vers 1
         self._ws._push_undo()
         self._map.rotate_selected_yaw(degrees)
         n = len(self._map._selected)
@@ -802,20 +802,20 @@ class IPLMapPanel(QFrame):  # vers 1
             self._ws.main_window.log_message(
                 f"IPL: rotated {n} object(s) by {degrees:+.0f}°")
 
-class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
+class DataWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
     """GTA Item Placement List editor — docks in IMG Factory or runs standalone."""
 
-    App_name        = "IPL Workshop"
+    App_name        = App_name
     App_build       = Build
     App_author      = "X-Seti"
     App_year        = "2026"
     App_description = ("GTA III / VC / SA / SOL — .ide item definitions + .ipl placements\n"
                        "Edit object instances: position, rotation, model ID\n"
                        "Supports inst / zone / cull / cars and all other sections")
-    config_key      = "ipl_workshop"
-    _ribbon_name    = "ipl_workshop"
+    config_key      = "data_workshop"
+    _ribbon_name    = "data_workshop"
     # Bump when the set of ribbons changes (3 = Sort buttons added)
-    _RIBBON_LAYOUT_VERSION = 4
+    _RIBBON_LAYOUT_VERSION = 5
     DROP_EXTS = ('.ipl', '.ide', '.ifx')
 
     # Column indices for the instance table
@@ -835,6 +835,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
 
     COL_HEADERS = ["ID", "Model", "Int", "X", "Y", "Z",
                    "Rot X", "Rot Y", "Rot Z", "Rot W", "LOD", "File"]
+
 
     def __init__(self, parent=None, main_window=None): #vers 2
         self._defer_setup_ui = True
@@ -858,13 +859,14 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
         if main_window: self.setWindowFlags(Qt.WindowType.Widget)
         try:
-            from apps.methods.imgfactory_svg_icons import get_ipl_editor_icon
-            self.setWindowIcon(get_ipl_editor_icon(64))
+            from apps.methods.imgfactory_svg_icons import get_data_workshop_icon
+            self.setWindowIcon(get_data_workshop_icon(64))
         except Exception:
             pass
 
+
     #    Menu                                                                   
-    def _build_menus_into_qmenu(self, pm):
+    def _build_menus_into_qmenu(self, pm): # vers 1
         fm = pm.addMenu("File")
         fm.addAction("Open IPL…  Ctrl+O",     self._open_file)
         fm.addAction("Load all IPLs from DAT…", self._load_all_from_dat)
@@ -898,10 +900,11 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         vm.addAction("Filter by Interior…",    self._filter_interior)
         vm.addAction("Statistics",             self._show_stats)
         vm.addSeparator()
-        vm.addAction("About IPL Workshop",     self._show_about)
+        vm.addAction("About Data Workshop",     self._show_about)
+
 
     #    Left panel — section list                                              
-    def _create_left_panel(self):
+    def _create_left_panel(self): # vers 1
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         ll = QVBoxLayout(panel)
@@ -931,6 +934,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._dirty_lbl.setFont(self.infobar_font)
         ll.addWidget(self._dirty_lbl)
         return panel
+
 
     #    Centre panel — instance table + search                                 
     def _create_centre_panel(self): #vers 2
@@ -1013,6 +1017,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         cl.addWidget(self._centre_tabs)
         return panel
 
+
     def _on_centre_tab_changed(self, idx: int): #vers 4
         """Refresh the map when its tab opens; hide the IPL section list while
         the IDE tab (which has its own file/section lists) is showing."""
@@ -1025,6 +1030,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 path_secs = [s for f in self._files for s in f.sections if s.name == 'path']
                 self._map_panel._map.load_path_nodes(path_secs)
 
+
     def _current_entries(self) -> list: #vers 2
         """Every loaded file's inst entries (what the table and map show)."""
         return self._view_entries()
@@ -1034,12 +1040,13 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
 # SECTION 3 — IPL logic
 # =============================================================================
 
+
     #    File ops                                                               
-    def _open_file(self, path=None): #vers 2
+    def _open_file(self, path=None): #vers 3
         if not path:
             path, _ = QFileDialog.getOpenFileName(
-                self, "Open IPL File", "",
-                "IPL Files (*.ipl *.IPL);;All Files (*)")
+                self, "Open IPL / IDE File", "",
+                "IPL / IDE Files (*.ipl *.IPL *.ide *.IDE);;All Files (*)")
         if not path:
             return
         if path.lower().endswith((".ide", ".ifx")):
@@ -1058,6 +1065,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._set_status(f"Loaded {Path(path).name}  |  {len(ipl.instances)} instances"
                          f"  |  game={ipl.game}  |  sections: {', '.join(ipl.section_names())}")
 
+
     def _save_file(self): #vers 3
         """Save every changed IDE file first (their ID / name changes are applied
         to the loaded IPL entries), then every changed IPL - each back to its own
@@ -1073,6 +1081,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         if saved or ide_saved:
             self._set_status(("IDE saved  |  " if ide_saved else "") + ("Saved " + ", ".join(saved) if saved else ""))
 
+
     def _save_as(self): #vers 2
         if len(self._files) != 1:
             QMessageBox.information(self, "Save As",
@@ -1087,6 +1096,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._populate_table()
             self._update_dirty()
             self._set_status(f"Saved as {Path(p).name}")
+
 
     def _write_ipl(self, ipl, path) -> bool: #vers 1
         from apps.methods.file_backup import backup_file, note_change
@@ -1104,6 +1114,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
 
     def _export_file(self): self._export_csv()
     def _import_file(self): self._open_file()
+
 
     def _export_csv(self): #vers 2
         view = self._view_entries()
@@ -1126,9 +1137,11 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
-    def _clear_recent(self):
+
+    def _clear_recent(self): # vers 1
         self.WS._data["recent_files"] = []; self.WS.save()
         self._set_status("Recent cleared")
+
 
     #    Section management                                                     
     def _populate_section_list(self): #vers 2
@@ -1149,9 +1162,11 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 it.setData(Qt.ItemDataRole.UserRole, (sec.name, fi))
                 self._section_list.addItem(it)
 
+
     def _select_inst_section(self): #vers 2
         if self._section_list.count():
             self._section_list.setCurrentRow(0)
+
 
     def _on_section_changed(self, row: int): #vers 2
         if not self._files or row < 0:
@@ -1176,6 +1191,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._text_view.setPlainText("\n".join(sec.raw))
         self._text_view.blockSignals(False)
         self._set_status(f"Section '{name}' - {len(sec.raw)} lines (raw text)")
+
 
     #    Table population                                                       
     def _populate_table(self, entries=None): #vers 3
@@ -1218,7 +1234,8 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._update_dirty()
         self._set_status(f"Section 'inst' - {len(view)} instances")
 
-    def _update_int_filter(self, entries: List[IPLEntry]):
+
+    def _update_int_filter(self, entries: List[IPLEntry]): # vers 1
         interiors = sorted(set(e.interior for e in entries))
         self._int_filter.blockSignals(True)
         self._int_filter.clear()
@@ -1227,15 +1244,18 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._int_filter.addItem(f"Interior {i}", i)
         self._int_filter.blockSignals(False)
 
+
     #    Search / filter                                                        
-    def _on_search_changed(self, text: str):
+    def _on_search_changed(self, text: str): # vers 1
         self._apply_filter(text, self._int_filter.currentData())
+
 
     def _on_filter_changed(self):
         self._apply_filter(self._search_box.text(),
                            self._int_filter.currentData())
 
-    def _apply_filter(self, text: str, interior):
+
+    def _apply_filter(self, text: str, interior): # vers 1
         text = text.lower()
         for row in range(self._table.rowCount()):
             model_item = self._table.item(row, self.COL_MODEL)
@@ -1245,11 +1265,13 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 int_item and int(int_item.text() or "0") == interior)
             self._table.setRowHidden(row, not (model_match and int_match))
 
-    def _clear_search(self):
+
+    def _clear_search(self): # vers 1
         self._search_box.clear()
         self._int_filter.setCurrentIndex(0)
         for row in range(self._table.rowCount()):
             self._table.setRowHidden(row, False)
+
 
     #    Editing                                                                
     def _on_cell_edited(self, item: QTableWidgetItem): #vers 2
@@ -1281,6 +1303,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         setattr(e, attr, new)
         self._update_dirty()
 
+
     def _on_text_edited(self): #vers 2
         if not self._files or getattr(self, "_active_file", -1) < 0:
             return
@@ -1290,11 +1313,14 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             sec.raw = self._text_view.toPlainText().split("\n")
             self._update_dirty()
 
+
     def _mark_dirty(self): #vers 2
         self._update_dirty()
 
+
     def _current_inst_section(self) -> Optional[IPLSection]: #vers 2
         return self._files[0].inst_section if self._files else None
+
 
     #    Load all from DAT                                                     
     def _load_all_from_dat(self):
@@ -1308,6 +1334,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             import traceback
             QMessageBox.critical(self, "Load Error",
                 f"Failed to load from DAT:\n{e}\n\n{traceback.format_exc()[-500:]}")
+
 
     def _pick_dat_path(self) -> str:
         """Return a .dat path — from DAT Browser if open, else file dialog."""
@@ -1333,7 +1360,8 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             "DAT Files (*.dat *.DAT);;All Files (*)")
         return p
 
-    def _do_load_all_from_dat(self, dat_path: str):
+
+    def _do_load_all_from_dat(self, dat_path: str): # vers 1
         """Parse DAT, collect all IPL entries, merge into one multi-section IPLFile."""
         from apps.methods.gta_dat_parser import DATParser, GTAGame
 
@@ -1354,7 +1382,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 self._ide_panel._dat_path = dat_path
                 self._ide_panel._load_files(list(ides), replace=True)
         except Exception as ex:
-            print(f"[IPL Workshop] IDE load from dat: {ex}")
+            print(f"[{App_name}] IDE load from dat: {ex}")
 
         game_root = str(Path(dat_path).parent.parent)
         dat = DATParser(game)
@@ -1406,6 +1434,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         if failed:
             QMessageBox.warning(self, "Some Files Skipped",
                 "These IPL files could not be loaded:\n\n" + "\n".join(failed[:20]))
+
 
     def _select_ipls_dialog(self, entries, dat_path: str):
         """Show a checklist dialog — let user pick which IPLs to load."""
@@ -1474,15 +1503,18 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         del self._undo_stack[:-30]
         self._redo_stack.clear()
 
+
     def _snapshot(self, copy):
         return [(f, [copy.deepcopy(e) for e in f.instances], f.inst_section.reordered)
                 for f in self._files if f.inst_section]
+
 
     def _restore(self, snap):
         for f, entries, reordered in snap:
             f.inst_section.entries = entries
             f.inst_section.reordered = reordered
         self._populate_table()
+
 
     def _undo(self): #vers 2
         if not self._files or not self._undo_stack:
@@ -1493,6 +1525,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._restore(self._undo_stack.pop())
         self._set_status("Undo")
 
+
     def _redo(self): #vers 2
         if not self._files or not self._redo_stack:
             self._set_status("Nothing to redo")
@@ -1501,6 +1534,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._undo_stack.append(self._snapshot(copy))
         self._restore(self._redo_stack.pop())
         self._set_status("Redo")
+
 
     def _add_entry(self): #vers 2
         if not self._files:
@@ -1521,6 +1555,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._update_section_list_count()
         self._set_status("Entry added")
 
+
     def _delete_selected(self): #vers 2
         rows = self._selected_view_indices()
         if not rows:
@@ -1539,6 +1574,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._update_section_list_count()
         self._set_status(f"Deleted {len(doomed)} entries")
 
+
     def _duplicate_selected(self): #vers 2
         rows = self._selected_view_indices()
         if not rows:
@@ -1553,8 +1589,10 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._update_section_list_count()
         self._set_status(f"Duplicated {len(rows)} entries")
 
+
     def _select_all(self):
         self._table.selectAll()
+
 
     def _update_section_list_count(self, sec=None): #vers 2
         item = self._section_list.item(0) if self._section_list.count() else None
@@ -1562,12 +1600,13 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             item.setText(f"inst  ({len(self._view_entries())})")
 
     #    Search / stats                                                         
-    def _show_find(self):
+    def _show_find(self): #vers 1
         text, ok = self._input_dialog("Find Model", "Model name contains:")
         if ok and text:
             self._search_box.setText(text)
 
-    def _filter_interior(self):
+
+    def _filter_interior(self): #vers 1
         text, ok = self._input_dialog("Filter Interior", "Interior index (0=outdoor):")
         if ok:
             try:
@@ -1579,14 +1618,17 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             except ValueError:
                 pass
 
-    def _input_dialog(self, title, label):
+
+    def _input_dialog(self, title, label): #vers 1
         from PyQt6.QtWidgets import QInputDialog
         return QInputDialog.getText(self, title, label)
+
 
     def _fit_columns(self): #vers 1
         self._table.resizeColumnsToContents()
         self._table.horizontalHeader().setSectionResizeMode(
             self.COL_MODEL, QHeaderView.ResizeMode.Stretch)
+
 
     def _show_stats(self): #vers 2
         view = self._view_entries()
@@ -1604,6 +1646,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             f"Models:     {len(set(e.model_name for e in view))} unique\n\n"
             "Most placed:\n" + "\n".join(f"  {n}: {c}" for n, c in top))
 
+
     def _update_info(self): #vers 2
         if not self._files:
             self._info_lbl.setText("No file loaded")
@@ -1611,8 +1654,9 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         name = Path(self._file_path).name if len(self._files) == 1 else f"{len(self._files)} IPL files"
         self._info_lbl.setText(f"{name}\n{len(self._view_entries())} instances\ngame={self._files[0].game}")
 
+
     #    Context menu                                                           
-    def _show_context_menu(self, pos):
+    def _show_context_menu(self, pos): #vers 1
         menu = QMenu(self)
         menu.addAction("Add Entry",           self._add_entry)
         menu.addAction("Delete Selected",     self._delete_selected)
@@ -1620,6 +1664,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         menu.addSeparator()
         menu.addAction("Export CSV…",         self._export_csv)
         menu.exec(self._table.viewport().mapToGlobal(pos))
+
 
     #    Ribbon UI / state                                                      
     def _create_toolbar(self): #vers 2
@@ -1631,6 +1676,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             if btn:
                 btn.setVisible(False)
         return tb
+
 
     def setup_ui(self): #vers 5
         """Titlebar / Sections dock | ribbon-wrapped tabs / status bar."""
@@ -1647,14 +1693,17 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         ml.addWidget(self._status_widget)
         register_statusbar(self, self._status_widget)
 
-    def _ide_active(self) -> bool:
+
+    def _ide_active(self) -> bool: #vers 1
         return self._centre_tabs.currentWidget() is self._ide_panel
 
-    def _ctx(self, ide_fn, ipl_fn):
+
+    def _ctx(self, ide_fn, ipl_fn): #vers 1
         """Button action that goes to the IDE tab or the IPL table, whichever is showing."""
         return lambda: (ide_fn() if self._ide_active() else ipl_fn())
 
-    def _build_ribbons(self): #vers 2
+
+    def _build_ribbons(self): #vers 3
         B, P = self.ribbon_button, self._ide_panel
         tb = self.ribbon_toolbar("File")
         B(tb, "open_icon",   "Open an IPL or IDE file  (Ctrl+O)", self._open_any, text="Open")
@@ -1699,6 +1748,8 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         B(tb, "edit_icon",    "Set model ID / name on selected...", self._set_model_dialog, text="Model")
         B(tb, "package_icon", "Merge entries from other IPL file(s)...", self._merge_ipl, text="Merge")
         B(tb, "export_icon",  "Export selected (or all) entries to a NEW IPL...", self._export_selection, text="Split")
+        B(tb, "convert_icon", "Move the generic / prop objects of each IPL into its own x_generics.ipl (by IDE file, IDE rows or generic.ide)...", self._split_by_ide, text="Generics")
+
 
     def closeEvent(self, ev): #vers 1
         if self.standalone_mode and (any(f.dirty for f in self._files) or self._ide_panel.has_unsaved()):
@@ -1717,12 +1768,15 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self.ribbon_save_state()
         super().closeEvent(ev)
 
+
     def _view_entries(self) -> list: #vers 1
         return [e for f in self._files for e in f.instances]
+
 
     def _file_of(self, e) -> str: #vers 1
         f = self._owner.get(id(e))
         return Path(f.path).name if f else ""
+
 
     def _selected_view_indices(self) -> list: #vers 1
         rows = {i.row() for i in self._table.selectedItems()}
@@ -1733,6 +1787,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 out.append(idc.data(Qt.ItemDataRole.UserRole))
         return sorted(set(out))
 
+
     def _after_load(self): #vers 1
         self._undo_stack.clear()
         self._redo_stack.clear()
@@ -1742,6 +1797,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._populate_table()
         self._update_info()
 
+
     def _update_dirty(self): #vers 2
         n = sum(1 for f in self._files if f.dirty)
         m = sum(1 for f in self._ide_panel._files if f.dirty)
@@ -1749,6 +1805,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._dirty_lbl.setText("Modified: " + " + ".join(parts) if parts else "Modified: no")
         if hasattr(self, "save_btn"):
             self.save_btn.setEnabled(bool(n or m))
+
 
     #    IDE + IPL together                                                    
     def _open_any(self): #vers 1
@@ -1763,14 +1820,34 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         if ipls:
             self._open_file(ipls[0])
 
+
     def load_ide_file(self, file_path: str) -> bool: #vers 1
         """Load an IDE into the IDE tab (API used by IMG Factory / DAT Browser)."""
         ok = self._ide_panel.load_ide_file(file_path)
         self.show_ide_tab()
         return ok
 
+
     def show_ide_tab(self): #vers 1
         self._centre_tabs.setCurrentWidget(self._ide_panel)
+
+
+    def select_instance(self, model_name: str, pos) -> bool: #vers 1
+        """Select the table row of a placed instance (name + nearest position)."""
+        view = self._view_entries()
+        hits = [i for i, e in enumerate(view) if e.model_name.lower() == model_name.lower()]
+        if not hits:
+            return False
+        best = min(hits, key=lambda i: (view[i].px - pos[0]) ** 2 + (view[i].py - pos[1]) ** 2
+                   + (view[i].pz - pos[2]) ** 2)
+        for row in range(self._table.rowCount()):
+            item = self._table.item(row, self.COL_ID)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == best:
+                self._table.selectRow(row)
+                self._table.scrollToItem(item)
+                return True
+        return False
+
 
     def _cascade_ide_changes(self, id_map, renames): #vers 1
         """IDE -> IPL: apply saved ID changes / renames to the placements loaded
@@ -1795,11 +1872,13 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             self._populate_table()
         return f"  |  {len(hits)} IPL placement(s) updated - Save writes them"
 
+
     #    Sorting (same idea as the Map Workshop's Sort menu)                   
-    def _usage_counts(self):
+    def _usage_counts(self): #vers 1
         """model id -> how many placements use it across every loaded IPL."""
         from collections import Counter
         return Counter(e.model_id for e in self._view_entries())
+
 
     def _sort_menu_ipl(self): #vers 1
         from PyQt6.QtWidgets import QMenu
@@ -1813,6 +1892,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
                 ("Most placed models first", "usage", True)):
             m.addAction(label, lambda k=key, r=rev, lb=label: self._sort_ipl(k, r, lb))
         m.exec(QCursor.pos())
+
 
     def _sort_ipl(self, key: str, reverse: bool = False, label: str = ""): #vers 1
         """Re-order the inst entries of every loaded file (each file on its own).
@@ -1854,6 +1934,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._set_status(f"Sorted IPL entries by {label or key}"
                          + (f"  |  {moved_lods} LOD link(s) re-pointed" if moved_lods else ""))
 
+
     #    Tools (use cases)                                                      
     def _ide_declared(self, ask=True):  #vers 1
         """{model_id: lowercase name} from the game's IDE files, or None."""
@@ -1889,6 +1970,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             for o in res.objects_by_section.get(sec, []):
                 declared.setdefault(o.model_id, o.model_name.lower())
         return declared
+
 
     def _run_checks(self): #vers 1
         """Read-only report: duplicate placements, LOD links (SA), bad
@@ -1942,6 +2024,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         from apps.methods.asset_integrity import show_integrity_dialog
         show_integrity_dialog(self, f"Problems found: {problems}\n\n" + "\n".join(out))
 
+
     def _remove_duplicates(self): #vers 1
         if not self._files:
             return
@@ -1968,11 +2051,13 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._update_section_list_count()
         self._set_status(f"Removed {len(doomed)} duplicate placements")
 
+
     def _targets(self):
         """Selected entries, or every entry when nothing is selected."""
         view = self._view_entries()
         rows = self._selected_view_indices()
         return [view[r] for r in rows] if rows else view, bool(rows)
+
 
     def _translate_dialog(self): #vers 1
         ents, sel = self._targets()
@@ -1999,6 +2084,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._populate_table()
         self._set_status(f"Moved {len(ents)} entries by {dx:+g}, {dy:+g}, {dz:+g}")
 
+
     def _set_model_dialog(self): #vers 1
         ents, sel = self._targets()
         if not sel:
@@ -2021,6 +2107,7 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             e.model_id, e.model_name = idsp.value(), name.text().strip()
         self._populate_table()
         self._set_status(f"Set model {name.text().strip()} ({idsp.value()}) on {len(ents)} entries")
+
 
     def _merge_ipl(self): #vers 1
         """Copy the inst entries of other IPL file(s) into the target file
@@ -2060,6 +2147,187 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
         self._populate_table()
         self._update_section_list_count()
         self._set_status(f"Merged {len(incoming)} entries into {Path(target.path).name}")
+
+
+    def _ide_model_sets(self) -> list: #vers 1
+        """[(label, {model names})] per loaded IDE file (objs / tobj / anim rows)."""
+        out = []
+        for f in self._ide_panel._files:
+            names = {r.fields[1].lower() for sec in f.sections if sec.name in ("objs", "tobj", "anim")
+                     for r in sec.rows if len(r.fields) > 1}
+            out.append((Path(f.path).name if f.path else "(new IDE)", names))
+        return out
+
+    def _ide_selected_models(self) -> set: #vers 1
+        """Model names of the rows selected in the IDE tab."""
+        P = self._ide_panel
+        sec = P._sec()
+        if sec is None or sec.name not in ("objs", "tobj", "anim"):
+            return set()
+        return {sec.rows[i].fields[1].lower() for i in P._selected_rows()
+                if i < len(sec.rows) and len(sec.rows[i].fields) > 1}
+
+    def _split_by_ide(self): #vers 1
+        """Move inst entries of chosen models out of each IPL into <name><suffix>.ipl."""
+        if not self._files:
+            self._set_status("Load IPL files first")
+            return
+        ide_sets = self._ide_model_sets()
+        generic = [(n, m) for n, m in ide_sets if n.lower() in ("generic.ide", "generics.ide", "gta_generic.ide")]
+        selected = self._ide_selected_models()
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Split generics out of IPL files")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("Entries whose model is in the chosen set move from each IPL\n"
+                             "into a new file beside it (airport.ipl -> airport_generics.ipl)."))
+        from PyQt6.QtWidgets import QRadioButton, QButtonGroup
+        grp = QButtonGroup(dlg)
+        r_file = QRadioButton("Models of an IDE file:")
+        ide_combo = QComboBox()
+        for n, m in ide_sets:
+            ide_combo.addItem(f"{n}  ({len(m)} models)", n)
+        r_rows = QRadioButton(f"Rows selected in the IDE tab  ({len(selected)} models)")
+        r_gen = QRadioButton("generic.ide" + (f"  ({len(generic[0][1])} models)" if generic else "  (not loaded)"))
+        r_gen.setEnabled(bool(generic))
+        r_rows.setEnabled(bool(selected))
+        r_file.setEnabled(bool(ide_sets))
+        for i, r in enumerate((r_file, r_rows, r_gen)):
+            grp.addButton(r, i)
+        (r_gen if generic else r_rows if selected else r_file).setChecked(True)
+        row = QHBoxLayout(); row.addWidget(r_file); row.addWidget(ide_combo, 1); lay.addLayout(row)
+        lay.addWidget(r_rows)
+        lay.addWidget(r_gen)
+        form = QFormLayout()
+        suffix = QLineEdit("_generics")
+        form.addRow("New file suffix", suffix)
+        lay.addLayout(form)
+        files_list = QListWidget()
+        for f in self._files:
+            it = QListWidgetItem(Path(f.path).name)
+            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it.setCheckState(Qt.CheckState.Checked)
+            files_list.addItem(it)
+        lay.addWidget(QLabel("IPL files to split:"))
+        lay.addWidget(files_list, 1)
+        dat_chk = QCheckBox("Add the new files to the game .dat after their source IPL line")
+        dat_chk.setChecked(bool(self._dat_path))
+        dat_chk.setEnabled(bool(self._dat_path))
+        lay.addWidget(dat_chk)
+        preview = QLabel("")
+        lay.addWidget(preview)
+
+        def models() -> set:
+            i = grp.checkedId()
+            if i == 0 and ide_sets:
+                return ide_sets[ide_combo.currentIndex()][1]
+            if i == 1:
+                return selected
+            return generic[0][1] if generic else set()
+
+        def refresh():
+            m = models()
+            n = sum(1 for k, f in enumerate(self._files)
+                    if files_list.item(k).checkState() == Qt.CheckState.Checked
+                    for e in f.instances if e.model_name.lower() in m)
+            preview.setText(f"{n} entries would move ({len(m)} models in the set)")
+        for w in (r_file, r_rows, r_gen):
+            w.toggled.connect(lambda _c: refresh())
+        ide_combo.currentIndexChanged.connect(lambda _i: refresh())
+        files_list.itemChanged.connect(lambda _it: refresh())
+        refresh()
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        lay.addWidget(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        m, suf = models(), suffix.text().strip() or "_generics"
+        chosen = [f for k, f in enumerate(self._files) if files_list.item(k).checkState() == Qt.CheckState.Checked]
+        self._do_split_by_ide(chosen, m, suf, dat_chk.isChecked())
+
+    def _do_split_by_ide(self, files, models: set, suffix: str, add_to_dat: bool): #vers 1
+        """Write <stem><suffix>.ipl per file, drop the moved entries, register in the .dat."""
+        made, moved, dat_lines = [], 0, []
+        existing = [f"{Path(f.path).stem}{suffix}.ipl" for f in files
+                    if f.path and os.path.exists(os.path.join(os.path.dirname(f.path), f"{Path(f.path).stem}{suffix}.ipl"))]
+        if existing:
+            QMessageBox.warning(self, "Split", "These files already exist - pick another suffix:\n" + "\n".join(existing))
+            return
+        self._push_undo()
+        for f in files:
+            sec = f.inst_section
+            if sec is None or not f.path:
+                continue
+            take = [e for e in sec.entries if e.model_name.lower() in models]
+            if not take:
+                continue
+            new_path = os.path.join(os.path.dirname(f.path), f"{Path(f.path).stem}{suffix}.ipl")
+            lay = f._new_layout()
+            lines = []
+            for e in take:
+                c = e.copy_as_new(); c.layout = lay
+                lines.append(c.new_line())
+            try:
+                Path(new_path).write_text(f.eol.join(["inst"] + lines + ["end", ""]), encoding="latin1")
+            except Exception as ex:
+                QMessageBox.critical(self, "Split", f"{Path(new_path).name}:\n{ex}")
+                continue
+            sec.entries = [e for e in sec.entries if e.model_name.lower() not in models]
+            sec.reordered = True
+            nf = IPLFile()
+            nf.load(new_path)
+            nf.game = f.game
+            src = next((e.source_line for e in take if getattr(e, 'source_line', '')), '')
+            for e in nf.instances:
+                e.source_line = src.rsplit('.', 1)[0] + suffix + ".ipl" if src else new_path
+            made.append(nf)
+            moved += len(take)
+            if src:
+                dat_lines.append((src, nf.instances[0].source_line))
+        if not made:
+            self._undo_stack.pop()
+            self._set_status("No entries matched the model set")
+            return
+        self._files.extend(made)
+        self._owner = {id(e): f for f in self._files for e in f.instances}
+        self._mark_dirty()
+        self._populate_section_list()
+        self._populate_table()
+        self._update_info()
+        note = ""
+        if add_to_dat and self._dat_path and dat_lines:
+            note = "  |  " + self._add_ipls_to_dat(dat_lines)
+        self._set_status(f"Moved {moved} entries into {len(made)} new file(s)" + note
+                         + "  -  Save writes the trimmed source IPLs")
+
+    def _add_ipls_to_dat(self, pairs: list) -> str: #vers 1
+        """Insert 'IPL <new>' after each source IPL line of the loaded .dat (backup first)."""
+        from apps.methods.file_backup import backup_file, note_change
+        path = self._dat_path
+        try:
+            text = Path(path).read_text(encoding="latin1")
+        except Exception as ex:
+            return f"dat not updated: {ex}"
+        eol = "\r\n" if "\r\n" in text else "\n"
+        lines, added = text.split(eol), 0
+        for src, new in pairs:
+            key = src.replace("\\", "/").lower()
+            new_rel = new.replace("\\", "/")
+            if any(l.strip().lower().replace("\\", "/") == f"ipl {new_rel.lower()}" for l in lines):
+                continue
+            for i, l in enumerate(lines):
+                t = l.strip()
+                if t.upper().startswith("IPL ") and t[4:].strip().replace("\\", "/").lower() == key:
+                    sep = "\\" if "\\" in t[4:] else "/"
+                    lines.insert(i + 1, "IPL " + new_rel.replace("/", sep))
+                    added += 1
+                    break
+        if not added:
+            return "dat unchanged (source IPL lines not found)"
+        note_change(f"Split generics: {Path(path).name}")
+        if backup_file(path) is None:
+            return "dat not updated: backup failed"
+        Path(path).write_text(eol.join(lines), encoding="latin1")
+        return f"{added} IPL line(s) added to {Path(path).name}"
 
     def _export_selection(self): #vers 1
         ents, sel = self._targets()
@@ -2102,8 +2370,8 @@ class IPLWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
 # Docked opener (called from imgfactory)
 # =============================================================================
 
-def open_ipl_workshop(main_window, file_path=None):
-    """Open IPL Workshop docked in IMG Factory tab. Returns workshop instance."""
+def open_data_workshop(main_window, file_path=None, ide: bool = False): #vers 4
+    """Open Data Workshop docked in IMG Factory tab (ide: show the IDE tab). Returns the workshop."""
     try:
         from PyQt6.QtWidgets import QVBoxLayout, QWidget
         from PyQt6.QtCore import Qt
@@ -2115,11 +2383,13 @@ def open_ipl_workshop(main_window, file_path=None):
             for i in range(tw.count()):
                 w = tw.widget(i)
                 if w:
-                    found = w.findChildren(IPLWorkshop)
+                    found = w.findChildren(DataWorkshop)
                     if found:
                         tw.setCurrentIndex(i)
                         if file_path:
                             found[0]._open_file(file_path)
+                        if ide:
+                            found[0].show_ide_tab()
                         return found[0]
 
             # New docked tab
@@ -2129,22 +2399,24 @@ def open_ipl_workshop(main_window, file_path=None):
             lo.setContentsMargins(0, 0, 0, 0)
             lo.setSpacing(0)
 
-            workshop = IPLWorkshop(tab, main_window)
+            workshop = DataWorkshop(tab, main_window)
             workshop.setWindowFlags(Qt.WindowType.Widget)
             lo.addWidget(workshop)
 
             try:
-                from apps.methods.imgfactory_svg_icons import get_ipl_editor_icon
-                icon = get_ipl_editor_icon(20)
-                idx = tw.addTab(tab, icon, "IPL")
+                from apps.methods.imgfactory_svg_icons import get_data_workshop_icon
+                icon = get_data_workshop_icon(20)
+                idx = tw.addTab(tab, icon, "Data")
             except Exception:
-                idx = tw.addTab(tab, "IPL")
+                idx = tw.addTab(tab, "Data")
             tw.setCurrentIndex(idx)
             workshop.show()
 
             if file_path:
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(100, lambda: workshop._open_file(file_path))
+            if ide:
+                workshop.show_ide_tab()
 
             # Ensure tab area visible
             if hasattr(main_window, '_ensure_tab_area_visible'):
@@ -2153,45 +2425,45 @@ def open_ipl_workshop(main_window, file_path=None):
             # Register in taskbar
             try:
                 from apps.gui.gui_layout import _register_tool_taskbar
-                from apps.methods.imgfactory_svg_icons import get_ipl_editor_icon
-                _register_tool_taskbar(main_window, "ipl", "IPL",
-                    get_ipl_editor_icon,
-                    "IPL Workshop — Item Placement Editor",
-                    target=tab)
+                from apps.methods.imgfactory_svg_icons import get_data_workshop_icon
+                _register_tool_taskbar(main_window, "data", "Data",
+                    get_data_workshop_icon, App_name + " — IDE / IPL / DAT editor", target=tab)
             except Exception as e:
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"IPL taskbar error: {e}")
+                    main_window.log_message(f"{App_name} taskbar error: {e}")
 
             if hasattr(main_window, 'log_message'):
-                main_window.log_message("IPL Workshop opened (docked)")
+                main_window.log_message(App_name + " opened (docked)")
             return workshop
 
         # Standalone fallback (outside imgfactory)
-        workshop = IPLWorkshop(parent=None, main_window=main_window)
-        workshop.setWindowTitle("IPL Workshop — Standalone")
+        workshop = DataWorkshop(parent=None, main_window=main_window)
+        workshop.setWindowTitle(App_name + " — Standalone")
         workshop.resize(1300, 800)
         workshop.show()
         if file_path:
             workshop._open_file(file_path)
+        if ide:
+            workshop.show_ide_tab()
         return workshop
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"IPL Workshop error: {e}")
+            main_window.log_message(f"{App_name} error: {e}")
 
 
 # =============================================================================
 # Standalone launcher
 # =============================================================================
 
-if __name__ == "__main__":
+if __name__ == "__main__": #Vers 2
     import traceback
     print(f"{App_name} {Build} starting...")
     try:
         app = QApplication(sys.argv)
-        w = IPLWorkshop()
+        w = DataWorkshop()
         w.setWindowTitle(f"{App_name} — Standalone")
         w.resize(1300, 800)
         w.show()

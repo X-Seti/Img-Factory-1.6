@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/userpalette_widget.py - Version: 2
+#this belongs in apps/components/DP5_Workshop/depends/userpalette_widget.py - Version: 3
 # X-Seti - Jul 2026 - DP5 Workshop - User Palette dock widget
 """
 Self-contained User Palette dock widget: dock container, collapsible
@@ -50,7 +50,7 @@ def _apply_panel_stylesheet(owner, panel): #vers 1
         panel.setStyleSheet(ss)
 
 
-def _create_content_panel(owner): #vers 2
+def _create_content_panel(owner): #vers 3
     """Retro presets + palette grid."""
     from apps.components.DP5_Workshop.dp5_workshop import _AutoCellPaletteGrid
 
@@ -74,8 +74,6 @@ def _create_content_panel(owner): #vers 2
     owner._pal_dither_btn.setVisible(False)  # dither via File menu instead
     layout.addLayout(user_pal_hdr)
 
-    user_rows = owner.dp5_settings.get('user_pal_rows')
-    user_pal_max_h = max(user_rows * 12 + 2, 130)
     owner._user_pal_grid = _AutoCellPaletteGrid()
     owner._user_pal_grid.color_picked.connect(owner._on_user_palette_color)
     user_pal_scroll = QScrollArea()
@@ -83,13 +81,13 @@ def _create_content_panel(owner): #vers 2
     user_pal_scroll.setWidgetResizable(True)
     user_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     user_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-    user_pal_scroll.setMaximumHeight(user_pal_max_h)
     user_pal_scroll.setMinimumHeight(12)
     owner._user_pal_scroll = user_pal_scroll
     layout.addWidget(user_pal_scroll, stretch=1)
 
     # Load default retro palette
     owner._apply_retro_palette(owner.dp5_settings.get('retro_palette'))
+    owner._apply_palette_layout()                    # Settings cell size / height
 
     return panel
 

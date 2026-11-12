@@ -1,4 +1,4 @@
-#this belongs in apps/methods/stories_world.py - Version: 1
+#this belongs in apps/methods/stories_world.py - Version: 2
 # X-Seti - October 21 2026 - IMG Factory 1.6 - LCS/VCS level world sectors
 
 """
@@ -8,6 +8,7 @@ LCS/VCS PS2 level worlds: .LVZ (zlib WRLD sector directory) + level .IMG
 
 ##Methods list -
 # _half
+# _lazy_attr
 # _strip_batches
 # building_geometry
 # level_files
@@ -16,6 +17,12 @@ LCS/VCS PS2 level worlds: .LVZ (zlib WRLD sector directory) + level .IMG
 # StoriesLevel._sector
 # StoriesLevel.origin
 
+##class SectorGeometry: -
+# __init__
+# _build
+# triangle_count
+# vertex_count
+
 import os
 import struct
 import zlib
@@ -23,11 +30,60 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from apps.methods.dff_classes import Geometry, RGBA, TexCoord, Triangle, Vector3
+
 # game -> (level names, sectors x, sectors y, x step, y step, x start, y start)
 _GRID = {'lcs': (('INDUST', 'COMMER', 'SUBURB', 'UNDERG'), 40, 46, 100.0, 86.6, -2000.0, -2000.0),
          'vcs': (('BEACH', 'MAINLA', 'MALL'), 32, 36, 125.0, 108.25, -2400.0, -2000.0)}
 _WRLD = b'DLRW'
 _INST_SIZE = 0x50
+
+
+class SectorGeometry(Geometry): #vers 1
+    """Geometry holding numpy arrays; vertex / face objects built on first use."""
+    _LAZY = ('vertices', 'colors', 'uv_layers', 'triangles')
+
+    def __init__(self, P, U, C, T): #vers 1
+        super().__init__()
+        self._np = (P.astype(np.float32), U.astype(np.float32), C.astype(np.uint8), T.astype(np.int32))
+
+    def _build(self): #vers 1
+        """Turn the numpy arrays into vertex / uv / colour / triangle objects."""
+        arrays = self.__dict__.pop('_np', None)
+        if arrays is None:
+            return
+        P, U, C, T = arrays
+        d = self.__dict__
+        d['_vertices'] = [Vector3(*v) for v in P.tolist()]
+        d['_uv_layers'] = [[TexCoord(*t) for t in U.tolist()]] if len(U) else []
+        d['_colors'] = [RGBA(*c) for c in C.tolist()]
+        d['_triangles'] = [Triangle(*t) for t in T.tolist()]
+
+    @property
+    def vertex_count(self) -> int:
+        a = self.__dict__.get('_np')
+        return len(a[0]) if a is not None else len(self.vertices)
+
+    @property
+    def triangle_count(self) -> int:
+        a = self.__dict__.get('_np')
+        return len(a[3]) if a is not None else len(self.triangles)
+
+
+def _lazy_attr(name): #vers 1
+    """Property building SectorGeometry objects on first get or set."""
+    def get(self):
+        self._build()
+        return self.__dict__.get('_' + name, [])
+
+    def put(self, value):
+        self._build()
+        self.__dict__['_' + name] = value
+    return property(get, put)
+
+
+for _n in SectorGeometry._LAZY:
+    setattr(SectorGeometry, _n, _lazy_attr(_n))
 
 
 def _half(h: int) -> float: #vers 1
@@ -69,9 +125,9 @@ def _strip_batches(d: bytes, o: int, end: int, uvs: Tuple[float, float]): #vers 
     return out
 
 
-def building_geometry(d: bytes, g: int, vcs: bool, tex_name=None): #vers 1
+def building_geometry(d: bytes, g: int, vcs: bool, tex_name=None): #vers 2
     """sBuildingGeometry at offset g -> dff_classes Geometry (tristrips to triangles)."""
-    from apps.methods.dff_classes import BoundingSphere, Geometry, Material, RGBA, TexCoord, Triangle, Vector3
+    from apps.methods.dff_classes import BoundingSphere, Material, Vector3
     num, size = struct.unpack_from('<2H', d, g)
     m = g + 4
     data = m + size
@@ -104,19 +160,15 @@ def building_geometry(d: bytes, g: int, vcs: bool, tex_name=None): #vers 1
             P.append(pos); U.append(uv); C.append(col)
             base += n
         data += packet
-    geo = Geometry()
-    if P:
-        P, U, C = np.vstack(P), np.vstack(U), np.vstack(C)
-        geo.vertices = [Vector3(*v) for v in P.tolist()]
-        geo.uv_layers = [[TexCoord(*t) for t in U.tolist()]]
-        geo.colors = [RGBA(*c) for c in C.tolist()]
-    if T:
-        geo.triangles = [Triangle(*t) for t in np.vstack(T).tolist()]
+    P = np.vstack(P) if P else np.zeros((0, 3))
+    geo = SectorGeometry(P, np.vstack(U) if U else np.zeros((0, 2)),
+                         np.vstack(C) if C else np.zeros((0, 4), np.int32),
+                         np.vstack(T) if T else np.zeros((0, 4), np.int64))
     for t, _i in sorted(mats.items(), key=lambda kv: kv[1]):
         mat = Material(texture_name=tex_name(t) if tex_name else f"tex_{t:04x}")
         mat.colour = mat.color                       # viewport reads .colour
         geo.materials.append(mat)
-    if len(geo.vertices):
+    if len(P):
         lo, hi = P.min(0), P.max(0)
         centre = (lo + hi) / 2.0
         geo.bounding_sphere = BoundingSphere(Vector3(*centre.tolist()),

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_cast_func.py - Version: 4
+#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_cast_func.py - Version: 5
 # X-Seti - November 06 2026 - IMG Factory 1.6 - Cutscene Workshop cast
 
 """
@@ -289,13 +289,13 @@ class CutsceneCastMixin: #vers 3
         self._cast_swaps[cur[0].lower()] = {'label': pick, 'files': files}
         self._cast_refresh()
 
-    def _cast_import(self): #vers 2
+    def _cast_import(self): #vers 3
         """Stand-in from model files (files of the same name beside it come too)."""
         cur = self._cast_current()
         if cur is None:
             return
         exts = IV_EXTS if self._cast_iv() else MODEL_EXTS
-        path, _ = QFileDialog.getOpenFileName(self, f"Model for {cur[0]}", "",
+        path, _ = QFileDialog.getOpenFileName(self, f"Model for {cur[0]}", self._cs_start_dir('models'),
                                               "Models (" + " ".join('*' + e for e in exts) + ")")
         if not path:
             return
@@ -496,12 +496,12 @@ class CutsceneCastMixin: #vers 3
         with open(f, errors='replace') as fh:
             return fh.read()
 
-    def _cast_export(self): #vers 2
+    def _cast_export(self): #vers 3
         """Save the selected model's (or stand-in's) files unchanged."""
         cur = self._cast_current()
         if cur is None:
             return
-        folder = QFileDialog.getExistingDirectory(self, f"Export {cur[0]} to")
+        folder = QFileDialog.getExistingDirectory(self, f"Export {cur[0]} to", self._cs_start_dir())
         if not folder:
             return
         done = []
@@ -511,7 +511,7 @@ class CutsceneCastMixin: #vers 3
             done.append(cur[0] + ext)
         self._set_status(f"Exported {', '.join(done)} to {folder}")
 
-    def _cast_export_game(self, folder: str = '') -> list: #vers 2
+    def _cast_export_game(self, folder: str = '') -> list: #vers 3
         """Save the selected model converted for in-game use; paths written."""
         cur = self._cast_current()
         if cur is None:
@@ -526,7 +526,7 @@ class CutsceneCastMixin: #vers 3
             return []
         files, note, name = res
         if not folder:
-            folder = QFileDialog.getExistingDirectory(self, f"Save {cur[0]} for the game to")
+            folder = QFileDialog.getExistingDirectory(self, f"Save {cur[0]} for the game to", self._cs_start_dir())
             if not folder:
                 return []
         name, ok = QInputDialog.getText(self, self.App_name, "Save as (model name):", text=name)

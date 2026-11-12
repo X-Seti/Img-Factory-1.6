@@ -1,4 +1,4 @@
-#this belongs in apps/methods/toolbar_menu.py - Version: 1
+#this belongs in apps/methods/toolbar_menu.py - Version: 2
 # X-Seti - October 28 2026 - IMG Factory 1.6 - Shared ribbon right-click menu
 
 """
@@ -15,9 +15,9 @@ from PyQt6.QtWidgets import QDockWidget, QMenu, QSlider, QWidgetAction
 ICON_SETS = [("Default (theme-aware)", 'default'), ("3ds Max style", '3dsmax')]
 
 
-def standard_toolbar_menu(owner, toolbars, icon_scale=20) -> QMenu: #vers 2
+def standard_toolbar_menu(owner, toolbars, icon_scale=20, tb=None) -> QMenu: #vers 3
     """Right-click menu for every tool's ribbons (Map Workshop layout).
-    Icon Set / Icon Size / Ribbon Manager / Key & Mouse / Panels / Lock."""
+    Icon Set / Icon Size / Align Buttons (tb) / Ribbon Manager / Key & Mouse / Panels / Lock."""
     menu = QMenu(owner)
     if hasattr(owner, '_switch_icon_set') and hasattr(owner, '_get_icon_set'):
         sets = menu.addMenu("Icon Set")
@@ -37,6 +37,9 @@ def standard_toolbar_menu(owner, toolbars, icon_scale=20) -> QMenu: #vers 2
         wa = QWidgetAction(menu)
         wa.setDefaultWidget(slider)
         size.addAction(wa)
+    if tb is not None:                                   # the ribbon right-clicked
+        from apps.methods.ribbon_align import add_align_menu
+        add_align_menu(menu, tb)
     menu.addSeparator()
     manager = getattr(owner, 'open_ribbon_manager', None) or getattr(owner, '_open_ribbon_manager', None)
     if manager:

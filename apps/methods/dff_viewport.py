@@ -1,5 +1,5 @@
 # X-Seti - Jul07 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
-# this belongs in apps/methods/dff_viewport.py - Version: 56
+# this belongs in apps/methods/dff_viewport.py - Version: 58
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
 Used by Model Viewer, Model Workshop, Vehicle Workshop (docked).
@@ -184,6 +184,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport.toggle_door
 # DFFViewport.toggle_snap_axis_constraint
 # DFFViewport.toggle_snap_target
+# DFFViewport.water2_draw_offset
 # DFFViewport.wheelEvent
 # DFFViewport.zoom_in
 # DFFViewport.zoom_out
@@ -1136,7 +1137,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glClear(GL_COLOR_BUFFER_BIT)
         glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE)
 
-    def _paint_scene(self): #vers 6
+    def _paint_scene(self): #vers 7
         """Scene body of paintGL (was paintGL vers 15)."""
         self._gizmo2d = None                     # mesh gizmo screen data, set by _draw_mesh_gizmo
         self._gizmo_overlay.update()
@@ -1239,6 +1240,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._draw_mesh_gizmo()
         if self._show_grid: self._draw_grid()
         self._draw_skeleton()
+        if self._brush_tool is not None:               # ped weight brush
+            self._draw_brush_ring()
         self._draw_axes()
 
     def _draw_paths(self): #vers 4
@@ -3502,6 +3505,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_rgba_wh = (width, height)
         self.update()
 
+    def water2_draw_offset(self): #vers 1
+        """(x, y) offset the water cells are drawn with (fix mode + nudge)."""
+        mode = self._water2_offset_mode
+        gate_ok = mode == 'all' or (mode == 'vc' and self._water2_game == 'vc')
+        if self._water2_fix_override is not None:
+            gate_ok = self._water2_fix_override
+        nx, ny = self._water2_nudge
+        return ((self._water2_x_offset if gate_ok else 0.0) + nx,
+                (self._water2_y_offset if gate_ok else 0.0) + ny)
+
     def _water2_arrays(self, x_offset, y_offset, z_offset): #vers 2
         """Water quad vertices (N*4, 3) wrapped into the map, plus depth colours; cached."""
         cells = self._water2_cells
@@ -3533,7 +3546,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._water2_va = (key + (self._water2_alpha,), v)
         return v
 
-    def _draw_water2(self): #vers 8
+    def _draw_water2(self): #vers 9
         """Water cells as one vertex-array draw (SOL has 140k cells)."""
         if not OPENGL_AVAILABLE or not self._water2_cells:
             return
@@ -3546,13 +3559,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         tex_id = None
         if self._water2_use_texture and self._water2_texture_path:
             tex_id = self._ensure_water2_texture()
-        mode = self._water2_offset_mode
-        gate_ok = mode == 'all' or (mode == 'vc' and self._water2_game == 'vc')
-        if self._water2_fix_override is not None:
-            gate_ok = self._water2_fix_override
-        nx, ny = self._water2_nudge
-        x_offset = (self._water2_x_offset if gate_ok else 0.0) + nx
-        y_offset = (self._water2_y_offset if gate_ok else 0.0) + ny
+        x_offset, y_offset = self.water2_draw_offset()
         verts = self._water2_arrays(x_offset, y_offset, self._water2_height_offset)
         n = len(verts)
         alpha = self._water2_alpha
@@ -3738,12 +3745,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._brush_tool.tick()
             self.update()
 
-    def _draw_brush_ring(self): #vers 1
-        """Brush circle (and ramp line) from the tool's ring() data."""
+    def _draw_brush_ring(self): #vers 2
+        """Brush circle (and ramp line) from ring(); optional 5th item: circle normal."""
         ring = self._brush_tool.ring()
         if not ring:
             return
-        (cx, cy, cz), radius, colour, line = ring
+        (cx, cy, cz), radius, colour, line = ring[:4]
+        normal = ring[4] if len(ring) > 4 else None
+        if normal is not None:                          # circle facing the normal, no lift
+            n = np.asarray(normal, dtype=float)
+            n /= np.linalg.norm(n) or 1.0
+            u = np.cross(n, (0.0, 0.0, 1.0) if abs(n[2]) < 0.9 else (1.0, 0.0, 0.0))
+            u /= np.linalg.norm(u) or 1.0
+            v = np.cross(n, u)
+        else:
+            u, v = np.array((1.0, 0.0, 0.0)), np.array((0.0, 1.0, 0.0))
+        lift = 0.0 if normal is not None else 0.3
         glDisable(GL_LIGHTING)
         glDisable(GL_TEXTURE_2D)
         glDisable(GL_DEPTH_TEST)
@@ -3752,11 +3769,12 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glBegin(GL_LINE_LOOP)
         for k in range(64):
             a = k * math.tau / 64
-            glVertex3f(cx + radius * math.cos(a), cy + radius * math.sin(a), cz + 0.3)
+            p = radius * (math.cos(a) * u + math.sin(a) * v)
+            glVertex3f(float(cx + p[0]), float(cy + p[1]), float(cz + p[2] + lift))
         glEnd()
         glPointSize(5.0)
         glBegin(GL_POINTS)
-        glVertex3f(cx, cy, cz + 0.3)
+        glVertex3f(cx, cy, cz + lift)
         glEnd()
         if line:
             glBegin(GL_LINES)

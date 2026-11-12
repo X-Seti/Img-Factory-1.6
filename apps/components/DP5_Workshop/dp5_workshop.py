@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 117
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 118
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -41,7 +41,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer
 from PyQt6.QtGui import (
-    QImage, QPixmap, QPainter, QColor, QCursor, QAction,
+    QImage, QPixmap, QPainter, QColor, QCursor, QAction, QPolygon,
     QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
     QPainterPath, QKeySequence
 )
@@ -95,13 +95,16 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Canvas._do_smudge
 # DP5Canvas._do_spray
 # DP5Canvas._do_spraycan
+# DP5Canvas._enforce_edit_lock
 # DP5Canvas._fill_triangle
 # DP5Canvas._get_scroll_area
+# DP5Canvas._lasso_mask
 # DP5Canvas._lift_selection
 # DP5Canvas._point_in_sel_rect
 # DP5Canvas._push_undo_canvas
 # DP5Canvas._scroll_by
 # DP5Canvas._set_curve_handle
+# DP5Canvas._snap_step
 # DP5Canvas._stamp_bullet
 # DP5Canvas._stamp_dot
 # DP5Canvas._stamp_number_badge
@@ -142,6 +145,7 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Canvas.paste_selection
 # DP5Canvas.set_pixel
 # DP5Canvas.set_pixel_brush
+# DP5Canvas.set_edit_lock
 # DP5Canvas.set_wand_mask
 # DP5Canvas.sizeHint
 # DP5Canvas.wheelEvent
@@ -159,6 +163,7 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._adjust
 # DP5Workshop._amiga_palette
 # DP5Workshop._anim_add_frame
+# DP5Workshop._anim_cleanup_dialog
 # DP5Workshop._anim_del_frame
 # DP5Workshop._anim_dup_frame
 # DP5Workshop._anim_export_gif
@@ -186,6 +191,7 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._apply_mode_to_canvas
 # DP5Workshop._apply_msx_constraint
 # DP5Workshop._apply_palette0_alpha
+# DP5Workshop._apply_palette_layout
 # DP5Workshop._apply_pending_constraint
 # DP5Workshop._apply_ribbon_style
 # DP5Workshop._apply_selection_rotation
@@ -245,6 +251,7 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._dp5_emboss
 # DP5Workshop._dp5_sharpen
 # DP5Workshop._duplicate_last_stamp
+# DP5Workshop._edit_lock_toggle
 # DP5Workshop._encode_amiga_info
 # DP5Workshop._export_amiga_icon
 # DP5Workshop._export_art_studio
@@ -279,8 +286,11 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._fill_save_back_menu
 # DP5Workshop._fit_canvas_to_viewport
 # DP5Workshop._fit_img_pal_height
+# DP5Workshop._fit_user_palette_dock
 # DP5Workshop._flip_h
 # DP5Workshop._flip_v
+# DP5Workshop._frames_cleanup
+# DP5Workshop._frames_cleanup_revert
 # DP5Workshop._get_canvas_pil
 # DP5Workshop._get_icon_color
 # DP5Workshop._get_resize_corner
@@ -393,11 +403,14 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._rotate_selection_dialog
 # DP5Workshop._run_plugin
 # DP5Workshop._save_back_indexed
+# DP5Workshop._save_image
+# DP5Workshop._save_image_as
 # DP5Workshop._save_current_canvas_tab
 # DP5Workshop._save_flat
 # DP5Workshop._scale_canvas
 # DP5Workshop._select_all
 # DP5Workshop._select_tool
+# DP5Workshop._selection_save_brush
 # DP5Workshop._send_bitmap_back
 # DP5Workshop._set_brush_size
 # DP5Workshop._set_canvas_mode
@@ -408,6 +421,7 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._set_show_grid
 # DP5Workshop._set_show_rulers
 # DP5Workshop._set_snap_grid
+# DP5Workshop._set_snap_size
 # DP5Workshop._set_status
 # DP5Workshop._set_zoom
 # DP5Workshop._set_zoom_mode
@@ -449,12 +463,17 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._use_pattern_brush
 # DP5Workshop._view_state
 # DP5Workshop._wand_clear
+# DP5Workshop._wand_copy
 # DP5Workshop._wand_fill
 # DP5Workshop._wand_invert
 # DP5Workshop._wand_pixels
+# DP5Workshop._wand_select_colour
 # DP5Workshop._wand_to_tab
 # DP5Workshop._write_amiga_info
+# DP5Workshop._write_gif_frames
 # DP5Workshop._write_icns
+# DP5Workshop._write_image
+# DP5Workshop._write_indexed
 # DP5Workshop._zoom_mode_menu
 # DP5Workshop.closeEvent
 # DP5Workshop.dragEnterEvent
@@ -490,14 +509,17 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # FGBGSwatch.sizeHint
 # FGBGSwatch.swap
 # PaletteGrid.__init__
+# PaletteGrid._auto_cell
 # PaletteGrid._do_recalc_height
 # PaletteGrid._effective_cols
+# PaletteGrid._fit_scroll
 # PaletteGrid._get_ui_color
 # PaletteGrid._recalc_height
 # PaletteGrid.mousePressEvent
 # PaletteGrid.paintEvent
 # PaletteGrid.resizeEvent
 # PaletteGrid.set_colors
+# PaletteGrid.set_layout
 # PaletteGrid.set_palette
 # PaletteGrid.set_palette_raw
 # PaletteGrid.set_selection_by_color
@@ -1481,8 +1503,11 @@ class DP5Settings:
         'hidden_tools':      [],       # list of tool_ids to hide
         'img_pal_cols':      16,       # image palette columns
         'img_pal_rows':      16,       # image palette max visible rows
-        'user_pal_cols':     16,       # user palette columns
-        'user_pal_rows':     16,       # user palette max visible rows
+        'user_pal_cols':     0,        # user palette columns, 0 = preset
+        'img_pal_cell':      0,        # image palette cell px, 0 = auto
+        'user_pal_cell':     0,        # user palette cell px, 0 = fit width
+        'snap_size':         8,        # snap to grid step px
+        'user_pal_rows':     0,        # user palette visible rows, 0 = all
         'default_zoom':      4,        # startup zoom level
         'undo_levels':       32,
         'default_width':     320,
@@ -1636,15 +1661,27 @@ class DP5SettingsDialog(QDialog):
 
         self._img_pal_rows_spin = QSpinBox(); self._img_pal_rows_spin.setRange(1, 32)
         self._img_pal_rows_spin.setValue(self.s.get('img_pal_rows'))
-        cl.addRow("Image palette max rows:", self._img_pal_rows_spin)
+        cl.addRow("Image palette height (rows):", self._img_pal_rows_spin)
 
-        self._user_pal_cols_spin = QSpinBox(); self._user_pal_cols_spin.setRange(4, 32)
+        self._img_pal_cell_spin = QSpinBox(); self._img_pal_cell_spin.setRange(0, 48)
+        self._img_pal_cell_spin.setSuffix(" px"); self._img_pal_cell_spin.setSpecialValueText("Auto")
+        self._img_pal_cell_spin.setValue(self.s.get('img_pal_cell'))
+        cl.addRow("Image palette cell size:", self._img_pal_cell_spin)
+
+        self._user_pal_cols_spin = QSpinBox(); self._user_pal_cols_spin.setRange(0, 32)
+        self._user_pal_cols_spin.setSpecialValueText("Preset")
         self._user_pal_cols_spin.setValue(self.s.get('user_pal_cols'))
         cl.addRow("User palette cols:", self._user_pal_cols_spin)
 
-        self._user_pal_rows_spin = QSpinBox(); self._user_pal_rows_spin.setRange(1, 32)
+        self._user_pal_rows_spin = QSpinBox(); self._user_pal_rows_spin.setRange(0, 64)
+        self._user_pal_rows_spin.setSpecialValueText("All")
         self._user_pal_rows_spin.setValue(self.s.get('user_pal_rows'))
-        cl.addRow("User palette max rows:", self._user_pal_rows_spin)
+        cl.addRow("User palette height (rows):", self._user_pal_rows_spin)
+
+        self._user_pal_cell_spin = QSpinBox(); self._user_pal_cell_spin.setRange(0, 48)
+        self._user_pal_cell_spin.setSuffix(" px"); self._user_pal_cell_spin.setSpecialValueText("Fit width")
+        self._user_pal_cell_spin.setValue(self.s.get('user_pal_cell'))
+        cl.addRow("User palette cell size:", self._user_pal_cell_spin)
 
         self._platform_combo = QComboBox()
         self._platform_combo.addItems([
@@ -1961,6 +1998,8 @@ class DP5SettingsDialog(QDialog):
         self.s.set('img_pal_rows',       self._img_pal_rows_spin.value())
         self.s.set('user_pal_cols',      self._user_pal_cols_spin.value())
         self.s.set('user_pal_rows',      self._user_pal_rows_spin.value())
+        self.s.set('img_pal_cell',       self._img_pal_cell_spin.value())
+        self.s.set('user_pal_cell',      self._user_pal_cell_spin.value())
         self.s.set('platform_mode',      self._platform_combo.currentText())
         self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
         self.s.set('grid_color',         self._grid_color_btn._chosen)
@@ -2030,11 +2069,15 @@ class DP5Canvas(QWidget):
         self.blur_intensity   = 3      # box-blur pass count
         self.smudge_strength  = 0.4    # 0.0-0.9 blend toward source pixel
         self.dodge_burn_amount = 30    # lighten/darken strength per click
+        self.highlighter_strength = 0.45  # marker pen / rect / ellipse blend
         self.sharpen_amount   = 1.0    # unsharp-mask strength
         self.spray_density    = 5      # airbrush: particles per radius unit
         self.wand_tolerance   = 32     # magic wand: max channel difference
         self._wand_mask       = None   # h x w bool mask of the wand selection
         self._wand_overlay    = None   # (bytes, QImage) outline of the mask
+        self._edit_lock       = None   # h x w bool: only these pixels may change
+        self._lock_snap       = None   # rgba before the current edit
+        self._lock_overlay    = None   # (bytes, QImage) outline of the lock region
         self.spraycan_density = 12     # spraycan: heavier/messier than airbrush
         self.spraycan_particle_size = 2   # max dot size per particle (1 to this, random)
         self.spraycan_hardness = 70    # 0-100% - how strongly each particle blends
@@ -2091,7 +2134,8 @@ class DP5Canvas(QWidget):
         self._selection_rect: Optional[QRect] = None
         self._sel_active    = False
         self._lasso_pts:  List[QPoint] = []
-        self.snap_grid      = False    # snap drawing coords to pixel grid
+        self.snap_grid      = False    # snap drawing coords to the snap grid
+        self.snap_size      = 8        # snap step px (cell grid size when that is shown)
         self._editor    = None   # set by DP5Workshop after creation
 
         # Marching ants - animated selection outline. Settings-driven
@@ -2172,15 +2216,15 @@ class DP5Canvas(QWidget):
 
     #    Coordinate helpers                                                     
 
-    def _widget_to_tex(self, p: QPoint) -> Tuple[int, int]: #vers 3
+    def _widget_to_tex(self, p: QPoint) -> Tuple[int, int]: #vers 4
         z = max(0.01, self.zoom)
         zx = z * self.pixel_aspect_x
         x = int(p.x() / zx)
         y = int(p.y() / z)
-        if self.snap_grid and self.brush_size > 1:
-            snap = self.brush_size
-            x = (x // snap) * snap
-            y = (y // snap) * snap
+        if self.snap_grid:
+            sx, sy = self._snap_step()
+            x = min(self.tex_w, int(round(x / sx)) * sx)
+            y = min(self.tex_h, int(round(y / sy)) * sy)
         if self.snap_guides:                             # within 6 screen px of a guide
             gx = min(self.guides['v'], key=lambda g: abs(g * zx - p.x()), default=None)
             if gx is not None and abs(gx * zx - p.x()) <= 6:
@@ -2189,6 +2233,12 @@ class DP5Canvas(QWidget):
             if gy is not None and abs(gy * z - p.y()) <= 6:
                 y = min(gy, self.tex_h - 1)
         return x, y
+
+    def _snap_step(self) -> Tuple[int, int]: #vers 1
+        """Snap step: the cell grid when shown, else snap_size."""
+        if self.show_cell_grid:
+            return max(1, int(self.cell_w)), max(1, int(self.cell_h))
+        return max(1, int(self.snap_size)), max(1, int(self.snap_size))
 
     def _tex_to_widget(self, tx: int, ty: int) -> QPoint: #vers 2
         z = max(0.01, self.zoom)
@@ -2272,6 +2322,55 @@ class DP5Canvas(QWidget):
             img = QImage(data, self.tex_w, self.tex_h, self.tex_w * 4, QImage.Format.Format_RGBA8888)
             self._wand_overlay = (data, img)
         self.update()
+
+    def set_edit_lock(self, mask): #vers 1
+        """Only pixels inside mask may change (None unlocks); orange outline."""
+        self._edit_lock = mask
+        self._lock_snap = bytes(self.rgba) if mask is not None else None
+        if mask is None:
+            self._lock_overlay = None
+        else:
+            data = mask_outline(mask, (255, 150, 0))
+            img = QImage(data, self.tex_w, self.tex_h, self.tex_w * 4, QImage.Format.Format_RGBA8888)
+            self._lock_overlay = (data, img)
+        self.update()
+
+    def _enforce_edit_lock(self): #vers 1
+        """Put back pixels outside the lock region from the pre-edit snapshot."""
+        m, snap = self._edit_lock, self._lock_snap
+        if m is None or snap is None:
+            return
+        import numpy as np
+        if m.shape != (self.tex_h, self.tex_w) or len(snap) != len(self.rgba):
+            self.set_edit_lock(None)                     # canvas resized
+            return
+        a = np.frombuffer(self.rgba, np.uint8).reshape(self.tex_h, self.tex_w, 4)
+        b = np.frombuffer(snap, np.uint8).reshape(self.tex_h, self.tex_w, 4)
+        out = ~m
+        a[out] = b[out]
+
+    def _lasso_mask(self, add: bool): #vers 1
+        """Outline lasso: its polygon becomes the wand selection (Shift adds)."""
+        import numpy as np
+        pts = [self._widget_to_tex(pt) for pt in self._lasso_pts]
+        if len(pts) < 3:
+            return
+        img = QImage(self.tex_w, self.tex_h, QImage.Format.Format_Grayscale8)
+        img.fill(0)
+        p = QPainter(img)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(255, 255, 255))
+        p.drawPolygon(QPolygon([QPoint(int(x), int(y)) for x, y in pts]))
+        p.end()
+        ptr = img.constBits()
+        ptr.setsize(img.sizeInBytes())
+        m = np.frombuffer(bytes(ptr), np.uint8).reshape(self.tex_h, img.bytesPerLine())[:, :self.tex_w] > 0
+        if add and self._wand_mask is not None and self._wand_mask.shape == m.shape:
+            m = m | self._wand_mask
+        self.set_wand_mask(m)
+        ed = self._editor
+        if ed:
+            ed._set_status(f"Lasso: {int(m.sum())} pixels selected (Shift adds, Esc clears)")
 
     def apply_gradient(self, p0, p1, radial: bool, c0: QColor, c1: QColor): #vers 1
         """FG -> BG gradient from p0 to p1 inside the wand mask, else the selection, else all."""
@@ -2855,7 +2954,7 @@ class DP5Canvas(QWidget):
             for xx in range(cx - dx, cx + dx + 1):
                 self._blend_pixel(xx, yy, c)
 
-    def _do_highlighter(self, cx: int, cy: int): #vers 2
+    def _do_highlighter(self, cx: int, cy: int): #vers 3
         """Semi-transparent marker - multiply-blends self.color into
         pixels within brush radius rather than replacing them outright
         (or plain alpha-blending, which was the bug: it significantly
@@ -2867,7 +2966,7 @@ class DP5Canvas(QWidget):
         r = max(2, self.brush_size * 3)
         w, h = self.tex_w, self.tex_h
         buf = self.rgba
-        strength = 0.45   # how much of the multiply result blends in per pass
+        strength = self.highlighter_strength   # Tool Settings ribbon
         cr, cg, cb = self.color.red(), self.color.green(), self.color.blue()
         for y in range(max(0, cy - r), min(h, cy + r + 1)):
             for x in range(max(0, cx - r), min(w, cx + r + 1)):
@@ -3089,8 +3188,9 @@ class DP5Canvas(QWidget):
                 self.rgba[i+3] = max(self.rgba[i+3], a)
 
 
-    def paintEvent(self, event):  #vers 4
+    def paintEvent(self, event):  #vers 6
         self._sync_marching_ants_timer()
+        self._enforce_edit_lock()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
@@ -3129,28 +3229,34 @@ class DP5Canvas(QWidget):
         if self._wand_overlay is not None:
             painter.drawImage(0, 0, self._wand_overlay[1].scaled(
                 sw, sh, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation))
+        if self._lock_overlay is not None:                # edit lock region
+            painter.drawImage(0, 0, self._lock_overlay[1].scaled(
+                sw, sh, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation))
 
         # Pixel grid (visible at zoom ≥2)
-        if self.show_grid and z >= 2:
-            izx = max(1, int(zx))
-            izy = max(1, int(z))
-            pen = QPen(self.grid_color, 1)
-            painter.setPen(pen)
-            for x in range(0, sw, izx):
-                painter.drawLine(x, 0, x, sh)
-            for y in range(0, sh, izy):
-                painter.drawLine(0, y, sw, y)
+        if self.show_grid and z >= 2:                    # per-pixel, no drift at odd zooms
+            painter.setPen(QPen(self.grid_color, 1))
+            for i in range(self.tex_w + 1):
+                painter.drawLine(int(i * zx), 0, int(i * zx), sh)
+            for j in range(self.tex_h + 1):
+                painter.drawLine(0, int(j * z), sw, int(j * z))
 
         # Platform cell grid
         if self.show_cell_grid:
-            cw = max(1, int(self.cell_w * zx))
-            ch = max(1, int(self.cell_h * z))
             pen = QPen(QColor(255, 100, 0, 120), 1, Qt.PenStyle.DashLine)
             painter.setPen(pen)
-            for x in range(0, sw+1, cw):
-                painter.drawLine(x, 0, x, sh)
-            for y in range(0, sh+1, ch):
-                painter.drawLine(0, y, sw, y)
+            cw, ch = max(1, int(self.cell_w)), max(1, int(self.cell_h))
+            for i in range(0, self.tex_w + 1, cw):
+                painter.drawLine(int(i * zx), 0, int(i * zx), sh)
+            for j in range(0, self.tex_h + 1, ch):
+                painter.drawLine(0, int(j * z), sw, int(j * z))
+        elif self.snap_grid:                              # snap grid while snapping
+            painter.setPen(QPen(self.grid_color, 1, Qt.PenStyle.DotLine))
+            st = max(1, int(self.snap_size))
+            for i in range(0, self.tex_w + 1, st):
+                painter.drawLine(int(i * zx), 0, int(i * zx), sh)
+            for j in range(0, self.tex_h + 1, st):
+                painter.drawLine(0, int(j * z), sw, int(j * z))
 
         # Guides (and one being dragged from a ruler)
         lines = [(k, g) for k in ('v', 'h') for g in self.guides[k]]
@@ -3850,7 +3956,7 @@ class DP5Canvas(QWidget):
         elif self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO):
             self._lasso_pts.append(e.position().toPoint()); self.update()
 
-    def mouseReleaseEvent(self, e: QMouseEvent):  #vers 2
+    def mouseReleaseEvent(self, e: QMouseEvent):  #vers 3
         if e.button() == Qt.MouseButton.MiddleButton:
             self._pan_start = None
             return
@@ -4009,6 +4115,8 @@ class DP5Canvas(QWidget):
                 cx = sum(p[0] for p in pts_tex) // len(pts_tex)
                 cy = sum(p[1] for p in pts_tex) // len(pts_tex)
                 self.flood_fill(cx, cy, self.color)
+            elif self.tool == TOOL_LASSO:
+                self._lasso_mask(bool(e.modifiers() & Qt.KeyboardModifier.ShiftModifier))
             self._lasso_pts  = []
             self._sel_active = False
 
@@ -4086,10 +4194,12 @@ class PaletteGrid(QWidget):
         (50,100,200),(200,50,100),(100,50,200),(50,200,100),
     ]
 
-    def __init__(self, cols: int = 16, cell: int = 13, parent=None):  #vers 2
+    def __init__(self, cols: int = 16, cell: int = 13, parent=None):  #vers 3
         super().__init__(parent)
         self._cols_hint = cols   # used only when widget has no width yet
         self._cell      = cell
+        self._cell_fixed = 0     # user cell px, 0 = auto
+        self._max_rows   = 0     # visible rows in the scroll area, 0 = no limit
         self._colors: List[QColor] = [QColor(*e) for e in self._DEFAULT_ENTRIES]
         self._selected  = -1
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -4118,6 +4228,36 @@ class PaletteGrid(QWidget):
             return max(1, w // self._cell)
         return max(1, self._cols_hint)
 
+    def _auto_cell(self, n: int) -> int:  #vers 1
+        """Cell px for n colours; the user size wins when set."""
+        if self._cell_fixed:
+            return self._cell_fixed
+        if n >= 512 or n > 256:
+            return 2 if n >= 4096 else 4
+        return 8 if n > 64 else 13
+
+    def _fit_scroll(self, cell: int, rows: int):  #vers 2
+        """Size the parent scroll area to max_rows rows (0 = no cap)."""
+        sa = self.parentWidget()
+        while sa is not None and not isinstance(sa, QScrollArea):
+            sa = sa.parentWidget()
+        if sa is None:
+            return
+        if not self._max_rows:
+            sa.setMaximumHeight(16777215)
+            return
+        sa.setMaximumHeight(min(rows, self._max_rows) * cell + 2 * sa.frameWidth() + 1)
+
+    def set_layout(self, cell: int = 0, rows: int = 0, cols: int = 0):  #vers 1
+        """User cell size, visible rows and column hint (0 = auto)."""
+        self._cell_fixed = max(0, int(cell))
+        self._max_rows = max(0, int(rows))
+        if cols:
+            self._cols_hint = cols
+        self._cell = self._auto_cell(len(self._colors))
+        self._recalc_height()
+        self.update()
+
     def _recalc_height(self):  #vers 3
         # Debounced - restart the settle timer instead of recalculating
         # synchronously. See __init__ for why.
@@ -4138,6 +4278,7 @@ class PaletteGrid(QWidget):
             new_h = rows * self._cell + 1
             if new_h != self.height():
                 self.setFixedHeight(new_h)
+            self._fit_scroll(self._cell, rows)
         finally:
             self._recalc_guard = False
 
@@ -4145,27 +4286,17 @@ class PaletteGrid(QWidget):
         super().resizeEvent(event)
         self._recalc_height()
 
-    def set_colors(self, colors: List[QColor], cols: int = None): #vers 5
+    def set_colors(self, colors: List[QColor], cols: int = None): #vers 6
         """Load a new colour list. Auto-scales cell size; cols wraps to width."""
         self._colors   = list(colors)
         self._selected = -1
-        n = len(colors)
-        if n >= 4096:
-            self._cell = 2
-        elif n >= 512:
-            self._cell = 4
-        elif n > 256:
-            self._cell = 4
-        elif n > 64:
-            self._cell = 8
-        else:
-            self._cell = 13
+        self._cell = self._auto_cell(len(colors))
         if cols:
             self._cols_hint = cols
         self._recalc_height()
         self.update()
 
-    def set_palette_raw(self, palette_data): #vers 4
+    def set_palette_raw(self, palette_data): #vers 5
         """Accept list of (r,g,b) tuples, QColors or hex strings. No size limit."""
         out = []
         for entry in palette_data:
@@ -4177,17 +4308,7 @@ class PaletteGrid(QWidget):
                 out.append(QColor(int(entry[0]), int(entry[1]), int(entry[2])))
         self._colors   = out
         self._selected = -1
-        n = len(out)
-        if n >= 4096:
-            self._cell = 2
-        elif n >= 512:
-            self._cell = 4
-        elif n > 256:
-            self._cell = 4
-        elif n > 64:
-            self._cell = 8
-        else:
-            self._cell = 13
+        self._cell = self._auto_cell(len(out))
         self._recalc_height()
         self.update()
 
@@ -4253,11 +4374,16 @@ class _AutoCellPaletteGrid(PaletteGrid):
         self._fixed_cols = cols   # must be set BEFORE super().__init__ calls _recalc_height
         super().__init__(cols=cols, cell=13, parent=parent)
 
-    def _effective_cols(self) -> int:  #vers 1
+    def _effective_cols(self) -> int:  #vers 2
+        """Preset columns; with a user cell size, as many as fit."""
+        if self._cell_fixed and self.width() > self._cell_fixed:
+            return max(1, self.width() // self._cell_fixed)
         return max(1, self._fixed_cols)
 
-    def _cell_size(self) -> int:  #vers 1
-        """Cell size = floor(widget_width / cols), minimum 4px."""
+    def _cell_size(self) -> int:  #vers 2
+        """User cell size, else floor(widget_width / cols), minimum 4px."""
+        if self._cell_fixed:
+            return self._cell_fixed
         w = self.width()
         if w <= 0:
             return self._cell
@@ -4276,7 +4402,7 @@ class _AutoCellPaletteGrid(PaletteGrid):
         # synchronously. See PaletteGrid.__init__ for why.
         self._recalc_timer.start(50)
 
-    def _do_recalc_height(self):  #vers 1
+    def _do_recalc_height(self):  #vers 2
         # Re-entrancy guard: setFixedHeight() below can trigger another
         # resizeEvent before this call returns (e.g. a scrollbar toggling
         # based on the new height, which changes available width, which
@@ -4287,11 +4413,12 @@ class _AutoCellPaletteGrid(PaletteGrid):
         self._recalc_guard = True
         try:
             cs   = self._cell_size()
-            cols = self._fixed_cols
+            cols = self._effective_cols()
             rows = max(1, (len(self._colors) + cols - 1) // cols)
             new_h = rows * cs + 1
             if new_h != self.height():
                 self.setFixedHeight(new_h)
+            self._fit_scroll(cs, rows)
         finally:
             self._recalc_guard = False
 
@@ -4299,11 +4426,11 @@ class _AutoCellPaletteGrid(PaletteGrid):
         super().resizeEvent(event)   # already calls self._recalc_height() via polymorphism
         self.update()
 
-    def paintEvent(self, event):  #vers 1
+    def paintEvent(self, event):  #vers 2
         from PyQt6.QtGui import QPainter, QPen, QColor
         p    = QPainter(self)
         cs   = self._cell_size()
-        cols = self._fixed_cols
+        cols = self._effective_cols()
         gap  = 1 if cs >= 6 else 0
         for i, col in enumerate(self._colors):
             x = (i % cols) * cs
@@ -4316,10 +4443,10 @@ class _AutoCellPaletteGrid(PaletteGrid):
                 p.setPen(QPen(self._get_ui_color('viewport_bg'), 1))
                 p.drawRect(x + 1, y + 1, cs - 4, cs - 4)
 
-    def mousePressEvent(self, e):  #vers 1
+    def mousePressEvent(self, e):  #vers 2
         from PyQt6.QtCore import Qt
         cs   = self._cell_size()
-        cols = self._fixed_cols
+        cols = self._effective_cols()
         col  = e.position().toPoint().x() // cs
         row  = e.position().toPoint().y() // cs
         idx  = row * cols + col
@@ -5779,10 +5906,12 @@ class ColorPalPresetsMixin:
         colors = [QColor(h) for h in data]
         return colors, cols
 
-    def _apply_retro_palette(self, name: str): #vers 4
+    def _apply_retro_palette(self, name: str): #vers 6
         """Load a retro preset into the user palette grid."""
         self.current_retro_palette = name
         colors, cols = self._get_retro_colors(name)
+        self._preset_pal_cols = cols
+        cols = self.dp5_settings.get('user_pal_cols') or cols     # Settings cols win
         if hasattr(self, '_user_pal_grid'):
             # _AutoCellPaletteGrid: pass cols so it knows how many columns to use;
             # cell size is computed automatically from widget width
@@ -5791,11 +5920,44 @@ class ColorPalPresetsMixin:
             self._user_pal_grid.set_colors(colors, cols)
             self._user_pal_grid._recalc_height()
             self._user_pal_grid.update()
+            QTimer.singleShot(150, self._fit_user_palette_dock)   # new preset: show every row
         if hasattr(self, '_retro_btn'):
             self._retro_btn.setText(f"{name}")
         # Show dither button only for small palettes
         if hasattr(self, '_pal_dither_btn'):
             self._pal_dither_btn.setVisible(len(colors) < 16)
+
+    def _apply_palette_layout(self): #vers 2
+        """Cell size, height and columns from Settings onto both palettes."""
+        st = self.dp5_settings
+        if getattr(self, 'pal_bar', None) is not None:
+            self.pal_bar.set_layout(st.get('img_pal_cell'), st.get('img_pal_rows'), st.get('img_pal_cols'))
+        grid = getattr(self, '_user_pal_grid', None)
+        if grid is not None:
+            grid._fixed_cols = max(1, st.get('user_pal_cols') or getattr(self, '_preset_pal_cols', 16))
+            grid.set_layout(st.get('user_pal_cell'), st.get('user_pal_rows'))
+            QTimer.singleShot(150, self._fit_user_palette_dock)
+
+    def _fit_user_palette_dock(self): #vers 1
+        """User Palette dock tall enough for its rows (no scroll bar); user can still resize."""
+        dock = getattr(self, '_user_palette_dock', None)
+        sa, grid = getattr(self, '_user_pal_scroll', None), getattr(self, '_user_pal_grid', None)
+        mw = getattr(self, '_outer_mw', None)
+        if None in (dock, sa, grid, mw) or dock.isFloating() or not dock.isVisible():
+            return
+        want = grid.height() + 2 * sa.frameWidth()
+        if sa.maximumHeight() < want:                    # Settings rows cap the view
+            want = sa.maximumHeight()
+        need = dock.height() - sa.height() + want
+        if need <= dock.height():
+            return
+        from PyQt6.QtWidgets import QDockWidget
+        area = mw.dockWidgetArea(dock)                   # neighbours give back their spare height
+        others = [d for d in mw.findChildren(QDockWidget) if d is not dock and d.isVisible()
+                  and not d.isFloating() and mw.dockWidgetArea(d) == area
+                  and dock not in mw.tabifiedDockWidgets(d)]
+        mw.resizeDocks(others + [dock], [d.sizeHint().height() for d in others] + [need],
+                       Qt.Orientation.Vertical)
 
     def _cycle_pal_dither(self): #vers 1
         """Cycle palette dither mode: off → floyd → bayer → checker → off."""
@@ -6177,8 +6339,10 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         from apps.methods.ui_color import get_ui_color
         return get_ui_color(self, key)
 
-    def __init__(self, parent=None, main_window=None): #vers 1
+    def __init__(self, parent=None, main_window=None): #vers 3
         super().__init__(parent)
+        from apps.methods.edge_cursor import install_edge_cursor_reset
+        install_edge_cursor_reset()                      # cursor, ribbon alignment, clean exit
 
         self.main_window     = main_window
         self.standalone_mode = (main_window is None)
@@ -6365,9 +6529,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._menu_bar_container.setVisible(False)
             self._menu_bar_container.setFixedHeight(0)
             # Don't add _menu_bar_container to layout — keeps zero height.
-
-            # Titlebar [DP5] button is the menu entry point when docked
-            self._register_titlebar_tool_btn()
+            # Docked: DP5 menus are in IMG Factory's Menu (unified_menu)
 
         # QMainWindow + QDockWidget + QToolBar, matching the pattern used
         # for Model Workshop: canvas is the central widget (always visible,
@@ -6856,6 +7018,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         fim.addAction("Windows ICO…",               self._import_ico)
         fim.addAction("SVG…",                       self._import_svg)
         fm.addSeparator()
+        fm.addAction("Save\tCtrl+S",              self._save_image)
+        fm.addAction("Save As…\tCtrl+Shift+S",    self._save_image_as)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
         sb = fm.addMenu("Save Back (keep depth / size / colours)")
@@ -6866,6 +7030,9 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         am.addAction("Export PNG sequence…",  self._anim_export_png_seq)
         am.addAction("Export IFF ANIM…",      self._anim_export_iff)
         am.addAction("Import IFF ANIM…",      self._anim_import_iff)
+        am.addSeparator()
+        am.addAction("Clean up frames (edges, matte, size)…", self._anim_cleanup_dialog)
+        am.addAction("Revert clean-up",       self._frames_cleanup_revert)
         fm.addSeparator()
 
         #    Platform                                                       
@@ -6962,6 +7129,13 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         wm.addAction("Clear to transparent\tDel", self._wand_clear)
         wm.addAction("Invert", self._wand_invert)
         wm.addAction("Copy to new tab", self._wand_to_tab)
+        wm.addSeparator()
+        wm.addAction("Select FG colour everywhere", lambda: self._wand_select_colour('fg'))
+        wm.addAction("Select transparent pixels",   lambda: self._wand_select_colour('alpha'))
+        wm.addAction("Copy\tCtrl+C", lambda: self._wand_copy(False))
+        wm.addAction("Cut\tCtrl+X",  lambda: self._wand_copy(True))
+        em.addAction("Save selection as brush…", self._selection_save_brush)
+        em.addAction("Lock editing to selection / unlock", self._edit_lock_toggle)
         em.addSeparator()
         em.addAction("Rotate Selection…",  self._rotate_selection_dialog)
         em.addAction("Cut to Canvas…",     self._cut_to_canvas)
@@ -7980,13 +8154,13 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 lambda pos, t=toolbar: self._ribbon_context_menu(t, pos))
             toolbar._ribbon_ctx_menu_wired = True
 
-    def _ribbon_context_menu(self, toolbar, pos): #vers 2
+    def _ribbon_context_menu(self, toolbar, pos): #vers 3
         """Right-click on any ribbon: shared menu (methods/toolbar_menu.py)."""
         from PyQt6.QtWidgets import QToolBar
         from apps.methods.toolbar_menu import standard_toolbar_menu
         outer_mw = getattr(self, '_outer_mw', None)
         toolbars = outer_mw.findChildren(QToolBar) if outer_mw is not None else []
-        standard_toolbar_menu(self, toolbars).exec(toolbar.mapToGlobal(pos))
+        standard_toolbar_menu(self, toolbars, tb=toolbar).exec(toolbar.mapToGlobal(pos))
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
@@ -8079,6 +8253,9 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         TOOL_SPRAY:       ('spray_density',      'Density:',   1,   30,  False, 1),
         TOOL_SPRAYCAN:    ('spraycan_density',   'Density:',   1,   30,  False, 1),
         TOOL_WAND:        ('wand_tolerance',     'Tolerance:', 0,   255, False, 1),
+        TOOL_HIGHLIGHTER: ('highlighter_strength', 'Strength:', 0.05, 1.0, True, 0.05),
+        TOOL_MARKER_RECT: ('highlighter_strength', 'Strength:', 0.05, 1.0, True, 0.05),
+        TOOL_MARKER_ELLIPSE: ('highlighter_strength', 'Strength:', 0.05, 1.0, True, 0.05),
     }
     _TEXT_TOOLS = {TOOL_TEXT}
 
@@ -9041,9 +9218,19 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             c.setVisible(on)
 
 
-    def _set_snap_grid(self, on: bool): #vers 1
+    def _set_snap_grid(self, on: bool): #vers 2
         if self.dp5_canvas:
             self.dp5_canvas.snap_grid = on
+            self.dp5_canvas.snap_size = self.dp5_settings.get('snap_size')
+            self.dp5_canvas.update()
+
+    def _set_snap_size(self, px: int): #vers 1
+        """Snap step px from the Brush & Colors spin box."""
+        self.dp5_settings.set('snap_size', int(px))
+        self.dp5_settings.save()
+        if self.dp5_canvas:
+            self.dp5_canvas.snap_size = int(px)
+            self.dp5_canvas.update()
 
 
     def _fill_panels_menu(self, menu): #vers 1
@@ -9868,15 +10055,23 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         c = self.dp5_canvas
         self._brush_thumb.set_buffer(c._sel_buffer, c._sel_buf_w, c._sel_buf_h)
 
-    def _cut_selection(self): #vers 1
+    def _cut_selection(self): #vers 2
         if not self.dp5_canvas: return
+        c = self.dp5_canvas
+        if c._wand_mask is not None and not (c._sel_active and c._selection_rect):
+            self._wand_copy(True)
+            return
         self._push_undo()
         self.dp5_canvas.cut_selection()
         self._sync_brush_thumb()
         self._set_status("Selection cut — click Brush thumbnail to stamp")
 
-    def _copy_selection(self): #vers 1
+    def _copy_selection(self): #vers 2
         if not self.dp5_canvas: return
+        c = self.dp5_canvas
+        if c._wand_mask is not None and not (c._sel_active and c._selection_rect):
+            self._wand_copy(False)
+            return
         self.dp5_canvas.copy_selection()
         self._sync_brush_thumb()
         self._set_status("Selection copied — click Brush thumbnail to stamp")
@@ -11037,10 +11232,15 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
     #    Canvas operations                                                      
 
 
-    def _push_undo(self):  #vers 4
+    def _push_undo(self):  #vers 5
         if self.dp5_canvas: #vers 1
+            c = self.dp5_canvas
+            c._enforce_edit_lock()                       # finish the last locked edit
+            snap = bytes(c.rgba)
+            if c._edit_lock is not None:
+                c._lock_snap = snap
             self._undo_stack.append(
-                (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height,
+                (snap, self._canvas_width, self._canvas_height,
                  self.dp5_canvas.pixel_aspect_x))
             self._redo_stack.clear()
             self._history_changed()
@@ -11326,6 +11526,84 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             c.set_wand_mask(~c._wand_mask)
             self._set_status("Wand selection inverted")
 
+    def _wand_select_colour(self, kind: str): #vers 1
+        """Wand mask of every FG-coloured ('fg') or fully transparent ('alpha') pixel."""
+        import numpy as np
+        c = self.dp5_canvas
+        if not c:
+            return
+        a = np.frombuffer(c.rgba, np.uint8).reshape(c.tex_h, c.tex_w, 4).astype(np.int16)
+        if kind == 'alpha':
+            m = a[..., 3] == 0
+        else:
+            col = c.color
+            d = np.abs(a[..., :3] - np.array((col.red(), col.green(), col.blue()), np.int16)).max(axis=2)
+            m = (d <= int(c.wand_tolerance)) & (a[..., 3] > 0)
+        c.set_wand_mask(m)
+        self._set_status(f"Wand: {int(m.sum())} pixels selected - Ctrl+C / Ctrl+X, then Ctrl+V to stamp")
+
+    def _wand_copy(self, cut: bool = False): #vers 1
+        """Wand pixels (others clear) into the paste buffer; cut clears them."""
+        import numpy as np
+        c = self.dp5_canvas
+        if not c or c._wand_mask is None or not c._wand_mask.any():
+            self._set_status("No wand selection")
+            return
+        m = c._wand_mask
+        ys, xs = np.nonzero(m)
+        y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+        a = np.frombuffer(c.rgba, np.uint8).reshape(c.tex_h, c.tex_w, 4)
+        buf = a[y0:y1, x0:x1].copy()
+        buf[~m[y0:y1, x0:x1]] = 0
+        c._sel_buffer = bytearray(buf.tobytes())
+        c._sel_buf_w, c._sel_buf_h = int(x1 - x0), int(y1 - y0)
+        if cut:
+            self._push_undo()
+            a2 = np.frombuffer(c.rgba, np.uint8).reshape(c.tex_h, c.tex_w, 4)
+            a2[m] = 0
+            c.update()
+        self._sync_brush_thumb()
+        self._set_status(f"Wand {'cut' if cut else 'copied'} ({c._sel_buf_w} x {c._sel_buf_h}) - Ctrl+V to stamp")
+
+    def _selection_save_brush(self): #vers 1
+        """Wand / lasso mask (others clear) or rectangle saved as a named brush."""
+        c = self.dp5_canvas
+        if not c:
+            return
+        if c._wand_mask is not None and c._wand_mask.any():
+            self._wand_copy(False)
+        elif c._sel_active and c._selection_rect:
+            c.copy_selection()
+        else:
+            self._set_status("Select a region first: Lasso (G), Select rectangle or Magic wand")
+            return
+        if not hasattr(self, '_brush_mgr_panel'):
+            self._toggle_brush_manager()
+        self._brush_mgr_panel.save_current_buffer(c._sel_buffer, c._sel_buf_w, c._sel_buf_h)
+
+    def _edit_lock_toggle(self): #vers 1
+        """Lock painting to the wand / lasso selection or selected rectangle; again unlocks."""
+        import numpy as np
+        c = self.dp5_canvas
+        if not c:
+            return
+        if c._edit_lock is not None:
+            c.set_edit_lock(None)
+            self._set_status("Editing unlocked")
+            return
+        m = c._wand_mask
+        if (m is None or m.shape != (c.tex_h, c.tex_w)) and c._sel_active and c._selection_rect is not None:
+            r = c._selection_rect.intersected(QRect(0, 0, c.tex_w, c.tex_h))
+            m = np.zeros((c.tex_h, c.tex_w), bool)
+            m[r.y():r.y() + r.height(), r.x():r.x() + r.width()] = True
+        if m is None or not m.any():
+            self._set_status("Select a region first: Lasso (G), Select rectangle or Magic wand")
+            return
+        c.set_edit_lock(m.copy())
+        c.set_wand_mask(None)
+        c._sel_active = False
+        self._set_status(f"Editing locked to {int(m.sum())} pixels (orange outline) - Edit menu to unlock")
+
     def _wand_to_tab(self): #vers 1
         """Wand selection (its bounding box, unselected pixels clear) as a new canvas tab."""
         import numpy as np
@@ -11489,56 +11767,67 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
     def _flip_v(self):   self._mirror_v()   # legacy alias  #vers 1
 
 
-    def _background_to_alpha_dialog(self): #vers 1
-        """Background to Alpha - convert a background colour to full
-        transparency, for masking icons/images (e.g. turning a solid-
-        background sprite into one with a transparent background).
-        Defaults to sampling the canvas's own corner pixel as the
-        target colour, with a Pick Colour button to choose a different
-        one and a tolerance slider for near-matching (anti-aliased)
-        edge pixels."""
+    def _background_to_alpha_dialog(self): #vers 2
+        """Background to Alpha: key one or more colours out to transparent.
+        Starts with the corner pixel; add colours by picker, FG or palettes."""
         c = self.dp5_canvas
         if not c:
             return
-        corner = QColor(c.rgba[0], c.rgba[1], c.rgba[2])
-
         dlg = QDialog(self)
         dlg.setWindowTitle("Background to Alpha")
         lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("Colours to make transparent:"))
+        lst = QListWidget()
+        lst.setMinimumHeight(110)
+        lay.addWidget(lst)
 
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Colour to key out:"))
-        swatch = QPushButton()
-        swatch.setFixedSize(28, 24)
-        state = {'color': corner}
+        def _add(col: QColor):
+            if not col.isValid():
+                return
+            for i in range(lst.count()):
+                if lst.item(i).data(Qt.ItemDataRole.UserRole).rgb() == col.rgb():
+                    return
+            pm = QPixmap(16, 16)
+            pm.fill(col)
+            it = QListWidgetItem(QIcon(pm), col.name().upper())
+            it.setData(Qt.ItemDataRole.UserRole, QColor(col))
+            lst.addItem(it)
+        _add(QColor(c.rgba[0], c.rgba[1], c.rgba[2]))     # top-left corner
 
-        def _refresh_swatch():
-            swatch.setStyleSheet(
-                f"background:{state['color'].name()}; border:1px solid palette(mid);")
-        _refresh_swatch()
+        def _pal_sel(grid):
+            g = getattr(self, grid, None)
+            if g is not None and 0 <= g._selected < len(g._colors):
+                _add(g._colors[g._selected])
+            else:
+                self._set_status("Click a colour in that palette first")
 
-        def _pick():
-            picked = QColorDialog.getColor(state['color'], dlg, "Colour to key out")
-            if picked.isValid():
-                state['color'] = picked
-                _refresh_swatch()
-        swatch.clicked.connect(_pick)
-        row.addWidget(swatch)
-        pick_btn = QPushButton("Pick Colour…")
-        pick_btn.clicked.connect(_pick)
-        row.addWidget(pick_btn)
-        lay.addLayout(row)
+        def _remove():
+            for it in lst.selectedItems():
+                lst.takeItem(lst.row(it))
 
-        tol_row = QHBoxLayout()
-        tol_row.addWidget(QLabel("Tolerance:"))
+        add_row = QHBoxLayout()
+        for text, tip, fn in (
+                ("Pick…", "Choose a colour", lambda: _add(QColorDialog.getColor(QColor(c.color), dlg, "Colour to key out"))),
+                ("FG", "Add the foreground colour", lambda: _add(QColor(c.color))),
+                ("Image pal", "Add the colour selected in Image Palette", lambda: _pal_sel('pal_bar')),
+                ("User pal", "Add the colour selected in User Palette", lambda: _pal_sel('_user_pal_grid')),
+                ("Remove", "Remove the selected list entries", _remove)):
+            b = QPushButton(text)
+            b.setToolTip(tip)
+            b.clicked.connect(fn)
+            add_row.addWidget(b)
+        lay.addLayout(add_row)
+
+        form = QFormLayout()
         tol_spin = QSpinBox()
         tol_spin.setRange(0, 100)
         tol_spin.setValue(10)
-        tol_spin.setToolTip("How close a pixel's colour must be to match -\n"
-                            "0 = exact match only, higher catches anti-aliased\n"
-                            "edge pixels too")
-        tol_row.addWidget(tol_spin)
-        lay.addLayout(tol_row)
+        tol_spin.setToolTip("0 = exact match; higher also catches anti-aliased edges")
+        form.addRow("Tolerance:", tol_spin)
+        wand_chk = QCheckBox("Only inside the wand selection")
+        wand_chk.setEnabled(c._wand_mask is not None)
+        form.addRow("", wand_chk)
+        lay.addLayout(form)
 
         btn_row = QHBoxLayout()
         apply_btn = QPushButton("Apply")
@@ -11549,32 +11838,35 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         cancel_btn.clicked.connect(dlg.reject)
 
         def _apply():
-            self._background_to_alpha(state['color'], tol_spin.value())
+            cols = [lst.item(i).data(Qt.ItemDataRole.UserRole) for i in range(lst.count())]
+            if cols:
+                self._background_to_alpha(cols, tol_spin.value(), wand_chk.isChecked())
             dlg.accept()
         apply_btn.clicked.connect(_apply)
-
         dlg.exec()
 
-    def _background_to_alpha(self, target: QColor, tolerance: int): #vers 1
-        """Set alpha to 0 for every pixel within `tolerance` of
-        `target` (simple Euclidean RGB distance, scaled 0-100 to the
-        0-441 max possible distance so the slider reads intuitively)."""
+    def _background_to_alpha(self, targets, tolerance: int, wand_only: bool = False): #vers 2
+        """Alpha 0 for pixels within tolerance (0-100) of any target colour."""
+        import numpy as np
         c = self.dp5_canvas
         if not c:
             return
+        if isinstance(targets, QColor):
+            targets = [targets]
         self._push_undo()
-        buf = c.rgba
-        tr, tg, tb = target.red(), target.green(), target.blue()
-        max_dist = tolerance / 100.0 * (255 * 3) ** 0.5
-        max_dist_sq = max_dist * max_dist
-        changed = 0
-        for i in range(0, len(buf), 4):
-            dr = buf[i] - tr; dg = buf[i+1] - tg; db = buf[i+2] - tb
-            if dr*dr + dg*dg + db*db <= max_dist_sq:
-                buf[i+3] = 0
-                changed += 1
+        a = np.frombuffer(c.rgba, np.uint8).reshape(c.tex_h, c.tex_w, 4).copy()
+        rgb = a[..., :3].astype(np.int32)
+        max_sq = (tolerance / 100.0) ** 2 * (255 * 255 * 3)
+        hit = np.zeros((c.tex_h, c.tex_w), bool)
+        for t in targets:
+            d = rgb - np.array((t.red(), t.green(), t.blue()), np.int32)
+            hit |= (d * d).sum(axis=2) <= max_sq
+        if wand_only and c._wand_mask is not None and c._wand_mask.shape == hit.shape:
+            hit &= c._wand_mask
+        a[hit, 3] = 0
+        c.rgba[:] = a.tobytes()
         c.update()
-        self._set_status(f"Background to Alpha: {changed} pixels made transparent")
+        self._set_status(f"Background to Alpha: {int(hit.sum())} pixels made transparent")
 
     def _invert(self): #vers 1
         from PIL import Image, ImageOps
@@ -13211,7 +13503,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
     #    Settings / theme                                                       
 
-    def _show_workshop_settings(self): #vers 2
+    def _show_workshop_settings(self): #vers 3
         """Open DP5-specific settings dialog (NOT the global theme dialog)."""
         old_icon_sz = self.dp5_settings.get('tool_icon_size')
 
@@ -13252,6 +13544,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 if _tb is not None:
                     self._apply_ribbon_style(_tb)
             self._set_platform(self.dp5_settings.get('platform_mode'))
+            self._apply_palette_layout()
 
             show_mb = (self.dp5_settings.get('show_menubar') and
                        self.dp5_settings.get('menu_style') == 'topbar')
@@ -13377,9 +13670,12 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                                         'palette': list(pal)[:1 << planes] if indexed else None, 'w': w, 'h': h}
         return self._indexed_source
 
-    def _fill_save_back_menu(self, menu): #vers 1
-        """One Save Back entry, or one per loaded image that came from a BMP / IFF."""
+    def _fill_save_back_menu(self, menu): #vers 2
+        """Save / Save As, then one Save Back entry or one per loaded BMP / IFF."""
         menu.clear()
+        menu.addAction("Save\tCtrl+S", self._save_image)
+        menu.addAction("Save As…\tCtrl+Shift+S", self._save_image_as)
+        menu.addSeparator()
         loaded = [(i, bm) for i, bm in enumerate(self._bitmap_list) if bm.get('source')]
         if len(loaded) > 1:
             for i, bm in loaded:
@@ -13388,7 +13684,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         else:
             menu.addAction("Save Back...", self._save_back_indexed)
 
-    def _save_back_indexed(self, index=None): #vers 3
+    def _save_back_indexed(self, index=None): #vers 4
         """Save the canvas (or loaded image index) as BMP or IFF keeping its file's depth, size and palette."""
         if index is not None:
             bm = self._bitmap_list[index]
@@ -13410,9 +13706,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         if not path:
             return
         try:
-            from apps.methods.indexed_color_import import nearest_indices, write_bmp_indexed
             from apps.methods.file_backup import backup_file
-            pal, bpp = src['palette'], src['bpp']
             as_bmp = path.lower().endswith('.bmp') or (chosen.startswith("BMP") and not path.lower().endswith('.iff'))
             if as_bmp and not path.lower().endswith('.bmp'):
                 path += '.bmp'
@@ -13420,28 +13714,103 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 path += '.iff'
             if os.path.exists(path):
                 backup_file(path)
-            rgba = bytes(rgba)
-            if pal:
-                px = nearest_indices(rgba, pal)
-                if as_bmp:
-                    write_bmp_indexed(path, w, h, px, pal, bpp)
-                else:
-                    from apps.methods.iff_ilbm import write_iff_ilbm
-                    open(path, 'wb').write(write_iff_ilbm(w, h, pal, px, n_planes=max(1, bpp)))
-                note = f"{bpp}-bit, {len(pal)} colours"
-            elif as_bmp:
-                from PIL import Image
-                img = Image.frombytes('RGBA', (w, h), rgba)
-                (img if bpp == 32 else img.convert('RGB')).save(path, 'BMP')
-                note = f"{32 if bpp == 32 else 24}-bit"
-            else:
-                from apps.methods.iff_ilbm import write_iff_24bit
-                open(path, 'wb').write(write_iff_24bit(rgba, w, h))
-                note = "24-bit"
+            note = self._write_indexed(path, src, w, h, bytes(rgba))
             self._set_status(f"Saved {os.path.basename(path)}: {w}x{h}, {note}")
         except Exception as e:
             QMessageBox.warning(self, "Save Back", str(e))
 
+
+    _SAVE_FILTERS = ("PNG (*.png);;BMP (*.bmp);;JPEG (*.jpg *.jpeg);;GIF (*.gif);;TGA (*.tga);;"
+                     "WebP (*.webp);;TIFF (*.tif *.tiff);;PCX (*.pcx);;IFF ILBM (*.iff *.lbm *.ilbm)")
+    _SAVE_EXTS = {'PNG': '.png', 'BMP': '.bmp', 'JPEG': '.jpg', 'GIF': '.gif', 'TGA': '.tga',
+                  'WebP': '.webp', 'TIFF': '.tif', 'PCX': '.pcx', 'IFF': '.iff'}
+
+    def _save_image(self): #vers 1
+        """Save to the file this tab was opened from, in its own format."""
+        path = getattr(self, '_doc_path', None)
+        if not path or os.path.splitext(path)[1].lower() not in set(self._SAVE_EXTS.values()) | {'.jpeg', '.tiff', '.lbm', '.ilbm'}:
+            self._save_image_as()
+            return
+        self._write_image(path)
+
+    def _save_image_as(self): #vers 1
+        """Save under a new name and / or format; the tab then follows it."""
+        if not self.dp5_canvas:
+            return
+        start = getattr(self, '_doc_path', None) or "untitled.png"
+        ext = os.path.splitext(start)[1].lower().lstrip('.')
+        flt = next((f for f in self._SAVE_FILTERS.split(';;') if f"*.{ext}" in f), None)
+        path, chosen = QFileDialog.getSaveFileName(self, "Save As", start, self._SAVE_FILTERS, flt or '')
+        if not path:
+            return
+        if not os.path.splitext(path)[1]:
+            path += self._SAVE_EXTS.get(chosen.split(' ')[0], '.png')
+        if self._write_image(path):
+            self._doc_mark_opened(path)
+            if path.lower().endswith(('.bmp', '.iff', '.lbm', '.ilbm')):
+                self._remember_indexed_source(path)
+
+    def _write_image(self, path: str) -> bool: #vers 1
+        """Canvas to path by extension; BMP / IFF keep the opened file's depth and palette."""
+        c = self.dp5_canvas
+        if not c:
+            return False
+        w, h, rgba = self._canvas_width, self._canvas_height, bytes(c.rgba)
+        low = path.lower()
+        try:
+            from apps.methods.file_backup import backup_file
+            if os.path.exists(path):
+                backup_file(path)
+            src = getattr(self, '_indexed_source', None)
+            if (low.endswith(('.bmp', '.iff', '.lbm', '.ilbm')) and src
+                    and (w, h) == (src['w'], src['h'])):
+                note = self._write_indexed(path, src, w, h, rgba)
+            elif low.endswith(('.iff', '.lbm', '.ilbm')):
+                from apps.methods.iff_ilbm import write_iff_24bit
+                open(path, 'wb').write(write_iff_24bit(rgba, w, h))
+                note = "24-bit"
+            elif low.endswith('.gif') and len(self._frames) > 1:
+                note = f"{self._write_gif_frames(path)} frames"
+            else:
+                from PIL import Image
+                img = Image.frombytes('RGBA', (w, h), rgba)
+                opaque = img.getchannel('A').getextrema()[0] == 255
+                if low.endswith(('.jpg', '.jpeg')):
+                    img.convert('RGB').save(path, quality=95)
+                elif low.endswith(('.bmp', '.pcx')):
+                    (img.convert('RGB') if opaque or low.endswith('.pcx') else img).save(path)
+                elif low.endswith('.webp'):
+                    img.save(path, lossless=True)
+                else:
+                    img.save(path)                          # PNG / GIF / TGA / TIFF keep alpha
+                note = "RGB" if opaque else "RGBA"
+            self._set_status(f"Saved {os.path.basename(path)}: {w}x{h}, {note}")
+            return True
+        except Exception as e:
+            QMessageBox.warning(self, "Save", f"{os.path.basename(path)}: {e}")
+            return False
+
+    def _write_indexed(self, path: str, src: dict, w: int, h: int, rgba: bytes) -> str: #vers 1
+        """BMP or IFF at the source's depth / palette; returns a short note."""
+        pal, bpp = src['palette'], src['bpp']
+        as_bmp = path.lower().endswith('.bmp')
+        if pal:
+            from apps.methods.indexed_color_import import nearest_indices, write_bmp_indexed
+            px = nearest_indices(rgba, pal)
+            if as_bmp:
+                write_bmp_indexed(path, w, h, px, pal, bpp)
+            else:
+                from apps.methods.iff_ilbm import write_iff_ilbm
+                open(path, 'wb').write(write_iff_ilbm(w, h, pal, px, n_planes=max(1, bpp)))
+            return f"{bpp}-bit, {len(pal)} colours"
+        if as_bmp:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (w, h), rgba)
+            (img if bpp == 32 else img.convert('RGB')).save(path, 'BMP')
+            return f"{32 if bpp == 32 else 24}-bit"
+        from apps.methods.iff_ilbm import write_iff_24bit
+        open(path, 'wb').write(write_iff_24bit(rgba, w, h))
+        return "24-bit"
 
     def _export_iff_ham(self): #vers 2
         """Export Amiga IFF ILBM in HAM6 mode (6 bitplanes, CAMG=0x800)."""
@@ -14572,7 +14941,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             QMessageBox.warning(self, "TIFF Import Error", str(e))
 
 
-    def _import_gif(self, path: str = None): #vers 2
+    def _import_gif(self, path: str = None): #vers 3
         """Import GIF — animated GIF loads all frames into animation timeline."""
         if not path:
             path, _ = QFileDialog.getOpenFileName(
@@ -14582,11 +14951,12 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         try:
             from PIL import Image
             gif = Image.open(path)
-            frames = []
+            frames, delays = [], []
             try:
                 while True:
                     f = gif.copy().convert('RGBA')
                     frames.append(f)
+                    delays.append(int(gif.info.get('duration', 100) or 100))
                     gif.seek(gif.tell()+1)
             except EOFError:
                 pass
@@ -14605,7 +14975,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 self._frames = [bytearray(f.resize(
                     (img.width, img.height), Image.NEAREST).convert('RGBA').tobytes())
                     for f in frames]
-                self._frame_delays = [gif.info.get('duration', 100)] * len(frames)
+                self._frame_delays = delays
                 self._current_frame = 0
                 if hasattr(self, '_anim_strip') and self._anim_strip.isVisible():
                     self._anim_refresh_thumbs()
@@ -15542,30 +15912,169 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         self._anim_highlight_thumb(next_f)
 
 
-    def _anim_export_gif(self): #vers 1
-        """Export all frames as an animated GIF."""
+    def _anim_cleanup_dialog(self): #vers 1
+        """Emoji / GIF clean-up on every frame: key background, edges, scale."""
+        if not self.dp5_canvas:
+            return
+        c = self.dp5_canvas
+        n = len(self._frames) if len(self._frames) > 1 else 1
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Clean up frames")
+        form = QFormLayout(dlg)
+        key_chk = QCheckBox("Key out the corner colour first")
+        key_tol = QSpinBox(); key_tol.setRange(0, 100); key_tol.setValue(8)
+        form.addRow(key_chk)
+        form.addRow("Key tolerance:", key_tol)
+        edge_combo = QComboBox()
+        edge_combo.addItems(["Leave edges", "Light edges to alpha", "Light edges onto dark matte"])
+        edge_combo.setCurrentIndex(1)
+        form.addRow("Edges:", edge_combo)
+        tc = self.app_settings.get_theme_colors() if getattr(self, 'app_settings', None) else {}
+        state = {'matte': QColor(tc.get('bg_primary') or '#1e1e24')}
+        matte_btn = QPushButton()
+
+        def _paint():
+            matte_btn.setText(state['matte'].name().upper())
+            matte_btn.setStyleSheet(f"background:{state['matte'].name()};")
+        def _pick():
+            col = QColorDialog.getColor(state['matte'], dlg, "Matte colour")
+            if col.isValid():
+                state['matte'] = col
+                _paint()
+        _paint()
+        matte_btn.clicked.connect(_pick)
+        form.addRow("Matte colour:", matte_btn)
+        thr = QSpinBox(); thr.setRange(100, 254); thr.setValue(200)
+        thr.setToolTip("Edge pixels whose darkest channel is at least this count as white fringe")
+        form.addRow("Light from:", thr)
+        width = QSpinBox(); width.setRange(1, 8); width.setValue(2); width.setSuffix(" px")
+        form.addRow("Edge width:", width)
+        scale = QComboBox(); scale.addItems(["1x", "2x", "3x", "4x"])
+        form.addRow("Enhance size:", scale)
+        method = QComboBox(); method.addItems(["Smooth (Lanczos)", "Pixel art (Scale2x)", "Nearest"])
+        form.addRow("Method:", method)
+
+        def _methods():                                  # Scale2x only doubles
+            m = method.model().item(1)
+            m.setEnabled(scale.currentIndex() in (0, 1, 3))
+            if not m.isEnabled() and method.currentIndex() == 1:
+                method.setCurrentIndex(0)
+        scale.currentIndexChanged.connect(_methods)
+        all_chk = QCheckBox(f"All {n} frames")
+        all_chk.setChecked(n > 1)
+        all_chk.setEnabled(n > 1)
+        form.addRow(all_chk)
+        btns = QHBoxLayout()
+        ok, cancel = QPushButton("Apply"), QPushButton("Cancel")
+        btns.addWidget(ok); btns.addWidget(cancel)
+        form.addRow(btns)
+        cancel.clicked.connect(dlg.reject)
+        ok.clicked.connect(dlg.accept)
+        if not dlg.exec():
+            return
+        self._frames_cleanup({
+            'key': key_tol.value() if key_chk.isChecked() else None,
+            'edge': edge_combo.currentIndex(), 'matte': state['matte'].getRgb()[:3],
+            'thr': thr.value(), 'width': width.value(),
+            'scale': scale.currentIndex() + 1, 'method': method.currentIndex(),
+            'all': all_chk.isChecked()})
+
+    def _frames_cleanup(self, o: dict): #vers 1
+        """Run the clean-up on the canvas or every animation frame."""
+        import numpy as np
+        from PIL import Image
+        from apps.components.DP5_Workshop.depends.dp5_mask_tools import edge_fringe, scale2x
+        c = self.dp5_canvas
+        w, h = self._canvas_width, self._canvas_height
+        multi = o['all'] and len(self._frames) > 1
+        if multi:
+            self._anim_save_current_frame()
+            self._frames_backup = ([bytearray(f) for f in self._frames], w, h)
+            srcs = list(self._frames)
+        else:
+            self._push_undo()
+            srcs = [bytearray(c.rgba)]
+
+        def one(buf):
+            a = np.frombuffer(bytes(buf), np.uint8).reshape(h, w, 4).copy()
+            if o['key'] is not None:
+                k = a[0, 0, :3].astype(np.int32)
+                d = ((a[..., :3].astype(np.int32) - k) ** 2).sum(axis=2)
+                a[d <= (o['key'] / 100.0) ** 2 * 195075, 3] = 0
+            data = a.tobytes()
+            if o['edge']:
+                data = edge_fringe(data, w, h, o['thr'], o['width'], o['matte'] if o['edge'] == 2 else None)
+            f, cw, ch = o['scale'], w, h
+            if f > 1 and o['method'] == 1:
+                for _ in range(1 if f == 2 else 2):
+                    data, cw, ch = scale2x(data, cw, ch), cw * 2, ch * 2
+            elif f > 1:
+                rs = Image.Resampling.LANCZOS if o['method'] == 0 else Image.Resampling.NEAREST
+                data = Image.frombytes('RGBA', (w, h), data).resize((w * f, h * f), rs).tobytes()
+                cw, ch = w * f, h * f
+            return bytearray(data), cw, ch
+        out = [one(b) for b in srcs]
+        nw, nh = out[0][1], out[0][2]
+        self._canvas_width, self._canvas_height = nw, nh
+        c.tex_w, c.tex_h = nw, nh
+        if multi:
+            self._frames = [d for d, _w, _h in out]
+            c.rgba = bytearray(self._frames[self._current_frame])
+            self._anim_refresh_thumbs()
+        else:
+            c.rgba = out[0][0]
+            if self._frames:
+                self._frames = [bytearray(c.rgba)] if len(self._frames) <= 1 else self._frames
+        c.update()
+        self._fit_canvas_to_viewport()
+        self._set_status(f"Cleaned {len(out)} frame(s): {nw}x{nh}"
+                         + ("  (File > Animation > Revert clean-up)" if multi else ""))
+
+    def _frames_cleanup_revert(self): #vers 1
+        """Undo the last all-frames clean-up."""
+        bk = getattr(self, '_frames_backup', None)
+        if not bk:
+            self._set_status("No frame clean-up to revert")
+            return
+        frames, w, h = bk
+        self._frames, self._frames_backup = frames, None
+        self._canvas_width, self._canvas_height = w, h
+        c = self.dp5_canvas
+        c.tex_w, c.tex_h = w, h
+        self._current_frame = min(self._current_frame, len(frames) - 1)
+        c.rgba = bytearray(frames[self._current_frame])
+        self._anim_refresh_thumbs()
+        c.update()
+        self._fit_canvas_to_viewport()
+        self._set_status(f"Clean-up reverted: {w}x{h}")
+
+    def _write_gif_frames(self, path: str) -> int: #vers 1
+        """Every frame as an animated GIF with its own delay; returns frame count."""
+        from PIL import Image
+        self._anim_save_current_frame()
+        w, h = self._canvas_width, self._canvas_height
+        frames = [f for f in self._frames if len(f) == w * h * 4]
+        delays = list(getattr(self, '_frame_delays', []) or [100])
+        delays += [delays[-1]] * (len(frames) - len(delays))
+        imgs = []
+        for f in frames:
+            im = Image.frombytes('RGBA', (w, h), bytes(f))
+            a = im.getchannel('A').point(lambda v: 255 if v >= 128 else 0)   # GIF alpha is 1-bit
+            im.putalpha(a)
+            imgs.append(im)
+        imgs[0].save(path, format='GIF', save_all=True, append_images=imgs[1:],
+                     duration=delays[:len(imgs)], loop=0, disposal=2, optimize=False)
+        return len(imgs)
+
+    def _anim_export_gif(self): #vers 2
+        """Export all frames as an animated GIF (per-frame delays)."""
         if not self._frames: return
-        fps = self._anim_fps_spin.value() if hasattr(self,'_anim_fps_spin') else 12
-        delay = 1000 // fps  # ms per frame
         path, _ = QFileDialog.getSaveFileName(
             self, "Export Animated GIF", "animation.gif", "GIF (*.gif)")
         if not path: return
         try:
-            from PIL import Image
-            w, h = self._canvas_width, self._canvas_height
-            pil_frames = []
-            for frame in self._frames:
-                if len(frame) == w*h*4:
-                    img = Image.frombytes('RGBA', (w,h), bytes(frame)).convert('RGBA')
-                    pil_frames.append(img)
-            if not pil_frames: return
-            pil_frames[0].save(
-                path, format='GIF', save_all=True,
-                append_images=pil_frames[1:],
-                duration=delay, loop=0, optimize=True)
-            self._set_status(
-                f"Exported GIF: {os.path.basename(path)}  "
-                f"{len(pil_frames)} frames @ {fps}fps")
+            n = self._write_gif_frames(path)
+            self._set_status(f"Exported GIF: {os.path.basename(path)}  {n} frames")
         except Exception as e:
             QMessageBox.warning(self, "GIF Export Error", str(e))
 
@@ -15820,16 +16329,20 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         else: self.showMaximized()
 
 
-    def keyPressEvent(self, e): #vers 1
+    def keyPressEvent(self, e): #vers 2
         k   = e.key()
         mod = e.modifiers()
         Ctrl  = Qt.KeyboardModifier.ControlModifier
         Shift = Qt.KeyboardModifier.ShiftModifier
         NoMod = Qt.KeyboardModifier.NoModifier
 
+        if mod == Ctrl | Shift and k == Qt.Key.Key_S:
+            self._save_image_as()
+            return
         # Ctrl combos
         if mod == Ctrl:
-            if k == Qt.Key.Key_Z: self._undo_canvas()
+            if k == Qt.Key.Key_S: self._save_image()
+            elif k == Qt.Key.Key_Z: self._undo_canvas()
             elif k == Qt.Key.Key_Y: self._redo_canvas()
             elif k == Qt.Key.Key_X: self._cut_selection()
             elif k == Qt.Key.Key_C: self._copy_selection()
@@ -16314,7 +16827,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         super().paintEvent(event)
         paint_corner_handles(self)
 
-    def showEvent(self, event): #vers 3
+    def showEvent(self, event): #vers 4
         super().showEvent(event)
         from PyQt6.QtCore import QTimer
         # Two-shot: 100ms for layout settle, 400ms to ensure all children rendered
@@ -16322,11 +16835,10 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         self.update()
         # Rebuild right panel so tool icons lay out correctly on first show
         QTimer.singleShot(150, self._rebuild_right_panel)
+        if not getattr(self, '_pal_fit_done', False):    # first show: every palette row visible
+            self._pal_fit_done = True
+            QTimer.singleShot(600, self._fit_user_palette_dock)
 
-    def resizeEvent(self, event): #vers 1
-        super().resizeEvent(event)
-        from PyQt6.QtCore import QTimer
-        self.update()
 
 #  Public factory function
 

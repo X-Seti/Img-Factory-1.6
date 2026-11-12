@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_win_func.py - Version: 6
+#this belongs in apps/components/Path_Workshop/depends/path_win_func.py - Version: 7
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Path Workshop window
 
 """
@@ -16,6 +16,7 @@ Path Workshop window - frameless drag/resize, dock/undock, corner handles.
 # _handle_corner_resize
 # _handle_resize
 # _is_on_draggable_area
+# _load_from_main_img
 # _toggle_maximize
 # _toggle_tearoff
 # _undock_from_main
@@ -374,8 +375,49 @@ class PathWindowMixin: #vers 2
         super().paintEvent(event)
         paint_corner_handles(self)
 
-    def showEvent(self, event): #vers 4
+    def _load_from_main_img(self): #vers 1
+        """Docked: radar and nodesN.dat from IMG Factory's open gta3.img."""
+        import os
+        mw = self.main_window
+        tw = getattr(mw, 'main_tab_widget', None)
+        imgs = [getattr(tw.widget(i), 'file_object', None) for i in range(tw.count())] if tw else []
+        imgs += [v.get('file_object') for v in (getattr(mw, 'open_files', None) or {}).values()]
+        path, arc = '', None
+        for img in imgs:
+            fp = getattr(img, 'file_path', '') or ''
+            if os.path.basename(fp).lower() == 'gta3.img' and hasattr(img, 'entries'):
+                path, arc = fp, img
+                break
+        if not path:                                     # loaded game, no tab
+            models = os.path.join(getattr(mw, 'game_root', '') or '', 'models')
+            files = {f.lower(): f for f in os.listdir(models)} if os.path.isdir(models) else {}
+            path = os.path.join(models, files['gta3.img']) if 'gta3.img' in files else ''
+        if not path or not os.path.isfile(path):
+            return
+        if arc is None:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(path)
+            arc.open()
+        import re
+        names = [getattr(e, 'name', '') or '' for e in getattr(arc, 'entries', [])]
+        if not self._tile_rgba and any(re.match(r'radar\d{2,4}\.txd$', n, re.I) for n in names):
+            self._open_file(path)
+        if self._loader is None:
+            from apps.methods.sa_path_parser import find_nodes_dat_in_img
+            if find_nodes_dat_in_img(arc):
+                self._load_paths(path)
+                return
+            data = os.path.join(os.path.dirname(os.path.dirname(path)), 'data')   # III / VC: .ipl paths
+            files = {f.lower(): f for f in os.listdir(data)} if os.path.isdir(data) else {}
+            dat = next((files[n] for n in ('gta_vc.dat', 'gta3.dat') if n in files), '')
+            if dat:
+                self._load_paths(os.path.join(data, dat))
+
+    def showEvent(self, event): #vers 5
         super().showEvent(event)
+        if self.main_window is not None and not getattr(self, '_main_img_tried', False):
+            self._main_img_tried = True
+            QTimer.singleShot(0, self._load_from_main_img)
         QTimer.singleShot(0, self._radar.update)       # first paint after layout settles
         QTimer.singleShot(250, self._radar.update)
 

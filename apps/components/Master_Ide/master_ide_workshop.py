@@ -1,4 +1,4 @@
-#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 13
+#this belongs in apps/components/Master_Ide/master_ide_workshop.py - Version: 14
 # X-Seti - September 17 2026 - IMG Factory 1.6 - Master IDE Workshop
 
 """master_ide_workshop.py - Master IDE as its own standalone,
@@ -220,12 +220,12 @@ class MasterIDEWorkshop(QWidget): #vers 9
         tb_filters.addWidget(self.ignore_range_to)
         _act(tb_filters, "Apply", icons.check_icon, self._on_apply_ignore_range)
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 3
+    def _toolbar_context_menu(self, toolbar, pos): #vers 4
         """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
         from PyQt6.QtWidgets import QToolBar
         from apps.methods.toolbar_menu import standard_toolbar_menu
         scale = 20
-        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
+        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale, toolbar)
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _save_toolbar_state(self): #vers 2

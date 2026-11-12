@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 23
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 24
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -762,7 +762,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         # Apply current icons-vs-text display mode
         self._update_transform_text_panel_visibility()
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 5
+    def _toolbar_context_menu(self, toolbar, pos): #vers 6
         """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
         from PyQt6.QtWidgets import QToolBar
         from apps.methods.toolbar_menu import standard_toolbar_menu
@@ -771,7 +771,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             scale = json.loads(self._ribbon_config_path().read_text()).get('icon_scale', 20)
         except Exception:
             scale = 20
-        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
+        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale, toolbar)
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _apply_icon_scale(self, px: int): #vers 3

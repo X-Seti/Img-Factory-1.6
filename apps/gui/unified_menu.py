@@ -1,4 +1,4 @@
-#this belongs in apps/gui/unified_menu.py - Version: 7
+#this belongs in apps/gui/unified_menu.py - Version: 8
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Unified Menu System
 """
 UnifiedMenuSystem — single menu source for all apps and UI modes.
@@ -112,7 +112,7 @@ class UnifiedMenuSystem: #vers 1
             pos = QApplication.primaryScreen().geometry().center()
         popup.exec(pos)
 
-    def activate_tool(self, workshop): #vers 2
+    def activate_tool(self, workshop): #vers 3
         """Insert tool menus when a docked workshop tab becomes active."""
         self.deactivate_tool()
         if not hasattr(workshop, 'get_menu_title'):
@@ -131,21 +131,7 @@ class UnifiedMenuSystem: #vers 1
             action = self.menubar.addMenu(tool_menu)
             self._tool_action_ref = action
 
-        # Register titlebar button (custom UI)
-        gl = getattr(self.mw, 'gui_layout', None)
-        if gl and hasattr(gl, 'register_tool_menu_btn'):
-            def _popup():
-                m = QMenu()
-                if hasattr(workshop, '_build_menus_into_qmenu'):
-                    workshop._build_menus_into_qmenu(m)
-                btn = getattr(gl, 'tool_menu_btn', None)
-                if btn:
-                    m.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-                else:
-                    m.exec()
-            gl.register_tool_menu_btn(label, _popup)
-
-    def deactivate_tool(self): #vers 2
+    def deactivate_tool(self): #vers 3
         """Remove tool menus when workshop tab loses focus."""
         # Remove action before dropping menu; menu GC deletes the action
         if self.menubar and getattr(self, '_tool_action_ref', None) is not None:
@@ -153,11 +139,6 @@ class UnifiedMenuSystem: #vers 1
         self._tool_action_ref = None
         self._tool_menu  = None
         self._tool_label = None
-
-        # Clear titlebar button
-        gl = getattr(self.mw, 'gui_layout', None)
-        if gl and hasattr(gl, 'unregister_tool_menu_btn'):
-            gl.unregister_tool_menu_btn()
 
     #    Menu builders                                                      
 

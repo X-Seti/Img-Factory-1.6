@@ -1,4 +1,4 @@
-#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 23
+#this belongs in apps/components/Col_Editor/depends/col_setup_ui_func.py - Version: 26
 # X-Seti - Sept 29 2026 - IMG Factory 1.6 - COL Workshop UI setup
 
 """
@@ -64,11 +64,11 @@ COL Workshop UI - panes, button connects, toolbar, ribbons, menus, tabs, key sho
 
 from PyQt6.QtCore import QSize, QTimer, Qt
 from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMainWindow, QMenu, QPushButton, QStyledItemDelegate, QTabWidget, QTableWidget, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QAbstractItemView, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMainWindow, QMenu, QPushButton, QStyledItemDelegate, QTabWidget, QTableWidget, QToolButton, QVBoxLayout, QWidget
 from apps.methods.statusbar_func import add_statusbar_checkbox, register_statusbar
 from apps.components.Col_Editor.depends.col_viewport import COL3DViewport
 from apps.methods.grip_splitter import GripSplitter
-from apps.methods.dock_panels import add_outer_dock, make_outer_mw
+from apps.methods.dock_panels import add_outer_dock, add_title_widget, make_outer_mw
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.img_factory_settings import get_user_config_dir
@@ -283,7 +283,7 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
         parent_menu.addSeparator()
         parent_menu.addAction("Ribbon Manager…", self.open_ribbon_manager)
 
-    def setup_ui(self): #vers 14
+    def setup_ui(self): #vers 15
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -316,7 +316,10 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
         self._outer_mw = outer_mw
         self._outer_docks = []
         if left_panel is not None:  # IMG Factory mode
-            self._outer_docks.append(add_outer_dock(self, outer_mw, "COL Files", left_panel, 150))
+            files_dock = add_outer_dock(self, outer_mw, "COL Files", left_panel, 150)
+            self._outer_docks.append(files_dock)
+            self._col_list_header = files_dock._title_label      # "COL Files  (n)" shown in the title
+            add_title_widget(files_dock, self.col_search_btn)
         models_dock = add_outer_dock(self, outer_mw, "Col Controls", middle_panel, 250)
         self._outer_docks.append(models_dock)
         if left_panel is not None:
@@ -408,11 +411,12 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
 
         return status_bar
 
-    def _refresh_icons(self): #vers 4
+    def _refresh_icons(self): #vers 5
         """Refresh all button icons after theme change — picks up current text_primary colour."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
         SVGIconFactory.set_theme_color(c)
+        self._recolour_dock_icons()
 
         # Complete icon map — every themed button in Col Workshop
         _icon_map = [
@@ -695,7 +699,7 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
         sp.splitterMoved.connect(lambda *_: self._apply_left_compact())
         return tab
 
-    def _create_left_panel(self): #vers 6
+    def _create_left_panel(self): #vers 9
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -709,30 +713,19 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
         # Only create panel in IMG Factory mode
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(100)
-        panel.setMaximumWidth(150)
+        panel.setMinimumWidth(100)                       # no max: dock column sets the width
+        panel.setMinimumHeight(90)                       # a few rows; dock can't crush it
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(4)
 
-        # Header row with search button
-        hdr_row = QHBoxLayout()
-        self._col_list_header = QLabel("COL Files")
-        self._col_list_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr_row.addWidget(self._col_list_header)
-        hdr_row.addStretch()
-        self.col_search_btn = QPushButton()
-        self.col_search_btn.setFixedSize(24, 24)
-        try:
-            from apps.methods.imgfactory_svg_icons import SVGIconFactory
-            self.col_search_btn.setIcon(SVGIconFactory.search_icon(16))
-            self.col_search_btn.setIconSize(QSize(16, 16))
-        except Exception:
-            pass  # No icon — button still works
+        # Count and search button live in the dock title bar (setup_ui)
+        self.col_search_btn = QToolButton()
+        self.col_search_btn.setAutoRaise(True)
+        self.col_search_btn.setIcon(self.icon_factory.search_icon(16, self._get_icon_color()))
         self.col_search_btn.setToolTip("Search COL files")
         self.col_search_btn.clicked.connect(self._show_col_search)
-        hdr_row.addWidget(self.col_search_btn)
-        layout.addLayout(hdr_row)
 
         # Search box (hidden by default)
         self.col_search_box = QLineEdit()
@@ -889,7 +882,7 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
 
         return self._wrap_middle_panel_with_surface_tab(panel)
 
-    def _wrap_middle_panel_with_surface_tab(self, models_panel): #vers 3
+    def _wrap_middle_panel_with_surface_tab(self, models_panel): #vers 4
         """Wrap the COL Models content in a local tab widget alongside
         Surface Data, so only the middle panel switches when the user picks
         a tab - the left panel (file list) and right panel (ribbons +
@@ -900,8 +893,13 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
         middle_tabs = QTabWidget()
         middle_tabs.setDocumentMode(True)
         middle_tabs.addTab(models_panel, "COL Models")
+        from PyQt6.QtWidgets import QScrollArea
         self._surface_tab = self._create_surface_tab()
-        middle_tabs.addTab(self._surface_tab, "Surface Data")
+        surf_scroll = QScrollArea()                      # its tall form no longer sets the dock's minimum
+        surf_scroll.setWidgetResizable(True)
+        surf_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        surf_scroll.setWidget(self._surface_tab)
+        middle_tabs.addTab(surf_scroll, "Surface Data")
         middle_tabs.setMinimumWidth(180)  # Surface tab no longer forces 374px
         middle_tabs.currentChanged.connect(lambda *_: QTimer.singleShot(0, self._apply_left_compact))
         return middle_tabs
@@ -1258,7 +1256,7 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
         self._col_icon_buttons = []
         self._col_ctrl_buttons = []
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 4
+    def _toolbar_context_menu(self, toolbar, pos): #vers 5
         """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
         from PyQt6.QtWidgets import QToolBar
         from apps.methods.toolbar_menu import standard_toolbar_menu
@@ -1267,7 +1265,7 @@ class COLSetupUIMixin(TitlebarMixin): #vers 2
             scale = json.loads((get_user_config_dir() / 'col_workshop.json').read_text()).get('icon_scale', 20)
         except Exception:
             scale = 20
-        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
+        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale, toolbar)
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _apply_icon_scale(self, px: int): #vers 2

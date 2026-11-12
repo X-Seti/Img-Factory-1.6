@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_tabs_func.py - Version: 1
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_tabs_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop data tabs
 
 """
@@ -49,10 +49,12 @@ Handling, Car Colours and Car Mods tabs.
 # _delete_vehicle
 # _edit_selected_colour
 # _on_colour_index_clicked
+# _on_pair_cell_double_clicked
 # _on_vehicle_selected
 # _populate_vehicle_colours
 # _refresh_veh_list
 # _remove_pair
+# _rename_vehicle
 # load_file
 # save_file
 
@@ -360,7 +362,7 @@ class CarColoursTab(QWidget): #vers 1
         self._sel_col = -1
         self._build_ui()
 
-    def _build_ui(self): #vers 1
+    def _build_ui(self): #vers 2
         root = QVBoxLayout(self); root.setContentsMargins(4,4,4,4)
         sp = QSplitter(Qt.Orientation.Horizontal)
 
@@ -372,6 +374,8 @@ class CarColoursTab(QWidget): #vers 1
         ll.addWidget(self._search)
         self._veh_list = QListWidget()
         self._veh_list.currentRowChanged.connect(self._on_vehicle_selected)
+        self._veh_list.itemDoubleClicked.connect(self._rename_vehicle)
+        self._veh_list.setToolTip("Double-click to rename")
         ll.addWidget(self._veh_list)
         br = QHBoxLayout()
         for lbl, tip, fn, iname in [("Add",'Add',self._add_vehicle,'add'),("Del",'Delete',self._delete_vehicle,'delete')]:
@@ -395,11 +399,13 @@ class CarColoursTab(QWidget): #vers 1
         pal_scroll = QScrollArea(); pal_scroll.setWidgetResizable(True)
         pal_scroll.setWidget(self._pal_grid); pal_scroll.setFixedHeight(160)
         cl.addWidget(pal_scroll)
-        cl.addWidget(QLabel("Vehicle Colour Pairs"))
+        cl.addWidget(QLabel("Vehicle Colour Sets  (pick a palette colour, double-click a cell to set it)"))
         self._pairs = QTableWidget(0, 3)
         self._pairs.setHorizontalHeaderLabels(["#","Primary","Secondary"])
         self._pairs.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._pairs.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._pairs.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._pairs.cellDoubleClicked.connect(self._on_pair_cell_double_clicked)
         cl.addWidget(self._pairs)
         pr = QHBoxLayout()
         for lbl, fn in [("Add Pair",self._add_pair),("Remove Pair",self._remove_pair)]:
@@ -435,11 +441,12 @@ class CarColoursTab(QWidget): #vers 1
     def save_file(self, path: str) -> bool: #vers 2
         return self._parser.save(path)
 
-    def _refresh_veh_list(self, ft: str = ""): #vers 1
+    def _refresh_veh_list(self, ft: str = ""): #vers 2
         self._veh_list.clear()
         for i, v in enumerate(self._parser.vehicles):
             if ft and ft.lower() not in v.name.lower(): continue
-            item = QListWidgetItem(v.name); item.setData(Qt.ItemDataRole.UserRole, i)
+            item = QListWidgetItem(v.name if v.width == 2 else f"{v.name}  ({v.width} colours)")
+            item.setData(Qt.ItemDataRole.UserRole, i)
             self._veh_list.addItem(item)
 
     def _on_vehicle_selected(self, row): #vers 1
@@ -449,20 +456,45 @@ class CarColoursTab(QWidget): #vers 1
         if idx is None: return
         self._cur_veh = idx; self._populate_vehicle_colours(self._parser.vehicles[idx])
 
-    def _populate_vehicle_colours(self, entry: CarColEntry): #vers 1
+    def _populate_vehicle_colours(self, entry: CarColEntry): #vers 2
+        """One row per colour set; 2, 3 or 4 colour columns."""
+        names = ["Primary", "Secondary", "Third", "Fourth"][:entry.width]
+        self._pairs.setColumnCount(1 + entry.width)
+        self._pairs.setHorizontalHeaderLabels(["#"] + names)
         self._pairs.setRowCount(0)
-        for i, (p, s) in enumerate(entry.palettes):
+        for i, st in enumerate(entry.palettes):
             self._pairs.insertRow(i)
-            self._pairs.setItem(i, 0, QTableWidgetItem(f"Pair {i+1}"))
-            pc = self._parser.colours[p] if p < len(self._parser.colours) else CarColour()
-            pi = QTableWidgetItem(f"{p}  ({pc.r},{pc.g},{pc.b})")
-            pi.setBackground(pc.to_qcolor())
-            pi.setForeground(QColor(255,255,255) if (pc.r+pc.g+pc.b)<384 else QColor(0,0,0))
-            self._pairs.setItem(i, 1, pi)
-            sc2 = self._parser.colours[s] if s < len(self._parser.colours) else CarColour()
-            si = QTableWidgetItem(f"{s}  ({sc2.r},{sc2.g},{sc2.b})")
-            si.setBackground(sc2.to_qcolor()); si.setForeground(QColor(255,255,255) if (sc2.r+sc2.g+sc2.b)<384 else QColor(0,0,0))
-            self._pairs.setItem(i, 2, si)
+            self._pairs.setItem(i, 0, QTableWidgetItem(f"Set {i+1}"))
+            for k, ci in enumerate(st):
+                c = self._parser.colours[ci] if ci < len(self._parser.colours) else CarColour()
+                it = QTableWidgetItem(f"{ci}  ({c.r},{c.g},{c.b})")
+                it.setBackground(c.to_qcolor())
+                it.setForeground(QColor(255,255,255) if (c.r+c.g+c.b)<384 else QColor(0,0,0))
+                self._pairs.setItem(i, k + 1, it)
+
+    def _on_pair_cell_double_clicked(self, row: int, col: int): #vers 1
+        """Set that colour of the set to the selected palette colour."""
+        if self._cur_veh < 0 or col < 1:
+            return
+        if not 0 <= self._sel_col < len(self._parser.colours):
+            QMessageBox.information(self, "Car Colours", "Click a colour in the palette first.")
+            return
+        v = self._parser.vehicles[self._cur_veh]
+        st = list(v.palettes[row]); st[col - 1] = self._sel_col
+        v.palettes[row] = tuple(st)
+        self._populate_vehicle_colours(v)
+        self._pairs.selectRow(row)
+
+    def _rename_vehicle(self, item): #vers 1
+        """Double-click a vehicle: new model name."""
+        from PyQt6.QtWidgets import QInputDialog
+        idx = item.data(Qt.ItemDataRole.UserRole)
+        v = self._parser.vehicles[idx]
+        name, ok = QInputDialog.getText(self, "Rename", "Vehicle model name:", text=v.name)
+        name = name.strip().replace(',', '')
+        if ok and name and name != v.name:
+            v.name = name
+            self._refresh_veh_list(self._search.text())
 
     def _on_colour_index_clicked(self, idx): #vers 1
         self._sel_col = idx
@@ -493,9 +525,10 @@ class CarColoursTab(QWidget): #vers 1
         self._parser.vehicles.pop(self._cur_veh); self._cur_veh = -1
         self._refresh_veh_list(self._search.text())
 
-    def _add_pair(self): #vers 1
+    def _add_pair(self): #vers 2
         if self._cur_veh < 0: return
-        self._parser.vehicles[self._cur_veh].palettes.append((0,1))
+        v = self._parser.vehicles[self._cur_veh]
+        v.palettes.append(tuple([0, 1] + [0] * (v.width - 2)))
         self._populate_vehicle_colours(self._parser.vehicles[self._cur_veh])
 
     def _remove_pair(self): #vers 1

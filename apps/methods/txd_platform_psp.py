@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/txd_platform_psp.py - Version: 3
+#this belongs in apps/methods/txd_platform_psp.py - Version: 4
 # X-Seti - October05 2026 - IMG Factory 1.6 - PSP TXD Platform Parser
 
 """
@@ -12,6 +12,7 @@ PSP NativeTexture read/write plus shared PS2/PSP indexed helpers.
 # Pixels PS2 style: PSMT8 swizzle, CSM1 PAL8, alpha 0..128
 # PAL8 swizzled when 16 <= w <= 256 and h >= 4
 # PAL4 swizzled when 32 <= w <= 256 and h >= 32
+# Mipped: iOS linear, PSP swizzled; picked by smoothness
 
 import struct
 from typing import Dict, Tuple
@@ -21,6 +22,7 @@ import numpy as np
 ##Methods list -
 # _chunk_header
 # _level_indices
+# _mips_swizzled
 # _native_layout
 # _nearest
 # _pal_lookup
@@ -238,23 +240,42 @@ def pack_indices(idx: np.ndarray, depth: int) -> np.ndarray: #vers 1
 
 
 def _level_indices(data: bytes, lw: int, lh: int, off: int, size: int,
-                   depth: int, mipped: bool) -> np.ndarray: #vers 1
-    """Linear palette indices of one stored level (mipped = linear)."""
+                   depth: int, swizzled: bool) -> np.ndarray: #vers 2
+    """Linear palette indices of one stored level."""
     lin = unpack_indices(np.frombuffer(data, np.uint8, size, off), depth)
-    if not mipped and psp_txd_swizzled(lw, lh, depth):
+    if swizzled and psp_txd_swizzled(lw, lh, depth):
         lin = lin[ps2_swizzle8_map(lw, lh)]
     return lin
 
 
-def parse_psp_nativetex(txd_data: bytes, chunk_offset: int, index: int) -> Dict: #vers 3
+def _mips_swizzled(data: bytes, lay: Dict, pal: np.ndarray) -> list: #vers 2
+    """Per level: swizzled? Single level yes; mipped levels (iOS linear, PSP mixed) smoother wins."""
+    if len(lay['levels']) == 1:
+        return [True]
+    out = []
+    for lw, lh, off, size in lay['levels']:
+        if not psp_txd_swizzled(lw, lh, lay['depth']):
+            out.append(False)
+            continue
+        rough = []
+        for swz in (False, True):
+            rgb = pal[_level_indices(data, lw, lh, off, size, lay['depth'], swz)][:, :3].astype(np.int32)
+            img = rgb.reshape(lh, lw, 3)
+            rough.append(np.abs(np.diff(img, axis=0)).sum() + np.abs(np.diff(img, axis=1)).sum())
+        out.append(bool(rough[1] < rough[0]))
+    return out
+
+
+def parse_psp_nativetex(txd_data: bytes, chunk_offset: int, index: int) -> Dict: #vers 4
     """Decode one PSP NativeTexture chunk (all mip levels)."""
     lay = _native_layout(txd_data, chunk_offset)
     w, h, depth = lay['width'], lay['height'], lay['depth']
     pal = decode_palette(txd_data[lay['pal_off']:lay['pal_off'] + lay['pal_size']],
                          ps2_alpha=True, csm1=(depth == 8))
     levels, lin = [], None
+    swz = _mips_swizzled(txd_data, lay, pal)
     for i, (lw, lh, off, size) in enumerate(lay['levels']):
-        li = _level_indices(txd_data, lw, lh, off, size, depth, len(lay['levels']) > 1)
+        li = _level_indices(txd_data, lw, lh, off, size, depth, swz[i])
         lin = li if i == 0 else lin
         levels.append({'level': i, 'width': lw, 'height': lh, 'rgba_data': decode_indexed(li, pal)})
     rgba = levels[0]['rgba_data']
@@ -307,7 +328,7 @@ def psp_txd_swizzled(width: int, height: int, depth: int) -> bool: #vers 1
     return False
 
 
-def rebuild_psp_chunk(chunk_bytes: bytes, tex: Dict) -> bytes: #vers 3
+def rebuild_psp_chunk(chunk_bytes: bytes, tex: Dict) -> bytes: #vers 4
     """Write tex rgba into chunk (all mip levels); size and format fixed."""
     from apps.methods.txd_splice import _level_rgba
     lay = _native_layout(chunk_bytes, 0)
@@ -324,8 +345,9 @@ def rebuild_psp_chunk(chunk_bytes: bytes, tex: Dict) -> bytes: #vers 3
     old_pal = pal
     out = bytearray(chunk_bytes)
     given = {l.get('level'): l for l in (tex.get('mipmap_levels') or [])}
+    swz = _mips_swizzled(chunk_bytes, lay, pal)
     for i, (lw, lh, off, size) in enumerate(lay['levels']):
-        old = _level_indices(chunk_bytes, lw, lh, off, size, depth, len(lay['levels']) > 1)
+        old = _level_indices(chunk_bytes, lw, lh, off, size, depth, swz[i])
         if i == 0:
             idx, new_pal = encode_indexed(rgba, w, h, old, pal, 1 << depth)
             if new_pal is not None:
@@ -339,7 +361,7 @@ def rebuild_psp_chunk(chunk_bytes: bytes, tex: Dict) -> bytes: #vers 3
             src = bytes(l['rgba_data']) if edited else _level_rgba(rgba, w, h, lw, lh)
             px = np.frombuffer(src, np.uint8).reshape(-1, 4).astype(np.int32)
             idx = _nearest(px, pal.astype(np.int32))
-        if len(lay['levels']) == 1 and psp_txd_swizzled(lw, lh, depth):
+        if swz[i] and psp_txd_swizzled(lw, lh, depth):
             stored = np.empty_like(idx)
             stored[ps2_swizzle8_map(lw, lh)] = idx
             idx = stored

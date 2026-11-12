@@ -1,4 +1,4 @@
-#this belongs in apps/methods/installed_tools.py - Version: 3
+#this belongs in apps/methods/installed_tools.py - Version: 4
 # X-Seti - October 29 2026 - IMG Factory 1.6 - Installed tools
 
 """
@@ -25,7 +25,7 @@ OPTION_COMPONENTS = {
     'toggle_dir_tree': 'File_Editor', 'edit_dat_file': 'Dat_Browser', 'edit_hex': 'Hex_Editor',
     'edit_col_file': 'Col_Editor', 'edit_dff_file': 'Model_Editor', 'edit_txd_file': 'Txd_Editor',
     'edit_radar_map': 'Radar_Editor', 'edit_waterpro': 'Water_Editor', 'open_dp5_workshop_docked': 'DP5_Workshop',
-    'edit_ide_file': 'Ide_Editor', 'edit_ipl_file': 'Ipl_Editor', 'edit_objects': 'Breakable_Editor',
+    'edit_ide_file': 'Data_Workshop', 'edit_ipl_file': 'Data_Workshop', 'edit_objects': 'Breakable_Editor',
     'edit_peds_file': 'Ped_Workshop', 'edit_ipf_file': 'Ped_Workshop', 'edit_paths_map': 'Path_Workshop',
     'edit_vehi_file': 'Vehicle_Workshop', 'edit_handling': 'Handling_Editor', 'edit_carcols': 'Vehicle_Workshop',
     'edit_timecyc': 'Timecyc_Editor', 'editscm': 'Scm_Workshop',

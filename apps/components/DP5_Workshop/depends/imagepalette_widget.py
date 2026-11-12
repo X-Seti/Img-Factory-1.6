@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/imagepalette_widget.py - Version: 3
+#this belongs in apps/components/DP5_Workshop/depends/imagepalette_widget.py - Version: 4
 # X-Seti - Jul 2026 - DP5 Workshop - Image Palette dock widget
 """
 Self-contained Image Palette dock widget: dock container, collapsible
@@ -51,7 +51,7 @@ def _apply_panel_stylesheet(owner, panel): #vers 1
         panel.setStyleSheet(ss)
 
 
-def _create_content_panel(owner): #vers 2
+def _create_content_panel(owner): #vers 3
     """Bit depth quantization + palette grid."""
     from apps.components.DP5_Workshop.dp5_workshop import PaletteGrid
 
@@ -106,6 +106,7 @@ def _create_content_panel(owner): #vers 2
     owner._img_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     owner._img_pal_scroll.setMinimumHeight(12)
     layout.addWidget(owner._img_pal_scroll, stretch=1)
+    owner._apply_palette_layout()                    # Settings cell size / height
 
     return panel
 

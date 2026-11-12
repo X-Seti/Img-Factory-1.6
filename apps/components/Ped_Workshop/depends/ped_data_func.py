@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_data_func.py - Version: 12
+#this belongs in apps/components/Ped_Workshop/depends/ped_data_func.py - Version: 13
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop ped data
 
 """
@@ -14,9 +14,11 @@ popcycle, Decision) and loading a ped's DFF + TXD.
 # _load_ped
 # _open_ped_root
 # _open_ped_file
+# _ped_file_annotate
 # _ped_file_table_apply
 # _ped_file_table_view
 # _ped_img_bytes
+# _ped_model_names
 # _ped_selected
 # _save_ped_ide
 # _save_ped_text
@@ -25,17 +27,19 @@ popcycle, Decision) and loading a ped's DFF + TXD.
 import os
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
     QComboBox, QDockWidget, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from apps.methods.ped_files import PED_COLUMNS, game_ped_paths, read_ped_ide, write_ped_ide
+from apps.methods.ped_files import (PED_COLUMNS, PEDSTATS_COLUMNS, game_ped_paths, ped_data_columns,
+                                    pedstat_flag_text, read_ped_ide, split_data_comment, write_ped_ide)
 
 
 class PedDataMixin: #vers 1
     """Peds IDE, ped groups and ped types for PedWorkshop."""
 
-    def _create_peds_dock(self): #vers 7
+    def _create_peds_dock(self): #vers 8
         """Game folder row, tabs: Peds table / Data files / Components (IV)."""
         self._ped_root, self._ped_paths, self._ped_rows = '', {}, []
         self._ped_ide_dirty = False
@@ -82,6 +86,7 @@ class PedDataMixin: #vers 1
         self._ped_file_grid = QTableWidget(0, 0)                # table view of the same text
         self._ped_file_grid.hide()
         self._ped_file_grid_rows = []
+        self._ped_file_grid.itemChanged.connect(self._ped_file_annotate)
         dl.addWidget(self._ped_file_grid, 1)
         tabs.addTab(data, "Data files")
         self._iv_tab_index = tabs.addTab(self._create_iv_tab(), "Components")   # GTA IV peds
@@ -247,27 +252,33 @@ class PedDataMixin: #vers 1
             self._load_txd_file_from_data(tex, txd + '.txd')
         self._set_status(f"Ped: {model}")
 
-    def _ped_file_table_view(self, on: bool): #vers 1
+    def _ped_file_table_view(self, on: bool): #vers 2
         """Show the data file as a table (on) or text (off, table edits written in)."""
         grid, edit = self._ped_file_grid, self._ped_file_edit
         if on:
             rows = []
             for i, line in enumerate(edit.toPlainText().split('\n')):
-                body, sep, comment = line.partition('#')
+                body, tail = split_data_comment(line)          # '#' and pedgrp '//' comments
                 if not body.strip():
                     continue
                 comma = ',' in body
                 fields = [x.strip() for x in (body.split(',') if comma else body.split())]
-                rows.append((i, fields, comma, sep + comment))
+                rows.append((i, fields, comma, tail))
             self._ped_file_grid_rows = rows
+            name = os.path.basename(self._ped_file_shown or '')
+            width = max([len(f) for _i, f, _c, _t in rows] + [1])
             grid.blockSignals(True)
             grid.clear()
             grid.setRowCount(len(rows))
-            grid.setColumnCount(max([len(f) for _i, f, _c, _t in rows] + [1]))
-            grid.setVerticalHeaderLabels([str(i + 1) for i, _f, _c, _t in rows])   # file line numbers
+            grid.setColumnCount(width)
+            grid.setHorizontalHeaderLabels(ped_data_columns(name, width))
+            grid.setVerticalHeaderLabels([f"{i + 1} {t.lstrip('#/').strip()}".strip()
+                                          for i, _f, _c, t in rows])        # line no + group name
             for r, (_i, fields, _c, _t) in enumerate(rows):
                 for c, v in enumerate(fields):
-                    grid.setItem(r, c, QTableWidgetItem(v))
+                    item = QTableWidgetItem(v)
+                    grid.setItem(r, c, item)
+                    self._ped_file_annotate(item)
             grid.resizeColumnsToContents()
             grid.blockSignals(False)
         else:
@@ -275,6 +286,23 @@ class PedDataMixin: #vers 1
         self._ped_file_grid_on = on
         grid.setVisible(on)
         edit.setVisible(not on)
+
+    def _ped_file_annotate(self, item): #vers 1
+        """pedgrp: mark unknown ped models; pedstats: flag names tooltip."""
+        name = os.path.basename(self._ped_file_shown or '').lower()
+        text = item.text().strip()
+        if name == 'pedgrp.dat':
+            known = self._ped_model_names()
+            bad = bool(known) and text.lower() not in known
+            item.setForeground(QBrush(QColor('#e05050')) if bad else QBrush())
+            item.setToolTip("Not in the peds IDE" if bad else "")
+        elif name == 'pedstats.dat' and item.column() == len(PEDSTATS_COLUMNS) - 1:
+            item.setToolTip(pedstat_flag_text(text))
+
+    def _ped_model_names(self): #vers 1
+        """Lower-case ped model names from the loaded peds IDE."""
+        col = 0 if self._ped_paths.get('game') == 'iv' else 1
+        return {f[col].lower() for _i, f, _c in self._ped_rows if len(f) > col}
 
     def _ped_file_table_apply(self): #vers 1
         """Write changed table rows back into their text lines."""

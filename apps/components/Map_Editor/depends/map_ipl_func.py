@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_ipl_func.py - Version: 3
+#this belongs in apps/components/Map_Editor/depends/map_ipl_func.py - Version: 5
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop IPL files
 
 """
@@ -60,6 +60,7 @@ IPL/IDE/DAT/IMG tabs, IPL save, convert, shift/rotate, savepoints for ModelWorks
 # _on_ipl_tab_close_clicked
 # _on_ipl_tab_open_clicked
 # _on_ipl_tab_open_file_clicked
+# _open_inst_in_ipl_workshop
 # _on_show_tobj_toggled
 # _on_tcyc_toggled
 # _parse_ide_raw
@@ -1113,7 +1114,7 @@ class MapIplMixin: #vers 1
         self._on_ipl_selection_changed(names)
 
 
-    def _on_hover_context_menu(self, inst): #vers 5
+    def _on_hover_context_menu(self, inst): #vers 6
         """Fired by DFFViewport.set_hover_context_callback on a right-
         click while an instance is currently hover-highlighted (Aug
         19 2026). Object actions work on the selection (or this object)."""
@@ -1135,11 +1136,34 @@ class MapIplMixin: #vers 1
         menu.addAction("Save World Prelighting to DFFs...", self._save_world_prelight)
         menu.addSeparator()
         menu.addAction(f"Delete ({n})\tDel", self._delete_selected_instances)
+        import importlib.util
+        if importlib.util.find_spec('apps.components.Data_Workshop') is not None:   # IMG Factory only
+            menu.addSeparator()
+            menu.addAction("Open IPL in Data Workshop", lambda: self._open_inst_in_ipl_workshop(inst))
+            menu.addAction("Open IDE in Data Workshop", lambda: self._open_inst_in_ipl_workshop(inst, ide=True))
         chosen = menu.exec(QCursor.pos())
         if chosen is info_act:
             self._show_instance_edit_panel(inst)
         elif chosen is textures_act:
             self._show_textures_for_instance(inst)
+
+    def _open_inst_in_ipl_workshop(self, inst, ide: bool = False): #vers 2
+        """Instance's IPL (row selected) or its object's IDE in the Data Workshop."""
+        from apps.components.Data_Workshop.data_workshop import open_data_workshop
+        if ide:
+            loader = getattr(self, '_world_loader', None)
+            obj = (getattr(loader, 'objects', {}) or {}).get(inst.model_id) if loader else None
+            path = self._ide_abs_path(obj) if obj is not None else None
+        else:
+            path = self._resolve_ipl_abs_path(inst.source_ipl)
+        if not path:
+            QMessageBox.information(self, "Data Workshop", "Source file not found on disk.")
+            return
+        ws = open_data_workshop(self.main_window, path)
+        if ws is not None and not ide:
+            from PyQt6.QtCore import QTimer
+            pos = (inst.pos_x, inst.pos_y, inst.pos_z)
+            QTimer.singleShot(300, lambda: ws.select_instance(inst.model_name, pos))
 
     def _on_drag_ipl_context_menu(self, pos): #vers 2
         """Right-click on the IPL mode button - axis-lock choices

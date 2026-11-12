@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/utils/app_settings_system.py - Version: 101
+#this belongs in apps/utils/app_settings_system.py - Version: 105
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -425,9 +425,9 @@ class ThemeSaveDialog(QDialog):
                 "Please check file permissions and try again."
             )
 
-    def _collect_current_font_settings(self): #vers 1
+    def _collect_current_font_settings(self): #vers 2
         """Collect current font settings from app_settings.current_settings"""
-        font_ids = ['default', 'title', 'panel', 'button', 'menu', 'infobar', 'table', 'tooltip']
+        font_ids = ['default', 'title', 'panel', 'button', 'tab', 'menu', 'infobar', 'table', 'tooltip']
         fonts = {}
 
         for font_id in font_ids:
@@ -440,6 +440,8 @@ class ThemeSaveDialog(QDialog):
             fonts[f'{font_id}_font_family'] = family
             fonts[f'{font_id}_font_size'] = size
             fonts[f'{font_id}_font_weight'] = weight
+            for key in ('italic', 'underline'):
+                fonts[f'{font_id}_font_{key}'] = bool(self.app_settings.current_settings.get(f'{font_id}_font_{key}', False))
 
         return fonts
 
@@ -1838,6 +1840,20 @@ def parse_color(value): #vers 1
     return QColor(value)
 
 
+def combo_arrow_file(color: str) -> str: #vers 1
+    """SVG down arrow in color, cached; path for QComboBox::down-arrow."""
+    c = QColor(color)
+    hexc = c.name() if c.isValid() else '#888888'
+    folder = Path.home() / '.cache' / 'imgfactory'
+    path = folder / f"combo_arrow_{hexc[1:]}.svg"
+    if not path.exists():
+        folder.mkdir(parents=True, exist_ok=True)
+        path.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10">'
+                        f'<path d="M1 3 L5 7 L9 3" fill="none" stroke="{hexc}" stroke-width="1.6" '
+                        'stroke-linecap="round" stroke-linejoin="round"/></svg>')
+    return path.as_posix()
+
+
 def color_alpha(cs, key): #vers 1
     """Transparency 0-100 set and switched on for key, else None."""
     a = (cs.get('color_alpha') or {}).get(key)
@@ -2056,7 +2072,7 @@ class AppSettings:
         self.weapons_folder = self.current_settings.get('weapons_folder', self.default_settings['weapons_folder'])
 
 
-    def _generate_stylesheet(self, colors): #vers 7
+    def _generate_stylesheet(self, colors): #vers 10
         """Generate stylesheet from colors dict - shared by both classes.
         Colour transparency (current_settings color_alpha) becomes rgba()."""
         if not colors:
@@ -2078,6 +2094,8 @@ class AppSettings:
             colors['splitter_color_background'] = colors['handle_color']
             colors.pop('handle_color')
         colors = apply_color_alpha(colors, _alpha, _off)
+        from apps.methods.app_fonts import font_css, global_fonts
+        tab_font_css = font_css(global_fonts(getattr(self, 'current_settings', {}) or {})['tab'])   # App Settings > Fonts > Tab
 
         # Extract all colors
         bg_primary = colors.get('bg_primary', '#ffffff')
@@ -2086,6 +2104,7 @@ class AppSettings:
         panel_bg = colors.get('panel_bg', colors.get('bg_secondary', '#f0f0f0'))
         panel_primary = colors.get('panel_primary', panel_bg)  # card surface, falls back to panel_bg
         text_primary = colors.get('text_primary', '#000000')
+        combo_arrow = combo_arrow_file(text_primary)          # combo arrow follows theme text
         text_secondary = colors.get('text_secondary', '#666666')
         text_accent = colors.get('text_accent', '#0066cc')
         accent_primary = colors.get('accent_primary', '#0078d4')
@@ -2316,13 +2335,13 @@ class AppSettings:
             color: {text_secondary};
             margin-bottom: 0px;
             margin-right: 2px;
+            {tab_font_css}
         }}
 
         QTabBar::tab:selected {{
             background-color: {bg_primary};
             color: {text_primary};
             border-bottom: 3px solid {accent_primary};
-            font-weight: bold;
         }}
 
         QTabBar::tab:hover:!selected {{
@@ -2344,8 +2363,16 @@ class AppSettings:
         }}
 
         QComboBox::drop-down {{
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 16px;
             border: none;
-            padding-right: 4px;
+        }}
+
+        QComboBox::down-arrow {{
+            image: url("{combo_arrow}");
+            width: 10px;
+            height: 10px;
         }}
 
         QSpinBox, QDoubleSpinBox {{
@@ -2560,24 +2587,10 @@ class AppSettings:
         btn_hover  = colors.get('button_hover',  '#d0d0d0')
         btn_press  = colors.get('button_pressed','#b0b0b0')
         from PyQt6.QtGui import QColor as _QC
-        _c = _QC(btn_normal)
-        _light = _c.lighter(140).name()
-        _dark  = _c.darker(130).name()
-
-        _btn_bg = {
-            'gradient_h':  f'background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 {_light},stop:1 {_dark});',
-            'gradient_v':  f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:1 {_dark});',
-            'gradient_45': f'background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {_light},stop:0.5 {btn_normal},stop:1 {_dark});',
-            'banded':      f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:0.25 white,stop:0.30 {_light},stop:0.31 {btn_normal},stop:1 {_dark});',
-            'bump':        f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:1 {_dark});',
-            'amiga_wb':    f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 white,stop:0.15 {_light},stop:0.85 {_dark},stop:1 black);',
-            'half_shine':  f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 white,stop:0.48 {_light},stop:0.49 {btn_normal},stop:1 {btn_normal});',
-        }.get(btn_style, f'background-color: {btn_normal};')
-
         if btn_style not in ('flat', 'zen', 'indented', 'shadow_dark'):
             stylesheet += f"""
         QPushButton:!flat {{
-            {_btn_bg}
+            {button_bg_css(btn_style, btn_normal)}
         }}
         """
 
@@ -3941,8 +3954,38 @@ def _apply_see_through(window, cs, on): #vers 5
             top.hide(); top.show(); top.setGeometry(geo)
 
 
-def _apply_button_alpha(window, app_settings, on): #vers 1
-    """Buttons drawn at the Buttons transparency so the image / desktop shows."""
+BUTTON_STYLES_CSS = ('gradient_h', 'gradient_v', 'gradient_45', 'banded', 'bump', 'amiga_wb', 'half_shine',
+                     'glass', 'soft', 'raised', 'inset', 'outline', 'pill')
+
+
+def button_bg_css(style: str, normal: str, alpha: float = 1.0) -> str: #vers 1
+    """QPushButton background / border CSS for a button style; alpha for see-through windows."""
+    from PyQt6.QtGui import QColor
+    c = QColor(normal)
+    def r(q): #vers 1
+        return f"rgba({q.red()},{q.green()},{q.blue()},{round(alpha * 255)})"
+    lt, dk, w, k = r(c.lighter(140)), r(c.darker(130)), r(QColor('white')), r(QColor('black'))
+    n, soft = r(c), r(c.lighter(115))
+    lin = 'qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+    return {
+        'gradient_h':  f'background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 {lt},stop:1 {dk});',
+        'gradient_v':  f'background: {lin}stop:0 {lt},stop:1 {dk});',
+        'gradient_45': f'background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {lt},stop:0.5 {n},stop:1 {dk});',
+        'banded':      f'background: {lin}stop:0 {lt},stop:0.25 {w},stop:0.30 {lt},stop:0.31 {n},stop:1 {dk});',
+        'bump':        f'background: {lin}stop:0 {lt},stop:1 {dk});',
+        'amiga_wb':    f'background: {lin}stop:0 {w},stop:0.15 {lt},stop:0.85 {dk},stop:1 {k});',
+        'half_shine':  f'background: {lin}stop:0 {w},stop:0.48 {lt},stop:0.49 {n},stop:1 {n});',
+        'glass':       f'background: {lin}stop:0 {lt},stop:0.5 {n},stop:0.51 {dk},stop:1 {n});',
+        'soft':        f'background: {lin}stop:0 {soft},stop:1 {n});',
+        'raised':      f'background-color: {n}; border: 2px outset {c.lighter(150).name()};',
+        'inset':       f'background-color: {r(c.darker(115))}; border: 2px inset {c.darker(160).name()};',
+        'outline':     f'background-color: transparent; border: 1px solid {c.lighter(170).name()};',
+        'pill':        f'background-color: {n}; border-radius: 12px; padding: 2px 12px;',
+    }.get(style, f'background-color: {n};')
+
+
+def _apply_button_alpha(window, app_settings, on): #vers 2
+    """Buttons drawn at the Buttons transparency so the image / desktop shows (button style kept)."""
     import re
     from PyQt6.QtGui import QColor
     cs = app_settings.current_settings
@@ -3953,10 +3996,13 @@ def _apply_button_alpha(window, app_settings, on): #vers 1
         return f"rgba({c.red()}, {c.green()}, {c.blue()}, {round(alpha * 255)})"
     ss = re.sub(r'/\*btn-alpha\*/.*?/\*btn-alpha-end\*/', '', window.styleSheet(), flags=re.S)
     if on and a < 1.0:
-        ss += ("/*btn-alpha*/ QPushButton { background-color: %s; } "
+        style = cs.get('button_style', 'flat')
+        base = (button_bg_css(style, tc.get('button_normal', '#3c3c46'), a) if style in BUTTON_STYLES_CSS
+                else f"background-color: {rgba('button_normal', '#3c3c46', a)};")
+        ss += ("/*btn-alpha*/ QPushButton:!flat { %s } "
                "QPushButton:hover { background-color: %s; } "
                "QPushButton:pressed { background-color: %s; } /*btn-alpha-end*/"
-               % (rgba('button_normal', '#3c3c46', a), rgba('button_hover', '#50505a', min(1.0, a + 0.2)),
+               % (base, rgba('button_hover', '#50505a', min(1.0, a + 0.2)),
                   rgba('button_pressed', '#28282e', min(1.0, a + 0.3))))
     window.setStyleSheet(ss)
 
@@ -4341,9 +4387,11 @@ class SettingsDialog(AppsysWinMixin, AppsysUIMixin, AppsysLogicMixin, AppsysPane
     themeChanged = pyqtSignal(str)  # theme_name
     settingsChanged = pyqtSignal()
 
-    def __init__(self, app_settings, parent=None, main_window=None): #vers 7
+    def __init__(self, app_settings, parent=None, main_window=None): #vers 8
         """Initialize settings dialog"""
         super().__init__(parent)
+        from apps.methods.edge_cursor import install_edge_cursor_reset
+        install_edge_cursor_reset()                      # resize arrow never sticks
 
         # Store main_window ref — may differ from parent (e.g. docked workshop)
         self.main_window = main_window or parent

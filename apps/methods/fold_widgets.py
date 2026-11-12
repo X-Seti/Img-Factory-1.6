@@ -1,10 +1,10 @@
-#this belongs in apps/methods/fold_widgets.py - Version: 3
+#this belongs in apps/methods/fold_widgets.py - Version: 4
 # X-Seti - October 24 2026 - IMG Factory 1.6 - Rows that fit narrow panels
 
 """
 Rows that let a panel get narrow while every row stays one row:
 ButtonRow drops button text (icons stay, tooltips explain), IconLabel
-swaps its text for an icon.
+swaps its text for an icon, ElidedLabel shortens its text with "...".
 """
 
 ##Methods list -
@@ -12,6 +12,14 @@ swaps its text for an icon.
 #
 ##class _FitHeight: -
 # eventFilter
+#
+##class ElidedLabel: -
+# __init__
+# minimumSizeHint
+# paintEvent
+# setText
+# sizeHint
+# text
 #
 ##class ButtonRow: -
 # __init__
@@ -98,3 +106,34 @@ class IconLabel(QLabel): #vers 1
         elif not self.text():
             self.setText(self._text)
         super().resizeEvent(ev)
+
+
+class ElidedLabel(QLabel): #vers 1
+    """Label that shortens to fit ("..."), full text in the tooltip."""
+
+    def __init__(self, text: str = '', parent=None): #vers 1
+        super().__init__(parent)
+        self._full = ''
+        self.setText(text)
+
+    def setText(self, text: str): #vers 1
+        self._full = text
+        self.setToolTip(text)
+        super().setText(text)
+        self.updateGeometry()
+
+    def text(self) -> str: #vers 1
+        return self._full
+
+    def sizeHint(self): #vers 1
+        return QSize(self.fontMetrics().horizontalAdvance(self._full) + 4, super().sizeHint().height())
+
+    def minimumSizeHint(self): #vers 1
+        return QSize(20, super().minimumSizeHint().height())
+
+    def paintEvent(self, ev): #vers 1
+        from PyQt6.QtGui import QPainter, QPalette
+        p = QPainter(self)
+        txt = self.fontMetrics().elidedText(self._full, Qt.TextElideMode.ElideRight, self.width())
+        self.style().drawItemText(p, self.rect(), self.alignment() | Qt.AlignmentFlag.AlignVCenter,
+                                  self.palette(), self.isEnabled(), txt, QPalette.ColorRole.WindowText)

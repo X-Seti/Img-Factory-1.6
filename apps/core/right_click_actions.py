@@ -1,4 +1,4 @@
-#this belongs in apps/core/right_click_actions.py - Version: 9
+#this belongs in apps/core/right_click_actions.py - Version: 11
 # X-Seti - August07 2025 - IMG Factory 1.5 - Complete Right-Click Actions
 # Combined: Basic copying + Advanced file operations + Extraction functionality
 
@@ -522,16 +522,20 @@ def analyze_col_from_table(main_window, row: int): #vers 2
     """Table row -> analyze_col_from_img_entry."""
     return analyze_col_from_img_entry(main_window, row)
 
-def edit_ide_file(main_window, row: int): #vers 2
-    """Edit IDE file from table row"""
+def edit_ide_file(main_window, row: int): #vers 4
+    """IDE entry from the table into the Data Workshop (IDE tab), via a temp copy."""
     try:
         if hasattr(main_window, 'current_img') and main_window.current_img:
             if 0 <= row < len(main_window.current_img.entries):
                 entry = main_window.current_img.entries[row]
-                
+                import os, tempfile
                 from apps.methods.img_shared_operations import get_entry_data_safely
                 data = get_entry_data_safely(entry, main_window.current_img, main_window)
-                main_window.open_ide_editor_data(data, entry.name)
+                path = os.path.join(tempfile.mkdtemp(prefix='ide_'), entry.name)
+                with open(path, 'wb') as f:
+                    f.write(data or b'')
+                from apps.components.Data_Workshop.data_workshop import open_data_workshop
+                open_data_workshop(main_window, path, ide=True)
     except Exception as e:
         main_window.log_message(f"IDE edit error: {str(e)}")
 

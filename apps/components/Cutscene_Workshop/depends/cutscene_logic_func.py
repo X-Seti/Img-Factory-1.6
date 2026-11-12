@@ -1,4 +1,4 @@
-#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_logic_func.py - Version: 27
+#this belongs in apps/components/Cutscene_Workshop/depends/cutscene_logic_func.py - Version: 31
 # X-Seti - November 02 2026 - IMG Factory 1.6 - Cutscene Workshop logic
 
 """
@@ -9,7 +9,7 @@ cuts.img .cut + .wad, models from cutsprops.img / componentpeds.img).
 """
 
 ##Methods list -
-#
+# _ci_path
 ##class CutsceneLogicMixin: -
 # _cam_add_key
 # _cam_del_key
@@ -52,9 +52,11 @@ cuts.img .cut + .wad, models from cutsprops.img / componentpeds.img).
 # _cs_read
 # _cs_select
 # _cs_show_section
+# _cs_start_dir
 # _cs_tab_changed
 # _cs_table_changed
 # _cs_write
+# _on_game_root_changed
 # _open_file
 # _save_file
 
@@ -65,6 +67,19 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox, QTableWidgetItem
 from apps.methods.cutscene_files import (CUT_COLUMNS, IV_CUT_COLUMNS, build_cam_dat, build_cut, build_iv_cut,
                                          cam_at, iv_cut_parts, parse_cam_dat, parse_cut, parse_iv_cut)
 
+
+
+def _ci_path(base: str, *parts) -> str: #vers 1
+    """base/parts matched case-insensitively (mobile ports: Models/, ANIM/); '' if missing."""
+    cur = base
+    for part in parts:
+        if not os.path.isdir(cur):
+            return ''
+        hit = next((n for n in os.listdir(cur) if n.lower() == part.lower()), None)
+        if hit is None:
+            return ''
+        cur = os.path.join(cur, hit)
+    return cur if os.path.isfile(cur) else ''
 
 class CutsceneLogicMixin: #vers 1
     """Open / edit / save cutscene scripts and camera paths."""
@@ -125,10 +140,10 @@ class CutsceneLogicMixin: #vers 1
             t0 += part['duration']
         return done
 
-    def _open_file(self, path=None): #vers 3
+    def _open_file(self, path=None): #vers 4
         """cuts.img, or a .cut / .dat (its folder's cutscenes are listed)."""
         if not path:
-            path, _ = QFileDialog.getOpenFileName(self, "Open cutscenes", "",
+            path, _ = QFileDialog.getOpenFileName(self, "Open cutscenes", self._cs_start_dir('anim'),
                                                   "Cutscenes (*.img *.dir *.cut *.dat);;All files (*)")
         if not path:
             return
@@ -159,16 +174,39 @@ class CutsceneLogicMixin: #vers 1
             if hits:
                 self._cs_list.setCurrentItem(hits[0])
 
-    def _cs_autoload(self, game_root: str = ''): #vers 1
-        """Game folder given: its anim/cuts (.dir or .img); else the last cutscenes opened."""
+    def _cs_start_dir(self, sub: str = '') -> str: #vers 1
+        """Dialog folder: game root (DAT Browser / IMG Factory) sub folder, else cutscene folder."""
+        root = getattr(getattr(self, 'main_window', None), 'game_root', '') or ''
+        if root and os.path.isdir(root):
+            hit = next((d for d in os.listdir(root) if d.lower() == sub.lower()), None) if sub else None
+            return os.path.join(root, hit) if hit else root
+        img = getattr(self, '_cs_img', None)
+        return os.path.dirname(img.file_path) if img is not None else (getattr(self, '_cs_dir', None) or '')
+
+    def _on_game_root_changed(self, game_root: str): #vers 1
+        """DAT Browser loaded another game: reopen its cutscenes unless edits are unsaved."""
+        base = os.path.dirname(self._cs_img.file_path) if getattr(self, '_cs_img', None) is not None \
+            else (getattr(self, '_cs_dir', None) or '')
+        cur = os.path.normcase(os.path.abspath(base)) if base else ''
+        if cur.startswith(os.path.normcase(os.path.abspath(game_root)) + os.sep):
+            return
+        if getattr(self, '_cs_dirty', False):
+            self._set_status("Game changed in DAT Browser - save or reopen to switch cutscenes")
+            return
+        self._cs_world = None                           # map cache was the old game
+        self._cs_autoload(game_root)
+
+    def _cs_autoload(self, game_root: str = ''): #vers 2
+        """Game folder given: its anim/cuts (IV: pc/anim/cuts.img); else the last cutscenes opened."""
         if game_root and os.path.isdir(game_root):
-            anim = next((os.path.join(game_root, d) for d in os.listdir(game_root) if d.lower() == 'anim'), None)
-            if anim:
-                files = {f.lower(): f for f in os.listdir(anim)}
-                hit = files.get('cuts.dir') or files.get('cuts.img')
-                if hit:
-                    self._open_file(os.path.join(anim, hit))
-                    return
+            for sub in (('anim',), ('pc', 'anim')):                    # III-SA, IV
+                for name in ('cuts.dir', 'cuts.img'):
+                    hit = _ci_path(game_root, *sub, name)
+                    if hit:
+                        self._open_file(hit)
+                        return
+            self._set_status(f"No cutscenes (anim/cuts) in {game_root}")
+            return
         last = self.WS.get('last_path', '')
         if last and os.path.exists(last):
             self._open_file(last)
@@ -619,7 +657,7 @@ class CutsceneLogicMixin: #vers 1
             self._pv_anim_dirty = self._cs_dirty = True
             self._set_status(f"{paths[n][0]}: route moved at {t:.1f} s (Save writes {self._cs_cur}.ifp)")
 
-    def _cs_model_arcs(self) -> list: #vers 3
+    def _cs_model_arcs(self) -> list: #vers 4
         """[(path, IMGFile)] of the model IMGs (SA cutscene / gta3 / player; IV cutsprops / peds / cars)."""
         base = os.path.dirname(self._cs_img.file_path) if self._cs_img is not None else self._cs_dir
         if not base:
@@ -631,8 +669,8 @@ class CutsceneLogicMixin: #vers 1
                     ('anim', 'cutsprops.img'), ('models/cdimages', 'componentpeds.img'),     # GTA IV
                     ('models/cdimages', 'pedprops.img'), ('models/cdimages', 'vehicles.img'),
                     ('models/cdimages', 'playerped.rpf')):
-            path = next((os.path.join(d, rel[1]) for d in (os.path.join(root, rel[0]), os.path.join(base, rel[0]))
-                         if os.path.isfile(os.path.join(d, rel[1]))), None)
+            path = next((p for p in (_ci_path(root, *rel[0].split('/'), rel[1]),
+                                     _ci_path(base, *rel[0].split('/'), rel[1])) if p), None)   # iOS: Models/
             if path is None:
                 continue
             arc = cache.get(path)

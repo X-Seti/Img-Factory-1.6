@@ -1,4 +1,4 @@
-#this belongs in apps/methods/stories_dtz.py - Version: 3
+#this belongs in apps/methods/stories_dtz.py - Version: 4
 # X-Seti - October 08 2026 - IMG Factory 1.6 - LCS/VCS GAME.DTZ reader
 
 """
@@ -28,6 +28,7 @@ Layouts follow g3DTZ by guard3 (MIT).
 # StoriesDTZ.set_instance
 # StoriesDTZ.set_object
 # StoriesDTZ.set_path_node
+# StoriesDTZ.set_water_grids
 # StoriesDTZ.set_water_levels
 # StoriesDTZ.txd_name
 # StoriesDTZ.waterpro_bytes
@@ -376,6 +377,17 @@ class StoriesDTZ: #vers 2
         zs = self._u32(w + 4)
         buf = bytearray(self.data)
         struct.pack_into(f'<{len(heights[:48])}f', buf, zs, *heights[:48])
+        self.data = bytes(buf)
+
+    def set_water_grids(self, grids: bytes): #vers 1
+        """Write CWaterLevel visible (64x64) + physical (128x128) grids back."""
+        w = self._u32(_HEADER + _WATER_FIELD[self.game] * 4)
+        if not w:
+            raise ValueError("GAME.DTZ has no water level data")
+        if len(grids) != 64 * 64 + 128 * 128:
+            raise ValueError(f"Water grids are {len(grids)} bytes, expected {64 * 64 + 128 * 128}")
+        buf = bytearray(self.data)
+        buf[w + 12:w + 12 + len(grids)] = grids
         self.data = bytes(buf)
 
     def save(self, path: str = None, label: str = "GAME.DTZ"): #vers 2

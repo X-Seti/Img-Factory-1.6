@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_skin.py - Version: 2
+#this belongs in apps/methods/dff_skin.py - Version: 4
 # X-Seti - October 21 2026 - IMG Factory 1.6 - DFF skin and bone hierarchy
 
 """
@@ -10,6 +10,7 @@ matrices, and poses the mesh (CPU skinning, row-vector RW matrices).
 ##Methods list -
 # _chunks
 # _frame_matrix
+# _geometry_skin
 # quat_to_matrix
 # read_skeleton
 # _read_skin
@@ -126,12 +127,13 @@ class Skeleton: #vers 1
         return out, nout
 
 
-def read_skeleton(raw: bytes) -> Skeleton: #vers 1
+def read_skeleton(raw: bytes) -> Skeleton: #vers 3
     """Skeleton from DFF bytes (empty skins when the model is not skinned)."""
     sk = Skeleton()
     clump = next(((s, e) for t, s, e in _chunks(raw, 0, len(raw)) if t == _CLUMP), None)
     if clump is None:
         raise ValueError("not a DFF clump")
+    n_emb = 0                                        # atomics with embedded geometry
     for t, s, e in _chunks(raw, *clump):
         if t == _FRAMELIST:
             parts = list(_chunks(raw, s, e))
@@ -154,25 +156,46 @@ def read_skeleton(raw: bytes) -> Skeleton: #vers 1
                             o = cs + 20
                             sk.hierarchy = [struct.unpack_from('<3i', raw, o + 12 * k) for k in range(nnodes)]
         elif t == _ATOMIC:
-            st = next((cs for ct, cs, _ce in _chunks(raw, s, e) if ct == _STRUCT), None)
+            kids = list(_chunks(raw, s, e))
+            st = next((cs for ct, cs, _ce in kids if ct == _STRUCT), None)
+            emb = next(((gs, ge) for ct, gs, ge in kids if ct == _GEOMETRY), None)
             if st is not None:
                 fi, gi = struct.unpack_from('<2i', raw, st)
-                sk.atomics[gi] = fi
+                if emb is not None:                  # geometry inside the atomic (no list): own index
+                    gi = n_emb
+                    n_emb += 1
+                    _geometry_skin(raw, *emb, sk, gi)
+                sk.atomics[gi] = fi                  # checked against counts below
         elif t == _GEOMLIST:
             gi = 0
             for gt, gs, ge in _chunks(raw, s, e):
                 if gt != _GEOMETRY:
                     continue
-                nverts = 0
-                for ct, cs, ce in _chunks(raw, gs, ge):
-                    if ct == _STRUCT:
-                        nverts = struct.unpack_from('<i', raw, cs + 8)[0]
-                    elif ct == _EXT:
-                        for xt, xs, xe in _chunks(raw, cs, ce):
-                            if xt == _SKIN:
-                                sk.skins[gi] = _read_skin(raw, xs, nverts)
+                _geometry_skin(raw, gs, ge, sk, gi)
                 gi += 1
+            sk.geometry_count = gi
+    n_geo = getattr(sk, 'geometry_count', None)
+    if n_geo is None and n_emb:
+        n_geo = sk.geometry_count = n_emb
+    bad = {g: f for g, f in sk.atomics.items()
+           if not 0 <= f < len(sk.frames) or (n_geo is not None and not 0 <= g < n_geo)}
+    for g in bad:                                    # misread atomic struct: drop it
+        del sk.atomics[g]
+    if bad:
+        print(f"[dff_skin] skipped {len(bad)} atomic(s) with bad frame/geometry index")
     return sk
+
+
+def _geometry_skin(raw: bytes, gs: int, ge: int, sk, gi: int): #vers 1
+    """Skin PLG of one Geometry chunk into sk.skins[gi]."""
+    nverts = 0
+    for ct, cs, ce in _chunks(raw, gs, ge):
+        if ct == _STRUCT:
+            nverts = struct.unpack_from('<i', raw, cs + 8)[0]
+        elif ct == _EXT:
+            for xt, xs, _xe in _chunks(raw, cs, ce):
+                if xt == _SKIN:
+                    sk.skins[gi] = _read_skin(raw, xs, nverts)
 
 
 def _read_skin(d: bytes, o: int, n: int) -> dict: #vers 2

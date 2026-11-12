@@ -1,4 +1,4 @@
-#this belongs in apps/components/Ped_Workshop/depends/ped_anim_func.py - Version: 20
+#this belongs in apps/components/Ped_Workshop/depends/ped_anim_func.py - Version: 23
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop animation
 
 """
@@ -27,11 +27,13 @@ and stop-motion editing - pick a bone, rotate it, key it, step the frame.
 # key_times
 # local_matrix
 # mesh_points
+# mover_matrix
 # pose
 # pose_at
 # render
 # root_shift
 # set_key
+# twist_drivers
 # upright_matrix
 #
 ##class PedAnimMixin: -
@@ -51,6 +53,7 @@ and stop-motion editing - pick a bone, rotate it, key it, step the frame.
 # _anim_render
 # _anim_ring_rotate
 # _anim_save_ifp
+# _anim_save_wad
 # _anim_select
 # _anim_set_key
 # _anim_set_time
@@ -210,13 +213,44 @@ class PedAnimator: #vers 1
             self.anim.bones.append(b)
         return b
 
-    def local_matrix(self, fi: int) -> np.ndarray: #vers 2
-        """Current local 4x4 of frame fi (edit, anim key or bind)."""
+    _TWIST_DRIVERS = (('foretwist', 'forearm'), ('upperarmroll', 'upperarm'),
+                      ('armroll', 'upperarm'), ('calf_roll', 'foot'), ('neck_roll', 'head'))
+
+    def twist_drivers(self) -> dict: #vers 1
+        """IV roll / twist frame -> sibling frame it turns with (game drives these in code)."""
+        if getattr(self, '_twists', None) is None:
+            self._twists = {}
+            frames = self.sk.frames
+            for i, f in enumerate(frames):
+                low = f['name'].lower()
+                side = '_l_' if '_l_' in f'_{low}' or low.startswith('l_') else \
+                       '_r_' if '_r_' in f'_{low}' or low.startswith('r_') else ''
+                for key, drv in self._TWIST_DRIVERS:
+                    if key not in low:
+                        continue
+                    for j, g in enumerate(frames):
+                        gl = g['name'].lower()
+                        if j != i and g['parent'] == f['parent'] and gl.endswith(drv) and \
+                                (not side or side in f'_{gl}_'.replace('char_', '')):
+                            self._twists[i] = j
+                            break
+                    break
+        return self._twists
+
+    def local_matrix(self, fi: int) -> np.ndarray: #vers 3
+        """Current local 4x4 of frame fi (edit, anim key, twist driver or bind)."""
         if fi in self.override:
             return self.override[fi]
         f = self.sk.frames[fi]
         b = self.bone_track(fi)
         if b is None or not b.keys:
+            drv = self.twist_drivers().get(fi)
+            if drv is not None and self.bone_track(drv) is not None:   # turn with the driver bone
+                d0 = self.sk.frames[drv]['local'][:3, :3]
+                d1 = self.local_matrix(drv)[:3, :3]
+                m = f['local'].copy()
+                m[:3, :3] = f['local'][:3, :3] @ d0.T @ d1
+                return m
             return f['local']
         q, tr = b.sample(self.time)
         m = np.eye(4)
@@ -294,7 +328,7 @@ class PedAnimator: #vers 1
             return np.zeros(n)
         return (sk['weights'] * (sk['indices'] == b)).sum(axis=1)
 
-    def mesh_points(self, ltms) -> dict: #vers 3
+    def mesh_points(self, ltms) -> dict: #vers 4
         """Posed (points, normals) per geometry for frame LTMs."""
         out = {}
         for gi, fi in sorted(self.sk.atomics.items()):
@@ -304,16 +338,43 @@ class PedAnimator: #vers 1
             else:
                 M = ltms[fi]
                 P, PN = V @ M[:3, :3] + M[3, :3], (N @ M[:3, :3] if N is not None else None)
-            U = self.facing()[:3, :3]                     # stand lying peds up, face the walk
-            out[gi] = (P @ U, PN @ U if PN is not None else None)
+            F = self.facing()                             # stand lying peds up, face the walk
+            U = F[:3, :3]
+            out[gi] = (P @ U + F[3, :3], PN @ U if PN is not None else None)   # + IV mover move
         return out
 
-    def facing(self) -> np.ndarray: #vers 1
-        """Upright fix then the walk heading, as a 4x4 (row vectors)."""
+    def facing(self) -> np.ndarray: #vers 2
+        """Upright fix, IV mover (turn; move when not in place), walk heading (row vectors)."""
         h = np.radians(self.heading)
         rz = np.eye(4)
         rz[:2, :2] = [[np.cos(h), np.sin(h)], [-np.sin(h), np.cos(h)]]
-        return self.upright @ rz
+        return self.upright @ self.mover_matrix(not self.in_place) @ rz
+
+    def mover_matrix(self, move: bool = True) -> np.ndarray: #vers 1
+        """IV .wad mover track at the current time vs its start, 4x4 (identity if none)."""
+        m = np.eye(4)
+        mv = getattr(self.anim, 'mover', None) if self.anim is not None else None
+        if not mv:
+            return m
+        f = max(0.0, self.time * FPS)
+
+        def at(arr):
+            i = min(int(f), len(arr) - 1)
+            j = min(i + 1, len(arr) - 1)
+            return arr[i] + (arr[j] - arr[i]) * min(1.0, f - i)
+        rot = mv.get('rot')
+        if rot is not None and len(rot):
+            q, q0 = at(rot), rot[0]
+            x0, y0, z0, w0 = -q0[0], -q0[1], -q0[2], q0[3]      # q * conj(q0)
+            x1, y1, z1, w1 = q
+            dq = (w1 * x0 + x1 * w0 + y1 * z0 - z1 * y0, w1 * y0 - x1 * z0 + y1 * w0 + z1 * x0,
+                  w1 * z0 + x1 * y0 - y1 * x0 + z1 * w0, w1 * w0 - x1 * x0 - y1 * y0 - z1 * z0)
+            n = math.sqrt(sum(c * c for c in dq)) or 1.0
+            m[:3, :3] = quat_to_matrix(tuple(c / n for c in dq))
+        pos = mv.get('pos')
+        if move and pos is not None and len(pos):
+            m[3, :3] = at(pos) - pos[0]
+        return m
 
     def upright_matrix(self) -> np.ndarray: #vers 1
         """Rotation standing the bind pose up: pelvis to head along +Z."""
@@ -345,10 +406,18 @@ class PedAnimator: #vers 1
         m[:3, :3] = r.T                                   # row vectors: p @ r.T
         return m
 
-    def root_shift(self, ltms, space) -> tuple: #vers 1
-        """World XY the anim moves the top bone (0, 0 when not in place)."""
+    def root_shift(self, ltms, space) -> tuple: #vers 2
+        """World XY the anim moves the top bone or IV mover (0, 0 when not in place)."""
         if not self.in_place or self.anim is None:
             return 0.0, 0.0
+        if getattr(self.anim, 'mover', None):              # IV: mover track carries the walk
+            in_place, self.in_place = self.in_place, False
+            try:
+                moved = self.facing()
+            finally:
+                self.in_place = in_place
+            d = moved[3, :3] - self.facing()[3, :3]
+            return float(d[0]), float(d[1])
         top = next((i for i, f in enumerate(self.sk.frames) if f['parent'] == 0), None)
         if top is None:
             return 0.0, 0.0
@@ -936,11 +1005,35 @@ class PedAnimMixin: #vers 1
         self._anim_list.addItem(it)
         self._anim_list.setCurrentItem(it)
 
-    def _anim_save_ifp(self): #vers 4
+    def _anim_save_wad(self): #vers 1
+        """GTA IV .wad: edited bone tracks written back in place (same frames, backup first)."""
+        from apps.methods.iv_anim import write_wad_anims
+        from apps.methods.path_nodes import write_back
+        path = getattr(self._ifp, 'path', '')
+        if not path:
+            QMessageBox.information(self, "Save .wad", "This .wad has no source file to write back to.")
+            return
+        notes = []
+
+        def build(old):
+            new, msgs = write_wad_anims(old, self._ifp.anims)
+            notes.extend(msgs)
+            return new
+        try:
+            write_back(path, build)                         # loose .wad or anim.img entry
+        except Exception as e:
+            QMessageBox.critical(self, "Save .wad", str(e))
+            return
+        self._ifp_dirty = False
+        if notes:
+            QMessageBox.information(self, "Save .wad", "Saved, with notes:\n" + "\n".join(notes[:20]))
+        self._set_status(f"Saved {path}")
+
+    def _anim_save_ifp(self): #vers 5
         if self._ifp is None:
             return
         if self._ifp.version == 'WAD':
-            QMessageBox.information(self, "Save IFP", "GTA IV .wad anims play only - saving them is not done yet.")
+            self._anim_save_wad()
             return
         path = self._ifp.path
         if not path:

@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/bitmaps_widget.py - Version: 3
+#this belongs in apps/components/DP5_Workshop/depends/bitmaps_widget.py - Version: 4
 # X-Seti - Jul 2026 - DP5 Workshop - Bitmaps dock widget
 """
 Self-contained Bitmaps dock widget: dock container, collapsible title
@@ -47,7 +47,7 @@ def _apply_panel_stylesheet(owner, panel): #vers 1
         panel.setStyleSheet(ss)
 
 
-def _create_content_panel(owner): #vers 3
+def _create_content_panel(owner): #vers 4
     panel = QFrame()
     panel.setObjectName("dp5_bitmaps_panel")
     panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -93,7 +93,19 @@ def _create_content_panel(owner): #vers 3
     owner._bitmap_back_btn.setToolTip("Send the painted bitmap back to the editor that sent it")
     owner._bitmap_back_btn.setEnabled(False)
     owner._bitmap_back_btn.clicked.connect(owner._send_bitmap_back)
-    layout.addWidget(owner._bitmap_back_btn)
+    save_btn = QPushButton("Save")
+    save_btn.setFont(owner.button_font)
+    save_btn.setToolTip("Save to the file it was opened from (Ctrl+S)")
+    save_btn.clicked.connect(owner._save_image)
+    save_as_btn = QPushButton("Save As")
+    save_as_btn.setFont(owner.button_font)
+    save_as_btn.setToolTip("Save under a new name or format (Ctrl+Shift+S)")
+    save_as_btn.clicked.connect(owner._save_image_as)
+    back_row = QHBoxLayout()
+    back_row.addWidget(owner._bitmap_back_btn)
+    back_row.addWidget(save_btn)
+    back_row.addWidget(save_as_btn)
+    layout.addLayout(back_row)
 
     return panel
 

@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 53
+#this belongs in apps/gui/gui_layout.py - Version: 55
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -35,7 +35,7 @@ from apps.methods.imgfactory_svg_icons import (
     get_recent_scans_icon, get_tba_icon, get_dff_edit_icon,
     get_dat_browser_icon, get_ide_editor_icon,
     get_radar_workshop_icon, get_water_workshop_icon,
-    get_dp5_panel_icon, get_ipl_editor_icon, get_paths_map_icon,
+    get_dp5_panel_icon, get_data_workshop_icon, get_paths_map_icon,
     get_weather_icon,
     get_timecyc_workshop_icon, get_hex_workshop_icon,
     get_vehicle_icon, get_handling_icon, get_carcols_icon, get_peds_icon, get_ipf_anim_icon,
@@ -55,9 +55,9 @@ def _col_app_icon(size=16, color=None): #vers 1
     return SVGIconFactory.col_workshop_icon(size)
 
 
-def _model_app_icon(size=16, color=None): #vers 1
+def _model_app_icon(size=16, color=None): #vers 2
     """Model Workshop app icon (taskbar)."""
-    return SVGIconFactory.mesh_icon(size, '#4a9fd4')
+    return SVGIconFactory.model_workshop_icon(size, '#4a9fd4')
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass, field
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
@@ -521,10 +521,10 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             print(f"Method '{method_name}' not yet implemented")
 
 
-    def _open_ipl_workshop(self): #vers 1
-        """Open IPL Workshop docked — with optional pre-loaded file from dir tree."""
+    def _open_ipl_workshop(self): #vers 2
+        """Open Data Workshop docked — with optional pre-loaded file from dir tree."""
         try:
-            from apps.components.Ipl_Editor.ipl_workshop import open_ipl_workshop
+            from apps.components.Data_Workshop.data_workshop import open_data_workshop
             # Check if a .ipl is selected in the dir tree
             fp = None
             try:
@@ -533,7 +533,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
                     fp = candidate
             except Exception:
                 pass
-            open_ipl_workshop(self.main_window, file_path=fp)
+            open_data_workshop(self.main_window, file_path=fp)
         except Exception as e:
             self._log_missing_method('edit_ipl_file')
 
@@ -1625,10 +1625,10 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             "ide-editor": get_ide_editor_icon,
 
             # Editor buttons (same icons as the Intro tiles)
-            "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.mesh_icon(size, '#4a9fd4'),
+            "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.model_workshop_icon(size, '#4a9fd4'),
             "ipf-edit": get_ipf_anim_icon,
             "ide-edit": get_ide_editor_icon,
-            "ipl-edit": lambda size=24, color=None, bg_color=None: get_ipl_editor_icon(size),
+            "ipl-edit": lambda size=24, color=None, bg_color=None: get_data_workshop_icon(size),
             "dat-edit": get_dat_browser_icon,
             "dir-tree": lambda size=24, color=None, bg_color=None: get_tree_icon(size, color),
             "water-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.water_workshop_icon(size),
@@ -4264,7 +4264,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
 
             #    IDE Editor                                                
             if file_ext == '.ide':
-                ide_action = menu.addAction("Open in IDE Editor")
+                ide_action = menu.addAction("Open in Data Workshop")
                 ide_action.triggered.connect(lambda: self._open_file_in_ide_editor(file_path))
                 menu.addSeparator()
 
@@ -4437,16 +4437,16 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
         except Exception as e:
             self.main_window.log_message(f"Text Editor error: {str(e)}")
 
-    def _open_file_in_ide_editor(self, file_path: str): #vers 1
-        """Open an .ide file in the structured IDE Editor."""
+    def _open_file_in_ide_editor(self, file_path: str): #vers 2
+        """Open an .ide file in the Data Workshop's IDE tab."""
         try:
-            from apps.components.Ide_Editor.ide_editor import open_ide_editor
-            editor = open_ide_editor(self.main_window)
+            from apps.components.Data_Workshop.data_workshop import open_data_workshop
+            editor = open_data_workshop(self.main_window, ide=True)
             editor.load_ide_file(file_path)
             self.main_window.log_message(
-                f"IDE Editor opened: {os.path.basename(file_path)}")
+                f"Data Workshop opened: {os.path.basename(file_path)}")
         except Exception as e:
-            self.main_window.log_message(f"IDE Editor error: {str(e)}")
+            self.main_window.log_message(f"Data Workshop error: {str(e)}")
 
     def update_col_menu_for_selection(self, file_path=None): #vers 1
         """Enable/disable COL menu workshop action based on selected file"""

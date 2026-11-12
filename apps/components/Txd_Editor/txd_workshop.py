@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 51
+#this belongs in apps/components/Txd_Editor/txd_workshop.py - Version: 52
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop
 
 """
@@ -84,12 +84,14 @@ class TXDWorkshop(TXDWindowMixin, TXDUIMixin, TXDLogicMixin, DocTabsMixin, Ribbo
     _SPLITTER_LIST_PX = 250     # texture list minimum width
 
 
-    def __init__(self, parent=None, main_window=None): #vers 13
+    def __init__(self, parent=None, main_window=None): #vers 14
         """Initialize TXD Workshop"""
         if DEBUG_STANDALONE and main_window is None:
             print(self.App_name + " Initializing ...")
 
         super().__init__(parent)
+        from apps.methods.edge_cursor import install_edge_cursor_reset
+        install_edge_cursor_reset()                      # resize arrow never sticks
         self.main_window = main_window
         self.setWindowTitle(self.App_name)
         self.setWindowIcon(getattr(SVGIconFactory, self.App_icon)())

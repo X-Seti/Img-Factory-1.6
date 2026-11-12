@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 5
+#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 7
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop widgets
 
 """
@@ -59,8 +59,23 @@ Settings store, helper widgets, dialogs and table models used by Map Workshop.
 # set_shown
 
 ##class _WaterLevelsDialog: -
-# __init__
 # _apply
+# closeEvent
+# __init__
+# level
+# set_level
+
+##class _WaterproBrush: -
+# _cell
+# hover
+# __init__
+# _layer
+# pick
+# press
+# release
+# ring
+# tick
+# _wp
 
 ##class _WaterQuadDialog: -
 # _apply
@@ -689,6 +704,8 @@ class MapSettings(QObject):
         'panel_font_family':   'Arial', 'panel_font_size':   10,
         'button_font_family':  'Arial', 'button_font_size':  10,
         'infobar_font_family': 'Courier New', 'infobar_font_size': 9,
+        'tab_font_family':     'Arial', 'tab_font_size':     10,
+        'use_global_fonts':    True,      # App Settings fonts for every workshop
         'button_display_mode': 'both',
         'zoom_level':          1.0,
         'background_mode':     'solid',
@@ -1051,10 +1068,10 @@ class _MapOverlayToggleButton(QToolButton): #vers 2
             f"border-radius: 3px; padding: 1px 4px; }}")
 
 
-class _WaterLevelsDialog(QDialog): #vers 1
-    """Non-modal editor for waterpro level heights (VC waterpro.dat, LCS/VCS GAME.DTZ)."""
+class _WaterLevelsDialog(QDialog): #vers 2
+    """Non-modal waterpro editor: level heights plus grid painting in the view."""
 
-    def __init__(self, workshop, heights, source, parent=None): #vers 1
+    def __init__(self, workshop, heights, source, parent=None): #vers 2
         super().__init__(parent)
         self.ws = workshop
         self.setWindowTitle("Water Levels")
@@ -1064,21 +1081,155 @@ class _WaterLevelsDialog(QDialog): #vers 1
                              f"Each grid cell uses one level; changing a height moves all its cells."))
         self.table = QTableWidget(len(heights), 1)
         self.table.setHorizontalHeaderLabels(["Height (Z)"])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.spins = []
         for r, h in enumerate(heights):
             sp = QDoubleSpinBox(); sp.setRange(-2000, 2000); sp.setDecimals(3); sp.setValue(h)
             self.table.setCellWidget(r, 0, sp)
             self.spins.append(sp)
         self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.selectRow(0)
         lay.addWidget(self.table)
+        box = QGroupBox("Grid painting")
+        g = QGridLayout(box)
+        self.paint_chk = QCheckBox("Paint grid in view")
+        self.paint_chk.setToolTip("Click / drag: paint selected level. Shift: dry (no water). Ctrl: pick level.")
+        self.paint_chk.toggled.connect(self.ws._toggle_waterpro_paint)
+        g.addWidget(self.paint_chk, 0, 0, 1, 2)
+        g.addWidget(QLabel("Brush (cells)"), 1, 0)
+        self.radius_spin = QSpinBox(); self.radius_spin.setRange(0, 16); self.radius_spin.setValue(1)
+        g.addWidget(self.radius_spin, 1, 1)
+        self.both_chk = QCheckBox("Paint both layers (visible + physical)")
+        self.both_chk.setChecked(True)
+        g.addWidget(self.both_chk, 2, 0, 1, 2)
+        lay.addWidget(box)
         btns = QHBoxLayout()
-        for text, slot in (("Apply", self._apply), ("Save", workshop._save_water_levels)):
+        for text, slot in (("Apply", self._apply), ("Undo paint", workshop._undo_waterpro_paint),
+                           ("Save", workshop._save_water_levels)):
             b = QPushButton(text); b.clicked.connect(lambda _c=False, f=slot: f()); btns.addWidget(b)
         lay.addLayout(btns)
 
     def _apply(self): #vers 1
         """Push heights to the loaded waterpro and the view."""
         self.ws._apply_water_levels([sp.value() for sp in self.spins])
+
+    def closeEvent(self, event): #vers 1
+        """Closing ends grid painting."""
+        self.paint_chk.setChecked(False)
+        super().closeEvent(event)
+
+    def level(self): #vers 1
+        """Selected level index (row)."""
+        return max(0, self.table.currentRow())
+
+    def set_level(self, index): #vers 1
+        """Select a level row (Ctrl+click pick)."""
+        if 0 <= index < self.table.rowCount():
+            self.table.selectRow(index)
+
+
+class _WaterproBrush: #vers 1
+    """Viewport brush painting waterpro grid cells (level index or dry 128)."""
+    DRY = 128
+
+    def __init__(self, workshop, viewport): #vers 1
+        self.ws, self.vp = workshop, viewport
+        self._hit = None
+        self._stroke = None
+        self._erase = False
+
+    def _wp(self): #vers 1
+        return self.ws._world_loader.waterpro
+
+    def _layer(self): #vers 1
+        """(grid, width, cell size, half size, physical) of the shown layer."""
+        physical = bool(getattr(self.ws, '_water2_showing_physical', False))
+        wp = self._wp()
+        gw, cell, half = self.ws._waterpro_grid_geometry(wp, self.ws._water2_game_source, physical)
+        return (wp.physical_map if physical else wp.visible_map), gw, cell, half, physical
+
+    def pick(self, mx, my): #vers 1
+        """World point on the selected level's water plane, or None."""
+        wp = self._wp()
+        lvl = self.ws._water_levels_dlg.level()
+        z = wp.levels[lvl].height if lvl < len(wp.levels) else 0.0
+        return self.vp._screen_to_ground_position(mx, my, z)
+
+    def _cell(self, p): #vers 1
+        """(row, col) under world point p, undoing draw offset and map wrap."""
+        _grid, gw, cell, half, _ph = self._layer()
+        ox, oy = self.vp.water2_draw_offset()
+        span = getattr(self.vp, '_water_map_half_extent', 0.0) * 2.0
+        x, y = p[0] - ox, p[1] - oy
+        if span > 0:                                   # cells are wrapped into the map when drawn
+            x = (x + half) % span - half if half * 2 <= span else x
+            y = (y + half) % span - half if half * 2 <= span else y
+        r, c = int((x + half) // cell), int((y + half) // cell)
+        return (r, c) if 0 <= r < gw and 0 <= c < gw else None
+
+    def hover(self, mx, my): #vers 1
+        self._hit = self.pick(mx, my)
+
+    def press(self, mx, my, mods): #vers 1
+        import copy
+        self._hit = self.pick(mx, my)
+        if self._hit is None:
+            return
+        rc = self._cell(self._hit)
+        if mods & Qt.KeyboardModifier.ControlModifier:      # Ctrl+click picks the level
+            if rc is not None:
+                v = self._layer()[0][rc[0]][rc[1]]
+                if v != self.DRY:
+                    self.ws._water_levels_dlg.set_level(v)
+            return
+        self._erase = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+        wp = self._wp()
+        self._stroke = (copy.deepcopy(wp.visible_map), copy.deepcopy(wp.physical_map), False)
+        self.tick()
+
+    def tick(self): #vers 1
+        if self._stroke is None or self._hit is None:
+            return
+        rc = self._cell(self._hit)
+        if rc is None:
+            return
+        grid, gw, _cell, _half, physical = self._layer()
+        dlg = self.ws._water_levels_dlg
+        val = self.DRY if self._erase else dlg.level()
+        rad, both = dlg.radius_spin.value(), dlg.both_chk.isChecked()
+        wp = self._wp()
+        changed = False
+        for r in range(max(0, rc[0] - rad), min(gw, rc[0] + rad + 1)):
+            for c in range(max(0, rc[1] - rad), min(gw, rc[1] + rad + 1)):
+                if (r - rc[0]) ** 2 + (c - rc[1]) ** 2 > rad * rad + rad:
+                    continue
+                if grid[r][c] != val:
+                    grid[r][c] = val
+                    changed = True
+                if both and physical:                    # coarse visible cell follows
+                    wp.visible_map[r // 2][c // 2] = val
+                elif both:                               # 2x2 physical cells follow
+                    for i in (0, 1):
+                        for j in (0, 1):
+                            wp.physical_map[r * 2 + i][c * 2 + j] = val
+        if changed:
+            self._stroke = self._stroke[:2] + (True,)
+            self.ws._waterpro_painted()
+
+    def release(self): #vers 1
+        if self._stroke is not None and self._stroke[2]:
+            self.ws._waterpro_undo.append(self._stroke[:2])
+            del self.ws._waterpro_undo[:-30]
+        self._stroke = None
+
+    def ring(self): #vers 1
+        if self._hit is None:
+            return None
+        cell = self._layer()[2]
+        rad = self.ws._water_levels_dlg.radius_spin.value()
+        colour = (1.0, 0.4, 0.2) if self._erase and self._stroke else (0.3, 0.8, 1.0)
+        return tuple(self._hit), (rad + 0.5) * cell, colour, None
 
 
 class _WaterQuadDialog(QDialog): #vers 1

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Path_Workshop/depends/path_nodes_func.py - Version: 14
+#this belongs in apps/components/Path_Workshop/depends/path_nodes_func.py - Version: 16
 # X-Seti - October 19 2026 - IMG Factory 1.6 - Path Workshop node logic
 
 """
@@ -44,6 +44,7 @@ SA nodes: add / link / delete (methods/sa_path_edit.py), navi nodes follow moves
 # _push_undo
 # _reverse_group
 # _save_paths
+# _save_roadblox
 # _select_group
 # _select_node
 # _shift_rotate_tracks
@@ -183,7 +184,7 @@ class PathNodesMixin:
 
     # - Loading
 
-    def _load_paths(self, path=None): #vers 7
+    def _load_paths(self, path=None): #vers 8
         """Load paths; several files at once; Shift+Load adds to the loaded set."""
         from apps.methods.gta_dat_parser import (GTAWorldLoader, dat_game_root,
                                                  detect_game_from_dat_filename)
@@ -198,7 +199,7 @@ class PathNodesMixin:
                 self, "Load Paths - Shift+click picks several (e.g. SA paths.ipl..paths5.ipl)",
                 self._dialog_dir(),
                 "Path files (gta3.dat gta_vc.dat gta.dat gta_sol.dat gtasol.dat *.ipl nodes*.dat "
-                "tracks*.dat flight*.dat spath*.dat chase*.dat roadblox.dat *.img *.rrr *.dtz);;All files (*)")
+                "tracks*.dat flight*.dat spath*.dat chase*.dat roadblox.dat *.ide *.img *.rrr *.dtz);;All files (*)")
         if not paths:
             return
         self._remember_dir(paths[0])
@@ -245,7 +246,7 @@ class PathNodesMixin:
         names = ", ".join(os.path.basename(p) for p in paths[:4]) + (" …" if len(paths) > 4 else "")
         self._set_status(f"{'Added' if append else 'Loaded'} {names} - {len(self._pn)} path nodes")
 
-    def _load_path_file(self, path, loader=None): #vers 9
+    def _load_path_file(self, path, loader=None): #vers 10
         """One path file into loader (new one if None), game from the Game preset."""
         import re
         from apps.methods.gta_dat_parser import GTAWorldLoader, IPLParser
@@ -264,6 +265,28 @@ class PathNodesMixin:
                 QMessageBox.warning(self, "Load Paths", f"No LCS / VCS game layout around:\n{path}")
                 return None
             loader.load_stories(root)
+        elif name.endswith('.ide'):                    # III: paths sit in IDE, placed by IPL inst
+            from apps.methods.gta_dat_parser import IDEParser, detect_game_from_dat_filename
+            d, dat = os.path.dirname(path), ''
+            for _ in range(4):                         # data/maps/<area>/x.ide -> data/gta3.dat
+                files = {f.lower(): f for f in os.listdir(d)} if os.path.isdir(d) else {}
+                hit = next((n for n in ('gta3.dat', 'gta_vc.dat') if n in files), '')
+                if hit:
+                    dat = os.path.join(d, files[hit]); break
+                d = os.path.dirname(d)
+            if dat and not loader.instances:
+                game = detect_game_from_dat_filename(dat) or game
+                loader = GTAWorldLoader(game)
+                loader.load_from_dat(dat)
+            parser = IDEParser(game)
+            if not parser.parse(path):
+                QMessageBox.warning(self, "Load Paths", f"Could not read {name}")
+                return None
+            have = {os.path.basename(g.source_ide).lower() for g in loader.ide_paths}
+            loader.ide_paths += [g for g in parser.ide_paths if os.path.basename(g.source_ide).lower() not in have]
+            loader.load_log.append(("file", "IDE", path, True))
+            if not parser.ide_paths:
+                self._set_status(f"{name}: no path section")
         elif name.endswith('.ipl'):
             parser = IPLParser(game)
             if not parser.parse(path):
@@ -737,15 +760,22 @@ class PathNodesMixin:
         """(area, combined node index) of an SA record."""
         return r.group.area_id, r.gi + (len(r.group.vehicle_nodes) if r.ped else 0)
 
-    def _sa_edit(self, fn, *args): #vers 1
-        """Run an sa_path_edit change on all areas; undo keeps the changed areas' bytes."""
+    def _sa_edit(self, fn, *args, roadblocks: bool = False): #vers 2
+        """Run an sa_path_edit change on all areas; undo keeps the changed areas' bytes
+        (roadblocks: ROADBLOX.DAT node refs follow the change)."""
         from apps.methods.sa_path_edit import build_nodes_dat
         areas = self._loader.sa_nodes
         before = {a: build_nodes_dat(pf) for a, pf in areas.items()}
-        result = fn(areas, *args)
+        rbs = self._loader.sa_roadblocks
+        rb_before = [(rb.area_id, rb.node_id) for rb in rbs]
+        result = fn(areas, *args, rbs) if roadblocks else fn(areas, *args)
         changed = {a: data for a, data in before.items() if build_nodes_dat(areas[a]) != data}
-        if changed:
-            self._push_undo([('sa_bytes', changed)])
+        undo = [('sa_bytes', changed)] if changed else []
+        if [(rb.area_id, rb.node_id) for rb in rbs] != rb_before:
+            undo.append(('rblk', rb_before))
+            self._dirty.add(('rblk', 'roadblox.dat'))
+        if undo:
+            self._push_undo(undo)
             self._dirty.update(('sa', a) for a in changed)
         return result
 
@@ -775,7 +805,7 @@ class PathNodesMixin:
         self._undo_stack.append(entry)
         del self._undo_stack[:-200]
 
-    def _undo_path_edit(self): #vers 3
+    def _undo_path_edit(self): #vers 4
         """Undo the last path edit (fields, new group)."""
         if not self._undo_stack:
             self._set_status("Nothing to undo")
@@ -785,6 +815,10 @@ class PathNodesMixin:
                 item[1].remove(item[2])
             elif item[0] == 'ungroup':
                 item[1].insert(item[2], item[3])
+            elif item[0] == 'rblk':                    # roadblock node refs before an add / delete
+                from apps.methods.gta_dat_parser import RoadblockEntry
+                self._loader.sa_roadblocks[:] = [RoadblockEntry(a, n) for a, n in item[1]]
+                self._dirty.add(('rblk', 'roadblox.dat'))
             elif item[0] == 'sa_bytes':                # whole SA areas before an add / link / delete
                 from apps.methods.sa_path_parser import parse_nodes_dat
                 for area, data in item[1].items():
@@ -901,10 +935,25 @@ class PathNodesMixin:
         self._select_node(self._pn_key.get(key, -1))
         self._set_status(f"Added node {slot} at {wx:.1f}, {wy:.1f}")
 
+    def _save_roadblox(self) -> str: #vers 1
+        """Write ROADBLOX.DAT (count, then area int16 / node uint16 per entry)."""
+        import struct
+        from apps.methods.file_backup import safe_write_bytes
+        path = next((p for _ph, et, p, ok in self._loader.load_log if et == 'SA_ROADBLOX' and ok), None)
+        if not path:
+            raise ValueError("ROADBLOX.DAT path unknown")
+        rbs = self._loader.sa_roadblocks
+        data = struct.pack('<i', len(rbs)) + b''.join(struct.pack('<hH', rb.area_id, rb.node_id) for rb in rbs)
+        with open(path, 'rb') as f:
+            size = len(f.read())
+        data += b'\0' * max(0, size - len(data))                # keep the file's fixed size
+        safe_write_bytes(path, data, "path_workshop")
+        return os.path.basename(path)
+
     def _add_sa_node(self, sel, wx, wy): #vers 1
         """New SA node like the selected one at the click, linked to it."""
         from apps.methods.sa_path_edit import sa_add_node
-        new = self._sa_edit(sa_add_node, self._sa_cid(sel), wx, wy, sel.z)
+        new = self._sa_edit(sa_add_node, self._sa_cid(sel), wx, wy, sel.z, roadblocks=True)
         if new is None:
             self._set_status("That spot's area (nodesN.dat) is not loaded")
             return
@@ -956,7 +1005,7 @@ class PathNodesMixin:
         if r.kind == 'sa':
             from apps.methods.sa_path_edit import sa_delete_node
             cid = self._sa_cid(r)
-            self._sa_edit(sa_delete_node, cid)
+            self._sa_edit(sa_delete_node, cid, roadblocks=True)
             self._selected_node = -1
             self._populate_nodes_tree()
             self._build_path_records()
@@ -1193,7 +1242,7 @@ class PathNodesMixin:
 
     # - Save
 
-    def _save_paths(self): #vers 5
+    def _save_paths(self): #vers 6
         """Write changed IPL/IDE path sections, SA nodes, tracks, car recordings and game.dtz paths."""
         from apps.methods.path_nodes import (ide_path_section_lines, ipl_path_section_lines,
                                              write_rrr, write_sa_nodes, write_text_path_section,
@@ -1208,6 +1257,9 @@ class PathNodesMixin:
                     pf = ld.sa_nodes[name]
                     write_sa_nodes(pf)
                     done.append(f"nodes{name}.dat")
+                    continue
+                if kind == 'rblk':
+                    done.append(self._save_roadblox())
                     continue
                 if kind == 'rrr':
                     write_rrr(ld.car_recordings[name])

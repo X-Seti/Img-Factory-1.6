@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 262
+#this belongs in apps/components/Map_Editor/map_workshop.py - Version: 263
 # X-Seti - see CHANGELOG.md in this folder for the full dated history
 
 import os
@@ -182,7 +182,7 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
     _RIBBON_LAYOUT_VERSION = 4
 
 
-    def __init__(self, parent=None, main_window=None): #vers 13
+    def __init__(self, parent=None, main_window=None): #vers 14
         """initialize_features"""
         #  diagnostic marker (Aug 20 2026,  "we need a
         # marker to show in the terminal for each dialog window,
@@ -200,6 +200,8 @@ class ModelWorkshop(MapWindowMixin, MapSetupUIMixin, MapSettingsMixin, MapModelM
             print(App_name + " Initializing ...")
 
         super().__init__(parent)
+        from apps.methods.edge_cursor import install_edge_cursor_reset
+        install_edge_cursor_reset()                      # resize arrow never sticks
         self.setWindowTitle(App_name)
         try:
             self.setWindowIcon(SVGIconFactory.map_app_icon(64))

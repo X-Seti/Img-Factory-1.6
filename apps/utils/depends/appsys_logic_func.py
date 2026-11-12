@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_logic_func.py - Version: 11
+#this belongs in apps/utils/depends/appsys_logic_func.py - Version: 13
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog Logic
 
 """
@@ -525,7 +525,7 @@ class AppsysLogicMixin: #vers 1
             btn.setStyleSheet(self._build_btn_stylesheet(style_key, base_color))
 
 
-    def _build_btn_stylesheet(self, style: str, base: str) -> str: #vers 1
+    def _build_btn_stylesheet(self, style: str, base: str) -> str: #vers 2
         """Generate a QPushButton stylesheet for the given style + base colour."""
         from PyQt6.QtGui import QColor
         c = QColor(base)
@@ -533,6 +533,9 @@ class AppsysLogicMixin: #vers 1
         dark  = c.darker(130).name()
         mid   = c.name()
         shine = QColor(255, 255, 255, 80)
+        if style in ('glass', 'soft', 'raised', 'inset', 'outline', 'pill'):
+            from apps.utils.app_settings_system import button_bg_css
+            return f"QPushButton {{ border: 1px solid {dark}; border-radius: 3px; {button_bg_css(style, base)} }}"
 
         if style == "flat":
             return f"QPushButton {{ background: {mid}; border: 1px solid {dark}; border-radius: 3px; }}"
@@ -896,7 +899,7 @@ class AppsysLogicMixin: #vers 1
         self._apply_demo_theme(original)
 
 
-    def _on_font_changed(self, font_id, property_type, value): #vers 1
+    def _on_font_changed(self, font_id, property_type, value): #vers 2
         """Handle font property changes - updates current_settings"""
         if property_type == 'family':
             self.app_settings.current_settings[f'{font_id}_font_family'] = value
@@ -904,6 +907,8 @@ class AppsysLogicMixin: #vers 1
             self.app_settings.current_settings[f'{font_id}_font_size'] = value
         elif property_type == 'weight':
             self.app_settings.current_settings[f'{font_id}_font_weight'] = value
+        elif property_type in ('italic', 'underline'):
+            self.app_settings.current_settings[f'{font_id}_font_{property_type}'] = bool(value)
 
         # Mark as modified
         if not hasattr(self, '_fonts_modified'):
@@ -957,7 +962,7 @@ class AppsysLogicMixin: #vers 1
         self.setStyleSheet(self.app_settings.get_stylesheet())
         refresh_all()                                   # open workshops follow live
 
-    def _reset_all_fonts(self): #vers 1
+    def _reset_all_fonts(self): #vers 2
         """Reset all fonts to their default values"""
         reply = QMessageBox.question(
             self,
@@ -976,18 +981,22 @@ class AppsysLogicMixin: #vers 1
                 controls['family'].setCurrentFont(QFont(default_family))
                 controls['size'].setValue(default_size)
                 controls['weight'].setCurrentText('Normal')
+                controls['italic'].setChecked(False)
+                controls['underline'].setChecked(False)
 
                 # Update settings
                 self.app_settings.current_settings[f'{font_id}_font_family'] = default_family
                 self.app_settings.current_settings[f'{font_id}_font_size'] = default_size
                 self.app_settings.current_settings[f'{font_id}_font_weight'] = 'Normal'
+                self.app_settings.current_settings[f'{font_id}_font_italic'] = False
+                self.app_settings.current_settings[f'{font_id}_font_underline'] = False
 
             QMessageBox.information(self, "Fonts Reset", "All fonts reset to default values")
 
 
-    def _load_font_settings(self): #vers 1
+    def _load_font_settings(self): #vers 3
         """Load font settings from appfactory.settings.json into controls"""
-        font_ids = ['default', 'title', 'panel', 'button', 'menu', 'infobar', 'table', 'tooltip']
+        font_ids = ['default', 'title', 'panel', 'button', 'tab', 'menu', 'infobar', 'table', 'tooltip']
 
         for font_id in font_ids:
             if font_id not in self.font_controls:
@@ -1015,9 +1024,11 @@ class AppsysLogicMixin: #vers 1
                 'Normal'
             )
             controls['weight'].setCurrentText(weight)
+            for key in ('italic', 'underline'):
+                controls[key].setChecked(bool(self.app_settings.current_settings.get(f'{font_id}_font_{key}', False)))
 
 
-    def _save_font_settings(self): #vers 1
+    def _save_font_settings(self): #vers 2
         """Save font settings from controls to app settings and appfactory.settings.json"""
         for font_id, controls in self.font_controls.items():
             family = controls['family'].currentFont().family()
@@ -1027,6 +1038,8 @@ class AppsysLogicMixin: #vers 1
             self.app_settings.current_settings[f'{font_id}_font_family'] = family
             self.app_settings.current_settings[f'{font_id}_font_size'] = size
             self.app_settings.current_settings[f'{font_id}_font_weight'] = weight
+            self.app_settings.current_settings[f'{font_id}_font_italic'] = controls['italic'].isChecked()
+            self.app_settings.current_settings[f'{font_id}_font_underline'] = controls['underline'].isChecked()
 
         # Save to appfactory.settings.json
         self.app_settings.save_settings()

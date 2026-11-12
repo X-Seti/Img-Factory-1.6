@@ -1,4 +1,4 @@
-#this belongs in apps/core/theme_utils.py - Version: 3
+#this belongs in apps/core/theme_utils.py - Version: 4
 # X-Seti - March 2026 - IMG Factory 1.6
 # Shared theme utilities — makes QDialogs and QWidgets theme-aware.
 """
@@ -103,6 +103,8 @@ def build_dialog_stylesheet(colors: dict) -> str:
     btn_p    = colors.get("button_pressed",        "#b1b1b1")
     sel_bg   = colors.get("selection_background",  "#0188c4")
     sel_fg   = colors.get("selection_text",        "#ffffff")
+    from apps.utils.app_settings_system import combo_arrow_file
+    arrow    = combo_arrow_file(fg)                 # themed combo arrow
     row_even = colors.get("table_row_even",        "#fcfcfc")
     row_odd  = colors.get("table_row_odd",         entries)
     grid     = colors.get("grid",                  "#e0e0e0")
@@ -206,6 +208,11 @@ def build_dialog_stylesheet(colors: dict) -> str:
             border: none;
             background-color: {btn_n};
             width: 18px;
+        }}
+        QComboBox::down-arrow {{
+            image: url("{arrow}");
+            width: 10px;
+            height: 10px;
         }}
         QComboBox QAbstractItemView {{
             background-color: {entries};

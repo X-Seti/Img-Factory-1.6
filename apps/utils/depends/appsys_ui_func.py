@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 8
+#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 11
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog UI
 
 """
@@ -1337,7 +1337,7 @@ class AppsysUIMixin: #vers 1
         return tab
 
 
-    def _create_buttons_tab_v2(self): #vers 3
+    def _create_buttons_tab_v2(self): #vers 4
         """Buttons tab — style selector with live preview + per-panel tint colours."""
         from PyQt6.QtWidgets import (QScrollArea, QGridLayout, QFrame, QSizePolicy)
         from PyQt6.QtGui import QColor, QPainter, QLinearGradient, QPen
@@ -1398,6 +1398,12 @@ class AppsysUIMixin: #vers 1
             ("amiga_wb",    "Amiga WB",      "Classic Workbench full shine top→bottom"),
             ("half_shine",  "Half-shine",    "Shine top half, flat bottom"),
             ("shadow_dark", "Shadow-dark",   "Dark shadow BR, light highlight TL"),
+            ("glass",       "Glass",         "Light top half, dark lower half"),
+            ("soft",        "Soft",          "Gentle top-to-bottom shade"),
+            ("raised",      "Raised",        "3-D outset border"),
+            ("inset",       "Inset",         "3-D sunken border"),
+            ("outline",     "Outline",       "Transparent with a thin border"),
+            ("pill",        "Pill",          "Fully rounded ends"),
         ]
 
         current_style = self.app_settings.current_settings.get("button_style", "flat")
@@ -1896,13 +1902,14 @@ Ready for operations..."""
         return widget
 
 
-    def _create_fonts_tab(self): #vers 3
+    def _create_fonts_tab(self): #vers 4
         """Create fonts settings tab with multiple font type controls"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
         # Instructions
-        info_label = QLabel("Configure fonts for different UI elements. Changes are saved to appfactory.settings.json")
+        info_label = QLabel("Fonts for every workshop (a workshop's own Settings can untick 'Use global fonts'). "
+                            "Saved to appfactory.settings.json")
         info_label.setWordWrap(True)
         info_label.setStyleSheet("color: palette(mid); font-style: italic; padding: 8px;")
         layout.addWidget(info_label)
@@ -1919,15 +1926,18 @@ Ready for operations..."""
         # Font type configurations
         self.font_controls = {}
 
+        from apps.methods.app_fonts import DEFAULT_FONT, load_fonts
+        load_fonts()                                   # bundled compact fonts in the pickers
         font_types = [
-            ("default", "Default Font", "General UI text and labels (was Font Family/Size)", "Segoe UI", 9, 8, 24),
-            ("title", "Title Font", "Window titles and main headers", "Arial", 14, 10, 32),
-            ("panel", "Panel Headers Font", "Group box titles and section headers", "Arial", 10, 8, 18),
-            ("button", "Button Font", "All button text", "Arial", 10, 8, 16),
-            ("menu", "Menu Font", "Menu bar and menu items", "Segoe UI", 9, 8, 14),
+            ("default", "Default Font", "General UI text and labels (was Font Family/Size)", DEFAULT_FONT, 10, 8, 24),
+            ("title", "Title Font", "Window titles and main headers", DEFAULT_FONT, 14, 10, 32),
+            ("panel", "Panel Headers Font", "Group box titles and section headers", DEFAULT_FONT, 10, 8, 18),
+            ("button", "Button Font", "All button text", DEFAULT_FONT, 10, 8, 16),
+            ("tab", "Tab Font", "Tabs on panels, docks and dialogs", DEFAULT_FONT, 10, 7, 16),
+            ("menu", "Menu Font", "Menu bar and menu items", DEFAULT_FONT, 10, 8, 14),
             ("infobar", "Info Bar Font", "Status bar and info display text", "Courier New", 9, 7, 14),
-            ("table", "Table/List Font", "Data tables and list views", "Segoe UI", 9, 7, 14),
-            ("tooltip", "Tooltip Font", "Hover tooltip text", "Segoe UI", 8, 7, 12)
+            ("table", "Table/List Font", "Data tables and list views", DEFAULT_FONT, 10, 7, 14),
+            ("tooltip", "Tooltip Font", "Hover tooltip text", DEFAULT_FONT, 9, 7, 12)
         ]
 
         for font_id, title, description, default_family, default_size, min_size, max_size in font_types:
@@ -1970,7 +1980,7 @@ Ready for operations..."""
 
     def _create_font_control_group(self, font_id, title, description,
                                 default_family, default_size,
-                                min_size, max_size): #vers 3
+                                min_size, max_size): #vers 5
         """One row: Title - [font] [size] [weight]; description as tooltip."""
         group = QWidget()
         group.setToolTip(description)
@@ -1993,6 +2003,23 @@ Ready for operations..."""
             lambda f, fid=font_id: self._on_font_changed(fid, 'family', f.family())
         )
         controls_layout.addWidget(font_combo, 1)
+
+        browse_btn = QPushButton("Browse...")            # font file from apps/fonts or anywhere
+        browse_btn.setToolTip("Load a font file (.ttf / .otf); it is listed from then on")
+
+        def _browse(_c=False, combo=font_combo):
+            from PyQt6.QtWidgets import QFileDialog
+            from apps.methods.app_fonts import FONT_DIR, add_font_file
+            path, _ = QFileDialog.getOpenFileName(self, "Font file",
+                                                  FONT_DIR if os.path.isdir(FONT_DIR) else os.path.expanduser('~'),
+                                                  "Fonts (*.ttf *.otf *.ttc)")
+            family = add_font_file(path) if path else ''
+            if family:
+                combo.setCurrentFont(QFont(family))
+            elif path:
+                QMessageBox.warning(self, "Font", f"Not a usable font file:\n{path}")
+        browse_btn.clicked.connect(_browse)
+        controls_layout.addWidget(browse_btn)
 
         # Font size
         size_spin = QSpinBox()
@@ -2021,11 +2048,22 @@ Ready for operations..."""
         weight_combo.setFixedWidth(100)
         controls_layout.addWidget(weight_combo)
 
+        styles = {}                                      # Italic / Underline toggles
+        for key, label, tip in (('italic', "Italic", "Italic text"), ('underline', "Underline", "Underlined text")):
+            chk = QCheckBox(label)
+            chk.setToolTip(tip)
+            chk.setChecked(bool(self.app_settings.current_settings.get(f'{font_id}_font_{key}', False)))
+            chk.toggled.connect(lambda on, fid=font_id, k=key: self._on_font_changed(fid, k, on))
+            controls_layout.addWidget(chk)
+            styles[key] = chk
+
         # Store controls for later access
         self.font_controls[font_id] = {
             'family': font_combo,
             'size': size_spin,
             'weight': weight_combo,
+            'italic': styles['italic'],
+            'underline': styles['underline'],
             'group': group,
             'default_family': default_family,
             'default_size': default_size

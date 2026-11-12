@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 20
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 23
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -1769,8 +1769,23 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
             self._progress.setValue(int(100 * cur / tot))
         self._progress.setFormat(msg)
 
+    def _share_game_root(self, game_root: str): #vers 2
+        """Loaded game becomes the app's game root; open workshops follow it."""
+        mw = getattr(self, 'main_window', None)
+        if not game_root or mw is None:
+            return
+        mw.game_root = game_root
+        from PyQt6.QtWidgets import QApplication
+        for w in QApplication.allWidgets():
+            fn = getattr(w, '_on_game_root_changed', None)
+            if callable(fn) and getattr(w, 'main_window', None) is mw:
+                try:
+                    fn(game_root)
+                except Exception as e:
+                    mw.log_message(f"{type(w).__name__}: game change failed: {e}")
+
     @pyqtSlot(bool, str)
-    def _on_load_done(self, ok, summary): #vers 2
+    def _on_load_done(self, ok, summary): #vers 4
         self._progress.setVisible(False)
         self._load_btn.setEnabled(True)
         if ok:
@@ -1779,11 +1794,10 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
                 f"{self.loader.stats.instances:,} instances, "
                 f"{len(self.loader.zones):,} zones")
             # Build cross-reference index and notify listeners
+            game_root = getattr(self._thread, "game_root", "")
+            self.game_root = game_root   # clean accessor for other code
+            self._share_game_root(game_root)   # before listeners can fail
             try:
-                game_root = getattr(self._thread, "game_root", "")
-                self.game_root = game_root   # clean accessor for other code
-                                              # (e.g. opening Map Editor with
-                                              # the currently-loaded root)
                 self.xref = build_xref(self.loader, game_root)
                 self.xref.game_root = game_root   # tag xref with its game root
                 self.xref_ready.emit(self.xref)
@@ -4022,7 +4036,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
                     lambda _=False, p=abs_path: self._show_ide_as_list(p))
                 menu.addAction(f"✏  Edit  {bname}").triggered.connect(
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
-                menu.addAction("🔍  Open in IDE Editor").triggered.connect(
+                menu.addAction("Open in Data Workshop (IDE)").triggered.connect(
                     lambda _=False, p=abs_path: self._open_in_ide_editor(p))
                 from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
                 asset_act = menu.addAction("Asset Checker")
@@ -4040,6 +4054,8 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
                         self._populate_instances_for_ipl(b)))
                 menu.addAction(f"✏  Edit  {bname}").triggered.connect(
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
+                menu.addAction("Open in Data Workshop").triggered.connect(
+                    lambda _=False, p=abs_path: self._open_in_ipl_workshop(p))
                 menu.addSeparator()
             elif ext in (".dat", ".txt", ".cfg", ".ini"):
                 # Smart routing — show editor name if a specialist editor exists
@@ -4084,11 +4100,20 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
             if self.main_window and hasattr(self.main_window, "log_message"):
                 self.main_window.log_message(f"Text editor error: {e}")
 
-    def _open_in_ide_editor(self, file_path: str): #vers 1
-        """Open an .ide file in the structured IDE Editor."""
+    def _open_in_ipl_workshop(self, file_path: str): #vers 2
+        """Open an .ipl / .ide in the Data Workshop."""
         try:
-            from apps.components.Ide_Editor.ide_editor import open_ide_editor
-            editor = open_ide_editor(self.main_window)
+            from apps.components.Data_Workshop.data_workshop import open_data_workshop
+            open_data_workshop(self.main_window, file_path)
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, "log_message"):
+                self.main_window.log_message(f"Data Workshop error: {e}")
+
+    def _open_in_ide_editor(self, file_path: str): #vers 2
+        """Open an .ide file in the Data Workshop's IDE tab."""
+        try:
+            from apps.components.Data_Workshop.data_workshop import open_data_workshop
+            editor = open_data_workshop(self.main_window, ide=True)
             editor.load_ide_file(file_path)
         except Exception as e:
             if self.main_window and hasattr(self.main_window, "log_message"):

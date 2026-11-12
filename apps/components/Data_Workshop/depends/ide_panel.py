@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ide_Editor/ide_editor.py - Version: 3
+#this belongs in apps/components/Data_Workshop/depends/ide_panel.py - Version: 5
 from apps.app_info import App_name, App_build, App_auth
 # X-Seti - September 2026 - IMG Factory 1.6 - IDE Editor
 
@@ -12,9 +12,7 @@ placements that use it when saving. Every save backs the file up first."""
 
 ##Methods list -
 # IDEPanel
-# IDEEditor
 # IDEHelpWidget
-# open_ide_editor
 # parse_ide_line
 # validate_ide_entry
 # create_ide_help_guide
@@ -38,7 +36,6 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
 
 from apps.methods.ide_file import IDEFile, IDERow, ID_SECTIONS, NAMED_SECTIONS, column_headers
-from apps.methods.ribbon_system import RibbonMixin
 from apps.methods.dock_panels import DockPanelsMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 
@@ -133,7 +130,7 @@ class IDEHelpWidget(QWidget): #vers 1
 
 
 class IDEPanel(DockPanelsMixin, QWidget): #vers 4
-    """Structured IDE editor as an embeddable widget (used by the IPL Workshop's
+    """Structured IDE editor as an embeddable widget (used by the Data Workshop's
     IDE tab and by the IDEEditor window). It has no ribbons of its own: the
     host calls its methods (open_ide_file, save_ide_file, _undo, ...)."""
 
@@ -724,7 +721,7 @@ class IDEPanel(DockPanelsMixin, QWidget): #vers 4
         if key in ("usage", "unused"):
             if self.usage_provider is None:
                 QMessageBox.information(self, "Sort", "Placement counts come from the loaded IPL files "
-                                        "(open the IPLs in the IPL Workshop first).")
+                                        "(open the IPLs in the Data Workshop first).")
                 return
             use = self.usage_provider()
 
@@ -874,7 +871,7 @@ class IDEPanel(DockPanelsMixin, QWidget): #vers 4
         self._say(msg)
 
     def _cascade_to_disk(self, id_map, renames) -> str:
-        """No IPL Workshop around: rewrite the chosen IPL files on disk so the
+        """No Data Workshop around: rewrite the chosen IPL files on disk so the
         placements follow the ID / name changes (each IPL is backed up first)."""
         ipls = self._ipl_paths
         if not ipls:
@@ -919,86 +916,6 @@ class IDEPanel(DockPanelsMixin, QWidget): #vers 4
         self._say(message)
 
 
-class IDEEditor(RibbonMixin, QDialog): #vers 3
-    """Standalone IDE Editor window: an IDEPanel plus its own ribbons. (The IPL
-    Workshop embeds the same panel as its IDE tab; this window stays for callers
-    that open an IDE on its own.)"""
-
-    sort_by_ide_requested = pyqtSignal(list)
-    selection_sync_requested = pyqtSignal(list)
-    _ribbon_name = "ide_editor"
-    # Bump when the set of ribbons changes (1 = File/Edit/View/Tools)
-    _RIBBON_LAYOUT_VERSION = 1
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(f"IDE Editor - {App_name}")
-        self.resize(1200, 800)
-        self.panel = IDEPanel(self)
-        self.panel.sort_by_ide_requested.connect(self.sort_by_ide_requested)
-        self.panel.selection_sync_requested.connect(self.selection_sync_requested)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(self.ribbon_wrap(self.panel), 1)
-        self._build_ribbons()
-        self.panel.dirty_changed.connect(lambda d: self.save_btn.setEnabled(d))
-        self.ribbon_restore_state()
-
-    def load_ide_file(self, file_path: str) -> bool:
-        return self.panel.load_ide_file(file_path)
-
-    def _build_ribbons(self):
-        P, B = self.panel, self.ribbon_button
-        tb = self.ribbon_toolbar("File")
-        B(tb, "open_icon",   "Open IDE file(s)...", P.open_ide_file)
-        B(tb, "import_icon", "Load all IDE files of a game from its .dat...", P._open_from_dat)
-        self.save_btn = B(tb, "save_icon", "Save changed IDE file(s)  (Ctrl+S)", P.save_ide_file, enabled=False)
-        B(tb, "saveas_icon", "Save As...", P.save_ide_file_as)
-        B(tb, "export_icon", "Export section as CSV", P._export_csv)
-        tb = self.ribbon_toolbar("Edit")
-        B(tb, "undo_icon", "Undo  (Ctrl+Z)", P._undo)
-        B(tb, "redo_icon", "Redo  (Ctrl+Y)", P._redo)
-        tb.addSeparator()
-        B(tb, "add_icon",   "Add row (next free ID)", P.add_ide_entry)
-        B(tb, "trash_icon", "Delete selected rows", P.delete_ide_entry)
-        B(tb, "edit_icon",  "Duplicate selected rows", P._duplicate_rows)
-        tb.addSeparator()
-        B(tb, "search_icon", "Find", lambda: P._search.setFocus())
-        tb = self.ribbon_toolbar("View")
-        B(tb, "fit_grid_icon", "Fit columns", lambda: P._table.resizeColumnsToContents())
-        B(tb, "info_icon", "Statistics", P._show_stats)
-        tb = self.ribbon_toolbar("Tools")
-        B(tb, "check_icon",   "Check: duplicate IDs / names, empty TXD, long names", P._run_checks)
-        B(tb, "search_icon",  "Free IDs", P._show_free_ids, text="Free")
-        tb.addSeparator()
-        B(tb, "edit_icon",    "Set one column on the selected rows...", P._set_column, text="Set")
-        B(tb, "convert_icon", "Renumber the selected rows from an ID...", P._renumber, text="Renum")
-        B(tb, "edit_icon",    "Add a prefix / suffix to the selected model names...", P._prefix_suffix, text="Name")
-        B(tb, "convert_icon", "Sort this section (ID, name, TXD, draw distance...)", P._sort_menu, text="Sort")
-        tb.addSeparator()
-        B(tb, "package_icon", "Merge rows from another IDE file...", P._merge_ide, text="Merge")
-        B(tb, "folder_icon",  "Choose the IPL files kept in step with ID/name changes...", P._choose_ipls, text="IPLs")
-
-    def closeEvent(self, ev):
-        if self.panel.has_unsaved():
-            r = QMessageBox.question(
-                self, App_name, "Save changed IDE files before closing?",
-                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
-                | QMessageBox.StandardButton.Cancel)
-            if r == QMessageBox.StandardButton.Cancel:
-                ev.ignore()
-                return
-            if r == QMessageBox.StandardButton.Save:
-                self.panel.save_ide_file()
-                if self.panel.has_unsaved():
-                    ev.ignore()
-                    return
-        self.ribbon_save_state()
-        super().closeEvent(ev)
-
-
-# Utility functions kept for older callers
-
 def parse_ide_line(line: str) -> Optional[Dict[str, Any]]: #vers 2
     """Parse an objs-style IDE line into a dict (best effort)."""
     parts = [p.strip() for p in line.split('#')[0].split(',')]
@@ -1037,32 +954,14 @@ def create_ide_help_guide() -> str: #vers 1
 IDETableWidget = QTableWidget      # compat alias
 
 
-def open_ide_editor(parent=None): #vers 3
-    """Open the IDE editor. The IDE editor now lives in the IPL Workshop (IDE
-    tab, since an IPL needs its IDE list first); this opens that workshop on the
-    IDE tab and returns it (it has load_ide_file() like the old window). Falls
-    back to the plain window when the workshop cannot be created."""
-    try:
-        from apps.components.Ipl_Editor.ipl_workshop import open_ipl_workshop
-        ws = open_ipl_workshop(parent)
-        if ws is not None:
-            ws.show_ide_tab()
-            return ws
-    except Exception as e:
-        print(f"[IDE Editor] IPL Workshop unavailable, using the plain window: {e}")
-    editor = IDEEditor(parent)
-    editor.show()
-    return editor
-
-
-__all__ = ['IDEEditor', 'IDEPanel', 'IDEHelpWidget', 'IDETableWidget', 'open_ide_editor',
+__all__ = ['IDEPanel', 'IDEHelpWidget', 'IDETableWidget',
            'parse_ide_line', 'validate_ide_entry', 'create_ide_help_guide']
 
 
 if __name__ == "__main__":
+    from apps.components.Data_Workshop.data_workshop import open_data_workshop
     app = QApplication(sys.argv)
-    w = IDEEditor()
-    w.show()
+    w = open_data_workshop(None, ide=True)
     for a in sys.argv[1:]:
         if os.path.isfile(a):
             w.load_ide_file(a)

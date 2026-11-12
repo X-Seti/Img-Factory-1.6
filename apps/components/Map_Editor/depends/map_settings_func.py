@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_settings_func.py - Version: 8
+#this belongs in apps/components/Map_Editor/depends/map_settings_func.py - Version: 9
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop settings
 
 """
@@ -8,6 +8,7 @@ Workshop settings tabs, fonts, theme, hotkeys, About for ModelWorkshop (Map).
 ##class MapSettingsMixin: -
 # _apply_button_font
 # _apply_infobar_font
+# _apply_map_fonts
 # _apply_panel_font
 # _apply_theme
 # _apply_title_font
@@ -56,7 +57,7 @@ class MapSettingsMixin: #vers 1
                 limits[g] = (ms.get(f'tex_limit_{g}_over'), ms.get(f'tex_limit_{g}_to'))
         return limits
 
-    def _build_workshop_settings_tabs(self): #vers 15
+    def _build_workshop_settings_tabs(self): #vers 16
         """Build the workshop settings QTabWidget (Fonts/Display/
         Performance/Preview/Loading/Map Assets/Navigation) and the
         Apply callback that reads all their widgets back and
@@ -75,6 +76,11 @@ class MapSettingsMixin: #vers 1
 
         fonts_tab = QWidget()
         fonts_layout = QVBoxLayout(fonts_tab)
+
+        global_fonts_chk = QCheckBox("Use global fonts (App Settings > Fonts)")
+        global_fonts_chk.setChecked(bool(self.map_settings.get('use_global_fonts')))
+        global_fonts_chk.setToolTip("On: every font below comes from App Settings and is shared by all workshops")
+        fonts_layout.addWidget(global_fonts_chk)
 
         # Default Font
         default_font_group = QGroupBox("Default Font")
@@ -157,6 +163,26 @@ class MapSettingsMixin: #vers 1
         button_font_group.setLayout(button_font_layout)
         fonts_layout.addWidget(button_font_group)
 
+        # Tab Font
+        tab_font_group = QGroupBox("Tab Font")
+        tab_font_layout = QHBoxLayout()
+        tab_font_combo = QFontComboBox()
+        tab_font_combo.setCurrentFont(getattr(self, 'tab_font', QFont("Arial", 10)))
+        tab_font_layout.addWidget(tab_font_combo)
+        tab_font_size = QSpinBox()
+        tab_font_size.setRange(7, 16)
+        tab_font_size.setValue(getattr(self, 'tab_font', QFont("Arial", 10)).pointSize())
+        tab_font_size.setSuffix(" pt")
+        tab_font_size.setFixedWidth(80)
+        tab_font_layout.addWidget(tab_font_size)
+        tab_font_group.setLayout(tab_font_layout)
+        fonts_layout.addWidget(tab_font_group)
+
+        def _own_fonts(on):                              # own font rows only when not global
+            for g in (default_font_group, title_font_group, panel_font_group,
+                      button_font_group, tab_font_group):
+                g.setEnabled(not on)
+
         # Info Bar Font
         infobar_font_group = QGroupBox("Info Bar Font")
         infobar_font_layout = QHBoxLayout()
@@ -177,6 +203,9 @@ class MapSettingsMixin: #vers 1
 
         infobar_font_group.setLayout(infobar_font_layout)
         fonts_layout.addWidget(infobar_font_group)
+        global_fonts_chk.toggled.connect(lambda on: (_own_fonts(on), infobar_font_group.setEnabled(not on)))
+        _own_fonts(global_fonts_chk.isChecked())
+        infobar_font_group.setEnabled(not global_fonts_chk.isChecked())
 
         fonts_layout.addStretch()
         tabs.addTab(fonts_tab, "Fonts")
@@ -465,6 +494,8 @@ class MapSettingsMixin: #vers 1
             vp = getattr(self, 'preview_widget', None)
             if vp is not None and hasattr(vp, 'set_show_grid'):
                 vp.set_show_grid(checked)
+            if getattr(self, '_grid_chk', None) is not None:   # ribbon Grid button
+                self._grid_chk.set_shown(checked, emit=False)
         quick_show_grid_chk.toggled.connect(_on_quick_show_grid)
 
         quick_show_timecyc_chk = QCheckBox("Show Timecyc")
@@ -1757,12 +1788,17 @@ class MapSettingsMixin: #vers 1
                 infobar_font_family = infobar_font_combo.currentFont().family()
                 infobar_font_size_v = infobar_font_size.value()
                 self.infobar_font = QFont(infobar_font_family, infobar_font_size_v)
+                self.tab_font = QFont(tab_font_combo.currentFont().family(), tab_font_size.value())
+                self.map_settings.set('tab_font_family', self.tab_font.family())
+                self.map_settings.set('tab_font_size', self.tab_font.pointSize())
+                self.map_settings.set('use_global_fonts', global_fonts_chk.isChecked())
 
                 # Apply fonts to UI
                 self._apply_title_font()
                 self._apply_panel_font()
                 self._apply_button_font()
                 self._apply_infobar_font()
+                self._apply_map_fonts()                  # tabs / buttons / global fonts
 
                 mode_map = {0: 'both', 1: 'icons', 2: 'text'}
                 self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
@@ -1898,6 +1934,26 @@ class MapSettingsMixin: #vers 1
                 if any(x in label.text() for x in ["Mipmaps:", "Bumpmaps:", "Status:", "Type:", "Format:"]):
                     label.setFont(self.panel_font)
 
+
+    def _apply_map_fonts(self): #vers 1
+        """Global (App Settings) or Map's own fonts; tab / button fonts by stylesheet."""
+        from PyQt6.QtGui import QFont
+        from apps.methods.app_fonts import apply_font, font_qss, global_fonts
+        ms = self.map_settings
+        cur = getattr(getattr(self, 'app_settings', None), 'current_settings', None)
+        if ms.get('use_global_fonts') and isinstance(cur, dict):
+            f = global_fonts(cur)
+            self.title_font, self.panel_font, self.button_font = f['title'], f['panel'], f['button']
+            self.infobar_font, self.tab_font = f['info'], f['tab']
+            apply_font(self, f['body'])
+            self._apply_title_font()
+            self._apply_panel_font()
+            self._apply_infobar_font()
+        else:
+            self.tab_font = QFont(ms.get('tab_font_family'), ms.get('tab_font_size'))
+            f = {'tab': self.tab_font, 'button': self.button_font}
+        self.fonts = f
+        self.setStyleSheet(font_qss(f))
 
     def _apply_button_font(self): #vers 1
         """Apply button font to all buttons"""
@@ -2503,7 +2559,7 @@ class MapSettingsMixin: #vers 1
 
 
 
-    def _apply_theme(self): #vers 8
+    def _apply_theme(self): #vers 9
         """Apply theme — matches COL/TXD pattern exactly.
         Sets QApplication stylesheet globally, clears own override to inherit."""
         try:
@@ -2519,8 +2575,7 @@ class MapSettingsMixin: #vers 1
                 ss = app_settings.get_stylesheet()
                 if ss:
                     QApplication.instance().setStyleSheet(ss)
-            # Clear widget-level override — inherit from QApplication like COL/TXD
-            self.setStyleSheet("")
+            self._apply_map_fonts()                       # own stylesheet: fonts only
         except Exception as e:
             print(f"Theme application error: {e}")
 

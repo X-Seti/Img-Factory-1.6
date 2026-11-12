@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 6
+#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 8
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop model list
 
 """
@@ -36,6 +36,7 @@ Model list, frame tree, selection, sorting, thumbnails and details.
 # _on_dff_geom_selected_tbl
 # _on_frame_tree_clicked
 # _on_model_list_menu
+# _open_list_ifp
 # _populate_collision_list
 # _populate_compact_col_list
 # _populate_dff_detail_table
@@ -669,17 +670,36 @@ class ModelListMixin: #vers 1
         from apps.methods.file_list_filter import apply_file_filter
         apply_file_filter(self)                        # search text + type filter together
 
-    def _on_col_selected(self, item): #vers 6
+    def _open_list_ifp(self, item, src): #vers 1
+        """Files panel IFP: loose path or IMG:entry into the Animation dock."""
+        if isinstance(src, dict) and src.get('kind') == 'file':
+            self._anim_open_ifp(src['path'])
+            return
+        entry = self._model_item_entry(item)
+        img = getattr(self, '_entry_img', {}).get(id(entry)) or getattr(self, 'current_img', None)
+        if isinstance(src, dict) and src.get('img'):
+            img_path = src['img']
+        else:
+            img_path = getattr(img, 'file_path', '') or ''
+        if entry is not None and img_path:
+            self._anim_open_ifp(f"{img_path}:{entry.name}")
+
+    def _on_col_selected(self, item): #vers 8
         """Handle entry selection from left panel — routes by extension."""
         try:
             src = item.data(Qt.ItemDataRole.UserRole)
+            if item.text().lower().endswith('.ifp') and hasattr(self, '_anim_open_ifp'):
+                self._open_list_ifp(item, src)          # Ped Workshop animations
+                return
             if isinstance(src, dict) and src.get('kind') == 'file':
+                self._original_dff_name = ''    # TXD / IDE lookup by this file's name
                 self._open_path(src['path'])    # loose game file
                 return
             entry = self._model_item_entry(item)
             if not entry:
                 return
             name = entry.name.lower()
+            self._original_dff_name = entry.name   # was stuck on the first model opened
             opened = self.__dict__.setdefault('_open_models', {})
             if name.endswith('.dff') and name in opened:          # already open: swap back, no reparse
                 st = opened[name]

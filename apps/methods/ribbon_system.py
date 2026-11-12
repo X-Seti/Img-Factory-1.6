@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ribbon_system.py - Version: 12
+#this belongs in apps/methods/ribbon_system.py - Version: 13
 # X-Seti - September 20 2026 - IMG Factory 1.6 - Shared ribbon (toolbar) system
 
 """ribbon_system.py - Ribbon toolbars for QWidget-based workshops (same
@@ -140,9 +140,9 @@ class RibbonMixin(InputBindingsMixin):
         tb.addWidget(lbl)
         return lbl
 
-    def ribbon_context_menu(self, toolbar, pos): #vers 5
+    def ribbon_context_menu(self, toolbar, pos): #vers 6
         """Standard ribbon menu (standard_toolbar_menu) plus Dock All Ribbons."""
-        menu = standard_toolbar_menu(self, self._ribbon_mw.findChildren(QToolBar), self._icon_scale_value())
+        menu = standard_toolbar_menu(self, self._ribbon_mw.findChildren(QToolBar), self._icon_scale_value(), toolbar)
         menu.addAction("Dock All Ribbons", self._ribbon_dock_all)
         menu.exec(toolbar.mapToGlobal(pos))
 

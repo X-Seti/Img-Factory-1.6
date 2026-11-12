@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 43
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 45
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -1520,8 +1520,9 @@ _GAME_WORLD_BOUNDS = {
 }
 
 
-class RadarWorkshop(TitlebarMixin, RibbonIconsMixin, RibbonMixin, DockPanelsMixin, ToolMenuMixin, QWidget): #vers 4
+class RadarWorkshop(TitlebarMixin, RibbonIconsMixin, RibbonMixin, DockPanelsMixin, ToolMenuMixin, QWidget): #vers 5
     _ribbon_name = "radar_workshop"
+    TITLEBAR_DOCKED_VISIBLE = False   # docked: IMG Factory tab bar and Menu are used
     _OUTER_LAYOUT_VERSION = 1      # Tiles dock
     # Bump when the set of ribbons changes (1 = File/Edit/View/Draw ribbons)
     _RIBBON_LAYOUT_VERSION = 4
@@ -4200,12 +4201,12 @@ class RadarWorkshop(TitlebarMixin, RibbonIconsMixin, RibbonMixin, DockPanelsMixi
 
 
     # - Theme & icon helpers (template pattern)
-    def _apply_theme(self): #vers 1
+    def _apply_theme(self): #vers 2
         try:
             if self.app_settings:
                 self.setStyleSheet(self.app_settings.get_stylesheet())
             else:
-                self.setStyleSheet("QWidget{background:palette(base);color:palette(mid);} QPushButton{background:palette(button);border:1px solid palette(mid);color:palette(mid);padding:2px 4px;} QPushButton:hover{background:#4a4d50;}")
+                self.setStyleSheet("QWidget{background:palette(base);color:palette(mid);} QPushButton{background:palette(button);border:1px solid palette(mid);color:palette(mid);padding:2px 4px;} QPushButton:hover{background:palette(highlight);}")
         except Exception as e:
             print(f"[{App_name}] Theme error: {e}")
 

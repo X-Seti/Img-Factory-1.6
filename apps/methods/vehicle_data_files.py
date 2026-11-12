@@ -1,4 +1,4 @@
-#this belongs in apps/methods/vehicle_data_files.py - Version: 1
+#this belongs in apps/methods/vehicle_data_files.py - Version: 2
 # X-Seti - September 21 2026 - IMG Factory 1.6 - carcols.dat / carmods.dat file models
 
 """vehicle_data_files.py - carcols.dat and carmods.dat reader/writer that keep
@@ -65,9 +65,10 @@ class CarColour:
 
 
 class CarColEntry:
-    def __init__(self, name: str = "", palettes: Optional[List[Tuple[int, int]]] = None, raw_index=None):
+    def __init__(self, name: str = "", palettes: Optional[List[tuple]] = None, raw_index=None, width: int = 2):
         self.name = name
-        self.palettes: List[Tuple[int, int]] = list(palettes or [])
+        self.width = width                               # colours per set: car 2, car3 3, car4 4
+        self.palettes: List[tuple] = list(palettes or [])
         self.raw_index = raw_index
         self.orig = (name, tuple(self.palettes)) if raw_index is not None else None
 
@@ -108,6 +109,7 @@ class _LineFile:
 class CarColsFile(_LineFile):
     """Compatible with the Vehicle Workshop tab: .colours, .vehicles, .header_lines, .game."""
     _KNOWN = ("col", "car", "car3", "car4")
+    _WIDTH = {"car": 2, "car3": 3, "car4": 4}            # colours per set in each section
 
     def __init__(self, colour_cls=CarColour):
         self._colour_cls = colour_cls
@@ -160,12 +162,13 @@ class CarColsFile(_LineFile):
                     rgb = (int(n[0]), int(n[1]), int(n[2]))
                     self.colours.append(self._colour_cls(*rgb))
                     self._col_src.append((i, rgb))
-            elif sec == "car":
+            elif sec in self._WIDTH:
+                w = self._WIDTH[sec]
                 parts = [p.strip() for p in s.split(',')]
                 nums = [int(x) for x in parts[1:] if re.fullmatch(r'-?\d+', x)]
-                pal = [(nums[k], nums[k + 1]) for k in range(0, len(nums) - 1, 2)]
+                pal = [tuple(nums[k:k + w]) for k in range(0, len(nums) - w + 1, w)]
                 if parts and parts[0] and pal:
-                    self.vehicles.append(CarColEntry(parts[0], pal, i))
+                    self.vehicles.append(CarColEntry(parts[0], pal, i, w))
                     self._veh_lines.add(i)
         self._n_veh0 = len(self.vehicles)
         self.header_lines = self._lines[:first] if first else []
@@ -173,7 +176,7 @@ class CarColsFile(_LineFile):
 
     @staticmethod
     def _car_line(v: CarColEntry, comment: str = "") -> str:
-        return f"{v.name}, " + ", ".join(f"{p},{s}" for p, s in v.palettes) + (("\t" + comment) if comment else "")
+        return f"{v.name}, " + ", ".join(",".join(str(c) for c in st) for st in v.palettes) + (("\t" + comment) if comment else "")
 
     def to_text(self) -> str:
         n_keep = min(len(self._col_src), len(self.colours))
@@ -181,10 +184,10 @@ class CarColsFile(_LineFile):
         dead = {self._col_src[k][0] for k in range(n_keep, len(self._col_src))}
         rgb0 = dict(self._col_src)
         alive = {v.raw_index: v for v in self.vehicles if v.raw_index is not None}
-        new_veh = [v for v in self.vehicles if v.raw_index is None]
+        new_veh = {w: [v for v in self.vehicles if v.raw_index is None and v.width == w] for w in (2, 3, 4)}
         new_cols = list(self.colours[len(self._col_src):])
         out, sec = [], None
-        last_col = last_car = -1
+        last_col, last_car = -1, {}                     # last row written per car section
         for i, line in enumerate(self._lines):
             body, cm = _split_comment(line)
             low = body.strip().lower()
@@ -197,10 +200,11 @@ class CarColsFile(_LineFile):
                     at = last_col + 1 if last_col >= 0 else len(out)
                     out[at:at] = [f"{c.r},{c.g},{c.b}" for c in new_cols]
                     new_cols = []
-                if sec == "car" and new_veh:
-                    at = last_car + 1 if last_car >= 0 else len(out)
-                    out[at:at] = [self._car_line(v) for v in new_veh]
-                    new_veh = []
+                w = self._WIDTH.get(sec)
+                if w and new_veh[w]:
+                    at = last_car[sec] + 1 if sec in last_car else len(out)
+                    out[at:at] = [self._car_line(v) for v in new_veh[w]]
+                    new_veh[w] = []
                 sec = None
                 out.append(line)
                 continue
@@ -218,7 +222,7 @@ class CarColsFile(_LineFile):
                     out.append("".join(toks) + cm)
                 last_col = len(out) - 1
                 continue
-            if sec == "car" and i in self._veh_lines:
+            if sec in self._WIDTH and i in self._veh_lines:
                 v = alive.get(i)
                 if v is None:
                     continue                                   # deleted vehicle
@@ -232,7 +236,7 @@ class CarColsFile(_LineFile):
                     out.append("".join(toks) + cm)
                 else:
                     out.append(self._car_line(v, cm))
-                last_car = len(out) - 1
+                last_car[sec] = len(out) - 1
                 continue
             out.append(line)
         return self._eol.join(out)

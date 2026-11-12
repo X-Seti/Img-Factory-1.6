@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ped_files.py - Version: 7
+#this belongs in apps/methods/ped_files.py - Version: 8
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped data files (III / VC / SA / IV)
 
 """
@@ -16,9 +16,12 @@ Rows are edited in place; every other line is written back unchanged.
 # iv_default_picks
 # iv_ped_model
 # iv_player_model
+# ped_data_columns
 # ped_data_files
+# pedstat_flag_text
 # read_ped_ide
 # read_ped_variations
+# split_data_comment
 # write_ped_ide
 
 import os
@@ -35,6 +38,42 @@ PED_COLUMNS = {
              'Visemes', 'Flags', 'Strafe clips', 'Melee clips', 'Radio 1', 'Radio 2', 'Ped type',
              'Voice 1', 'Voice 2'],
 }
+
+
+PEDSTATS_COLUMNS = ['Stat type', 'Flee dist', 'Heading rate', 'Fear', 'Temper', 'Lawfulness',
+                    'Sexiness', 'Attack', 'Defend', 'Flags']
+PEDSTAT_FLAGS = ('PunchOnly', 'CanKneeHead', 'CanKick', 'CanRoundHse', 'NoDive',
+                 '1HitKnockdown', 'ShoppingBags', 'GunPanic')
+
+
+def ped_data_columns(name: str, width: int) -> List[str]: #vers 1
+    """Column headers for a ped data file table (pedstats, pedgrp), else numbers."""
+    n = name.lower()
+    if n == 'pedstats.dat':
+        cols = list(PEDSTATS_COLUMNS)
+    elif n == 'pedgrp.dat':
+        cols = [f"Ped {i + 1}" for i in range(width)]
+    else:
+        cols = []
+    return cols[:width] + [str(i + 1) for i in range(len(cols), width)]
+
+
+def pedstat_flag_text(value: str) -> str: #vers 1
+    """pedstats flag bits as names ('' when not a number)."""
+    try:
+        v = int(value)
+    except ValueError:
+        return ''
+    return ', '.join(f for i, f in enumerate(PEDSTAT_FLAGS) if v & (1 << i)) or 'none'
+
+
+def split_data_comment(line: str) -> Tuple[str, str]: #vers 1
+    """(body, comment incl. its '#' or '//' marker) of a data file line."""
+    cut = [i for i in (line.find('#'), line.find('//')) if i >= 0]
+    if not cut:
+        return line, ''
+    i = min(cut)
+    return line[:i], line[i:]
 
 
 def _resolve(root: str, rel: str) -> Optional[str]: #vers 1

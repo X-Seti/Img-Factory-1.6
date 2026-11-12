@@ -1,4 +1,4 @@
-#this belongs in apps/methods/file_list_filter.py - Version: 1
+#this belongs in apps/methods/file_list_filter.py - Version: 3
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Files pane type filter
 
 """
@@ -17,7 +17,7 @@ import os
 
 from PyQt6.QtWidgets import QComboBox
 
-_LABELS = {'.dff': 'Models', '.txd': 'TXD', '.col': 'COL'}
+_LABELS = {'.dff': 'Models', '.txd': 'TXD', '.col': 'COL', '.ifp': 'IFP'}
 
 
 def file_type_counts(lw) -> dict: #vers 1
@@ -35,23 +35,27 @@ def file_types_header(counts: dict) -> str: #vers 1
     return "  ".join(parts) if parts else "No files loaded"
 
 
-def make_type_filter(ws) -> QComboBox: #vers 1
+def make_type_filter(ws) -> QComboBox: #vers 2
     """Type filter combo for ws.col_list_widget; hidden until two types are present."""
     combo = QComboBox()
     combo.setToolTip("Show only this file type")
     combo.setFixedHeight(18)
+    combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    combo.setMinimumContentsLength(4)                    # can narrow with the panel
     combo.setVisible(False)
     combo.currentIndexChanged.connect(lambda _i, w=ws: apply_file_filter(w))
     ws._file_type_combo = combo
     return combo
 
 
-def refresh_type_filter(ws): #vers 1
+def refresh_type_filter(ws): #vers 2
     """After the list is filled: header counts and the combo's available types."""
     lw = getattr(ws, 'col_list_widget', None)
     if lw is None:
         return
     counts = file_type_counts(lw)
+    for ext in getattr(ws, '_TYPE_FILTER_ALWAYS', ()):     # listed even when none
+        counts.setdefault(ext, 0)
     hdr = getattr(ws, '_left_panel_header', None)
     if hdr is not None:
         hdr.setText(file_types_header(counts))

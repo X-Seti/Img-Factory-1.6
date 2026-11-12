@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 6
+#this belongs in apps/components/DP5_Workshop/depends/brushcolors_widget.py - Version: 7
 # X-Seti - Jul 2026 - DP5 Workshop - Brush & Colors dock widget
 """
 Self-contained Brush & Colors dock widget: dock container, collapsible
@@ -22,7 +22,7 @@ since dp5_workshop.py imports this module too.
 
 from PyQt6.QtWidgets import (
     QDockWidget, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
-    QLabel, QSlider, QCheckBox, QPushButton, QToolButton, QColorDialog,
+    QLabel, QSlider, QCheckBox, QPushButton, QToolButton, QColorDialog, QSpinBox,
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor
@@ -61,7 +61,7 @@ def _apply_panel_stylesheet(owner, panel): #vers 2
         panel.setStyleSheet(ss)
 
 
-def _create_content_panel(owner): #vers 1
+def _create_content_panel(owner): #vers 2
     """Brush & Colors dock content - brush size, snap/grid toggles,
     FG/BG swatch + brush thumbnail, zoom in/out, opacity, colour
     history."""
@@ -104,6 +104,12 @@ def _create_content_panel(owner): #vers 1
     owner._snap_chk.setChecked(False)
     owner._snap_chk.setToolTip("Snap drawing to pixel grid")
     owner._snap_chk.toggled.connect(owner._set_snap_grid)
+    owner._snap_spin = QSpinBox()
+    owner._snap_spin.setRange(1, 256)
+    owner._snap_spin.setSuffix(" px")
+    owner._snap_spin.setValue(owner.dp5_settings.get('snap_size'))
+    owner._snap_spin.setToolTip("Snap step; the cell grid size is used when the cell grid is on")
+    owner._snap_spin.valueChanged.connect(owner._set_snap_size)
     owner._grid_chk2 = QCheckBox("Show grid")
     owner._grid_chk2.setFont(owner.panel_font)
     owner._grid_chk2.setChecked(owner.dp5_settings.get('show_pixel_grid'))
@@ -112,6 +118,7 @@ def _create_content_panel(owner): #vers 1
     owner._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
     owner._zoom_lbl.setFont(owner.panel_font)
     snap_row.addWidget(owner._snap_chk)
+    snap_row.addWidget(owner._snap_spin)
     snap_row.addWidget(owner._grid_chk2)
     snap_row.addWidget(owner._zoom_lbl)
     layout.addLayout(snap_row)

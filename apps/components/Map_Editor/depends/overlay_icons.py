@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 7
+#this belongs in apps/components/Map_Editor/depends/overlay_icons.py - Version: 8
 # X-Seti - Aug 2026 - IMG Factory 1.6 - Detailed colour SVG icons for Map Workshop's IPL Controls overlay buttons
 
 """
@@ -39,6 +39,7 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 # OverlayIcons.zon_icon
 # OverlayIcons.occlusion_icon
 # OverlayIcons.grge_icon
+# OverlayIcons.grid_icon
 # OverlayIcons.convert_icon
 # OverlayIcons.sa_nodes_icon
 # OverlayIcons.auzo_icon
@@ -155,6 +156,19 @@ class OverlayIcons:
       <line x1="19.3" y1="15.3" x2="20.3" y2="16.3"/>
       <line x1="15.5" y1="16.7" x2="15.5" y2="18.2"/>
     </g>
+  </g>
+</svg>''', size, color="#000000")
+
+    @staticmethod
+    def grid_icon(size: int = 24) -> QIcon: #vers 1
+        """Grid overlay toggle - a ground grid in perspective."""
+        return SVGIconFactory._create_icon('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M6 6 H18 L22 19 H2 Z" fill="#1d2a3a" stroke="#5fb4ff" stroke-width="1.2" stroke-linejoin="round"/>
+  <g stroke="#5fb4ff" stroke-width="0.9">
+    <line x1="10" y1="6" x2="8.7" y2="19"/>
+    <line x1="14" y1="6" x2="15.3" y2="19"/>
+    <line x1="4.9" y1="10" x2="19.1" y2="10"/>
+    <line x1="3.5" y1="14.3" x2="20.5" y2="14.3"/>
   </g>
 </svg>''', size, color="#000000")
 

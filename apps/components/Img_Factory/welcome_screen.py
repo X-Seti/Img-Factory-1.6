@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 31
+# apps/components/Img_Factory/welcome_screen.py — Version 33
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -392,7 +392,7 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 14
+    def _build_quickstart_tab(self): #vers 15
         from PyQt6.QtCore import Qt as _Qt
         # Scroll area — vertical scrollbar always visible (ready for future cards)
         scroll = QScrollArea()
@@ -446,7 +446,7 @@ class WelcomeScreen(QWidget):
              "Inspect and edit collision data — spheres, boxes and mesh faces. "
              "Paint surface materials, export as OBJ or COL.",
              self.open_col_workshop, 'Col_Editor'),
-            (_SVG.mesh_icon(36, '#4a9fd4'), "Model Workshop",
+            (_SVG.model_workshop_icon(36, '#4a9fd4'), "Model Workshop",
              "View DFF geometry and frame hierarchy. Load the linked TXD automatically "
              "via the DAT Browser IDE entry. Textured 3D preview.",
              self.open_model_workshop, 'Model_Editor'),
@@ -513,14 +513,10 @@ class WelcomeScreen(QWidget):
         g3 = QGridLayout(); g3.setSpacing(12)
         g3.setColumnStretch(0, 1); g3.setColumnStretch(1, 1); g3.setColumnStretch(2, 1)
         tools = [
-            (_TI.get_ide_editor_icon(36, _ic), "IDE Editor",
-             "Edit object definitions — model names, collision flags, draw "
-             "distances and 2dfx data for GTA III, VC and SA.",
-             self.open_ide_editor, 'Ide_Editor'),
-            (_TI.get_ipl_editor_icon(36), "IPL Editor",
-             "Edit item placement — object positions, rotations and interior "
-             "links placed in the game world.",
-             self.open_ipl_editor, 'Ipl_Editor'),
+            (_TI.get_data_workshop_icon(36), "Data Workshop",
+             "Edit IDE object definitions, IPL placements and the game .dat — "
+             "model names, flags, positions, rotations and interiors.",
+             self.open_ipl_editor, 'Data_Workshop'),
             (_SVG.handling_app_icon(36), "Handling Editor",
              "Edit vehicle physics — handling.cfg mass, drag, suspension, "
              "traction and gear ratios.",

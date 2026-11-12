@@ -1,4 +1,4 @@
-#this belongs in apps/methods/sa_path_edit.py - Version: 1
+#this belongs in apps/methods/sa_path_edit.py - Version: 2
 # X-Seti - October 29 2026 - IMG Factory 1.6 - SA path node editing
 
 """
@@ -22,6 +22,7 @@ when nothing changed). areas = {area_id: SAPathFile}.
 # sa_link
 # sa_linked
 # sa_move_navi
+# sa_shift_roadblocks
 # sa_unlink
 
 import math
@@ -203,7 +204,7 @@ def sa_unlink(areas, a, b) -> bool: #vers 1
     return True
 
 
-def sa_add_node(areas, src, x, y, z): #vers 1
+def sa_add_node(areas, src, x, y, z, roadblocks=None): #vers 2
     """New node like src=(area, id) at x, y, z (its own area), linked to src. Returns (area, id) or None."""
     s = _node_at(areas, *src)
     area = sa_area_for(x, y)
@@ -220,6 +221,7 @@ def sa_add_node(areas, src, x, y, z): #vers 1
     else:
         nid = len(pf.vehicle_nodes)
         _shift_refs(areas, area, nid, 1)              # ped nodes move up one
+        sa_shift_roadblocks(roadblocks, area, nid, 1)
         pf.vehicle_nodes.append(n)
         per.insert(nid, [])
     _put_links(pf, per)
@@ -229,7 +231,7 @@ def sa_add_node(areas, src, x, y, z): #vers 1
     return area, nid
 
 
-def sa_delete_node(areas, node) -> bool: #vers 1
+def sa_delete_node(areas, node, roadblocks=None) -> bool: #vers 2
     """Delete node=(area, id) with all its links; later nodes shift down."""
     area, nid = node
     n = _node_at(areas, area, nid)
@@ -243,7 +245,17 @@ def sa_delete_node(areas, node) -> bool: #vers 1
     (pf.ped_nodes if n.is_ped else pf.vehicle_nodes).remove(n)
     _put_links(pf, per)
     _shift_refs(areas, area, nid + 1, -1)
+    if roadblocks is not None:                     # roadblock on the deleted node goes too
+        roadblocks[:] = [rb for rb in roadblocks if (rb.area_id, rb.node_id) != (area, nid)]
+    sa_shift_roadblocks(roadblocks, area, nid + 1, -1)
     return True
+
+
+def sa_shift_roadblocks(roadblocks, area, start, delta): #vers 1
+    """ROADBLOX.DAT entries on area's nodes at index >= start move by delta."""
+    for rb in roadblocks or []:
+        if rb.area_id == area and rb.node_id >= start:
+            rb.node_id += delta
 
 
 def sa_move_navi(areas, node, old_xy): #vers 1

@@ -1,4 +1,4 @@
-#this belongs in apps/gui/tool_menu_mixin.py - Version: 2
+#this belongs in apps/gui/tool_menu_mixin.py - Version: 3
 # X-Seti - Apr11 2026 - IMG Factory 1.6 - Shared tool menu mixin
 """
 ToolMenuMixin — shared menu orientation + titlebar button for dockable workshops.
@@ -6,7 +6,6 @@ ToolMenuMixin — shared menu orientation + titlebar button for dockable worksho
 Any tool that docks into imgfactory inherits:
   - Topbar mode:   internal QMenuBar shown inside the tool widget
   - Dropdown mode: menus injected into imgfactory's _system_menu_bar
-  - Titlebar btn:  [COL]/[DFF]/[TXD]/[DP5] button in imgfactory titlebar
 
 Each tool must implement:
     get_menu_title()            -> short label e.g. 'COL', 'DFF', 'TXD', 'DP5'
@@ -23,52 +22,15 @@ class ToolMenuMixin:
     #    Subclass must override these                                       
 
     def get_menu_title(self) -> str: #vers 1
-        """Short label shown in imgfactory titlebar button, e.g. 'COL'."""
+        """Short label of the tool's submenu in imgfactory's Menu, e.g. 'COL'."""
         return "Tool"
 
     def _build_menus_into_qmenu(self, parent_menu): #vers 1
         """Populate parent_menu (QMenu) with all tool actions.
-        Called by imgfactory when injecting into dropdown or titlebar popup.
+        Called by imgfactory when injecting into its Menu.
         Must be overridden by each tool.
         """
         pass
-
-    #    Titlebar button registration                                       
-
-    def _register_titlebar_tool_btn(self): #vers 1
-        """Register this tool's short label + popup into the imgfactory
-        titlebar [Tool] button (between Menu and Settings).
-        Called automatically by _update_tool_menu_for_tab when docked.
-        """
-        mw = getattr(self, 'main_window', None)
-        if not mw:
-            return
-        gl = getattr(mw, 'gui_layout', None)
-        if not gl or not hasattr(gl, 'register_tool_menu_btn'):
-            return
-
-        label = self.get_menu_title()
-
-        def _popup():
-            from PyQt6.QtWidgets import QMenu
-            popup = QMenu()
-            self._build_menus_into_qmenu(popup)
-            btn = getattr(gl, 'tool_menu_btn', None)
-            if btn:
-                popup.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-            else:
-                popup.exec()
-
-        gl.register_tool_menu_btn(label, _popup)
-
-    def _unregister_titlebar_tool_btn(self): #vers 1
-        """Remove this tool's titlebar button entry."""
-        mw = getattr(self, 'main_window', None)
-        if not mw:
-            return
-        gl = getattr(mw, 'gui_layout', None)
-        if gl and hasattr(gl, 'unregister_tool_menu_btn'):
-            gl.unregister_tool_menu_btn()
 
     #    Internal helpers                                                   
 

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 5
+#this belongs in apps/components/Map_Editor/depends/map_overlay_func.py - Version: 6
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop overlays
 
 """
@@ -26,6 +26,7 @@ IPL controls dock, overlays, radar tiles, prelight, render filters for ModelWork
 # _is_lod_by_draw_distance
 # _is_lod_named
 # _move_overlay_buttons_to_ribbon
+# _on_grid_toggled
 # _on_2dfx_master_toggled
 # _on_box_resized
 # _on_col_render_option_toggled
@@ -694,7 +695,7 @@ class MapOverlayMixin: #vers 1
             QMessageBox.information(self, "Bake Prelight", msg + "\n\n" + "\n".join(notes[:30]))
         self._set_status(msg)
 
-    def _create_ipl_controls_dock(self): #vers 12
+    def _create_ipl_controls_dock(self): #vers 13
         """Dedicated dock for IPL viewing/filtering controls."""
         panel = QWidget()
         from apps.components.Map_Editor.depends.overlay_icons import OverlayIcons
@@ -1028,8 +1029,15 @@ class MapOverlayMixin: #vers 1
         tcyc_chk.middle_clicked.connect(lambda: self._show_alt_timecyc_menu(tcyc_chk))
         self._tcyc_chk = tcyc_chk
 
+        grid_chk = _MapOverlayToggleButton("Grid", supports_edit=False, icon=OverlayIcons.grid_icon(24))
+        grid_chk.setToolTip("Show / hide the reference grid in the 3D view.")
+        grid_chk.set_shown(bool(getattr(getattr(self, 'preview_widget', None), '_show_grid', True)), emit=False)
+        grid_chk.show_toggled.connect(self._on_grid_toggled)
+        self._grid_chk = grid_chk
+
         opts_row2.addWidget(show_tobj_chk)
         opts_row2.addWidget(tcyc_chk)
+        opts_row2.addWidget(grid_chk)
         opts_row2.addWidget(dfx_chk)
         # time_chk disconnected too (Aug 20 2026,  "[time]
         # button is still on the ipl controls, its not needed there as
@@ -1213,7 +1221,7 @@ class MapOverlayMixin: #vers 1
         # button in this dock, so the toggle can apply to all of them
         # at once rather than needing a separate call per button.
         self._overlay_toggle_buttons = [
-            dfx_chk, show_tobj_chk, tcyc_chk, show_paths_btn, show_tracks_btn,
+            dfx_chk, show_tobj_chk, tcyc_chk, grid_chk, show_paths_btn, show_tracks_btn,
             show_cull_btn, show_zone_btn, show_occl_btn, show_grge_btn, show_sa_nodes_btn,
             show_auzo_btn, show_water_btn, radar_gen_btn, interior_btn,
         ]
@@ -1227,6 +1235,12 @@ class MapOverlayMixin: #vers 1
                         QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self._ipl_controls_dock = dock
         return dock
+
+    def _on_grid_toggled(self, on: bool): #vers 1
+        """Grid ribbon / IPL Controls button: viewport grid on or off."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp is not None and hasattr(vp, 'set_show_grid'):
+            vp.set_show_grid(on)
 
     def _get_txd_textures(self, txd_name): #vers 5
         """Fetch any named TXD's textures from the game's indexed IMG

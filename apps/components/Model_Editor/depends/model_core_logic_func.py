@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 10
+#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 11
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop file logic
 
 """
@@ -1705,7 +1705,7 @@ class ModelCoreLogicMixin: #vers 1
             QMessageBox.critical(self, "Error", f"Failed to open IMG:\n{str(e)}")
 
 
-    def load_from_img_archive(self, img_path): #vers 5
+    def load_from_img_archive(self, img_path): #vers 6
         """Load IMG archive — populates left panel with all DFF/COL/TXD entries."""
         try:
             from apps.methods.img_core_classes import IMGFile
@@ -1719,7 +1719,7 @@ class ModelCoreLogicMixin: #vers 1
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Model Workshop: scanning {img_name}…")
 
-            model_exts = ('.dff', '.col', '.txd')
+            model_exts = self._LIST_EXTS                 # Ped adds .ifp
             model_entries = [e for e in img.entries
                              if getattr(e, 'name', '').lower().endswith(model_exts)]
 
@@ -1738,6 +1738,8 @@ class ModelCoreLogicMixin: #vers 1
                         item.setForeground(QColor('#ef5350'))
                     elif ext == '.txd':
                         item.setForeground(QColor('#ffa726'))
+                    elif ext == '.ifp':
+                        item.setForeground(QColor('#ba68c8'))
                     lw.addItem(item)
 
                 # Update header counts
@@ -1793,7 +1795,7 @@ class ModelCoreLogicMixin: #vers 1
             QMessageBox.critical(self, "Error", f"Failed to analyze file:\n{str(e)}")
 
 
-    def _populate_left_panel_from_img(self, img): #vers 7
+    def _populate_left_panel_from_img(self, img): #vers 8
         """Populate the left panel list from an already-open IMGFile object.
         Also stores img as self.current_img so _extract_col_from_img can read entries."""
         lw = getattr(self, 'col_list_widget', None)
@@ -1808,7 +1810,7 @@ class ModelCoreLogicMixin: #vers 1
         self._entry_img = {}                    # entry id -> source IMG (multi-IMG panel)
 
         lw.clear()
-        model_exts = ('.dff', '.col', '.txd')
+        model_exts = self._LIST_EXTS                 # Ped adds .ifp
         n_dff = n_txd = n_col = 0
         from PyQt6.QtGui import QColor
         for entry in getattr(img, 'entries', []):
@@ -1824,6 +1826,8 @@ class ModelCoreLogicMixin: #vers 1
                 item.setForeground(QColor('#ef5350')); n_col += 1
             elif ext == '.txd':
                 item.setForeground(QColor('#ffa726')); n_txd += 1
+            elif ext == '.ifp':
+                item.setForeground(QColor('#ba68c8'))
             lw.addItem(item)
 
         from apps.methods.file_list_filter import refresh_type_filter
@@ -1847,7 +1851,7 @@ class ModelCoreLogicMixin: #vers 1
             out.insert(0, ci)
         return out
 
-    def _populate_left_panel_from_open_imgs(self): #vers 3
+    def _populate_left_panel_from_open_imgs(self): #vers 4
         """Files panel: every game DFF/TXD/COL when a game folder is set, else open IMG tabs."""
         mw = self.main_window
         root = getattr(mw, 'game_root', '') if mw else ''
@@ -1863,14 +1867,14 @@ class ModelCoreLogicMixin: #vers 1
         if len(imgs) == 1:
             return
         from PyQt6.QtGui import QColor
-        colours = {'.dff': '#4db6ac', '.col': '#ef5350', '.txd': '#ffa726'}
-        counts = {'.dff': 0, '.txd': 0, '.col': 0}
+        colours = {'.dff': '#4db6ac', '.col': '#ef5350', '.txd': '#ffa726', '.ifp': '#ba68c8'}
+        counts = dict.fromkeys(self._LIST_EXTS, 0)
         lw.clear()
         for img in imgs:
             arc = os.path.basename(getattr(img, 'file_path', '') or '')
             for entry in getattr(img, 'entries', []):
                 ext = os.path.splitext(getattr(entry, 'name', ''))[1].lower()
-                if ext not in colours:
+                if ext not in counts:
                     continue
                 item = QListWidgetItem(entry.name)
                 item.setData(Qt.ItemDataRole.UserRole, entry)
@@ -1890,11 +1894,11 @@ class ModelCoreLogicMixin: #vers 1
         if tuple(id(i) for i in self._open_imgs()) != self._panel_img_ids:
             self._populate_left_panel_from_open_imgs()
 
-    def _load_game_model_list(self, root, rescan=True): #vers 2
+    def _load_game_model_list(self, root, rescan=True): #vers 3
         """List every DFF/TXD/COL in the game: loose files and IMG entries."""
         from PyQt6.QtGui import QColor
         from apps.methods.game_file_list import fill_game_list, game_list_excludes, scan_game_files
-        exts = ('.dff', '.txd', '.col')
+        exts = self._LIST_EXTS
         if rescan or getattr(self, '_game_model_items', None) is None or self._game_model_root != root:
             self._game_model_items = scan_game_files(self, root, exts)
         self._game_model_root = root
@@ -1903,7 +1907,7 @@ class ModelCoreLogicMixin: #vers 1
         shown, hidden = fill_game_list(lw, self._game_model_items,
                                        game_list_excludes(self._ribbon_config_path()),
                                        getattr(self, '_game_list_show_excluded', False))
-        colours = {'.dff': '#4db6ac', '.col': '#ef5350', '.txd': '#ffa726'}
+        colours = {'.dff': '#4db6ac', '.col': '#ef5350', '.txd': '#ffa726', '.ifp': '#ba68c8'}
         counts = dict.fromkeys(exts, 0)
         for i in range(lw.count()):
             it = lw.item(i)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 225
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 228
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -114,8 +114,9 @@ from apps.components.Model_Editor.depends.model_list_func import _DFFGeometryAda
 
 
 class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, ModelListMixin, ModelViewportMixin, ModelEditMixin, ModelTextureMixin,
-                    ModelSettingsMixin, DocTabsMixin, DockPanelsMixin, GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 8
+                    ModelSettingsMixin, DocTabsMixin, DockPanelsMixin, GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 9
     """Model Workshop - Main window"""
+    _LIST_EXTS = ('.dff', '.txd', '.col')     # Files panel types
 
     # - ToolMenuMixin implementation
 
@@ -162,15 +163,17 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
     _RIBBON_LAYOUT_VERSION = 4
 
 
-    def __init__(self, parent=None, main_window=None): #vers 12
+    def __init__(self, parent=None, main_window=None): #vers 15
         """initialize_features"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
 
         super().__init__(parent)
+        from apps.methods.edge_cursor import install_edge_cursor_reset
+        install_edge_cursor_reset()                      # resize arrow never sticks
         self.setWindowTitle(App_name)
         try:
-            self.setWindowIcon(SVGIconFactory.mesh_icon(32, '#4a9fd4'))
+            self.setWindowIcon(SVGIconFactory.model_workshop_icon(32, '#4a9fd4'))
         except Exception:
             pass
         self.icon_factory = SVGIconFactory()
@@ -294,7 +297,7 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         # Apply theme ONCE at the end
         self._apply_theme()
         from apps.methods.app_fonts import apply_font
-        apply_font(self, default_font)                   # docks built by setup_ui
+        apply_font(self, getattr(self, 'fonts', {}).get('body', default_font))   # docks built by setup_ui
 
 
     def setup_ui(self): #vers 19

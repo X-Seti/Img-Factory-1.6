@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 108
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 109
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -6923,14 +6923,13 @@ def get_dp5_panel_icon(size: int = 24, color: str = None, bg_color: str = None) 
     </svg>''', size, color, bg_color)
 
 
-def get_ipl_editor_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """IPL Editor — placement map with pin"""
+def get_data_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Data Workshop - hexagon badge, code brackets, centre dot"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
-        <path d="M3 9h18M9 3v18" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.5"/>
-        <path d="M15 7 Q15 10 12 13 Q9 10 9 7 Q9 4.5 12 4.5 Q15 4.5 15 7Z"
-              stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
-        <circle cx="12" cy="7" r="1.2" fill="currentColor"/>
+        <path d="M12 2 L20.5 6.5 V17.5 L12 22 L3.5 17.5 V6.5 Z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
+        <path d="M9.3 9 L7 12 L9.3 15" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14.7 9 L17 12 L14.7 15" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="12" cy="12" r="1.3" fill="currentColor"/>
     </svg>''', size, color, bg_color)
 
 def get_paths_map_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
@@ -7788,21 +7787,15 @@ def grid_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
     </svg>''', size, color)
 
 
-def model_workshop_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
-    """Model Workshop — isometric cube wireframe with vertex dots."""
+def model_workshop_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 2
+    """Model Workshop - wireframe M: front face, depth edges, vertex dots."""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polyline points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5 12,3"
-                  stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
-        <line x1="12" y1="3"   x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
-        <line x1="4"  y1="7.5" x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
-        <line x1="20" y1="7.5" x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1"/>
-        <circle cx="12" cy="3"    r="1.5" fill="currentColor"/>
-        <circle cx="20" cy="7.5"  r="1.5" fill="currentColor"/>
-        <circle cx="20" cy="16.5" r="1.5" fill="currentColor"/>
-        <circle cx="12" cy="21"   r="1.5" fill="currentColor"/>
-        <circle cx="4"  cy="16.5" r="1.5" fill="currentColor"/>
-        <circle cx="4"  cy="7.5"  r="1.5" fill="currentColor"/>
-        <circle cx="12" cy="12"   r="1.5" fill="currentColor"/>
+        <g stroke="currentColor" stroke-width="1" fill="none" stroke-dasharray="1.5,1.2" opacity="0.75">
+            <polyline points="9,17 9,3 15,11 21,3 21,17"/><line x1="3" y1="21" x2="9" y2="17"/><line x1="3" y1="7" x2="9" y2="3"/><line x1="9" y1="15" x2="15" y2="11"/><line x1="15" y1="7" x2="21" y2="3"/><line x1="15" y1="21" x2="21" y2="17"/>
+        </g>
+        <polyline points="3,21 3,7 9,15 15,7 15,21" stroke="currentColor" stroke-width="1.9" fill="none"
+                  stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="3" cy="21" r="1.3" fill="currentColor"/><circle cx="3" cy="7" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="7" r="1.3" fill="currentColor"/><circle cx="15" cy="21" r="1.3" fill="currentColor"/>
     </svg>''', size, color)
 
 

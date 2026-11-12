@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ped_Workshop/ped_workshop.py - Version: 22
+#this belongs in apps/components/Ped_Workshop/ped_workshop.py - Version: 24
 # X-Seti - October 21 2026 - IMG Factory 1.6 - Ped Workshop
 
 """
@@ -54,13 +54,13 @@ from apps.components.Ped_Workshop.depends.ped_skin_func import PedSkinMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 
 App_name = "Ped Workshop"
-GRID_PATTERNS = {'squares': ('lines', "Squares"), 'hex': ('honeycomb', "Hex"),     # key: (viewport type, label)
-                 'solid': ('squares', "Solid"), 'checker': ('checker', "Checkerboard")}
 
 
-class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedAnimLibraryMixin, PedPadMixin, PedSkinMixin, ModelWorkshop): #vers 7
+class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedAnimLibraryMixin, PedPadMixin, PedSkinMixin, ModelWorkshop): #vers 8
     """Model Workshop plus ped data and animation docks."""
     _OUTER_LAYOUT_VERSION = 13           # own dock layout (Peds / Animation / Bones)
+    _LIST_EXTS = ('.dff', '.txd', '.col', '.ifp')   # Files panel adds animations
+    _TYPE_FILTER_ALWAYS = ('.ifp',)                 # IFP always in the type filter
 
     def _ribbon_config_path(self): #vers 1
         """Own ribbon and dock layout file."""
@@ -126,10 +126,10 @@ class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedA
         vp.update()
         self._set_status(f"Textures: {done} scaled to {px} px - Save TXD to keep")
 
-    def _ped_set_grid(self, kind: str, path: str = ''): #vers 2
+    def _ped_set_grid(self, kind: str, path: str = ''): #vers 3
         """Grid style preset or 'custom' (Settings Grid tab); saved in the ped prefs."""
         from PyQt6.QtWidgets import QFileDialog
-        vp = self.preview_widget
+        from apps.methods.grid_style import apply_grid_preset
         if kind == 'custom':
             self._ped_grid_custom(self._ped_grid_cfg())
             self._save_ped_prefs(grid=dict(self._ped_grid_cfg(), kind='custom', path=''))
@@ -140,89 +140,34 @@ class PedWorkshop(PedWardrobeMixin, PedDataMixin, PedIVMixin, PedAnimMixin, PedA
                                                   "Images (*.png *.jpg *.jpeg *.bmp *.tga)")
             if not path:
                 return
-        styles = {'lines': ('lines', (40, 40, 60), (76, 76, 102)),
-                  'holodeck': ('lines', (0, 0, 0), (255, 200, 40)),
-                  'checker': ('checker', (60, 60, 72), (118, 118, 132)),
-                  'honeycomb': ('honeycomb', (40, 40, 60), (76, 76, 102)),
-                  'texture': ('squares', (40, 40, 60), (76, 76, 102)),
-                  'none': ('none', (40, 40, 60), (76, 76, 102))}
-        gtype, fill, line = styles.get(kind, styles['lines'])
-        vp.set_grid_colors(fill, line)
-        vp.set_squares_fill('texture' if kind == 'texture' else 'color', path=path or None, tile_size=2.0)
-        vp.set_squares_fill_alpha(0.12)
-        vp.set_grid_show_lines(True)
-        vp.set_grid_line_size(4)
-        vp.set_grid_type(gtype)
+        cfg = self._ped_grid_cfg()
+        apply_grid_preset(self.preview_widget, kind, path, int(cfg.get('cell', 0)))
         prev = self._load_ped_prefs().get('grid') or {}
-        keep = {k: prev[k] for k in ('pattern', 'fill', 'line', 'width') if k in prev}
+        keep = {k: prev[k] for k in ('pattern', 'fill', 'line', 'width', 'cell') if k in prev}
         self._save_ped_prefs(grid=dict(keep, kind=kind, path=path))   # custom values kept
         self._set_status(f"Grid: {kind}")
 
-    def _ped_grid_cfg(self) -> dict: #vers 1
-        """Saved custom grid: pattern, fill, line colour, width."""
-        cfg = {'pattern': 'squares', 'fill': [40, 40, 60], 'line': [76, 76, 102], 'width': 1}
+    def _ped_grid_cfg(self) -> dict: #vers 2
+        """Saved custom grid: pattern, fill, line colour, width, cell size."""
+        from apps.methods.grid_style import GRID_DEFAULT
+        cfg = dict(GRID_DEFAULT)
         saved = self._load_ped_prefs().get('grid') or {}
         cfg.update({k: saved[k] for k in cfg if k in saved})
         return cfg
 
-    def _ped_grid_custom(self, cfg: dict): #vers 1
-        """Apply custom grid pattern, colours and thickness to the viewport."""
-        vp = self.preview_widget
-        pat = cfg.get('pattern', 'squares')
-        vp.set_grid_colors(tuple(cfg['fill']), tuple(cfg['line']))
-        vp.set_squares_fill('color')
-        vp.set_grid_line_size(int(cfg.get('width', 1)))
-        vp.set_squares_fill_alpha(0.9 if pat == 'solid' else 0.12)
-        vp.set_grid_show_lines(pat != 'solid')
-        vp.set_grid_type(GRID_PATTERNS.get(pat, ('lines', ''))[0])
+    def _ped_grid_custom(self, cfg: dict): #vers 2
+        """Apply custom grid pattern, colours, thickness and cell size."""
+        from apps.methods.grid_style import apply_grid_custom
+        apply_grid_custom(self.preview_widget, cfg)
 
-    def _extra_settings_tabs(self, tabs): #vers 1
-        """Settings Grid tab: pattern, line / fill colour, thickness (live)."""
-        from PyQt6.QtGui import QColor
-        from PyQt6.QtWidgets import QColorDialog, QComboBox, QFormLayout, QPushButton, QSpinBox, QWidget
-        cfg = self._ped_grid_cfg()
-        page = QWidget()
-        form = QFormLayout(page)
-        combo = QComboBox()
-        for key, (_t, label) in GRID_PATTERNS.items():
-            combo.addItem(label, key)
-        combo.setCurrentIndex(max(0, combo.findData(cfg['pattern'])))
-        spin = QSpinBox()
-        spin.setRange(1, 10)
-        spin.setSuffix(" px")
-        spin.setValue(int(cfg['width']))
+    def _extra_settings_tabs(self, tabs): #vers 2
+        """Settings Grid tab (apps/methods/grid_style.py), live."""
+        from apps.methods.grid_style import grid_settings_page
 
-        def apply():
-            cfg['pattern'], cfg['width'] = combo.currentData(), spin.value()
+        def apply(cfg):
             self._ped_grid_custom(cfg)
             self._save_ped_prefs(grid=dict(cfg, kind='custom', path=''))
-
-        def colour_btn(key, title):
-            btn = QPushButton()
-            btn.setToolTip(f"Grid {title.lower()} colour")
-
-            def paint():
-                r, g, b = cfg[key]
-                btn.setText(f"#{r:02X}{g:02X}{b:02X}")
-                btn.setStyleSheet(f"background: rgb({r},{g},{b}); color: {'#000' if r + g + b > 380 else '#FFF'};")
-
-            def pick():
-                c = QColorDialog.getColor(QColor(*cfg[key]), self, f"Grid {title}")
-                if c.isValid():
-                    cfg[key] = [c.red(), c.green(), c.blue()]
-                    paint()
-                    apply()
-            paint()
-            btn.clicked.connect(pick)
-            return btn
-
-        combo.currentIndexChanged.connect(apply)
-        spin.valueChanged.connect(apply)
-        form.addRow("Pattern:", combo)
-        form.addRow("Line colour:", colour_btn('line', "Line"))
-        form.addRow("Fill colour:", colour_btn('fill', "Fill"))
-        form.addRow("Thickness:", spin)
-        tabs.addTab(page, "Grid")
+        tabs.addTab(grid_settings_page(self, self._ped_grid_cfg(), apply), "Grid")
 
     def _titlebar_title(self): #vers 1
         return App_name

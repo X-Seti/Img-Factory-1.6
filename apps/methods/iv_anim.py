@@ -1,4 +1,4 @@
-#this belongs in apps/methods/iv_anim.py - Version: 3
+#this belongs in apps/methods/iv_anim.py - Version: 6
 # X-Seti - October 23 2026 - IMG Factory 1.6 - GTA IV ped skeleton and WAD anims
 
 """
@@ -23,7 +23,9 @@ edited camera tracks written back in place (same layout, re-quantized).
 # cam_view_quat
 # wad_anim_list
 # wad_extra_tracks
+# write_wad_anims
 # write_wad_camera
+# _write_track
 
 import struct
 from typing import List
@@ -131,7 +133,7 @@ def _unpack_wad(data: bytes): #vers 1
     return zlib.decompress(data[12:]), vs
 
 
-def parse_wad(data: bytes, name: str = 'wad') -> IFPFile: #vers 1
+def parse_wad(data: bytes, name: str = 'wad') -> IFPFile: #vers 2
     """GTA IV .wad as an IFPFile (version 'WAD', keys every frame, bone_id = IV bone id)."""
     z, vs = _unpack_wad(data)
     count = struct.unpack_from('<H', z, 0x14)[0]
@@ -169,6 +171,11 @@ def parse_wad(data: bytes, name: str = 'wad') -> IFPFile: #vers 1
                                      tuple(tr[f]) if tr is not None else None))
             anim.bones.append(b)
         out.anims.append(anim)
+    extra = wad_extra_tracks(data)                        # mover: root motion of move / turn anims
+    for anim in out.anims:
+        t = extra.get(anim.name.lower(), {})
+        if 'mover_pos' in t or 'mover_rot' in t:
+            anim.mover = {'pos': t.get('mover_pos'), 'rot': t.get('mover_rot')}
     return out
 
 
@@ -225,7 +232,7 @@ def wad_extra_tracks(data: bytes) -> dict: #vers 1
     return out
 
 
-def _put_channel(z: bytearray, vs: int, ch: int, values: np.ndarray) -> bool: #vers 1
+def _put_channel(z: bytearray, vs: int, ch: int, values: np.ndarray) -> bool: #vers 2
     """Write one channel's values in place; False if it can't hold them (static, too short)."""
     kind = z[ch + 5]
     if kind == 4:                                         # static: only when the values don't change
@@ -249,6 +256,10 @@ def _put_channel(z: bytearray, vs: int, ch: int, values: np.ndarray) -> bool: #v
         lo, hi = float(v.min()), float(v.max())
         top = (1 << bits) - 1
         scale = (hi - lo) / top if hi > lo else 0.0
+        old_scale, old_lo = struct.unpack_from('<ff', z, ch + 20)
+        eps = abs(old_scale) * 0.5 + 1e-7
+        if old_scale > 0 and lo >= old_lo - eps and hi <= old_lo + old_scale * top + eps:
+            scale, lo = old_scale, old_lo                 # still fits: keep the file's grid
         q = np.round((v - lo) / scale).astype(np.int64) if scale else np.zeros(n, np.int64)
         q = np.clip(q, 0, top)
         bitarr = ((q[:, None] >> np.arange(bits)) & 1).astype(np.uint8).reshape(-1)
@@ -261,7 +272,87 @@ def _put_channel(z: bytearray, vs: int, ch: int, values: np.ndarray) -> bool: #v
     return False
 
 
-def write_wad_camera(data: bytes, cam_name: str, pos=None, rot=None, fov=None) -> bytes: #vers 1
+def _write_track(z: bytearray, vs: int, td: int, fmt: int, seg: np.ndarray, sframes: int, label: str): #vers 1
+    """Write one sequence track's per-frame values in place (padded with the last frame)."""
+    if len(seg) < sframes:
+        seg = np.concatenate([seg, np.repeat(seg[-1:], sframes - len(seg), 0)])
+    seg = seg.reshape(len(seg), -1)
+    if fmt >> 4 == 0:                                     # one static value / vector
+        if np.ptp(seg, axis=0).max() > 1e-5:
+            raise ValueError(f"{label} is fixed in the file; can't animate it")
+        ch = _ptr(z, vs, td + 4)
+        vp = _ptr(z, vs, ch + 8)
+        if vp is not None:
+            z[vp:vp + 4 * seg.shape[1]] = seg[0].astype('<f4').tobytes()
+        else:
+            struct.pack_into('<f', z, ch + 8, float(seg[0][0]))
+        return
+    nch = struct.unpack_from('<I', z, td + 0x14)[0]
+    for c in range(min(nch, seg.shape[1])):
+        if not _put_channel(z, vs, _ptr(z, vs, td + 4 + 4 * c), seg[:, c]):
+            raise ValueError(f"{label} channel {c} can't hold the new values")
+
+
+def write_wad_anims(data: bytes, anims) -> tuple: #vers 1
+    """.wad with bone rot / trans tracks of the given IFPAnims rewritten in place.
+    Returns (new bytes, notes): bones without a track in the file are listed, not added."""
+    import zlib
+    z, vs = _unpack_wad(data)
+    z = bytearray(z)
+    count = struct.unpack_from('<H', z, 0x14)[0]
+    arr = _ptr(z, vs, 0x18)
+    by_name = {a.name.lower(): a for a in anims}
+    notes, seen = [], set()
+    for i in range(count):
+        a = _ptr(z, vs, arr + 4 * i)
+        frames = struct.unpack_from('<H', z, a + 8)[0]
+        na = _ptr(z, vs, a + 0x1C)
+        aname = z[na:z.index(b'\0', na)].decode('latin-1').split(':/', 1)[-1] if na else f"anim{i}"
+        aname = (aname[:-5] if aname.lower().endswith('.anim') else aname).lower()
+        anim = by_name.get(aname)
+        if anim is None:
+            continue
+        rows = {}                                         # (track, bone) -> (frames, n) values
+        for b in anim.bones:
+            if not b.keys:
+                continue
+            at = {int(round(k.time * FPS)): k for k in b.keys if abs(k.time * FPS - round(k.time * FPS)) < 1e-4}
+            samples = [(at[f].rot, at[f].trans) if f in at else b.sample(f / FPS)   # keys as stored
+                       for f in range(frames)]
+            if all(r is not None for r, _t in samples):
+                rows[(_ROT, b.bone_id)] = np.array([r for r, _t in samples], np.float64)   # file signs kept
+            if all(t is not None for _r, t in samples):
+                rows[(_TRANS, b.bone_id)] = np.array([t for _r, t in samples], np.float64)
+        seqs = [_ptr(z, vs, _ptr(z, vs, a + 0x14) + 4 * s) for s in range(struct.unpack_from('<H', z, a + 0x18)[0])]
+        written, start = set(), 0
+        for sq in seqs:
+            sframes = struct.unpack_from('<I', z, sq + 0x0C)[0]
+            dp, n = _ptr(z, vs, sq), struct.unpack_from('<H', z, sq + 4)[0]
+            for k in range(n):
+                td = _ptr(z, vs, dp + 4 * k)
+                tid = struct.unpack_from('<I', z, td)[0]
+                key = (tid & 0xFF, tid >> 16)
+                vals = rows.get(key)
+                if vals is None:
+                    continue
+                fmt = (tid >> 8) & 0xFF
+                seg = vals[start:start + sframes].copy()
+                if start and len(seg):                    # overlap frame: keep this sequence's own
+                    seg[0] = _track_values(z, vs, td, fmt, sframes)[0]
+                _write_track(z, vs, td, fmt, seg, sframes,
+                             f"{aname} bone {key[1]} {'rot' if key[0] == _ROT else 'trans'}")
+                written.add(key)
+            start += sframes - 1                          # 1 frame overlap between sequences
+        missing = sorted({b for _t, b in rows} - {b for _t, b in written})
+        if missing:
+            notes.append(f"{aname}: bones {missing} have no track in the file (not saved)")
+        seen.add(aname)
+    for name in sorted(set(by_name) - seen):
+        notes.append(f"{name}: not in the .wad (not saved)")
+    return bytes(data[:12]) + zlib.compress(bytes(z), 9), notes
+
+
+def write_wad_camera(data: bytes, cam_name: str, pos=None, rot=None, fov=None) -> bytes: #vers 2
     """.wad with one camera anim's position / rotation / FOV (per frame) replaced in place."""
     import zlib
     z, vs = _unpack_wad(data)
@@ -289,23 +380,8 @@ def write_wad_camera(data: bytes, cam_name: str, pos=None, rot=None, fov=None) -
                 vals = want.get(track)
                 if vals is None or tid >> 16:
                     continue
-                seg = np.asarray(vals, np.float64)[start:start + sframes]
-                seg = np.concatenate([seg, np.repeat(seg[-1:], sframes - len(seg), 0)]) if len(seg) < sframes else seg
-                seg = seg.reshape(len(seg), -1)
-                if fmt >> 4 == 0:                         # one static value / vector
-                    if np.ptp(seg, axis=0).max() > 1e-5:
-                        raise ValueError(f"{cam_name}: track {track} is fixed in the file; can't animate it")
-                    ch = _ptr(z, vs, td + 4)
-                    vp = _ptr(z, vs, ch + 8)
-                    if vp is not None:
-                        z[vp:vp + 4 * seg.shape[1]] = seg[0].astype('<f4').tobytes()
-                    else:
-                        struct.pack_into('<f', z, ch + 8, float(seg[0][0]))
-                else:
-                    nch = struct.unpack_from('<I', z, td + 0x14)[0]
-                    for c in range(min(nch, seg.shape[1])):
-                        if not _put_channel(z, vs, _ptr(z, vs, td + 4 + 4 * c), seg[:, c]):
-                            raise ValueError(f"{cam_name}: track {track} channel {c} can't hold the new values")
+                _write_track(z, vs, td, fmt, np.asarray(vals, np.float64)[start:start + sframes], sframes,
+                             f"{cam_name}: track {track}")
                 done.add(track)
             start += sframes - 1                          # 1 frame overlap between sequences
     if not done:

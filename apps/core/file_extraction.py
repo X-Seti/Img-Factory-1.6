@@ -1,4 +1,4 @@
-#this belongs in components/file_extraction_functions.py - version 12
+#this belongs in components/file_extraction_functions.py - version 13
 # X-Seti - July10 2025 - Img Factory 1.5
 # Integration for enhanced file filtering and extraction
 
@@ -205,13 +205,9 @@ def patch_img_loading_for_extraction(main_window): #vers 15
 
 
 # Main integration function
-def setup_complete_extraction_integration(main_window): #vers 25
+def setup_complete_extraction_integration(main_window): #vers 26
     """Complete integration of extraction system"""
     try:
-        # Integrate GTA file editors first
-        from apps.components.File_Editor.gta_file_editors import integrate_gta_file_editors
-        integrate_gta_file_editors(main_window)
-        
         # Integrate extraction system
         if integrate_extraction_system(main_window):
             # Patch IMG loading to update filter stats

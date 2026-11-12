@@ -1,4 +1,4 @@
-#this belongs in apps/methods/gta_dat_parser.py - Version: 24
+#this belongs in apps/methods/gta_dat_parser.py - Version: 28
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
 GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
@@ -601,6 +601,27 @@ def _detile_sol_grid(raw: bytes, grid_width: int, map_w: int = 6) -> List[List[i
     return out
 
 
+def _retile_sol_grid(grid: List[List[int]], grid_width: int, map_w: int = 6) -> bytes: #vers 1
+    """[x][y] grid back to SOL tiled bytes (inverse of _detile_sol_grid)."""
+    tile_w = grid_width // map_w
+    out = bytearray(grid_width * grid_width)
+    for tile_idx in range(map_w * map_w):
+        tx, ty = tile_idx % map_w, tile_idx // map_w
+        base = tile_idx * tile_w * tile_w
+        for i in range(tile_w):
+            row_off = base + i * tile_w
+            out[row_off:row_off + tile_w] = bytes(grid[tx * tile_w + i][ty * tile_w:(ty + 1) * tile_w])
+    return bytes(out)
+
+
+def waterpro_grid_bytes(wp: 'WaterProFile') -> bytes: #vers 1
+    """visible + physical grids as waterpro.dat bytes (after the 964 byte header)."""
+    gw = wp.grid_width
+    if gw % 6 == 0:
+        return (_retile_sol_grid(wp.visible_map, gw) + _retile_sol_grid(wp.physical_map, gw * 2))
+    return b''.join(bytes(r) for r in wp.visible_map) + b''.join(bytes(r) for r in wp.physical_map)
+
+
 def parse_waterpro_dat(path: str) -> Optional[WaterProFile]: #vers 4
     """Parse a real GTA III/VC/PS2-LC/SOL waterpro.dat (Aug 20 2026)"""
     try:
@@ -1087,7 +1108,7 @@ class IDEParser: #vers 3
         # IV only: next synthetic model ID to assign
         self.next_id = 1
 
-    def parse(self, ide_path: str) -> bool: #vers 5
+    def parse(self, ide_path: str) -> bool: #vers 6
         if not os.path.isfile(ide_path):
             self.stats.errors.append(f"IDE not found: {ide_path}")
             return False
@@ -1133,14 +1154,9 @@ class IDEParser: #vers 3
                 continue
 
             if current_section == "path":
-                # A group header ("ped, 1440, scraperkb3_nit") is
-                # never indented in the raw line; a node line always
-                # is (same tab-indentation convention IPLParser's own
-                # VC path handling uses, and the same reason it must
-                # be checked against `raw`, not `line` - .strip()
-                # above already erased any leading whitespace by this
-                # point).
-                if raw[:1] not in ('\t', ' '):
+                # Header "ped, 1440, name"; nodes numeric, indented or not
+                head = line.split(",", 1)[0].strip()           # header starts "ped"/"car"
+                if head.isalpha():
                     current_ide_path_group = self._parse_ide_path_group_header(line, basename, lineno)
                     if current_ide_path_group is not None:
                         self.ide_paths.append(current_ide_path_group)
@@ -2397,7 +2413,7 @@ class GTAWorldLoader: #vers 4
         self._iv_hash_names: Dict[int, Tuple[str, int]] = {}  # hash -> (name, id)
         self.iv_wpl_unresolved = 0
 
-    def load(self, game_root: str, progress_cb=None) -> bool: #vers 11
+    def load(self, game_root: str, progress_cb=None) -> bool: #vers 12
         """Full load from a game root directory.
         Always enforces models/gta3.img (called from game exe, not from any .dat)
         so TXD Workshop and the Dump TXDs feature can always find it.
@@ -2406,8 +2422,14 @@ class GTAWorldLoader: #vers 4
         game_root = resolve_game_root(game_root)
         self._reset()
         from apps.methods.stories_dtz import dtz_paths
-        if dtz_paths(game_root):                # LCS/VCS console: no .dat files
-            return self.load_stories(game_root)
+        dtz = dtz_paths(game_root)
+        if dtz:                                 # LCS/VCS console: no .dat files
+            if self._load_world_cache(dtz[2]):
+                return True
+            ok = self.load_stories(game_root)
+            if ok:
+                self._save_world_cache(dtz[2])
+            return ok
         from apps.methods.bully_world import bully_paths
         if bully_paths(game_root):              # Bully: ide.img + World.img, no .dat
             return self.load_bully(game_root)
@@ -2486,7 +2508,7 @@ class GTAWorldLoader: #vers 4
         self.stats.instances = len(self.instances)
         return True
 
-    def _load_stories_levels(self, game_root: str, game: str, plat: str): #vers 1
+    def _load_stories_levels(self, game_root: str, game: str, plat: str): #vers 2
         """LCS/VCS PS2 level sectors (.LVZ + .IMG): building pieces as instances + models."""
         from apps.methods.stories_world import StoriesLevel, level_files, level_world
         self.stories_models, self.stories_textures = {}, {}
@@ -2518,6 +2540,7 @@ class GTAWorldLoader: #vers 4
                                                   source_ipl=f"sectors_{name.lower()}.ipl", line_no=n))
             seen |= mine
             self.load_log.append(("stories", "LVZ", lvz, True))
+            self.load_log.append(("stories", "IMG", img, True))
 
     def load_stories(self, game_root: str) -> bool: #vers 5
         """LCS/VCS PS2/PSP: objects, placements, water and IMG from GAME.DTZ."""
@@ -2594,12 +2617,14 @@ class GTAWorldLoader: #vers 4
                     self.stats.img_files += 1
 
     def load_from_dat(self, dat_path: str, game_root: str = "",
-                      progress_cb=None) -> bool: #vers 5
-        """Load from an explicit .dat path."""
+                      progress_cb=None) -> bool: #vers 6
+        """Load from an explicit .dat path (IV: from the world cache when files are unchanged)."""
         self.progress_cb = progress_cb
         self._reset()
         if not game_root:
             game_root = dat_game_root(dat_path, self.game)
+        if self.game == GTAGame.IV and self._load_world_cache(dat_path):
+            return True
         data_dir     = os.path.dirname(dat_path)
         default_name = GTAGame.DEFAULT_DAT.get(self.game)
         if default_name:
@@ -2618,8 +2643,74 @@ class GTAWorldLoader: #vers 4
         self.stats.instances      = len(self.instances)
         if self.game == GTAGame.IV:
             self.load_water_dat(data_dir)   # IV water.dat: SA-style quads
+            self._save_world_cache(dat_path)
             return True   # III/VC/SA extras below do not apply
         self._load_dat_extras(game_root, data_dir)
+        return True
+
+    _WORLD_CACHE_VERSION = 1
+
+    @staticmethod
+    def _world_cache_path(dat_path: str): #vers 1
+        """~/.cache/imgfactory/world/<hash>.pkl for one .dat."""
+        import hashlib
+        from pathlib import Path
+        key = hashlib.md5(os.path.abspath(dat_path).encode()).hexdigest()
+        return Path.home() / '.cache' / 'imgfactory' / 'world' / f'{key}.pkl'
+
+    def _world_cache_files(self, dat_path: str) -> list: #vers 1
+        """(path, mtime, size) of the .dat and every file the load read (IMG:entry -> IMG)."""
+        seen, out = set(), []
+        for _ph, _et, p, ok in [('', '', dat_path, True)] + list(self.load_log):
+            if not ok or not p:
+                continue
+            if not os.path.isfile(p) and ':' in p[2:]:
+                p = p[:p.rindex(':')]
+            if p in seen or not os.path.isfile(p):
+                continue
+            seen.add(p)
+            st = os.stat(p)
+            out.append((p, st.st_mtime_ns, st.st_size))
+        return out
+
+    def _save_world_cache(self, dat_path: str): #vers 1
+        """Pickle the loaded world with its file stamps."""
+        import pickle
+        state = {k: v for k, v in self.__dict__.items() if k != 'progress_cb' and not callable(v)}
+        path = self._world_cache_path(dat_path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = pickle.dumps({'v': self._WORLD_CACHE_VERSION, 'files': self._world_cache_files(dat_path),
+                                 'state': state}, protocol=pickle.HIGHEST_PROTOCOL)
+            tmp = path.with_suffix('.tmp')
+            tmp.write_bytes(data)
+            tmp.replace(path)
+        except (OSError, pickle.PicklingError, TypeError, AttributeError) as e:
+            self.stats.warnings.append(f"World cache not saved: {e}")
+
+    def _load_world_cache(self, dat_path: str) -> bool: #vers 1
+        """Restore the world from cache when every source file is unchanged."""
+        import pickle
+        path = self._world_cache_path(dat_path)
+        if not path.is_file():
+            return False
+        try:
+            data = pickle.loads(path.read_bytes())
+        except Exception:
+            return False
+        if data.get('v') != self._WORLD_CACHE_VERSION or not data.get('files'):
+            return False
+        for p, mtime, size in data['files']:
+            try:
+                st = os.stat(p)
+            except OSError:
+                return False
+            if st.st_mtime_ns != mtime or st.st_size != size:
+                return False
+        cb = self.progress_cb
+        self.__dict__.update(data['state'])
+        self.progress_cb = cb
+        self._progress(1, 1, f"World from cache ({len(data['files'])} files unchanged)")
         return True
 
     def _load_dat_extras(self, game_root: str, data_dir: str): #vers 3
