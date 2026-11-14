@@ -1703,7 +1703,7 @@ class DataWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
         return lambda: (ide_fn() if self._ide_active() else ipl_fn())
 
 
-    def _build_ribbons(self): #vers 3
+    def _build_ribbons(self): #vers 13
         B, P = self.ribbon_button, self._ide_panel
         tb = self.ribbon_toolbar("File")
         B(tb, "open_icon",   "Open an IPL or IDE file  (Ctrl+O)", self._open_any, text="Open")
@@ -1731,24 +1731,24 @@ class DataWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
         self._ribbon_mw.addToolBarBreak()
         tb = self.ribbon_toolbar("IDE Tools")
         self.ribbon_label(tb, "IDE")
-        B(tb, "check_icon",   "Check the IDE: duplicate IDs / names, empty TXD, long names", P._run_checks)
+        B(tb, "check_ide_icon", "Check the IDE: duplicate IDs / names, empty TXD, long names", P._run_checks)
         B(tb, "search_icon",  "Free IDs", P._show_free_ids, text="Free")
-        B(tb, "edit_icon",    "Set one column on the selected rows...", P._set_column, text="Set")
-        B(tb, "convert_icon", "Renumber the selected rows from an ID...", P._renumber, text="Renum")
-        B(tb, "edit_icon",    "Add a prefix / suffix to the selected model names...", P._prefix_suffix, text="Name")
-        B(tb, "convert_icon", "Sort this IDE section (ID, name, TXD, draw distance, most placed...)", P._sort_menu, text="Sort")
-        B(tb, "package_icon", "Merge rows from another IDE file...", P._merge_ide, text="Merge")
+        B(tb, "set_column_icon", "Set one column on the selected rows...", P._set_column, text="Set")
+        B(tb, "renumber_icon", "Renumber the selected rows from an ID...", P._renumber, text="Renum")
+        B(tb, "tag_icon",     "Add a prefix / suffix to the selected model names...", P._prefix_suffix, text="Name")
+        B(tb, "sort_bins_icon", "Sort this IDE section (ID, name, TXD, draw distance, most placed...)", P._sort_menu, text="Sort")
+        B(tb, "merge_ide_icon", "Merge rows from another IDE file...", P._merge_ide, text="Merge")
 
         tb = self.ribbon_toolbar("IPL Tools")
         self.ribbon_label(tb, "IPL")
-        B(tb, "check_icon",   "Check IPL: duplicates, LOD links, bad positions, unknown models (vs the loaded IDE)", self._run_checks)
-        B(tb, "convert_icon", "Sort the IPL entries (ID, name, position, most placed...)", self._sort_menu_ipl, text="Sort")
+        B(tb, "check_ipl_icon", "Check IPL: duplicates, LOD links, bad positions, unknown models (vs the loaded IDE)", self._run_checks)
+        B(tb, "sort_bins_icon", "Sort the IPL entries (ID, name, position, most placed...)", self._sort_menu_ipl, text="Sort")
         B(tb, "trash_icon",   "Remove exact duplicate placements", self._remove_duplicates, text="Dupes")
-        B(tb, "convert_icon", "Move selected (or all) by X/Y/Z...", self._translate_dialog, text="Move")
-        B(tb, "edit_icon",    "Set model ID / name on selected...", self._set_model_dialog, text="Model")
-        B(tb, "package_icon", "Merge entries from other IPL file(s)...", self._merge_ipl, text="Merge")
+        B(tb, "move_xyz_icon", "Move selected (or all) by X/Y/Z...", self._translate_dialog, text="Move")
+        B(tb, "set_model_icon", "Set model ID / name on selected...", self._set_model_dialog, text="Model")
+        B(tb, "merge_ipl_icon", "Merge entries from other IPL file(s)...", self._merge_ipl, text="Merge")
         B(tb, "export_icon",  "Export selected (or all) entries to a NEW IPL...", self._export_selection, text="Split")
-        B(tb, "convert_icon", "Move the generic / prop objects of each IPL into its own x_generics.ipl (by IDE file, IDE rows or generic.ide)...", self._split_by_ide, text="Generics")
+        B(tb, "generics_icon", "Move the generic / prop objects of each IPL into its own x_generics.ipl (by IDE file, IDE rows or generic.ide)...", self._split_by_ide, text="Generics")
 
 
     def closeEvent(self, ev): #vers 1

@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 33
+# apps/components/Img_Factory/welcome_screen.py — Version 34
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -169,7 +169,6 @@ class WelcomeScreen(QWidget):
     open_radar_workshop    = pyqtSignal()
     open_timecyc_workshop  = pyqtSignal()
     open_dir_tree          = pyqtSignal()
-    open_ide_editor        = pyqtSignal()
     open_ipl_editor        = pyqtSignal()
     open_handling_editor   = pyqtSignal()
     open_breakable_editor  = pyqtSignal()

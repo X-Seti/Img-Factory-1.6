@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 118
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 126
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -39,7 +39,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QMenu, QMenuBar, QStatusBar,
     QFileDialog, QColorDialog, QGridLayout, QInputDialog, QToolButton
 )
-from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer
+from PyQt6.QtCore import Qt, QPoint, QPointF, QRect, pyqtSignal, QSize, QTimer, QEvent
 from PyQt6.QtGui import (
     QImage, QPixmap, QPainter, QColor, QCursor, QAction, QPolygon,
     QMouseEvent, QWheelEvent, QFont, QIcon, QPen, QBrush,
@@ -51,6 +51,7 @@ from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.doc_tabs import DocTabsMixin
 from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gradient, mask_outline, wand_mask
+from apps.components.DP5_Workshop.depends.dp5_recolour import RecolourDialog
 
 
 ##Methods list -
@@ -145,6 +146,17 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Canvas.paste_selection
 # DP5Canvas.set_pixel
 # DP5Canvas.set_pixel_brush
+# DP5Canvas._drape_update
+# DP5Canvas._region_op
+# DP5Canvas.ellipse_box
+# DP5Canvas.ellipse_mask
+# DP5Canvas.combine_region
+# DP5Canvas.rect_mask
+# DP5Canvas.region_base
+# DP5Canvas._protect_mask
+# DP5Canvas._protect_rect
+# DP5Canvas.apply_protected
+# DP5Canvas.recolour_mask
 # DP5Canvas.set_edit_lock
 # DP5Canvas.set_wand_mask
 # DP5Canvas.sizeHint
@@ -164,6 +176,18 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._amiga_palette
 # DP5Workshop._anim_add_frame
 # DP5Workshop._anim_cleanup_dialog
+# DP5Workshop._anim_camera_dialog
+# DP5Workshop._apply_brush_settings
+# DP5Workshop._set_brush_media
+# DP5Workshop._set_brush_smooth
+# DP5Workshop._set_pen_pressure
+# DP5Workshop._anim_cycle_dialog
+# DP5Workshop._anim_grab_brush
+# DP5Workshop._anim_palette_dialog
+# DP5Workshop._anim_paste_brush_dialog
+# DP5Workshop._perspective_dialog
+# DP5Workshop._anim_frame_delays_dialog
+# DP5Workshop._anim_move_dialog
 # DP5Workshop._anim_del_frame
 # DP5Workshop._anim_dup_frame
 # DP5Workshop._anim_export_gif
@@ -222,6 +246,8 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._copy_selection
 # DP5Workshop._create_anim_strip
 # DP5Workshop._create_annotate_ribbon
+# DP5Workshop._create_drape_ribbon
+# DP5Workshop._drape_ribbon_refresh
 # DP5Workshop._create_canvas_tabs_ribbon
 # DP5Workshop._create_centre_panel
 # DP5Workshop._create_docked_bar
@@ -252,6 +278,7 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._dp5_sharpen
 # DP5Workshop._duplicate_last_stamp
 # DP5Workshop._edit_lock_toggle
+# DP5Workshop._hole_apply
 # DP5Workshop._encode_amiga_info
 # DP5Workshop._export_amiga_icon
 # DP5Workshop._export_art_studio
@@ -405,6 +432,7 @@ from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gra
 # DP5Workshop._save_back_indexed
 # DP5Workshop._save_image
 # DP5Workshop._save_image_as
+# DP5Workshop._recolour_selection
 # DP5Workshop._save_current_canvas_tab
 # DP5Workshop._save_flat
 # DP5Workshop._scale_canvas
@@ -682,6 +710,7 @@ TOOL_FILLED_LASSO  = 'filled_lasso'   # right-click fill toggle
 TOOL_PICKER        = 'picker'
 TOOL_SELECT        = 'select'
 TOOL_SELECT_COPY   = 'select_copy'
+TOOL_SELECT_ELLIPSE = 'select_ellipse'  # drag a circle / oval hole (Shift adds, Alt cuts out, Ctrl circle)
 TOOL_MOVE          = 'move'
 TOOL_ZOOM          = 'zoom'
 TOOL_TEXT          = 'text'
@@ -908,6 +937,7 @@ def _make_tool_icon(shape: str, size: int = 42,
         'alpha_brush':  'dp_alpha_brush_icon',
         'spraycan':     'dp_spraycan_icon',
         'select_copy':  'dp_select_copy_icon',
+        'select_ellipse': 'dp_select_ellipse_icon',
 
     }
 
@@ -1355,6 +1385,19 @@ def _make_tool_icon(shape: str, size: int = 42,
         for hx, hy in [(6,6),(38,6),(6,38),(38,38),(22,6),(22,38),(6,22),(38,22)]:
             p.drawRect(hx-2, hy-2, 4, 4)
 
+    elif shape == 'select_ellipse':
+        # Dashed ellipse with handles, cyan like the other selection tools
+        cy_c = QColor('#40c8d8')
+        pen_dash = QPen(cy_c, 2.0, Qt.PenStyle.DashLine, Qt.PenCapStyle.FlatCap, Qt.PenJoinStyle.RoundJoin)
+        pen_dash.setDashPattern([3, 2])
+        p.setPen(pen_dash)
+        p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+        p.drawEllipse(8, 8, 32, 32)
+        p.setPen(QPen(cy_c, 0))
+        p.setBrush(QBrush(cy_c))
+        for hx, hy in [(24, 6), (24, 42), (6, 24), (42, 24)]:
+            p.drawRect(hx-2, hy-2, 4, 4)
+
     elif shape == 'select_copy':
         # Same marquee as 'select', plus a small "+" badge (bottom-right)
         # to indicate copy/duplicate rather than cut/move.
@@ -1521,6 +1564,9 @@ class DP5Settings:
         'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
         'show_anim_strip':   False,    # show animation timeline strip
         'anim_fps':          12,       # default animation FPS
+        'brush_media':       'off',    # 'off'|'chalk'|'watercolour'|'oil'
+        'brush_smooth':      0.0,      # freehand smoothing 0 - 0.9
+        'pen_pressure':      'off',    # 'off'|'size'|'opacity'|'both'
         'zoom_to_fit_resize': False,
         'show_menubar':       False,     # hidden by default — enable in Settings > Menu
         'menu_style':         'dropdown', # 'topbar' | 'dropdown'
@@ -2077,7 +2123,22 @@ class DP5Canvas(QWidget):
         self._wand_overlay    = None   # (bytes, QImage) outline of the mask
         self._edit_lock       = None   # h x w bool: only these pixels may change
         self._lock_snap       = None   # rgba before the current edit
+        self._region_gen      = 0      # bumps when the wand / lock region changes
+        self._prot_key        = None   # region the snapshot was taken for
+        self._hole_edit       = None   # hole being adjusted: handles, OK / Cancel
+        self._hole_drag       = None   # (mode, start tex pos, box at start)
+        self._hole_ui         = None   # OK / + / X, shape and invert buttons
+        self._hole_add_mode   = False  # next holes add to the open area
+        self.media            = 'off'  # natural media brush
+        self.smooth_amount    = 0.0    # freehand smoothing
+        self.pressure_mode    = 'off'  # tablet pressure drives size / opacity
+        self._pressure        = 1.0
+        self._smooth_pt       = None
+        self._media_last      = None
+        self._oil_carry       = None
+        self._colour_pick     = None   # 'add' / 'sub': a click picks a colour for the open area
         self._lock_overlay    = None   # (bytes, QImage) outline of the lock region
+        self._lock_dim        = None   # (bytes, QImage) dark blue shade outside the lock
         self.spraycan_density = 12     # spraycan: heavier/messier than airbrush
         self.spraycan_particle_size = 2   # max dot size per particle (1 to this, random)
         self.spraycan_hardness = 70    # 0-100% - how strongly each particle blends
@@ -2181,6 +2242,8 @@ class DP5Canvas(QWidget):
         # Selection move / float state
         self._sel_floating   = False          # True while lifted and being dragged
         self._sel_float_orig: Optional[bytearray] = None  # canvas backup before lift
+        self._sel_float_start = None           # (x, y) where the selection was lifted from
+        self._rect_op = None                   # 'add' / 'sub' while a marquee is dragged with Shift / Alt
         self._sel_drag_start: Optional[Tuple[int,int]] = None  # tex-coords at drag start
         self._sel_float_pos:  Optional[Tuple[int,int]] = None  # current top-left in tex-space
 
@@ -2259,7 +2322,27 @@ class DP5Canvas(QWidget):
             i = (y * self.tex_w + x) * 4
             self.rgba[i:i+4] = [c.red(), c.green(), c.blue(), c.alpha()]
 
-    def set_pixel_brush(self, cx: int, cy: int, c: QColor): #vers 5
+    def _media_dab(self, cx: int, cy: int, c: QColor): #vers 1
+        """Natural media / pressure dab with symmetry; dabs closer than a quarter size are skipped."""
+        from apps.components.DP5_Workshop.depends.dp5_brush_media import mirror_points, paint_dab
+        pm = self.pressure_mode
+        pr = self._pressure
+        size = max(1.0, self.brush_size * (pr if pm in ('size', 'both') else 1.0))
+        op = pr if pm in ('opacity', 'both') else 1.0
+        ml = self._media_last
+        if ml is not None and (cx - ml[0]) ** 2 + (cy - ml[1]) ** 2 < (size * 0.25) ** 2:
+            return
+        self._media_last = (cx, cy)
+        for px, py in mirror_points(cx, cy, self.tex_w, self.tex_h, self.symmetry_mode):
+            self._oil_carry = paint_dab(self.rgba, self.tex_w, self.tex_h, px, py, (c.red(), c.green(), c.blue()),
+                                        self.media, size, op * c.alphaF(), self._oil_carry)
+
+    def tabletEvent(self, e): #vers 1
+        """Pen pressure for size / opacity; the mouse events still follow."""
+        self._pressure = e.pressure() if e.type() != QEvent.Type.TabletRelease else 1.0
+        e.ignore()
+
+    def set_pixel_brush(self, cx: int, cy: int, c: QColor): #vers 6
         """Paint brush with optional dither and symmetry. Brush size s
         maps directly to an s-pixel-wide/tall stamp (previously the
         loop bounds gave a 2s-1 diameter, so size 2 painted a 3x3 area
@@ -2269,6 +2352,9 @@ class DP5Canvas(QWidget):
         L-shape rather than a clean 2x2 square) without looking round
         at all. Larger sizes keep the circular mask for a proper round
         brush shape."""
+        if c.alpha() > 0 and (self.media != 'off' or (self.pressure_mode != 'off' and self._pressure < 0.999)):
+            self._media_dab(cx, cy, c)
+            return
         s = self.brush_size
         BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]]
         if self.dither_mode != 'off':
@@ -2312,45 +2398,457 @@ class DP5Canvas(QWidget):
 
     #    Drawing ops                                                            
 
-    def set_wand_mask(self, mask): #vers 1
-        """Wand selection mask (None clears it) and its outline overlay."""
+    def set_wand_mask(self, mask): #vers 3
+        """Wand selection mask (None clears it), its outline overlay and the drape."""
         self._wand_mask = mask
+        self._region_gen += 1
         if mask is None:
             self._wand_overlay = None
         else:
             data = mask_outline(mask)
             img = QImage(data, self.tex_w, self.tex_h, self.tex_w * 4, QImage.Format.Format_RGBA8888)
             self._wand_overlay = (data, img)
+        self._drape_update()
         self.update()
 
-    def set_edit_lock(self, mask): #vers 1
+    def recolour_mask(self): #vers 1
+        """(mask, text): wand / lasso, else rectangle, else whole image; limited to the edit lock."""
+        import numpy as np
+        shape = (self.tex_h, self.tex_w)
+        m, text = None, "whole image"
+        if self._wand_mask is not None and self._wand_mask.shape == shape and self._wand_mask.any():
+            m, text = self._wand_mask.copy(), "wand / lasso selection"
+        elif self._sel_active and self._selection_rect is not None:
+            r = self._selection_rect.intersected(QRect(0, 0, self.tex_w, self.tex_h))
+            m = np.zeros(shape, bool)
+            m[r.y():r.y() + r.height(), r.x():r.x() + r.width()] = True
+            text = "selected rectangle"
+        if m is None:
+            m = np.ones(shape, bool)
+        if self._edit_lock is not None and self._edit_lock.shape == shape:
+            m &= self._edit_lock
+            text += " inside the edit lock"
+        return m, text
+
+    def set_edit_lock(self, mask): #vers 4
         """Only pixels inside mask may change (None unlocks); orange outline."""
         self._edit_lock = mask
-        self._lock_snap = bytes(self.rgba) if mask is not None else None
+        self._region_gen += 1
         if mask is None:
             self._lock_overlay = None
         else:
             data = mask_outline(mask, (255, 150, 0))
             img = QImage(data, self.tex_w, self.tex_h, self.tex_w * 4, QImage.Format.Format_RGBA8888)
             self._lock_overlay = (data, img)
+        self._drape_update()
         self.update()
 
-    def _enforce_edit_lock(self): #vers 1
-        """Put back pixels outside the lock region from the pre-edit snapshot."""
-        m, snap = self._edit_lock, self._lock_snap
-        if m is None or snap is None:
-            return
+    def _drape_update(self): #vers 1
+        """Dark blue surgical drape over everything outside the lock / wand / lasso region."""
         import numpy as np
-        if m.shape != (self.tex_h, self.tex_w) or len(snap) != len(self.rgba):
-            self.set_edit_lock(None)                     # canvas resized
+        shape = (self.tex_h, self.tex_w)
+        m = None
+        for x in (self._edit_lock, self._wand_mask):
+            if x is not None and x.shape == shape:
+                m = x if m is None else (m & x)
+        if m is None:
+            self._lock_dim = None
+            return
+        shade = np.zeros((self.tex_h, self.tex_w, 4), np.uint8)
+        shade[~m] = (8, 18, 60, 150)
+        dim = shade.tobytes()
+        self._lock_dim = (dim, QImage(dim, self.tex_w, self.tex_h, self.tex_w * 4,
+                                      QImage.Format.Format_RGBA8888))
+
+    def apply_protected(self, new): #vers 1
+        """Replace all pixels with new (undo / redo), keeping everything outside the drape as it was."""
+        self._enforce_edit_lock()
+        keep = bytes(self.rgba)
+        self.rgba[:] = new
+        if len(keep) == len(self.rgba) and self._protect_mask() is not None:
+            self._lock_snap = keep
+            self._enforce_edit_lock()
+
+    def _protect_rect(self): #vers 1
+        """Rectangle that is open for editing: the floating buffer, else the selection."""
+        if self._sel_floating and self._sel_float_pos and self._sel_buffer:
+            return QRect(self._sel_float_pos[0], self._sel_float_pos[1], self._sel_buf_w, self._sel_buf_h)
+        if self._sel_active and self._selection_rect is not None:
+            return self._selection_rect
+        return None
+
+    def _protect_mask(self): #vers 2
+        """h x w bool of pixels allowed to change (lock, wand / lasso, rectangle); None = all."""
+        import numpy as np
+        shape = (self.tex_h, self.tex_w)
+        m = None
+        for x in (self._edit_lock, self._wand_mask):
+            if x is not None and x.shape == shape:
+                m = x if m is None else (m & x)
+        pr = self._protect_rect()
+        if m is None and pr is not None:
+            r = pr.intersected(QRect(0, 0, self.tex_w, self.tex_h))
+            m = np.zeros(shape, bool)
+            m[r.y():r.y() + r.height(), r.x():r.x() + r.width()] = True
+        return m
+
+    def _hole_begin(self, shape: str, box, op): #vers 1
+        """Start adjusting a new rectangle / ellipse hole; OK keeps it, Cancel restores."""
+        self.hole_commit()
+        prev = getattr(self, '_hole_prev', None) or (None if self._wand_mask is None else self._wand_mask.copy(),
+                None if self._selection_rect is None else QRect(self._selection_rect), self._sel_active)
+        base = None
+        if op is not None:
+            m0, r0, a0 = prev
+            base = m0 if m0 is not None else (self.rect_mask(r0) if a0 and r0 is not None else None)
+        self._hole_edit = {'shape': shape, 'box': list(box), 'op': op, 'base': base, 'prev': prev}
+        self._hole_live()
+        self._hole_ui_update()
+        ed = self._editor
+        if ed:
+            ed._set_status("Drag handles to resize, drag inside to move, Enter / OK keeps it, Esc cancels")
+
+    def _hole_box_norm_of(self, e): #vers 1
+        x0, y0, x1, y1 = e['box']
+        lx, ly = max(0, min(x0, x1)), max(0, min(y0, y1))
+        return (lx, ly, min(self.tex_w, max(x0, x1, lx + 1)), min(self.tex_h, max(y0, y1, ly + 1)))
+
+    def _hole_box_norm(self): #vers 1
+        return self._hole_box_norm_of(self._hole_edit)
+
+    def _hole_live(self): #vers 1
+        """Apply the hole being adjusted to the drape."""
+        import numpy as np
+        e = self._hole_edit
+        x0, y0, x1, y1 = self._hole_box_norm()
+        m = self.rect_mask(QRect(x0, y0, x1 - x0, y1 - y0)) if e['shape'] == 'rect' else self.ellipse_mask(x0, y0, x1, y1)
+        base = e['base']
+        if e['op'] == 'add':
+            new = m if base is None else (base | m)
+        elif e['op'] == 'sub':
+            new = (np.ones_like(m) if base is None else base) & ~m
+        else:
+            new = m
+        self._sel_active = False
+        self.set_wand_mask(new if new.any() else None)
+        self.update()
+
+    def _hole_handles(self): #vers 1
+        """name -> widget point for the eight handles."""
+        x0, y0, x1, y1 = self._hole_box_norm()
+        xm, ym = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        pts = {'nw': (x0, y0), 'n': (xm, y0), 'ne': (x1, y0), 'e': (x1, ym),
+               'se': (x1, y1), 's': (xm, y1), 'sw': (x0, y1), 'w': (x0, ym)}
+        return {k: self._tex_to_widget(int(round(x)), int(round(y))) for k, (x, y) in pts.items()}
+
+    def _hole_press(self, wp, tx: int, ty: int) -> bool: #vers 1
+        """True when the press grabbed a handle or the inside of the hole being adjusted."""
+        if self._hole_edit is None:
+            return False
+        for k, pt in self._hole_handles().items():
+            if abs(pt.x() - wp.x()) <= 7 and abs(pt.y() - wp.y()) <= 7:
+                self._hole_drag = (k, (tx, ty), tuple(self._hole_box_norm()))
+                return True
+        x0, y0, x1, y1 = self._hole_box_norm()
+        if x0 <= tx < x1 and y0 <= ty < y1:
+            self._hole_drag = ('move', (tx, ty), (x0, y0, x1, y1))
+            return True
+        self.hole_commit()
+        return False
+
+    def _hole_move(self, tx: int, ty: int): #vers 1
+        mode, st, b = self._hole_drag
+        x0, y0, x1, y1 = b
+        tx = max(0, min(self.tex_w, tx))
+        ty = max(0, min(self.tex_h, ty))
+        if mode == 'move':
+            dx = max(-x0, min(self.tex_w - x1, tx - st[0]))
+            dy = max(-y0, min(self.tex_h - y1, ty - st[1]))
+            x0, x1, y0, y1 = x0 + dx, x1 + dx, y0 + dy, y1 + dy
+        else:
+            if 'w' in mode: x0 = tx
+            if 'e' in mode: x1 = tx
+            if 'n' in mode: y0 = ty
+            if 's' in mode: y1 = ty
+        self._hole_edit['box'] = [x0, y0, x1, y1]
+        self._hole_live()
+        self._hole_ui_update()
+
+    def _hole_ui_update(self): #vers 3
+        """Hole HUD: OK, + (keep and add another), X, shapes, invert."""
+        if self._hole_edit is None and not self._hole_add_mode and not self._colour_pick:
+            if self._hole_ui is not None:
+                self._hole_ui.hide()
+            return
+        if self._hole_ui is None:
+            w = QWidget(self)
+            w.setStyleSheet("QWidget#holehud{background:rgba(20,28,60,220);border:1px solid #40c8d8;border-radius:4px;}"
+                            "QPushButton{min-width:26px;padding:2px 6px;}"
+                            "QPushButton:checked{background:#2f4fb8;}")
+            w.setObjectName("holehud")
+            lay = QHBoxLayout(w)
+            lay.setContentsMargins(4, 3, 4, 3)
+            lay.setSpacing(3)
+            def btn(text, tip, fn, icon=None, tool=None):
+                b = QPushButton(text)
+                b.setToolTip(tip)
+                if icon is not None:
+                    b.setIcon(icon)
+                    b.setIconSize(QSize(18, 18))
+                if tool is not None:
+                    b.setCheckable(True)
+                    b._tool = tool
+                b.clicked.connect(lambda _=False, f=fn: f())
+                lay.addWidget(b)
+                return b
+            btn("OK", "Keep this hole and finish (Enter)", lambda: self.hole_commit(False))
+            btn("+", "Keep this hole and add another", lambda: self.hole_commit(True))
+            btn("X", "Cancel this hole (Esc)", self._hole_x)
+            self._hole_shape_btns = []
+            ed = self._editor
+            for tool, shape, tip in ((TOOL_SELECT, 'select', "Rectangle hole"),
+                                     (TOOL_SELECT_ELLIPSE, 'select_ellipse', "Circle / oval hole"),
+                                     (TOOL_LASSO, 'lasso', "Lasso hole"),
+                                     (TOOL_WAND, 'wand', "Magic wand hole")):
+                self._hole_shape_btns.append(btn("", tip, lambda t=tool: ed._select_tool(t, False) if ed else None,
+                                                 _load_tool_icon(shape, 18), tool))
+            self._hole_colour_btns = {}
+            for op, name, tip in (('add', 'dp_drape_colour_add_icon', "Pick a colour to add to the open area"),
+                                  ('sub', 'dp_drape_colour_sub_icon', "Pick a colour to cut out of the open area")):
+                b = btn("", tip, lambda o=op: self._colour_pick_set(o), self._svg_icon_hud(name))
+                b.setCheckable(True)
+                self._hole_colour_btns[op] = b
+            btn("", "Invert drape: holes become covered", self._hole_invert, self._hole_inv_icon())
+            self._hole_ui = w
+        for b in self._hole_shape_btns:
+            b.setChecked(b._tool == self.tool)
+        for op, b in self._hole_colour_btns.items():
+            b.setChecked(self._colour_pick == op)
+        self._hole_place()
+
+    def _hole_place(self): #vers 1
+        """Put the HUD clear of the handles: below the hole, else above, else vertical beside it."""
+        from PyQt6.QtWidgets import QBoxLayout
+        ui, lay = self._hole_ui, self._hole_ui.layout()
+        def size(vertical):
+            lay.setDirection(QBoxLayout.Direction.TopToBottom if vertical else QBoxLayout.Direction.LeftToRight)
+            lay.activate()
+            ui.adjustSize()
+            return ui.width(), ui.height()
+        W, H = self.width(), self.height()
+        if self._hole_edit is None:
+            size(False)
+            ui.move(6, 6)
+        else:
+            h = self._hole_handles()
+            box = QRect(h['nw'], h['se']).normalized()
+            g = 12
+            w, hh = size(False)
+            x = max(0, min(W - w, box.left()))
+            if box.bottom() + g + hh <= H:
+                ui.move(x, box.bottom() + g)
+            elif box.top() - g - hh >= 0:
+                ui.move(x, box.top() - g - hh)
+            else:
+                w, hh = size(True)
+                y = max(0, min(H - hh, box.top()))
+                if box.right() + g + w <= W:
+                    ui.move(box.right() + g, y)
+                elif box.left() - g - w >= 0:
+                    ui.move(box.left() - g - w, y)
+                else:
+                    ui.move(max(0, W - w - 2), y)
+        ui.show()
+        ui.raise_()
+
+    def _colour_pick_set(self, op): #vers 1
+        """Toggle colour picking: clicks add (op 'add') or cut out (op 'sub') every pixel near the clicked colour."""
+        self.hole_commit()
+        self._colour_pick = None if self._colour_pick == op else op
+        self.setCursor(Qt.CursorShape.CrossCursor if self._colour_pick else Qt.CursorShape.ArrowCursor)
+        self._hole_ui_update()
+        if self._editor:
+            self._editor._set_status({'add': "Click a colour to add it to the open area (tolerance in Wand settings)",
+                                      'sub': "Click a colour to cut it out of the open area",
+                                      None: "Colour pick off"}[self._colour_pick])
+
+    def pick_colour_region(self, tx: int, ty: int): #vers 1
+        """Add / cut out every pixel near the colour at (tx, ty)."""
+        import numpy as np
+        if not (0 <= tx < self.tex_w and 0 <= ty < self.tex_h):
+            return
+        a = np.frombuffer(self.rgba, np.uint8).reshape(self.tex_h, self.tex_w, 4).astype(np.int16)
+        d = np.abs(a[..., :3] - a[ty, tx, :3]).max(axis=2)
+        m = (d <= int(self.wand_tolerance)) & (a[..., 3] > 0)
+        if a[ty, tx, 3] == 0:
+            m = a[..., 3] == 0
+        if not m.any():
+            return
+        self.combine_region(m, self._colour_pick)
+        self._hole_ui_update()
+
+    def _svg_icon_hud(self, name): #vers 1
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            return getattr(SVGIconFactory, name)(18)
+        except Exception:
+            return QIcon()
+
+    def _hole_inv_icon(self): #vers 1
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            return SVGIconFactory.dp_drape_invert_icon(18)
+        except Exception:
+            return QIcon()
+
+    def _hole_x(self): #vers 1
+        """X: cancel the hole being adjusted, else stop adding."""
+        if self._hole_edit is not None:
+            self.hole_cancel()
+        else:
+            self._hole_add_mode = False
+            self._colour_pick = None
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            self._hole_ui_update()
+
+    def _hole_invert(self): #vers 1
+        self.hole_commit()
+        if self._editor:
+            self._editor._wand_invert()
+
+    def hole_commit(self, adding=None): #vers 2
+        """Keep the adjusted hole; adding True keeps adding more, False stops."""
+        if adding is not None:
+            self._hole_add_mode = bool(adding)
+        e = self._hole_edit
+        if e is None:
+            self._hole_ui_update()
+            return
+        x0, y0, x1, y1 = self._hole_box_norm_of(e)
+        self._hole_edit = None
+        self._hole_drag = None
+        if e['shape'] == 'rect' and e['op'] is None:
+            self.set_wand_mask(None)
+            self._selection_rect = QRect(x0, y0, x1 - x0, y1 - y0)
+            self._sel_active = True
+            self._sel_floating = False
+        self._hole_ui_update()
+        self.update()
+        if self._editor:
+            self._editor._set_status("Hole kept - draw another to add it (X stops)" if self._hole_add_mode
+                                     else "Hole kept (Shift adds, Alt cuts out, Esc opens all)")
+
+    def hole_cancel(self): #vers 1
+        """Drop the hole being adjusted and restore the previous drape."""
+        e = self._hole_edit
+        if e is None:
+            return False
+        self._hole_edit = None
+        self._hole_drag = None
+        m, r, act = e['prev']
+        self.set_wand_mask(m)
+        self._selection_rect, self._sel_active = r, act
+        self._hole_ui_update()
+        self.update()
+        if self._editor:
+            self._editor._set_status("Hole cancelled")
+        return True
+
+    def _hole_paint(self, painter): #vers 1
+        """Eight handles round the hole being adjusted."""
+        painter.setBrush(QColor(255, 255, 255))
+        painter.setPen(QPen(QColor('#40c8d8'), 1))
+        for pt in self._hole_handles().values():
+            painter.drawRect(pt.x() - 4, pt.y() - 4, 8, 8)
+
+    def _enforce_edit_lock(self): #vers 3
+        """Put back pixels outside the drape (lock, wand, lasso, rectangle) from the snapshot."""
+        import numpy as np
+        r = self._protect_rect()
+        key = (self._region_gen, (r.x(), r.y(), r.width(), r.height()) if r is not None else None,
+               self.tex_w, self.tex_h)
+        if key != self._prot_key or (self._lock_snap is not None and len(self._lock_snap) != len(self.rgba)):
+            self._prot_key = key                         # region changed: pixels now are the baseline
+            self._lock_snap = bytes(self.rgba)
+            return
+        m = self._protect_mask()
+        if m is None:
+            self._lock_snap = None
+            return
+        snap = self._lock_snap
+        if snap is None:
+            self._lock_snap = bytes(self.rgba)
             return
         a = np.frombuffer(self.rgba, np.uint8).reshape(self.tex_h, self.tex_w, 4)
         b = np.frombuffer(snap, np.uint8).reshape(self.tex_h, self.tex_w, 4)
         out = ~m
         a[out] = b[out]
 
-    def _lasso_mask(self, add: bool): #vers 1
-        """Outline lasso: its polygon becomes the wand selection (Shift adds)."""
+    def rect_mask(self, r): #vers 1
+        """h x w bool mask of rectangle r (clipped to the canvas)."""
+        import numpy as np
+        r = r.intersected(QRect(0, 0, self.tex_w, self.tex_h))
+        m = np.zeros((self.tex_h, self.tex_w), bool)
+        m[r.y():r.y() + r.height(), r.x():r.x() + r.width()] = True
+        return m
+
+    def ellipse_box(self, p0, p1, round_: bool): #vers 1
+        """(x0, y0, x1, y1) of a drag from p0 to p1; round_ makes it a circle from p0."""
+        dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+        if round_:
+            d = max(abs(dx), abs(dy))
+            dx = d if dx >= 0 else -d
+            dy = d if dy >= 0 else -d
+        return (min(p0[0], p0[0] + dx), min(p0[1], p0[1] + dy),
+                max(p0[0], p0[0] + dx), max(p0[1], p0[1] + dy))
+
+    def ellipse_mask(self, x0, y0, x1, y1): #vers 1
+        """h x w bool mask of the ellipse inscribed in the box (pixel centres)."""
+        import numpy as np
+        cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        rx, ry = max((x1 - x0) / 2.0, 0.5), max((y1 - y0) / 2.0, 0.5)
+        ys, xs = np.mgrid[0:self.tex_h, 0:self.tex_w]
+        return (((xs + 0.5 - cx) / rx) ** 2 + ((ys + 0.5 - cy) / ry) ** 2) <= 1.0
+
+    def region_base(self): #vers 1
+        """Current open area as a mask: wand / lasso mask, else the rectangle, else None (all open)."""
+        if self._wand_mask is not None and self._wand_mask.shape == (self.tex_h, self.tex_w):
+            return self._wand_mask
+        if self._sel_active and self._selection_rect is not None:
+            return self.rect_mask(self._selection_rect)
+        return None
+
+    def _region_op(self, mods): #vers 2
+        """'add' for Shift, 'sub' for Alt, else None."""
+        if mods & Qt.KeyboardModifier.AltModifier:
+            return 'sub'
+        if mods & Qt.KeyboardModifier.ShiftModifier:
+            return 'add'
+        if self._hole_add_mode and self.region_base() is not None:
+            return 'add'
+        return None
+
+    def combine_region(self, m, op): #vers 1
+        """Add (op 'add') or cut out (op 'sub') shape mask m; nothing open left means the whole image opens."""
+        import numpy as np
+        base = self.region_base()
+        if op == 'add':
+            new = m if base is None else (base | m)
+        else:
+            new = (np.ones_like(m) if base is None else base) & ~m
+        self._sel_active = False
+        ed = self._editor
+        if not new.any():
+            self.set_wand_mask(None)
+            if ed:
+                ed._set_status("No open area left - whole image is open")
+            return
+        self.set_wand_mask(new)
+        if ed:
+            ed._set_status(f"Open area: {int(new.sum())} pixels (Shift adds, Alt cuts out, Esc opens all)")
+
+    def _lasso_mask(self, op): #vers 2
+        """Outline lasso: its polygon becomes the open area (Shift adds, Alt cuts out)."""
         import numpy as np
         pts = [self._widget_to_tex(pt) for pt in self._lasso_pts]
         if len(pts) < 3:
@@ -2365,12 +2863,13 @@ class DP5Canvas(QWidget):
         ptr = img.constBits()
         ptr.setsize(img.sizeInBytes())
         m = np.frombuffer(bytes(ptr), np.uint8).reshape(self.tex_h, img.bytesPerLine())[:, :self.tex_w] > 0
-        if add and self._wand_mask is not None and self._wand_mask.shape == m.shape:
-            m = m | self._wand_mask
+        if op:
+            self.combine_region(m, op)
+            return
         self.set_wand_mask(m)
         ed = self._editor
         if ed:
-            ed._set_status(f"Lasso: {int(m.sum())} pixels selected (Shift adds, Esc clears)")
+            ed._set_status(f"Lasso: {int(m.sum())} pixels selected (Shift adds, Alt cuts out, Esc clears)")
 
     def apply_gradient(self, p0, p1, radial: bool, c0: QColor, c1: QColor): #vers 1
         """FG -> BG gradient from p0 to p1 inside the wand mask, else the selection, else all."""
@@ -2679,7 +3178,7 @@ class DP5Canvas(QWidget):
         r = self._selection_rect
         return r.x() <= tx < r.x() + r.width() and r.y() <= ty < r.y() + r.height()
 
-    def _lift_selection(self, keep_source: bool = False):  #vers 2
+    def _lift_selection(self, keep_source: bool = False):  #vers 3
         """
         Lift the selected pixels off the canvas into _sel_buffer. Saves a
         full canvas backup in _sel_float_orig so Escape can cancel the
@@ -2691,6 +3190,7 @@ class DP5Canvas(QWidget):
         if not self._sel_active or not self._selection_rect: return
         # Backup whole canvas for cancel
         self._sel_float_orig = bytearray(self.rgba)
+        self._sel_float_start = (self._selection_rect.x(), self._selection_rect.y())
         # Copy selected region
         self.copy_selection()
         if keep_source:
@@ -2731,9 +3231,13 @@ class DP5Canvas(QWidget):
             self._selection_rect = QRect(ox, oy, w, h)
         self.update()
 
-    def cancel_sel_move(self):  #vers 1
+    def cancel_sel_move(self):  #vers 2
         """Escape while floating — restore canvas to pre-lift state."""
         if self._sel_floating and self._sel_float_orig:
+            if self._sel_float_start is not None:         # drape returns to where it was lifted
+                sx, sy = self._sel_float_start
+                self._sel_float_pos = (sx, sy)
+                self._selection_rect = QRect(sx, sy, self._sel_buf_w, self._sel_buf_h)
             self.rgba[:] = self._sel_float_orig
             self._sel_floating   = False
             self._sel_float_orig = None
@@ -3188,7 +3692,7 @@ class DP5Canvas(QWidget):
                 self.rgba[i+3] = max(self.rgba[i+3], a)
 
 
-    def paintEvent(self, event):  #vers 6
+    def paintEvent(self, event):  #vers 8
         self._sync_marching_ants_timer()
         self._enforce_edit_lock()
         painter = QPainter(self)
@@ -3228,6 +3732,9 @@ class DP5Canvas(QWidget):
         # Magic wand selection outline
         if self._wand_overlay is not None:
             painter.drawImage(0, 0, self._wand_overlay[1].scaled(
+                sw, sh, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation))
+        if self._lock_dim is not None:                    # shade outside the edit lock
+            painter.drawImage(0, 0, self._lock_dim[1].scaled(
                 sw, sh, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation))
         if self._lock_overlay is not None:                # edit lock region
             painter.drawImage(0, 0, self._lock_overlay[1].scaled(
@@ -3310,13 +3817,21 @@ class DP5Canvas(QWidget):
         # Also draw box-zoom preview
         is_box_zoom = (self.tool == TOOL_ZOOM and self._zoom_mode == 'box')
         if self._preview_start and self._preview_end and \
-                self.tool in (TOOL_SELECT, TOOL_SELECT_COPY):
+                self.tool in (TOOL_SELECT, TOOL_SELECT_COPY, TOOL_SELECT_ELLIPSE):
             # Dedicated marching-ants-style preview - NOT tied to the
             # current paint colour (self.color), which could blend
             # invisibly into the canvas depending on what's selected.
             # Same two-pass technique as the committed selection outline.
-            s = self._tex_to_widget(*self._preview_start)
-            e = self._tex_to_widget(*self._preview_end)
+            if self.tool == TOOL_SELECT_ELLIPSE:
+                bx = self.ellipse_box(self._preview_start, self._preview_end,
+                                      bool(QApplication.keyboardModifiers() & Qt.KeyboardModifier.ControlModifier))
+                s = self._tex_to_widget(bx[0], bx[1])
+                e = self._tex_to_widget(bx[2], bx[3])
+                draw_sel = painter.drawEllipse
+            else:
+                s = self._tex_to_widget(*self._preview_start)
+                e = self._tex_to_widget(*self._preview_end)
+                draw_sel = painter.drawRect
             rect = QRect(s, e).normalized()
             painter.setBrush(Qt.BrushStyle.NoBrush)
             if self.marching_ants_enabled:
@@ -3325,15 +3840,15 @@ class DP5Canvas(QWidget):
                 pen_bg.setDashPattern(dash)
                 pen_bg.setDashOffset(self._marching_ants_offset + sum(dash) / 2)
                 painter.setPen(pen_bg)
-                painter.drawRect(rect)
+                draw_sel(rect)
                 pen_fg = QPen(self.marching_ants_fg, 1, Qt.PenStyle.CustomDashLine)
                 pen_fg.setDashPattern(dash)
                 pen_fg.setDashOffset(self._marching_ants_offset)
                 painter.setPen(pen_fg)
-                painter.drawRect(rect)
+                draw_sel(rect)
             else:
                 painter.setPen(QPen(QColor(0, 180, 255), 1, Qt.PenStyle.DashLine))
-                painter.drawRect(rect)
+                draw_sel(rect)
 
         elif self._preview_start and self._preview_end and \
                 (self.tool in shape_tools or is_box_zoom):
@@ -3438,6 +3953,11 @@ class DP5Canvas(QWidget):
             sw2 = int(r.width()  * zx)
             sh2 = int(r.height() * z)
             rect = QRect(sx, sy, sw2, sh2)
+            if self._lock_dim is None:                    # drape outside the rectangle
+                drape = QPainterPath()
+                drape.addRect(0, 0, sw, sh)
+                drape.addRect(sx, sy, sw2, sh2)
+                painter.fillPath(drape, QColor(8, 18, 60, 150))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             if self.marching_ants_enabled:
                 dash = [1, 2] if self.marching_ants_style == 'dots' else [4, 4]
@@ -3508,6 +4028,9 @@ class DP5Canvas(QWidget):
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(int(scx*zx), int(scy*z), sw2, sh2)
 
+        if self._hole_edit is not None:
+            self._hole_paint(painter)
+
     #    Mouse events                                                           
 
     def mousePressEvent(self, e: QMouseEvent):  #vers 2
@@ -3534,6 +4057,14 @@ class DP5Canvas(QWidget):
         if btn not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             return
 
+        if btn == Qt.MouseButton.LeftButton and self._colour_pick:
+            self.pick_colour_region(tx, ty)
+            return
+
+        if btn == Qt.MouseButton.LeftButton and self._hole_edit is not None \
+                and self._hole_press(e.position().toPoint(), tx, ty):
+            return
+
         # Right-click draws with BG colour instead of FG, matching
         # Deluxe Paint 5 - temporarily swap self.color for the stroke's
         # duration so every tool below (and _do_spray/_do_blur_brush/
@@ -3548,6 +4079,9 @@ class DP5Canvas(QWidget):
 
         if self.tool == TOOL_PENCIL:
             self._push_undo_canvas()
+            self._smooth_pt = (tx, ty)
+            self._media_last = None
+            self._oil_carry = None
             self.set_pixel_brush(tx, ty, self.color); self.update()
 
         elif self.tool == TOOL_ERASER:
@@ -3621,11 +4155,13 @@ class DP5Canvas(QWidget):
         elif self.tool == TOOL_WAND:
             if 0 <= tx < self.tex_w and 0 <= ty < self.tex_h:
                 m = wand_mask(self.rgba, self.tex_w, self.tex_h, tx, ty, int(self.wand_tolerance))
-                if e.modifiers() & Qt.KeyboardModifier.ShiftModifier and self._wand_mask is not None:
-                    m = m | self._wand_mask
-                self.set_wand_mask(m)
-                ed = self._editor
-                if ed: ed._set_status(f"Wand: {int(m.sum())} pixels selected (Shift adds, Esc clears)")
+                op = self._region_op(e.modifiers())
+                if op:
+                    self.combine_region(m, op)
+                else:
+                    self.set_wand_mask(m)
+                    ed = self._editor
+                    if ed: ed._set_status(f"Wand: {int(m.sum())} pixels selected (Shift adds, Alt cuts out, Esc clears)")
 
         elif self.tool in (TOOL_GRADIENT, TOOL_RADIAL_GRADIENT):
             self._push_undo_canvas()
@@ -3739,9 +4275,16 @@ class DP5Canvas(QWidget):
                            TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                            TOOL_STAR,     TOOL_FILLED_STAR,
                            TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE,
-                           TOOL_SELECT,   TOOL_SELECT_COPY):
+                           TOOL_SELECT,   TOOL_SELECT_COPY, TOOL_SELECT_ELLIPSE):
 
-            if self.tool in (TOOL_SELECT, TOOL_SELECT_COPY) and self._sel_active and \
+            self._rect_op = self._region_op(e.modifiers()) if self.tool in (TOOL_SELECT, TOOL_SELECT_COPY, TOOL_SELECT_ELLIPSE) else None
+            self._hole_prev = (None if self._wand_mask is None else self._wand_mask.copy(),
+                               None if self._selection_rect is None else QRect(self._selection_rect), self._sel_active)
+            if self._rect_op and self._sel_active and self._selection_rect is not None \
+                    and not self._sel_floating and self._wand_mask is None:
+                self.set_wand_mask(self.rect_mask(self._selection_rect))   # existing rectangle joins the mask
+            if self.tool in (TOOL_SELECT, TOOL_SELECT_COPY) and self._sel_active and not self._rect_op and \
+               (self._sel_floating or e.modifiers() & Qt.KeyboardModifier.ControlModifier) and \
                self._point_in_sel_rect(tx, ty):
                 #    Click INSIDE committed selection → lift and start move.
                 #    TOOL_SELECT clears the source (cut); TOOL_SELECT_COPY
@@ -3805,8 +4348,11 @@ class DP5Canvas(QWidget):
         if ed and hasattr(ed, '_push_undo'):
             ed._push_undo()
 
-    def mouseMoveEvent(self, e: QMouseEvent):  #vers 2
+    def mouseMoveEvent(self, e: QMouseEvent):  #vers 3
         tx, ty = self._widget_to_tex(e.position().toPoint())
+        if self._hole_drag is not None:
+            self._hole_move(tx, ty)
+            return
         ed = self._editor
         if ed and hasattr(ed, '_update_status'):
             ed._update_status(tx, ty, self.get_pixel(tx, ty))
@@ -3863,6 +4409,10 @@ class DP5Canvas(QWidget):
             return
 
         if self.tool == TOOL_PENCIL:
+            if self.smooth_amount > 0:
+                from apps.components.DP5_Workshop.depends.dp5_brush_media import smooth_point
+                self._smooth_pt = smooth_point(self._smooth_pt, (tx, ty), self.smooth_amount)
+                tx, ty = int(round(self._smooth_pt[0])), int(round(self._smooth_pt[1]))
             if self._last_pt:
                 self.draw_line(self._last_pt[0], self._last_pt[1], tx, ty, self.color)
             self._last_pt = (tx, ty); self.update()
@@ -3943,7 +4493,7 @@ class DP5Canvas(QWidget):
                            TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                            TOOL_STAR,     TOOL_FILLED_STAR,
                            TOOL_MARKER_RECT, TOOL_MARKER_ELLIPSE,
-                           TOOL_SELECT,   TOOL_SELECT_COPY,
+                           TOOL_SELECT,   TOOL_SELECT_COPY, TOOL_SELECT_ELLIPSE,
                            TOOL_POLYGON,  TOOL_FILLED_POLYGON,
                            TOOL_GRADIENT, TOOL_RADIAL_GRADIENT):
             self._preview_end = (tx, ty); self.update()
@@ -3956,7 +4506,7 @@ class DP5Canvas(QWidget):
         elif self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO):
             self._lasso_pts.append(e.position().toPoint()); self.update()
 
-    def mouseReleaseEvent(self, e: QMouseEvent):  #vers 3
+    def mouseReleaseEvent(self, e: QMouseEvent):  #vers 4
         if e.button() == Qt.MouseButton.MiddleButton:
             self._pan_start = None
             return
@@ -3969,8 +4519,16 @@ class DP5Canvas(QWidget):
         if e.button() not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             return
 
+        if self._hole_drag is not None:
+            self._hole_drag = None
+            return
+
         tx, ty = self._widget_to_tex(e.position().toPoint())
         ps = self._preview_start
+
+        if self.tool == TOOL_PENCIL and self.smooth_amount > 0 and self._drawing and self._last_pt:
+            self.draw_line(self._last_pt[0], self._last_pt[1], tx, ty, self.color)     # catch up with the pen
+            self._smooth_pt = None
 
         if self.tool == TOOL_CURVE:
             if self._curve_phase == 'line':
@@ -4086,6 +4644,12 @@ class DP5Canvas(QWidget):
             self.draw_star(ps[0], ps[1], r_outer, r_outer//2, 5, self.color)
             self.flood_fill(ps[0], ps[1], self.color)
 
+        elif self.tool == TOOL_SELECT_ELLIPSE:
+            if ps:
+                box = self.ellipse_box(ps, (tx, ty), bool(e.modifiers() & Qt.KeyboardModifier.ControlModifier))
+                if box[2] > box[0] and box[3] > box[1]:
+                    self._hole_begin('ellipse', box, getattr(self, '_rect_op', None))
+
         elif self.tool in (TOOL_SELECT, TOOL_SELECT_COPY):
             if self._sel_floating and self._sel_drag_start:
                 #    End of floating drag — stamp non-destructively and stay floating   
@@ -4096,10 +4660,16 @@ class DP5Canvas(QWidget):
                 #    New marquee drawn   
                 x0,y0 = min(ps[0],tx), min(ps[1],ty)
                 x1,y1 = max(ps[0],tx), max(ps[1],ty)
-                if x1 > x0 and y1 > y0:
-                    self._selection_rect = QRect(x0, y0, x1-x0, y1-y0)
-                    self._sel_active     = True
-                    self._sel_floating   = False
+                if x1 > x0 and y1 > y0 and self.tool == TOOL_SELECT:
+                    self._hole_begin('rect', (x0, y0, x1, y1), getattr(self, '_rect_op', None))
+                elif x1 > x0 and y1 > y0:
+                    if getattr(self, '_rect_op', None):
+                        self.combine_region(self.rect_mask(QRect(x0, y0, x1-x0, y1-y0)), self._rect_op)
+                    else:
+                        self.set_wand_mask(None)                  # a plain marquee replaces any mask
+                        self._selection_rect = QRect(x0, y0, x1-x0, y1-y0)
+                        self._sel_active     = True
+                        self._sel_floating   = False
 
         elif self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO):
             if self.tool == TOOL_FILLED_LASSO and len(self._lasso_pts) >= 3:
@@ -4116,7 +4686,7 @@ class DP5Canvas(QWidget):
                 cy = sum(p[1] for p in pts_tex) // len(pts_tex)
                 self.flood_fill(cx, cy, self.color)
             elif self.tool == TOOL_LASSO:
-                self._lasso_mask(bool(e.modifiers() & Qt.KeyboardModifier.ShiftModifier))
+                self._lasso_mask(self._region_op(e.modifiers()))
             self._lasso_pts  = []
             self._sel_active = False
 
@@ -6603,12 +7173,14 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         dynamic_ribbons = self._build_ribbons_from_assignment()
         image_ops_ribbon = self._create_image_ops_ribbon()
         annotate_ribbon = self._create_annotate_ribbon()
+        drape_ribbon = self._create_drape_ribbon()
         canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
         tool_settings_ribbon = self._create_tool_settings_ribbon()
         for tb in dynamic_ribbons.values():
             outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, annotate_ribbon)
+        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, drape_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
         outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tool_settings_ribbon)
 
@@ -6977,7 +7549,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
         return panel
 
-    def _build_canvas_menus(self, mb): #vers 6
+    def _build_canvas_menus(self, mb): #vers 8
         """Populate a QMenuBar (topbar) or QMenu (docked/dropdown) with all DP5 menus.
         Both share the same addMenu()/addAction() API so one method serves all cases."""
         # File (Save / Export entries see the flattened layers)
@@ -7030,6 +7602,14 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         am.addAction("Export PNG sequence…",  self._anim_export_png_seq)
         am.addAction("Export IFF ANIM…",      self._anim_export_iff)
         am.addAction("Import IFF ANIM…",      self._anim_import_iff)
+        am.addSeparator()
+        am.addAction("Frame delays (selected frames)…", self._anim_frame_delays_dialog)
+        am.addAction("Colour cycle (open area)…",       self._anim_cycle_dialog)
+        am.addAction("Move brush across frames…",       self._anim_move_dialog)
+        am.addAction("Camera move (scroll / zoom)…",    self._anim_camera_dialog)
+        am.addAction("Grab anim brush (selected frames)", self._anim_grab_brush)
+        am.addAction("Paste anim brush…",               self._anim_paste_brush_dialog)
+        am.addAction("Frame palettes (remap / fade)…",  self._anim_palette_dialog)
         am.addSeparator()
         am.addAction("Clean up frames (edges, matte, size)…", self._anim_cleanup_dialog)
         am.addAction("Revert clean-up",       self._frames_cleanup_revert)
@@ -7127,7 +7707,6 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         wm = em.addMenu("Wand selection")
         wm.addAction("Fill with FG colour", self._wand_fill)
         wm.addAction("Clear to transparent\tDel", self._wand_clear)
-        wm.addAction("Invert", self._wand_invert)
         wm.addAction("Copy to new tab", self._wand_to_tab)
         wm.addSeparator()
         wm.addAction("Select FG colour everywhere", lambda: self._wand_select_colour('fg'))
@@ -7135,7 +7714,36 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         wm.addAction("Copy\tCtrl+C", lambda: self._wand_copy(False))
         wm.addAction("Cut\tCtrl+X",  lambda: self._wand_copy(True))
         em.addAction("Save selection as brush…", self._selection_save_brush)
-        em.addAction("Lock editing to selection / unlock", self._edit_lock_toggle)
+        self._menu_icon(em.addAction("Recolour selection…", self._recolour_selection), 'dp_recolour_icon')
+        self._menu_icon(em.addAction("Drape editing (lock to selection / unlock)", self._edit_lock_toggle), 'dp_drape_lock_icon')
+        self._menu_icon(em.addAction("Invert drape (holes become covered)\tCtrl+I", self._wand_invert), 'dp_drape_invert_icon')
+        bm = em.addMenu("Brush media, smoothing, pen pressure")
+        from PyQt6.QtGui import QActionGroup
+        for title, items, setter, key in (
+                ("Media", (("Off", 'off'), ("Chalk", 'chalk'), ("Watercolour", 'watercolour'), ("Oil", 'oil')),
+                 self._set_brush_media, 'brush_media'),
+                ("Smoothing", (("Off", 0.0), ("Light", 0.4), ("Medium", 0.65), ("Strong", 0.85)),
+                 self._set_brush_smooth, 'brush_smooth'),
+                ("Pen pressure", (("Off", 'off'), ("Size", 'size'), ("Opacity", 'opacity'), ("Size and opacity", 'both')),
+                 self._set_pen_pressure, 'pen_pressure')):
+            sub = bm.addMenu(title)
+            grp = QActionGroup(sub)
+            for label, val in items:
+                a = sub.addAction(label)
+                a.setCheckable(True)
+                a.setChecked(self.dp5_settings.get(key) == val)
+                a.triggered.connect(lambda _=False, f=setter, v=val: f(v))
+                grp.addAction(a)
+        QTimer.singleShot(0, self._apply_brush_settings)
+        hm = em.addMenu("Holes (all selected frames)")
+        hm.setIcon(self._svg_icon('dp_drape_icon'))
+        for _t, _k, _n in (("Fill with FG colour (keeps its alpha)", 'fill', 'dp_hole_fill_icon'),
+                           ("Colour to alpha…", 'toalpha', 'dp_hole_toalpha_icon'),
+                           ("Add FG colour to transparent pixels", 'fillalpha', 'dp_hole_fillalpha_icon'),
+                           ("Clear to transparent", 'clear', 'dp_hole_clear_icon'),
+                           ("Set alpha…", 'alpha', 'dp_hole_alpha_icon'),
+                           ("Invert colours", 'invert', 'dp_hole_invert_icon')):
+            self._menu_icon(hm.addAction(_t, lambda checked=False, k=_k: self._hole_apply(k)), _n)
         em.addSeparator()
         em.addAction("Rotate Selection…",  self._rotate_selection_dialog)
         em.addAction("Cut to Canvas…",     self._cut_to_canvas)
@@ -7146,6 +7754,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         pm = mb.addMenu("Picture")
         # Flip / mirror
         pm.addAction("Zoom Lens…",          self._open_zoom_lens)
+        pm.addAction("Perspective (open area)…", self._perspective_dialog)
         pm.addSeparator()
         pm.addAction("Flip horizontal",     self._mirror_h)
         pm.addAction("Flip vertical",       self._mirror_v)
@@ -7585,9 +8194,10 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         (TOOL_SPRAY,    'spray',    'Airbrush — light spray (S)',             'Plotting'),
         (TOOL_SPRAYCAN, 'spraycan', 'Spraycan — heavier, messier spray',      'Plotting'),
         (TOOL_PICKER,   'picker',   'Colour picker (K)',                      'Plotting'),
-        (TOOL_SELECT,      'select',      'Select (M) — drag to select, drag inside to cut/move', 'Plotting'),
+        (TOOL_SELECT,      'select',      'Select (M) — drag to select (Shift adds, Alt cuts out), Ctrl+drag inside to cut/move; drag handles to resize, Enter keeps', 'Plotting'),
         (TOOL_SELECT_COPY, 'select_copy', 'Select Copy — drag inside to lift a copy, leaving the original intact', 'Plotting'),
-        (TOOL_WAND,     'wand',     'Magic wand (W) — click a colour; Shift adds; Tolerance in tool settings', 'Plotting'),
+        (TOOL_SELECT_ELLIPSE, 'select_ellipse', 'Select ellipse (N) — drag a circle or oval (Shift adds, Alt cuts out, Ctrl keeps it round)', 'Plotting'),
+        (TOOL_WAND,     'wand',     'Magic wand (W) — click a colour; Shift adds, Alt cuts out; Tolerance in tool settings', 'Plotting'),
         (TOOL_LASSO,        'lasso',        'Lasso — outline (G)',            'Plotting'),
         (TOOL_FILLED_LASSO, 'filled_lasso', 'Lasso — filled/solid',           'Plotting'),
         (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)',   'Plotting'),
@@ -8239,7 +8849,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
     # Tools with no meaningful "size" at all - hide the field entirely.
     # TOOL_BULLET is fixed-size (a consistent small marker, like a text
     # bullet character) so its size isn't user-adjustable.
-    _TOOL_NO_SIZE = {TOOL_FILL, TOOL_PICKER, TOOL_SELECT, TOOL_SELECT_COPY,
+    _TOOL_NO_SIZE = {TOOL_FILL, TOOL_PICKER, TOOL_SELECT, TOOL_SELECT_COPY, TOOL_SELECT_ELLIPSE,
                     TOOL_ZOOM, TOOL_LASSO, TOOL_FILLED_LASSO, TOOL_CURVE,
                     TOOL_POLYGON, TOOL_FILLED_POLYGON, TOOL_BULLET,
                     TOOL_GRADIENT, TOOL_RADIAL_GRADIENT, TOOL_WAND}
@@ -8615,6 +9225,53 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         tb.addWidget(btn)
         return btn
 
+    def _create_drape_ribbon(self): #vers 1
+        """Drape ribbon: recolour, lock and hole colour ops; active only while a drape / hole exists."""
+        from PyQt6.QtWidgets import QToolBar
+        from PyQt6.QtGui import QAction
+        sz = max(self.dp5_settings.get('ribbon_icon_size_vert'), self.dp5_settings.get('ribbon_icon_size_horz'))
+        tb = QToolBar("Drape")
+        tb.setObjectName("Drape")
+        tb.setMovable(True)
+        tb.setFloatable(True)
+        tb.setIconSize(QSize(sz, sz))
+        self._drape_acts = []
+        for name, icon, tip, fn in (
+                ('lock', 'dp_drape_lock_icon', "Drape editing: lock to the open area / unlock", self._edit_lock_toggle),
+                ('recolour', 'dp_recolour_icon', "Recolour the open area (all selected frames)", self._recolour_selection),
+                ('fill', 'dp_hole_fill_icon', "Fill the open area with the FG colour, alpha included", lambda: self._hole_apply('fill')),
+                ('clear', 'dp_hole_clear_icon', "Clear the open area to transparent", lambda: self._hole_apply('clear')),
+                ('alpha', 'dp_hole_alpha_icon', "Set alpha in the open area", lambda: self._hole_apply('alpha')),
+                ('toalpha', 'dp_hole_toalpha_icon', "Colour to alpha: pick a colour, it becomes transparent in the open area", lambda: self._hole_apply('toalpha')),
+                ('fillalpha', 'dp_hole_fillalpha_icon', "Add the FG colour to transparent pixels in the open area", lambda: self._hole_apply('fillalpha')),
+                ('invert', 'dp_hole_invert_icon', "Invert colours in the open area", lambda: self._hole_apply('invert'))):
+            a = QAction(self._svg_icon(icon, sz), '', tb)
+            a.setToolTip(tip)
+            a.setCheckable(name == 'lock')
+            a.triggered.connect(lambda _=False, f=fn: f())
+            tb.addAction(a)
+            self._drape_acts.append((name, a))
+        self._apply_ribbon_style(tb)
+        self._drape_ribbon = tb
+        self._drape_timer = QTimer(self)
+        self._drape_timer.setInterval(200)
+        self._drape_timer.timeout.connect(self._drape_ribbon_refresh)
+        self._drape_timer.start()
+        self._drape_ribbon_refresh()
+        return tb
+
+    def _drape_ribbon_refresh(self): #vers 2
+        """Enable the drape buttons only while the HUD is needed: a hole, an open area or a lock."""
+        c = self.dp5_canvas
+        on = bool(c and (c._hole_edit is not None or c._hole_add_mode or c._colour_pick or c._edit_lock is not None
+                         or c.region_base() is not None))
+        for name, a in getattr(self, '_drape_acts', []):
+            if name == 'lock':                               # Drape editing starts the drape: always usable
+                a.setEnabled(True)
+                a.setChecked(bool(c and c._edit_lock is not None))
+            elif a.isEnabled() != on:
+                a.setEnabled(on)
+
     def _create_annotate_ribbon(self): #vers 3
         """Annotate ribbon - split-button dropdown groups matching the
         reference screenshots:
@@ -8803,10 +9460,16 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         if dlg is not None:
             dlg.accept()
 
-    def _select_tool(self, tool_id: str, from_button_click: bool = True): #vers 4
+    def _select_tool(self, tool_id: str, from_button_click: bool = True): #vers 5
         """Select a tool. Outline/filled shape variants and Select/Select
         Copy are now separate explicit tool IDs (own icons), so no fill-
         state remapping is needed - tool_id is used as-is."""
+        if self.dp5_canvas and self.dp5_canvas._hole_edit is not None:
+            self.dp5_canvas.hole_commit()
+        if self.dp5_canvas and self.dp5_canvas._colour_pick:
+            self.dp5_canvas._colour_pick = None
+            self.dp5_canvas.setCursor(Qt.CursorShape.ArrowCursor)
+            self.dp5_canvas._hole_ui_update()
         # Crop and resize are immediate actions, not persistent tools
         if tool_id == TOOL_CROP:
             self._crop_to_selection()
@@ -8907,6 +9570,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             TOOL_POLYGON:  'polygon',  TOOL_FILLED_POLYGON:  'filled_polygon',
             TOOL_STAR:     'star',     TOOL_FILLED_STAR:     'filled_star',
             TOOL_SELECT: 'select', TOOL_SELECT_COPY: 'select_copy', TOOL_LASSO: 'lasso',
+            TOOL_SELECT_ELLIPSE: 'select_ellipse',
             TOOL_FILLED_LASSO: 'filled_lasso',
             TOOL_MOVE: 'move', TOOL_ZOOM: 'zoom', TOOL_TEXT: 'text',
             TOOL_STAMP: 'stamp',
@@ -10185,6 +10849,10 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
     def _deselect(self): #vers 2
         if not self.dp5_canvas: return
         c = self.dp5_canvas
+        c._hole_add_mode = False
+        c._colour_pick = None
+        c.setCursor(Qt.CursorShape.ArrowCursor)
+        c._hole_ui_update()
         c.set_wand_mask(None)
         if c._sel_floating:
             c._stamp_selection(keep_floating=False)
@@ -11232,12 +11900,12 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
     #    Canvas operations                                                      
 
 
-    def _push_undo(self):  #vers 5
+    def _push_undo(self):  #vers 6
         if self.dp5_canvas: #vers 1
             c = self.dp5_canvas
             c._enforce_edit_lock()                       # finish the last locked edit
             snap = bytes(c.rgba)
-            if c._edit_lock is not None:
+            if c._lock_snap is not None:
                 c._lock_snap = snap
             self._undo_stack.append(
                 (snap, self._canvas_width, self._canvas_height,
@@ -11256,7 +11924,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         t.start(80)
 
 
-    def _undo_canvas(self): #vers 4
+    def _undo_canvas(self): #vers 6
         if self.dp5_canvas and self._undo_stack:
             self._redo_stack.append(
                 (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height,
@@ -11267,7 +11935,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._canvas_width, self._canvas_height = w, h
             self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
             self.dp5_canvas.pixel_aspect_x = pa
-            self.dp5_canvas.rgba[:] = rgba
+            self.dp5_canvas.apply_protected(rgba)
             self.dp5_canvas.update()
             if size_changed:
                 self._fit_canvas_to_viewport()
@@ -11275,7 +11943,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._history_changed()
 
 
-    def _redo_canvas(self): #vers 4
+    def _redo_canvas(self): #vers 6
         if self.dp5_canvas and self._redo_stack:
             self._undo_stack.append(
                 (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height,
@@ -11286,7 +11954,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._canvas_width, self._canvas_height = w, h
             self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
             self.dp5_canvas.pixel_aspect_x = pa
-            self.dp5_canvas.rgba[:] = rgba
+            self.dp5_canvas.apply_protected(rgba)
             self.dp5_canvas.update()
             if size_changed:
                 self._fit_canvas_to_viewport()
@@ -11319,7 +11987,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             'layer_idx': self._layer_idx,
         }
 
-    def _restore_canvas_tab_state(self, state): #vers 4
+    def _restore_canvas_tab_state(self, state): #vers 5
         """Apply a previously captured tab state back onto the active
         canvas widget/workshop attributes. Also clears transient,
         tab-independent UI state (selection, marching ants, in-progress
@@ -11332,6 +12000,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         c.tex_w, c.tex_h = state['tex_w'], state['tex_h']
         c.pixel_aspect_x = state['pixel_aspect_x']
         c.rgba = bytearray(state['rgba'])
+        c._prot_key = None
         self._canvas_width  = state['canvas_width']
         self._canvas_height = state['canvas_height']
         self._undo_stack = deque(state['undo_stack'], maxlen=self._undo_stack.maxlen)
@@ -11520,11 +12189,21 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
     def _wand_clear(self): #vers 1
         self._wand_pixels('clear')
 
-    def _wand_invert(self): #vers 1
+    def _wand_invert(self): #vers 2
+        """Invert the drape: holes become covered patches, covered areas become holes."""
         c = self.dp5_canvas
-        if c and c._wand_mask is not None:
-            c.set_wand_mask(~c._wand_mask)
-            self._set_status("Wand selection inverted")
+        base = c.region_base() if c else None
+        if base is None:
+            self._set_status("Nothing selected to invert")
+            return
+        inv = ~base
+        c._sel_active = False
+        if not inv.any():
+            c.set_wand_mask(None)
+            self._set_status("No open area left - whole image is open")
+            return
+        c.set_wand_mask(inv)
+        self._set_status("Drape inverted - holes are now covered, covered areas are open")
 
     def _wand_select_colour(self, kind: str): #vers 1
         """Wand mask of every FG-coloured ('fg') or fully transparent ('alpha') pixel."""
@@ -11581,7 +12260,88 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._toggle_brush_manager()
         self._brush_mgr_panel.save_current_buffer(c._sel_buffer, c._sel_buf_w, c._sel_buf_h)
 
-    def _edit_lock_toggle(self): #vers 1
+    def _recolour_selection(self): #vers 1
+        """Hue shift / colourise / blend the selected region only, with live preview."""
+        c = self.dp5_canvas
+        if not c:
+            return
+        c.hole_commit()
+        mask, text = c.recolour_mask()
+        if not mask.any():
+            self._set_status("Nothing to recolour: selection is empty")
+            return
+        RecolourDialog(self, c, mask, text).exec()
+
+    def _svg_icon(self, name: str, size: int = 20): #vers 1
+        """SVG icon from the factory by method name; empty icon when unavailable."""
+        try:
+            return getattr(SVGIconFactory, name)(size)
+        except Exception:
+            return QIcon()
+
+    def _menu_icon(self, action, name: str): #vers 1
+        """Give a menu action its SVG icon."""
+        action.setIcon(self._svg_icon(name))
+        return action
+
+    def _hole_apply(self, kind: str): #vers 2
+        """Fill / clear / set alpha / invert inside the open area, on every selected frame."""
+        import numpy as np
+        c = self.dp5_canvas
+        if not c:
+            return
+        c.hole_commit()
+        mask, _t = c.recolour_mask()
+        if not mask.any():
+            self._set_status("Nothing open to change")
+            return
+        alpha = 255
+        if kind == 'alpha':
+            from PyQt6.QtWidgets import QInputDialog
+            alpha, ok = QInputDialog.getInt(self, "Set alpha", "Alpha 0-255:", 128, 0, 255)
+            if not ok:
+                return
+        col = (c.color.red(), c.color.green(), c.color.blue(), c.color.alpha())
+        pick, tol = None, 0
+        if kind == 'toalpha':
+            from PyQt6.QtWidgets import QColorDialog, QInputDialog
+            q = QColorDialog.getColor(QColor(255, 255, 255), self, "Colour to make transparent")
+            if not q.isValid():
+                return
+            tol, ok = QInputDialog.getInt(self, "Colour to alpha", "Tolerance 0-100:", 15, 0, 100)
+            if not ok:
+                return
+            pick = (q.red(), q.green(), q.blue())
+        def edit(buf):  #vers 2
+            a = np.frombuffer(bytes(buf), np.uint8).reshape(c.tex_h, c.tex_w, 4).copy()
+            if kind == 'toalpha':
+                d = a[..., :3].astype(np.int32) - np.array(pick, np.int32)
+                a[mask & ((d * d).sum(axis=2) <= (tol / 100.0) ** 2 * (255 * 255 * 3)), 3] = 0
+            elif kind == 'fillalpha':
+                a[mask & (a[..., 3] == 0)] = (col[0], col[1], col[2], 255)
+            elif kind == 'fill':
+                a[mask] = col
+            elif kind == 'clear':
+                a[mask, 3] = 0
+            elif kind == 'alpha':
+                a[mask, 3] = alpha
+            else:
+                a[mask, :3] = 255 - a[mask, :3]
+            return a.tobytes()
+        self._push_undo()
+        n = len(c.rgba)
+        c.rgba[:] = edit(c.rgba)
+        done = 0
+        for i in self._anim_other_selected():
+            if len(self._frames[i]) == n:
+                self._frames[i] = bytearray(edit(self._frames[i]))
+                done += 1
+        if done:
+            self._anim_refresh_thumbs()
+        c.update()
+        self._set_status(f"{kind}: {int(mask.sum())} pixels" + (f" on {done + 1} frames" if done else ""))
+
+    def _edit_lock_toggle(self): #vers 2
         """Lock painting to the wand / lasso selection or selected rectangle; again unlocks."""
         import numpy as np
         c = self.dp5_canvas
@@ -11589,7 +12349,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             return
         if c._edit_lock is not None:
             c.set_edit_lock(None)
-            self._set_status("Editing unlocked")
+            self._set_status("Drape editing off")
             return
         m = c._wand_mask
         if (m is None or m.shape != (c.tex_h, c.tex_w)) and c._sel_active and c._selection_rect is not None:
@@ -11597,12 +12357,15 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             m = np.zeros((c.tex_h, c.tex_w), bool)
             m[r.y():r.y() + r.height(), r.x():r.x() + r.width()] = True
         if m is None or not m.any():
-            self._set_status("Select a region first: Lasso (G), Select rectangle or Magic wand")
+            self._select_tool(TOOL_SELECT, False)
+            c._hole_add_mode = True
+            c._hole_ui_update()
+            self._set_status("Drag a hole on the image (Shift adds more, N = circle, G = lasso, W = wand), then Drape editing again")
             return
         c.set_edit_lock(m.copy())
         c.set_wand_mask(None)
         c._sel_active = False
-        self._set_status(f"Editing locked to {int(m.sum())} pixels (orange outline) - Edit menu to unlock")
+        self._set_status(f"Drape editing on: {int(m.sum())} pixels open (orange outline) - Edit menu to turn off")
 
     def _wand_to_tab(self): #vers 1
         """Wand selection (its bounding box, unselected pixels clear) as a new canvas tab."""
@@ -15761,13 +16524,14 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._frames[self._current_frame] = bytearray(self.dp5_canvas.rgba)
 
 
-    def _anim_load_frame(self, idx: int): #vers 2
+    def _anim_load_frame(self, idx: int): #vers 3
         """Load frame idx onto the canvas."""
         if not self.dp5_canvas: return
         if not (0 <= idx < len(self._frames)): return
         self._anim_save_current_frame()
         self._current_frame = idx
         rgba = self._frames[idx]
+        self.dp5_canvas._prot_key = None                 # new frame is the drape baseline
         if len(rgba) == len(self.dp5_canvas.rgba):
             self.dp5_canvas.rgba[:] = rgba
         else:
@@ -15788,7 +16552,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 f"Frame {self._current_frame+1}/{len(self._frames)}")
 
 
-    def _anim_refresh_thumbs(self): #vers 1
+    def _anim_refresh_thumbs(self): #vers 2
         """Rebuild all frame thumbnails."""
         if not hasattr(self, '_anim_thumb_layout'): return
         # Clear
@@ -15796,6 +16560,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             w = self._anim_thumb_layout.takeAt(0).widget()
             if w: w.deleteLater()
         # Rebuild
+        n = len(self._frames)
+        self._frame_sel = {i for i in getattr(self, '_frame_sel', set()) if i < n} or {min(self._current_frame, n - 1)}
         tw, th = 48, 36
         for i, frame in enumerate(self._frames):
             btn = QPushButton()
@@ -15811,27 +16577,52 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 pix = QPixmap.fromImage(qimg).scaled(tw, th, Qt.AspectRatioMode.KeepAspectRatio)
                 btn.setIcon(QIcon(pix))
                 btn.setIconSize(pix.size())
-            btn.clicked.connect(lambda _, idx=i: self._anim_load_frame(idx))
-            btn.setStyleSheet(
-                f"QPushButton{{background:{'#4466aa' if i==self._current_frame else '#333'};"
-                "border:1px solid #666;border-radius:2px;padding:1px;}"
-                "QPushButton:checked{border:2px solid #88aaff;}")
+            btn.setToolTip(f"Frame {i+1} - Ctrl+click toggles, Shift+click selects a range")
+            btn.clicked.connect(lambda _, idx=i: self._anim_thumb_click(idx))
+            btn.setStyleSheet(self._anim_thumb_style(i))
             self._anim_thumb_layout.addWidget(btn)
         self._anim_thumb_layout.addStretch()
         self._anim_update_label()
 
 
-    def _anim_highlight_thumb(self, idx: int): #vers 1
-        """Just update highlight without full rebuild."""
+    def _anim_thumb_style(self, i: int) -> str: #vers 1
+        """Thumbnail style: blue current frame, orange border when selected."""
+        sel = i in getattr(self, '_frame_sel', ())
+        return (f"QPushButton{{background:{'#4466aa' if i == self._current_frame else '#333'};"
+                f"border:{'2px solid #ff9a2e' if sel else '1px solid #666'};border-radius:2px;padding:1px;}}")
+
+
+    def _anim_thumb_click(self, idx: int): #vers 1
+        """Click shows frame; Ctrl toggles it in the selection, Shift selects a range."""
+        mods = QApplication.keyboardModifiers()
+        sel = set(getattr(self, '_frame_sel', set()))
+        if mods & Qt.KeyboardModifier.ControlModifier:
+            sel ^= {idx}
+            if not sel:
+                sel = {idx}
+        elif mods & Qt.KeyboardModifier.ShiftModifier:
+            a, b = sorted((self._current_frame, idx))
+            sel |= set(range(a, b + 1))
+        else:
+            sel = {idx}
+        self._frame_sel = sel
+        self._anim_load_frame(idx)
+        self._set_status(f"{len(sel)} frame(s) selected: {', '.join(str(i + 1) for i in sorted(sel))}")
+
+
+    def _anim_other_selected(self) -> list: #vers 1
+        """Selected frame indexes other than the one on the canvas."""
+        return [i for i in sorted(getattr(self, '_frame_sel', ())) if i != self._current_frame and 0 <= i < len(self._frames)]
+
+
+    def _anim_highlight_thumb(self, idx: int): #vers 2
+        """Update highlight without a full rebuild."""
         layout = self._anim_thumb_layout
         for i in range(layout.count()):
             item = layout.itemAt(i)
             if item and item.widget():
                 item.widget().setChecked(i == idx)
-                item.widget().setStyleSheet(
-                    f"QPushButton{{background:{'#4466aa' if i==idx else '#333'};"
-                    "border:1px solid #666;border-radius:2px;padding:1px;}"
-                    "QPushButton:checked{border:2px solid #88aaff;}")
+                item.widget().setStyleSheet(self._anim_thumb_style(i))
 
 
     def _anim_add_frame(self): #vers 1
@@ -15883,7 +16674,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         self._anim_load_frame(min(len(self._frames)-1, self._current_frame+1))
 
 
-    def _anim_toggle_play(self): #vers 1
+    def _anim_toggle_play(self): #vers 2
         if self._anim_playing:
             self._anim_playing = False
             self._anim_timer.stop()
@@ -15894,23 +16685,157 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._anim_save_current_frame()
             self._anim_playing = True
             fps = self._anim_fps_spin.value() if hasattr(self,'_anim_fps_spin') else 12
-            self._anim_timer.start(1000 // fps)
+            if len(set(self._frame_delays)) <= 1:            # uniform delays follow the FPS box
+                self._frame_delays = [1000 // fps] * len(self._frames)
+            self._anim_timer.start(self._frame_delays[self._current_frame] if self._current_frame < len(self._frame_delays) else 1000 // fps)
             if hasattr(self, '_anim_play_btn'):
                 self._anim_play_btn.setText("⏹")
             self._set_status(f"Playing {len(self._frames)} frames @ {fps}fps")
 
 
-    def _anim_tick(self): #vers 1
+    def _anim_tick(self): #vers 3
         """Advance to next frame during playback."""
         if not self._anim_playing: return
         next_f = (self._current_frame + 1) % len(self._frames)
         self._current_frame = next_f
+        if next_f < len(getattr(self, '_frame_delays', [])):
+            self._anim_timer.start(max(10, int(self._frame_delays[next_f])))
         if self.dp5_canvas and len(self._frames[next_f]) == len(self.dp5_canvas.rgba):
+            self.dp5_canvas._prot_key = None
             self.dp5_canvas.rgba[:] = self._frames[next_f]
             self.dp5_canvas.update()
         self._anim_update_label()
         self._anim_highlight_thumb(next_f)
 
+
+    def _anim_frame_delays_dialog(self): #vers 1
+        """Set the delay of the selected frames, or all when one is selected."""
+        from apps.components.DP5_Workshop.depends.dp5_anim_tools import FrameDelayDialog
+        if not self._frames:
+            return
+        idxs = sorted(getattr(self, '_frame_sel', set()))
+        if len(idxs) < 2:
+            idxs = list(range(len(self._frames)))
+        FrameDelayDialog(self, idxs).exec()
+
+    def _anim_cycle_dialog(self): #vers 1
+        """Colour cycling over the colours in the open area."""
+        from apps.components.DP5_Workshop.depends.dp5_anim_tools import CycleDialog, range_from_area
+        c = self.dp5_canvas
+        if not c:
+            return
+        c.hole_commit()
+        mask, _t = c.recolour_mask()
+        cols = range_from_area(c.rgba, c.tex_w, c.tex_h, mask)
+        if cols is None:
+            self._set_status("Too many colours in the open area (over 256): draw a smaller hole")
+            return
+        if len(cols) < 2:
+            self._set_status("Need at least 2 colours in the open area to cycle")
+            return
+        CycleDialog(self, cols).exec()
+
+    def _apply_brush_settings(self): #vers 1
+        """Push saved media, smoothing and pressure settings to the canvas."""
+        c = self.dp5_canvas
+        if c:
+            c.media = self.dp5_settings.get('brush_media')
+            c.smooth_amount = float(self.dp5_settings.get('brush_smooth'))
+            c.pressure_mode = self.dp5_settings.get('pen_pressure')
+
+    def _set_brush_media(self, v): #vers 1
+        self.dp5_settings.set('brush_media', v)
+        self._apply_brush_settings()
+        self._set_status(f"Brush media: {v}")
+
+    def _set_brush_smooth(self, v): #vers 1
+        self.dp5_settings.set('brush_smooth', v)
+        self._apply_brush_settings()
+        self._set_status(f"Freehand smoothing: {v}")
+
+    def _set_pen_pressure(self, v): #vers 1
+        self.dp5_settings.set('pen_pressure', v)
+        self._apply_brush_settings()
+        self._set_status(f"Pen pressure: {v}")
+
+    def _anim_sel_idxs(self) -> list: #vers 1
+        """Selected frames, or all when fewer than two are selected."""
+        idxs = sorted(getattr(self, '_frame_sel', set()))
+        return idxs if len(idxs) >= 2 else list(range(len(self._frames)))
+
+    def _anim_camera_dialog(self): #vers 1
+        """Scroll / zoom the current frame across the selected frames."""
+        from apps.components.DP5_Workshop.depends.dp5_anim_tools import CameraDialog
+        if self.dp5_canvas and self._frames:
+            CameraDialog(self, self._anim_sel_idxs(), self._current_frame).exec()
+
+    def _anim_grab_brush(self): #vers 1
+        """Cut the open area from each selected frame as an anim brush."""
+        from apps.components.DP5_Workshop.depends.dp5_anim_tools import grab_anim_brush
+        c = self.dp5_canvas
+        if not c or not self._frames:
+            return
+        c.hole_commit()
+        if c.region_base() is None:
+            self._set_status("Draw a hole around the brush first (Drape editing)")
+            return
+        self._anim_save_current_frame()
+        mask, _t = c.recolour_mask()
+        idxs = self._anim_sel_idxs()
+        got = grab_anim_brush(self._frames, c.tex_w, c.tex_h, mask, idxs)
+        if got is None:
+            self._set_status("Open area is empty")
+            return
+        self._anim_brush = got
+        self._set_status(f"Anim brush grabbed: {len(idxs)} frame(s) - File > Animation > Paste anim brush")
+
+    def _anim_paste_brush_dialog(self): #vers 1
+        """Paste the anim brush onto the selected frames."""
+        from apps.components.DP5_Workshop.depends.dp5_anim_tools import AnimBrushDialog
+        if not getattr(self, '_anim_brush', None):
+            self._set_status("Grab an anim brush first")
+            return
+        if self.dp5_canvas and self._frames:
+            AnimBrushDialog(self, self._anim_sel_idxs()).exec()
+
+    def _anim_palette_dialog(self): #vers 1
+        """Per-frame palettes: remap to the current frame's colours, or fade."""
+        from apps.components.DP5_Workshop.depends.dp5_anim_tools import PaletteDialog
+        c = self.dp5_canvas
+        if c and self._frames:
+            c.hole_commit()
+            PaletteDialog(self, self._anim_sel_idxs(), self._current_frame).exec()
+
+    def _perspective_dialog(self): #vers 1
+        """Turn the open area on three axes with perspective."""
+        from apps.components.DP5_Workshop.depends.dp5_perspective import PerspectiveDialog
+        c = self.dp5_canvas
+        if not c:
+            return
+        c.hole_commit()
+        if c.region_base() is None:
+            self._set_status("Draw a hole around the brush first (Drape editing)")
+            return
+        mask, _t = c.recolour_mask()
+        if not mask.any():
+            self._set_status("Open area is empty")
+            return
+        PerspectiveDialog(self, c, mask).exec()
+
+    def _anim_move_dialog(self): #vers 1
+        """Move the open-area brush across the selected frames, with fade."""
+        from apps.components.DP5_Workshop.depends.dp5_anim_tools import MoveBrushDialog
+        c = self.dp5_canvas
+        if not c or not self._frames:
+            return
+        c.hole_commit()
+        if c.region_base() is None:
+            self._set_status("Draw a hole around the brush first (Drape editing)")
+            return
+        idxs = sorted(getattr(self, '_frame_sel', set()))
+        if len(idxs) < 2:
+            idxs = list(range(len(self._frames)))
+        MoveBrushDialog(self, idxs, self._current_frame).exec()
 
     def _anim_cleanup_dialog(self): #vers 1
         """Emoji / GIF clean-up on every frame: key background, edges, scale."""
@@ -16020,6 +16945,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         if multi:
             self._frames = [d for d, _w, _h in out]
             c.rgba = bytearray(self._frames[self._current_frame])
+            c._prot_key = None
             self._anim_refresh_thumbs()
         else:
             c.rgba = out[0][0]
@@ -16043,6 +16969,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         c.tex_w, c.tex_h = w, h
         self._current_frame = min(self._current_frame, len(frames) - 1)
         c.rgba = bytearray(frames[self._current_frame])
+        c._prot_key = None
         self._anim_refresh_thumbs()
         c.update()
         self._fit_canvas_to_viewport()
@@ -16329,7 +17256,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         else: self.showMaximized()
 
 
-    def keyPressEvent(self, e): #vers 2
+    def keyPressEvent(self, e): #vers 3
         k   = e.key()
         mod = e.modifiers()
         Ctrl  = Qt.KeyboardModifier.ControlModifier
@@ -16348,6 +17275,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             elif k == Qt.Key.Key_C: self._copy_selection()
             elif k == Qt.Key.Key_V: self._paste_selection()
             elif k == Qt.Key.Key_A: self._select_all()
+            elif k == Qt.Key.Key_I: self._wand_invert()
             elif k in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
                 z = self._canvas_zoom
                 self._set_zoom(z * 1.25 if z < 1 else min(64, z + 1))
@@ -16358,6 +17286,13 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             return
 
         # Escape — exit stamp mode, cancel floating move, or deselect
+        if self.dp5_canvas and self.dp5_canvas._hole_edit is not None:
+            if k == Qt.Key.Key_Escape:
+                self.dp5_canvas.hole_cancel()
+                return
+            if k in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self.dp5_canvas.hole_commit(False)
+                return
         if k == Qt.Key.Key_Escape:
             if self.dp5_canvas and self.dp5_canvas.tool == TOOL_STAMP:
                 # Exit stamp mode → back to select tool
@@ -16436,6 +17371,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             Qt.Key.Key_T: TOOL_TRIANGLE,
             Qt.Key.Key_Asterisk: TOOL_STAR,
             Qt.Key.Key_M: TOOL_SELECT,
+            Qt.Key.Key_N: TOOL_SELECT_ELLIPSE,
             Qt.Key.Key_G: TOOL_LASSO,
             Qt.Key.Key_H: TOOL_MOVE,
             Qt.Key.Key_Z: TOOL_ZOOM,

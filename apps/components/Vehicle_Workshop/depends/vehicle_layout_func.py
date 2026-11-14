@@ -1,32 +1,25 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_layout_func.py - Version: 6
-# X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop layout
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_layout_func.py - Version: 9
+# X-Seti - November 12 2026 - IMG Factory 1.6 - Vehicle Workshop layout
 
 """
-Panels, sidebar, viewport and list layout.
+Vehicle Model dock: IMG Entries, Geometries, Textures, Frame Visibility tabs.
 """
 
 ##class VehicleLayoutMixin: -
-# _create_left_panel
-# _create_right_panel
-# _create_status_bar
+# _create_vehicle_model_dock
+# _create_vehicle_tools_dock
 # _filter_img_list
 # _make_section_header
 # _on_frame_visibility_changed
 # _on_geom_selected
-# _populate_frame_tree
+# _populate_frame_visibility
 # _populate_geom_list
-# _populate_sidebar
-# _set_status
-# get_tab_margins
 
-import os, re
-
-from PyQt6.QtCore import QSize, QTimer, Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
-    QApplication, QButtonGroup, QColorDialog, QDialog, QFormLayout, QFrame, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QListWidget, QProgressBar, QPushButton, QSizePolicy,
-    QSlider, QSplitter, QTabWidget, QToolButton, QVBoxLayout, QWidget)
+    QButtonGroup, QDockWidget, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget,
+    QPushButton, QScrollArea, QSizePolicy, QSlider, QToolButton, QTreeWidget,
+    QVBoxLayout, QWidget)
 
 from apps.methods.dff_viewport import VehicleViewport
 from apps.components.Vehicle_Workshop.depends.vehicle_common_func import (
@@ -34,34 +27,23 @@ from apps.components.Vehicle_Workshop.depends.vehicle_common_func import (
 
 
 class VehicleLayoutMixin:
-    """Panel creation and layout.
-    Mixed into GUIWorkshop — not used standalone.
-    Override any _create_* method in your subclass to replace that panel.
-    """
+    """Vehicle Model dock. Mixed into VehicleWorkshop."""
 
-    def get_tab_margins(self): #vers 1
-        return (self.tabmerginsa, self.tabmerginsb, self.tabmerginsc, self.tabmerginsd)
-
-
-    def _create_left_panel(self): #vers 6
-        """Asset sections as separate docks: [(title, widget)]."""
-        from PyQt6.QtWidgets import QTreeWidget, QToolButton
+    def _create_vehicle_model_dock(self): #vers 1
+        """IMG Entries / Geometries / Textures / Frame Visibility - one dock, tabbed."""
+        from apps.components.Vehicle_Workshop.vehicle_workshop import CurrentOnlyTabWidget
         from apps.methods.fold_widgets import ButtonRow
-
-        def _sec():
-            w = QFrame(); w.setFrameStyle(QFrame.Shape.StyledPanel)
-            lay = QVBoxLayout(w); lay.setContentsMargins(*self.get_panel_margins()); lay.setSpacing(2)
-            return w, lay
-
-        # - IMG Entries: filter, list, Open DFF / Open TXD
-        img_sec, img_lay = _sec()
-        img_lay.addWidget(self._make_section_header("", self._filter_img_list))
-        self._img_list = QListWidget()
-        self._img_list.setFont(self.panel_font)
-        self._img_list.itemClicked.connect(self._on_img_entry_selected)     # click or Enter loads
-        self._img_list.itemActivated.connect(self._on_img_entry_selected)
-        img_lay.addWidget(self._img_list, 1)
+        tabs = CurrentOnlyTabWidget()
         ic = self._get_icon_color()
+
+        # IMG Entries
+        img_tab = QWidget(); il = QVBoxLayout(img_tab); il.setContentsMargins(4, 4, 4, 4)
+        il.addWidget(self._make_section_header("", self._filter_img_list))
+        self._img_list = QListWidget()
+        self._img_list.setFont(self.panel_font); self._img_list.setAlternatingRowColors(True)
+        self._img_list.itemClicked.connect(self._on_img_entry_selected)
+        self._img_list.itemActivated.connect(self._on_img_entry_selected)
+        il.addWidget(self._img_list, 1)
         btns = []
         for label, tip, cb in (('Open DFF', 'Open DFF model', self._vw_pick_dff),
                                ('Open TXD', 'Open TXD textures', self._vw_pick_txd)):
@@ -71,41 +53,50 @@ class VehicleLayoutMixin:
             b.clicked.connect(cb)
             btns.append(b)
         self._vw_open_dff_btn, self._vw_open_txd_btn = btns
-        img_lay.addWidget(ButtonRow(btns))
+        il.addWidget(ButtonRow(btns))
+        tabs.addTab(img_tab, "IMG Entries")
 
-        # - Geometries
-        geom_sec, gl = _sec()
+        # Geometries
+        geom_tab = QWidget(); gl = QVBoxLayout(geom_tab); gl.setContentsMargins(4, 4, 4, 4)
         self._geom_list = QListWidget()
-        self._geom_list.setFont(self.panel_font)
+        self._geom_list.setFont(self.panel_font); self._geom_list.setAlternatingRowColors(True)
         self._geom_list.currentRowChanged.connect(self._on_geom_selected)
         gl.addWidget(self._geom_list)
+        tabs.addTab(geom_tab, "Geometries")
 
-        # - Textures with thumbnails
-        tex_sec, tl = _sec()
+        # Textures
+        tex_tab = QWidget(); tl = QVBoxLayout(tex_tab); tl.setContentsMargins(4, 4, 4, 4)
         self._tex_list = QListWidget()
-        self._tex_list.setFont(self.panel_font)
-        self._tex_list.setIconSize(QSize(32,32))
+        self._tex_list.setFont(self.panel_font); self._tex_list.setAlternatingRowColors(True)
+        self._tex_list.setIconSize(QSize(32, 32))
         self._tex_list.setViewMode(QListWidget.ViewMode.ListMode)
         tl.addWidget(self._tex_list)
-        tl.addWidget(self._skin_bar())                       # DP5, replace, add, export, save
+        tl.addWidget(self._skin_bar())
+        tabs.addTab(tex_tab, "Textures")
 
-        # - Frame Hierarchy with visibility checkboxes
-        frame_sec, fl = _sec()
-        self._frame_tree = QTreeWidget()
-        self._frame_tree.setFont(self.panel_font)
-        self._frame_tree.setHeaderHidden(True)
-        self._frame_tree.setColumnCount(1)
-        self._frame_tree.itemChanged.connect(self._on_frame_visibility_changed)
-        fl.addWidget(self._frame_tree)
+        # Frame Visibility (own tree - ModelWorkshop's own _frame_tree is a
+        # different, 3-column selection tree, not this checkbox one)
+        fv_tab = QWidget(); fl = QVBoxLayout(fv_tab); fl.setContentsMargins(4, 4, 4, 4)
+        self._vw_frame_tree = QTreeWidget()
+        self._vw_frame_tree.setFont(self.panel_font); self._vw_frame_tree.setAlternatingRowColors(True)
+        self._vw_frame_tree.setHeaderHidden(True)
+        self._vw_frame_tree.setColumnCount(1)
+        self._vw_frame_tree.itemChanged.connect(self._on_frame_visibility_changed)
+        fl.addWidget(self._vw_frame_tree)
+        tabs.addTab(fv_tab, "Frame Visibility")
 
-        return [("IMG Entries", img_sec), ("Geometries", geom_sec),
-                ("Textures", tex_sec), ("Frame Hierarchy", frame_sec)]
+        dock = QDockWidget("Vehicle Model", self)
+        dock.setObjectName("VehicleModelDock")
+        dock.setWidget(tabs)
+        self._vehicle_model_dock = dock
+        return dock
 
-    def _create_right_panel(self): #vers 7
+    def _create_vehicle_tools_dock(self): #vers 1
+        """Render, camera, paint, assembly, animate, doors, wheels, info, editing - scrollable dock."""
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(140)                       # dock separator sets the width
+        panel.setMinimumWidth(60)                        # dock separator sets the width
         lay = QVBoxLayout(panel)
-        lay.setContentsMargins(*self.get_panel_margins())
+        lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(2)
 
         ic = self._get_icon_color()
@@ -169,37 +160,15 @@ class VehicleLayoutMixin:
         def _sep():  #vers 1
             from PyQt6.QtWidgets import QFrame as _QF
             s = _QF(); s.setFrameShape(_QF.Shape.HLine)
-            s.setFixedHeight(1); s.setStyleSheet("background:#333;")
+            s.setFixedHeight(1); s.setStyleSheet("background:palette(mid);")
             return s
 
         def _lbl(text):  #vers 1
             l = QLabel(text); l.setFont(self.panel_font); return l
 
-        #    Render                                       
-        lay.addWidget(_lbl("Render"))
-        self._mode_group = QButtonGroup(self); self._mode_group.setExclusive(True)
-        mode_row = QWidget(); mode_h = QHBoxLayout(mode_row)
-        mode_h.setContentsMargins(0,0,0,0); mode_h.setSpacing(2)
-        for label, mode, iname in [("Wire","wireframe","dff_edit"),
-                                    ("Solid","solid","properties"),
-                                    ("Tex","textured","image")]:
-            b = _QTB(); b.setFont(self.infobar_font); b.setMinimumHeight(28)
-            b.setToolTip(f"{mode.capitalize()} render mode")
-            ico = _icon(iname)
-            if ico: b.setIcon(ico); b.setIconSize(QSize(13,13))
-            b.setText(label)
-            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            b.setCheckable(True); b.setChecked(mode=='solid')
-            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            b.toggled.connect(lambda checked, m=mode: self._set_mode(m) if checked else None)
-            self._mode_group.addButton(b); mode_h.addWidget(b)
-        lay.addWidget(mode_row)
-
-        # Backface + Grid + PreLit — icon-only row
-        self._cull_btn   = _tbtn("Cull",   "Backface culling", self.viewport.set_backface_cull, 'col_file', True, False)
-        self._grid_btn   = _tbtn("Grid",   "Toggle grid",      self.viewport.set_show_grid,     'fit_grid', True, True)
-        self._prelit_btn = _tbtn("PreLit", "Pre-lighting",     self.viewport.set_prelight,      'brighten', True, False)
-        lay.addWidget(_row(self._cull_btn, self._grid_btn, self._prelit_btn))
+        # Pre-lighting only; render mode, cull and grid live in the ribbon and viewport chips
+        self._prelit_btn = _tbtn("PreLit", "Pre-lighting", self.viewport.set_prelight, 'brighten', True, False)
+        lay.addWidget(_row(self._prelit_btn, 'stretch'))
         lay.addWidget(_sep())
 
         #    Camera + Light                                
@@ -358,106 +327,21 @@ class VehicleLayoutMixin:
         lay.addWidget(er1); lay.addWidget(er2)
 
         lay.addStretch()
-        return panel
+        scroll = QScrollArea(); scroll.setWidgetResizable(True)       # shrinks with the dock
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(panel)
+        dock = QDockWidget("Vehicle Tools", self)
+        dock.setObjectName("VehicleToolsDock")
+        dock.setWidget(scroll)
+        self._vehicle_tools_dock = dock
+        return dock
 
-
-    def _populate_sidebar(self): #Vers 1  #vers 1
-        """Build the 2-col icon grid in the right sidebar.
-        Override to change or extend the tool set.
-        """
-        sl = self._sidebar_layout
-        ic = self._get_icon_color()
-        BTN = 36
-
-        def _nb(icon_fn, tip, slot, checkable=False): #vers 1
-            b = QToolButton(); b.setFixedSize(BTN, BTN)
-            try: b.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-            except Exception: b.setText(tip[:2])
-            b.setToolTip(tip); b.setCheckable(checkable)
-            b.clicked.connect(slot); return b
-
-        def _row(*btns): #vers 1
-            row = QHBoxLayout()
-            row.setSpacing(2); row.setContentsMargins(0, 0, 0, 0)
-            for b in btns: row.addWidget(b)
-            if len(btns) == 1: row.addStretch()
-            sl.addLayout(row)
-
-        def _sep(): #vers 1
-            s = QFrame(); s.setFrameShape(QFrame.Shape.HLine)
-            sl.addSpacing(2); sl.addWidget(s); sl.addSpacing(2)
-
-        def _tool(icon_fn, tip, name): #vers 1
-            b = _nb(icon_fn, tip,
-                    lambda checked=False, t=name: self._set_active_tool(t),
-                    checkable=True)
-            self._draw_btns[name] = b; return b
-
-        # Row 1-2: View controls
-        _row(_nb("zoom_in_icon",  "Zoom in  (+)",      lambda: self._zoom(1.25)),
-             _nb("zoom_out_icon", "Zoom out  (-)",     lambda: self._zoom(0.8)))
-        _row(_nb("fit_grid_icon", "Fit  Ctrl+0",       self._fit),
-             _nb("locate_icon",   "Jump to selection", self._jump))
-        _sep()
-
-        # Rows 3-6: Draw tools (2 per row)
-        _row(_tool("paint_icon",     "Pencil (P)",           "pencil"),
-             _tool("fill_icon",      "Flood fill (F)",       "fill"))
-        _row(_tool("line_icon",      "Line (L)",             "line"),
-             _tool("rect_icon",      "Rect outline (R)",     "rect"))
-        _row(_tool("rect_fill_icon", "Filled rect (Shift+R)","rect_fill"),
-             _tool("dropper_icon",   "Colour picker (K)",    "picker"))
-        _row(_tool("scissors_icon",  "Cut (X)",              "cut"),
-             _tool("paste_brush_icon","Paste (V)",           "paste"))
-        _row(_tool("zoom_in_icon",   "Zoom tool (Z)",        "zoom"),
-             _nb("search_icon",      "Open in editor tab",
-                 lambda: self._on_toolbar_action("edit")))
-        _sep()
-
-        # Rows 7-8: Transform tools
-        _row(_nb("rotate_cw_icon",  "Rotate +90°",
-                 lambda: self._on_toolbar_action("rotate_cw")),
-             _nb("rotate_ccw_icon", "Rotate -90°",
-                 lambda: self._on_toolbar_action("rotate_ccw")))
-        _row(_nb("flip_horz_icon",  "Flip Horizontal",
-                 lambda: self._on_toolbar_action("flip_h")),
-             _nb("flip_vert_icon",  "Flip Vertical",
-                 lambda: self._on_toolbar_action("flip_v")))
-
-        if "pencil" in self._draw_btns:
-            self._draw_btns["pencil"].setChecked(True)
-            self._active_tool = "pencil"
-
-
-    # - status bar
-    def _create_status_bar(self): #vers 2
-        bar = QFrame()
-        bar.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
-        bar.setFixedHeight(self.statusheight)
-        hl = QHBoxLayout(bar)
-        hl.setContentsMargins(*self.get_tab_margins())
-        self.status_label = QLabel("No model loaded")
-        self.status_label.setFont(self.infobar_font)
-        hl.addWidget(self.status_label, 1)
-        from PyQt6.QtWidgets import QProgressBar
-        self._progress = QProgressBar()
-        self._progress.setFixedWidth(120)
-        self._progress.setFixedHeight(14)
-        self._progress.setRange(0, 0)   # indeterminate / pulsing
-        self._progress.setVisible(False)
-        self._progress.setTextVisible(False)
-        hl.addWidget(self._progress)
-        return bar
-
-
-    # - left panel — geometry + texture lists
     def _make_section_header(self, title, search_cb=None): #vers 2
         """Collapsible section header row with optional search box."""
-        row = QWidget(); rl = QHBoxLayout(row); rl.setContentsMargins(0,0,0,0); rl.setSpacing(2)
+        row = QWidget(); rl = QHBoxLayout(row); rl.setContentsMargins(0, 0, 0, 0); rl.setSpacing(2)
         if title:
             lbl = QLabel(title); lbl.setFont(self.panel_font); rl.addWidget(lbl, 1)
         if search_cb:
-            from PyQt6.QtWidgets import QLineEdit
             se = QLineEdit(); se.setPlaceholderText("Filter…")
             se.setFixedHeight(20)
             if title:
@@ -472,105 +356,66 @@ class VehicleLayoutMixin:
             item = self._img_list.item(i)
             item.setHidden(bool(ft) and ft not in item.text().lower())
 
-
-    def _populate_frame_tree(self): #vers 1
-        tree = getattr(self,'_frame_tree',None)
-        if not tree or not self._dff_model: return
+    def _populate_frame_visibility(self): #vers 3
+        tree = getattr(self, '_vw_frame_tree', None)
+        if not tree or not self._dff_model:
+            return
         from PyQt6.QtWidgets import QTreeWidgetItem
-        from PyQt6.QtCore import Qt
         tree.blockSignals(True)
         tree.clear()
         frames = self._dff_model.frames
-        items = {}
-        # Build tree from parent indices
-        for i,f in enumerate(frames):
+        for i, f in enumerate(frames):
             name = f.name or f'frame_{i}'
             item = QTreeWidgetItem([name])
             item.setFlags(Qt.ItemFlag.ItemIsUserCheckable |
                           Qt.ItemFlag.ItemIsEnabled |
                           Qt.ItemFlag.ItemIsSelectable)
             item.setCheckState(0, Qt.CheckState.Checked)
-            item.setData(0, Qt.ItemDataRole.UserRole, name.lower())
-            items[i] = item
-        for i,f in enumerate(frames):
-            p = f.parent_index
-            if p >= 0 and p != i and p in items:
-                items[p].addChild(items[i])
-            elif p == -1 or p == i:
-                tree.addTopLevelItem(items[i])
-        tree.expandAll()
+            item.setData(0, Qt.ItemDataRole.UserRole, name)
+            tree.addTopLevelItem(item)
         tree.blockSignals(False)
 
     def _on_frame_visibility_changed(self, item, col): #vers 2
-        from PyQt6.QtCore import Qt
         name = item.data(0, Qt.ItemDataRole.UserRole) or ''
-        checked = item.checkState(0) == Qt.CheckState.Checked
-        print(f"[FrameTree] {name!r} checked={checked}")
         if not hasattr(self.viewport, '_hidden_frames'):
             self.viewport._hidden_frames = set()
         if item.checkState(0) == Qt.CheckState.Checked:
             self.viewport._hidden_frames.discard(name)
         else:
             self.viewport._hidden_frames.add(name)
-        # Always rebuild — hidden_frames filter is applied in load_all_geometries
         m = getattr(self, '_dff_model', None)
         if m and m.frames and m.atomics:
             vp = self.viewport
-            # Save camera state — don't reset view on visibility toggle
-            cam = (vp._yaw, vp._pitch, vp._dist, vp._pan_x, vp._pan_y)
-            vp.load_all_geometries(
-                m.geometries, [g.materials for g in m.geometries],
-                m.frames, m.atomics,
-                damaged=getattr(self, '_damage_mode', False))
-            vp._yaw, vp._pitch, vp._dist, vp._pan_x, vp._pan_y = cam
-        self.viewport.update()
+            vp.load_all_geometries(m.geometries, [g.materials for g in m.geometries],
+                                   m.frames, m.atomics, damaged=getattr(self, '_damage_mode', False))
+            vp.update()
 
     def _populate_geom_list(self): #vers 1
-
         self._geom_list.clear()
-        if not self._dff_model: return
+        if not self._dff_model:
+            return
         for i, g in enumerate(self._dff_model.geometries):
             name = f"geometry_{i}"
-            a = next((a for a in self._dff_model.atomics if a.geometry_index==i), None)
+            a = next((a for a in self._dff_model.atomics if a.geometry_index == i), None)
             if a and a.frame_index < len(self._dff_model.frames):
                 fn = self._dff_model.frames[a.frame_index].name
-                if fn: name = fn
+                if fn:
+                    name = fn
             self._geom_list.addItem(f"[{i}] {name}  {len(g.vertices)}v {len(g.triangles)}t")
 
-
     def _on_geom_selected(self, row: int): #vers 5
-        if not self._dff_model or row < 0 or row >= len(self._dff_model.geometries): return
+        if not self._dff_model or row < 0 or row >= len(self._dff_model.geometries):
+            return
         self._current_geom = row
         m = self._dff_model
         g = m.geometries[row]
         damaged = getattr(self, '_damage_mode', False)
-        def _do_load():  #vers 1
-            if m.frames and m.atomics:
-                self.viewport.load_all_geometries(
-                    m.geometries, [geom.materials for geom in m.geometries],
-                    m.frames, m.atomics, damaged=damaged)
-                if not getattr(self.viewport, '_all_geoms', None) and not self.viewport._vertices:
-                    self.viewport.load_geometry(g, g.materials)
-            else:
+        if m.frames and m.atomics:
+            self.viewport.load_all_geometries(
+                m.geometries, [geom.materials for geom in m.geometries],
+                m.frames, m.atomics, damaged=damaged)
+            if not getattr(self.viewport, '_all_geoms', None) and not self.viewport._vertices:
                 self.viewport.load_geometry(g, g.materials)
-            self.viewport.update()
-        from PyQt6.QtCore import QTimer
-        # Defer so GL context is initialized before first render
-        if hasattr(self.viewport, 'isValid') and not self.viewport.isValid():
-            QTimer.singleShot(150, _do_load)
         else:
-            _do_load()
-        has_prelit = bool(g.colors)
-        self._prelit_btn.setEnabled(has_prelit)
-        self._info_lbl.setText(
-            f"Verts:  {len(g.vertices)}\n"
-            f"Tris:   {len(g.triangles)}\n"
-            f"Mats:   {len(g.materials)}\n"
-            f"UVs:    {len(g.uv_layers)}\n"
-            f"Norms:  {'yes' if g.normals else 'no'}\n"
-            f"PreLit: {'yes' if has_prelit else 'no'}")
-
-    def _set_status(self, msg: str): #vers 1
-        self.status_label.setText(msg)
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"[ModelViewer] {msg}")
+            self.viewport.load_geometry(g, g.materials)
+        self.viewport.update()

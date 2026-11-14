@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 7
+#this belongs in apps/components/Map_Editor/depends/map_widgets_func.py - Version: 12
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop widgets
 
 """
@@ -87,6 +87,12 @@ Settings store, helper widgets, dialogs and table models used by Map Workshop.
 # _delete_selected_row
 # __init__
 
+##class _NudgeEdit: -
+# __init__
+# _finished
+# setValue
+# value
+
 ##class _InstanceEditPanel: -
 # _add_nudge_section
 # _add_section
@@ -115,7 +121,6 @@ Settings store, helper widgets, dialogs and table models used by Map Workshop.
 # _refresh_position_spins
 # _refresh_rotation_spins
 # _refresh_scale_spins
-# resizeEvent
 # _save_all_textures_to_folder
 # _save_raw_txd_file
 # _set_nav_visible
@@ -1453,6 +1458,40 @@ class _PathGroupEditDialog(QDialog): #vers 1
                 f"updated in memory - not yet saved to file")
 
 
+class _NudgeEdit(QLineEdit): #vers 1
+    """Plain value box for the nudge rows: value()/setValue() like a spin box, no spin styling."""
+    valueCommitted = pyqtSignal()
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        from PyQt6.QtGui import QDoubleValidator
+        self._val = 0.0
+        self._edited = False
+        self.setValidator(QDoubleValidator(-100000.0, 100000.0, 4, self))
+        self.setStyleSheet("QLineEdit { padding: 0px 3px; margin: 0px; border: 1px solid palette(mid);"
+                           " background: palette(base); color: palette(text); }")
+        self.textEdited.connect(lambda _t: setattr(self, '_edited', True))
+        self.editingFinished.connect(self._finished)
+
+    def setValue(self, v): #vers 1
+        self._val = float(v)
+        self._edited = False
+        self.setText(f"{self._val:.2f}")
+
+    def value(self) -> float: #vers 1
+        if self._edited:
+            try:
+                self._val = float(self.text().replace(',', '.'))
+            except ValueError:
+                pass
+        return self._val
+
+    def _finished(self): #vers 1
+        if self._edited:
+            self.valueCommitted.emit()
+            self._edited = False
+
+
 class _InstanceEditPanel(QWidget):
     """Non-modal, persistent object info/edit panel - shown in the top-
     left corner."""
@@ -1565,47 +1604,22 @@ class _InstanceEditPanel(QWidget):
 
         self._reflow_nudge_rows(wide=True)
 
-    def resizeEvent(self, event): #vers 1
-        """Wrap the nudge rows' arrow buttons onto a second line when
-        the panel is too narrow for everything on one row, rather than
-        clipping/squeezing them."""
-        super().resizeEvent(event)
-        wide = self.width() >= 260
-        if wide != self._nudge_wide:
-            self._reflow_nudge_rows(wide)
-
-    def _reflow_nudge_rows(self, wide): #vers 3
-        """Rebuild both nudge sections' grids for the given width mode.
-
-        Compact mode (Aug 1 2026)"""
+    def _reflow_nudge_rows(self, wide): #vers 6
+        """X, Y, Z side by side in one row per section."""
         for grid, rows_info in ((self._pos_grid, self._pos_rows),
                                 (self._rot_grid, self._rot_rows),
                                 (self._scale_grid, self._scale_rows)):
             while grid.count():
                 grid.takeAt(0)
-            if wide:
-                for i, (label, btn_ll, btn_l, spin, btn_r, btn_rr) in enumerate(rows_info):
-                    c = i * 6
-                    btn_ll.setVisible(True)
-                    btn_rr.setVisible(True)
-                    grid.addWidget(label, 0, c)
-                    grid.addWidget(btn_ll, 0, c + 1)
-                    grid.addWidget(btn_l, 0, c + 2)
-                    grid.addWidget(spin, 0, c + 3)
-                    grid.addWidget(btn_r, 0, c + 4)
-                    grid.addWidget(btn_rr, 0, c + 5)
-            else:
-                for i, (label, btn_ll, btn_l, spin, btn_r, btn_rr) in enumerate(rows_info):
-                    btn_ll.setVisible(True)
-                    btn_rr.setVisible(True)
-                    r = i * 2
-                    grid.addWidget(label, r, 0)
-                    grid.addWidget(spin, r, 1, 1, 4)
-                    grid.addWidget(btn_ll, r + 1, 0)
-                    grid.addWidget(btn_l, r + 1, 1)
-                    grid.addWidget(btn_r, r + 1, 2)
-                    grid.addWidget(btn_rr, r + 1, 3)
-        self._nudge_wide = wide
+            for i, widgets in enumerate(rows_info):
+                for c, w in enumerate(widgets):
+                    w.setVisible(True)
+                    grid.addWidget(w, 0, i * 6 + c)
+                grid.setColumnStretch(i * 6 + 3, 1)
+            grid.invalidate(); grid.activate()
+            grid.parentWidget().updateGeometry()
+        self._lay.invalidate()
+        self._nudge_wide = True
 
     def _add_section(self, title): #vers 3
         box = QGroupBox(title)
@@ -2138,10 +2152,10 @@ class _InstanceEditPanel(QWidget):
         box = QGroupBox(title)
         box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         grid = QGridLayout(box)
-        grid.setContentsMargins(6, 4, 6, 4)
-        grid.setSpacing(3)
+        grid.setContentsMargins(4, 2, 4, 2)
+        grid.setSpacing(2)
         wf = self._workshop
-        icon_sz = 14
+        icon_sz = 12
         icon_color = wf._get_icon_color()
         icons = {
             'll': wf._render_variant_icon('chevron_left2', None, icon_sz, icon_color, has_menu=False),
@@ -2153,19 +2167,18 @@ class _InstanceEditPanel(QWidget):
         rows_info = []   # per-axis widget refs, for _reflow_nudge_rows
         for axis in ('x', 'y', 'z'):
             label = QLabel(axis.upper() + ":")
-            from PyQt6.QtWidgets import QAbstractSpinBox
-            btn_ll = QPushButton(); btn_ll.setIcon(icons['ll']); btn_ll.setFixedWidth(28)
-            btn_l  = QPushButton(); btn_l.setIcon(icons['l']);   btn_l.setFixedWidth(22)
-            spin = QDoubleSpinBox()
-            spin.setRange(-100000.0, 100000.0)
-            spin.setDecimals(2)
-            spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-            spin.setFixedWidth(74)
-            btn_r  = QPushButton(); btn_r.setIcon(icons['r']);   btn_r.setFixedWidth(22)
-            btn_rr = QPushButton(); btn_rr.setIcon(icons['rr']); btn_rr.setFixedWidth(28)
+            btn_ll = QPushButton(); btn_ll.setIcon(icons['ll'])
+            btn_l  = QPushButton(); btn_l.setIcon(icons['l'])
+            spin = _NudgeEdit()
+            btn_r  = QPushButton(); btn_r.setIcon(icons['r'])
+            btn_rr = QPushButton(); btn_rr.setIcon(icons['rr'])
             # 22px uniform height (Aug 1 2026)
-            for _btn in (btn_ll, btn_l, spin, btn_r, btn_rr):
-                _btn.setFixedHeight(24)
+            for _btn in (btn_ll, btn_l, btn_r, btn_rr):
+                _btn.setFixedSize(20, 20); _btn.setIconSize(QSize(icon_sz, icon_sz))
+                _btn.setStyleSheet('padding: 0px; margin: 0px;')
+            spin.setFixedHeight(20); spin.setMinimumWidth(56)
+            spin.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            label.setStyleSheet('padding: 0px; margin: 0px;')
             btn_ll.setToolTip(f"-{large_step:g}")
             btn_l.setToolTip(f"-{small_step:g}")
             btn_r.setToolTip(f"+{small_step:g}")
@@ -2174,7 +2187,7 @@ class _InstanceEditPanel(QWidget):
             btn_l.clicked.connect(lambda _=False, a=axis: on_nudge(a, -small_step))
             btn_r.clicked.connect(lambda _=False, a=axis: on_nudge(a, small_step))
             btn_rr.clicked.connect(lambda _=False, a=axis: on_nudge(a, large_step))
-            spin.editingFinished.connect(
+            spin.valueCommitted.connect(
                 lambda a=axis, s=spin: on_nudge(a, None, absolute=s.value()))
             spins[axis] = spin
             rows_info.append((label, btn_ll, btn_l, spin, btn_r, btn_rr))

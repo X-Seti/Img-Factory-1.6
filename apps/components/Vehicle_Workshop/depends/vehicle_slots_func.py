@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_slots_func.py - Version: 1
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_slots_func.py - Version: 3
 # X-Seti - November 06 2026 - IMG Factory 1.6 - Vehicle Workshop slots tab
 
 """
@@ -18,8 +18,12 @@ Data: apps/methods/vehicle_slots.py.
 # _pick_file
 # _remove
 # _save
+# _set_root_text
 # _swap
+# _update_buttons
 # load_root
+# resizeEvent
+# showEvent
 
 import os
 
@@ -35,7 +39,7 @@ _COLS = ("ID", "Model", "TXD", "Type", "Handling", "Name", "Status")
 class VehicleSlotsTab(QWidget): #vers 1
     """Vehicle ID slots of one game folder."""
 
-    def __init__(self, ws=None, root_hint=None, parent=None): #vers 1
+    def __init__(self, ws=None, root_hint=None, parent=None): #vers 2
         super().__init__(parent)
         self._ws, self._root_hint = ws, root_hint        # workshop settings, game root getter
         self.vs = None
@@ -43,16 +47,23 @@ class VehicleSlotsTab(QWidget): #vers 1
         lay.setContentsMargins(4, 4, 4, 4)
         top = QHBoxLayout()
         self._root_lbl = QLabel("No game folder")
+        self._root_lbl.setMinimumWidth(30)               # elided, full path in tooltip
+        self._root_full = "No game folder"
         top.addWidget(self._root_lbl, 1)
-        for text, tip, fn in (("Folder", "Game folder (holds data/ and models/)", self._open_root),
-                              ("Check", "Find missing models, TXDs, handling, colours, duplicates", self._check),
-                              ("Add", "New slot copied from the selected one", self._add),
-                              ("Swap", "Replace the selected slot's DFF / TXD", self._swap),
-                              ("Remove", "Remove the selected slot from the data files", self._remove),
-                              ("Save", "Write the changed data files (backed up as .bak)", self._save)):
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self._btns = []
+        for text, tip, fn, icon in (("Folder", "Game folder (holds data/ and models/)", self._open_root, 'folder_icon'),
+                              ("Check", "Find missing models, TXDs, handling, colours, duplicates", self._check, 'check_icon'),
+                              ("Add", "New slot copied from the selected one", self._add, 'add_icon'),
+                              ("Swap", "Replace the selected slot's DFF / TXD", self._swap, 'convert_icon'),
+                              ("Remove", "Remove the selected slot from the data files", self._remove, 'delete_icon'),
+                              ("Save", "Write the changed data files (backed up as .bak)", self._save, 'save_icon')):
             b = QPushButton(text)
-            b.setToolTip(tip)
+            b.setToolTip(f"{text} - {tip}")
+            b.setIcon(getattr(SVGIconFactory, icon)(16, self.palette().buttonText().color().name()))
             b.clicked.connect(fn)
+            b._full_text = text
+            self._btns.append(b)
             top.addWidget(b)
         lay.addLayout(top)
         flt = QHBoxLayout()
@@ -67,15 +78,15 @@ class VehicleSlotsTab(QWidget): #vers 1
         flt.addWidget(self._range_lbl)
         lay.addLayout(flt)
         self._table = QTableWidget(0, len(_COLS))
+        self._table.setAlternatingRowColors(True)
         self._table.setHorizontalHeaderLabels(_COLS)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.horizontalHeader().setStretchLastSection(False)   # last column fits its text
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         lay.addWidget(self._table, 1)
         root = (self._ws.get('slots_root', '') if self._ws else '') or (root_hint() if root_hint else '')
-        if root:
-            self.load_root(root, quiet=True)
+        self._pending_root = root           # loaded on first show: the IMG scan is slow
 
     def load_root(self, root: str, quiet: bool = False) -> bool: #vers 1
         """Read the slots of a game folder."""
@@ -89,9 +100,40 @@ class VehicleSlotsTab(QWidget): #vers 1
         if self._ws:
             self._ws.set('slots_root', root)
             self._ws.save()
-        self._root_lbl.setText(f"{root}  ({self.vs.game.upper()}, {len(self.vs.slots)} vehicles)")
+        self._set_root_text(f"{root}  ({self.vs.game.upper()}, {len(self.vs.slots)} vehicles)")
         self._check()
         return True
+
+    def _set_root_text(self, text: str): #vers 1
+        """Elided path label; hover shows the full text."""
+        self._root_full = text
+        self._root_lbl.setToolTip(text)
+        self._root_lbl.setText(self._root_lbl.fontMetrics().elidedText(
+            text, Qt.TextElideMode.ElideMiddle, max(30, self._root_lbl.width())))
+
+    def _update_buttons(self): #vers 1
+        """Icon-only buttons when the row is too narrow for the text."""
+        need = sum(b.fontMetrics().horizontalAdvance(b._full_text) + 34 for b in self._btns) + 120
+        icons_only = self.width() < need
+        for b in self._btns:
+            b.setText("" if icons_only else b._full_text)
+
+    def showEvent(self, event): #vers 1
+        """Scan the game folder when the Slots tab is first shown, not at launch."""
+        super().showEvent(event)
+        root, self._pending_root = getattr(self, '_pending_root', ''), ''
+        if root:
+            from PyQt6.QtWidgets import QApplication
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                self.load_root(root, quiet=True)
+            finally:
+                QApplication.restoreOverrideCursor()
+
+    def resizeEvent(self, event): #vers 1
+        super().resizeEvent(event)
+        self._update_buttons()
+        self._set_root_text(self._root_full)
 
     def _open_root(self): #vers 1
         d = QFileDialog.getExistingDirectory(self, "Game folder", self.vs.root if self.vs else '')
@@ -124,7 +166,7 @@ class VehicleSlotsTab(QWidget): #vers 1
                 it = QTableWidgetItem(str(v))
                 it.setData(Qt.ItemDataRole.UserRole, s)
                 if s.problems:
-                    it.setForeground(QColor(220, 90, 70))
+                    it.setForeground(self.palette().brightText())
                 t.setItem(r, c, it)
         lo, hi = ID_RANGES[self.vs.game]
         self._range_lbl.setText(f"standard {lo}-{hi}: {len(free_ids(self.vs.slots, lo, hi))} free")

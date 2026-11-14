@@ -995,7 +995,7 @@ class ModelSetupUIMixin(TitlebarMixin): #vers 2
         # 4-Pane view (Top/Front/Side/Perspective) can be swapped in without
         # disturbing QMainWindow's central-widget ownership.
         from PyQt6.QtWidgets import QStackedWidget
-        self.preview_widget = DFFViewport()
+        self.preview_widget = self._VIEWPORT_CLASS()
         self.preview_widget._workshop_ref = self
         self._viewport_stack = QStackedWidget()
         self._viewport_stack.addWidget(self.preview_widget)   # index 0: single view

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 22
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 27
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -61,9 +61,9 @@ except Exception:
 from apps.methods.dff_viewport import VehicleViewport, DFFViewport
 from apps.methods.dff_parser import load_dff, DFFParser
 from apps.methods.txd_parser import parse_txd
-from apps.methods.gui_workshop import GUIWorkshop
+from apps.components.Model_Editor.model_workshop import ModelWorkshop
+from apps.methods.gui_workshop import WorkshopSettings
 from apps.methods.statusbar_func import register_statusbar
-from apps.components.Vehicle_Workshop.depends.vehicle_layout_func import VehicleLayoutMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_logic_func import VehicleLogicMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_toolbar_func import VehicleToolbarMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_win_func import VehicleWinMixin
@@ -71,12 +71,9 @@ from apps.components.Vehicle_Workshop.depends.vehicle_slots_func import VehicleS
 from apps.components.Vehicle_Workshop.depends.vehicle_skin_func import VehicleSkinMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_stories_func import VehicleStoriesMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_drive_func import VehicleDriveMixin
+from apps.components.Vehicle_Workshop.depends.vehicle_layout_func import VehicleLayoutMixin
 from apps.components.Vehicle_Workshop.depends.vehicle_tabs_func import (
     CarColoursTab, CarModsTab, HandlingTab)
-
-# GLViewportMixin — embedded in this file
-class GLViewportMixin: pass
-
 
 # - Detect standalone vs docked
 def _is_standalone():  #vers 1
@@ -98,57 +95,104 @@ DEBUG_STANDALONE = False
 # _is_standalone
 # open_vehicle_workshop
 
+##class CurrentOnlyTabWidget: -
+# addScrolledTab
+# currentWidget
+# minimumSizeHint
+# setCurrentWidget
+# sizeHint
+
 ##class VehicleWorkshop: -
 # __init__
 # _build_menus_into_qmenu
 # _build_ribbons
 # _create_centre_panel
 # _create_preview_tab
+# _create_vehicle_model_dock (VehicleLayoutMixin)
+# _create_vehicle_tools_dock (VehicleLayoutMixin)
 # _light_setup_dialog
 # _open_file
 # _open_specific
+# _queue_layout_save
 # _refresh_icons
 # _ribbon_config_path
 # _save_as
 # _save_file
 # _show_progress
+# _undo
 # _vw_load_dff
 # _vw_load_txd
 # _vw_pick_dff
-# _vw_pick_paint1
-# _vw_pick_paint2
 # _vw_pick_txd
-# _vw_set_mode
-# _vw_toggle_assembly
 # setup_ui
 
 ##Mixins (depends/) -
-# GUIWorkshop (window chrome, settings) - methods/gui_workshop.py
+# ModelWorkshop (dock panels, viewport, chrome) - components/Model_Editor/model_workshop.py
 # VehicleWinMixin - vehicle_win_func.py
 # VehicleToolbarMixin - vehicle_toolbar_func.py
-# VehicleLayoutMixin - vehicle_layout_func.py
 # VehicleLogicMixin - vehicle_logic_func.py
 # HandlingTab, CarColoursTab, CarModsTab - vehicle_tabs_func.py
 # VehicleSlotsTab - vehicle_slots_func.py
 # VehicleSkinMixin - vehicle_skin_func.py
 # VehicleStoriesMixin - vehicle_stories_func.py
 # VehicleDriveMixin - vehicle_drive_func.py
+# VehicleLayoutMixin - vehicle_layout_func.py
 # Shared imports and flags - vehicle_common_func.py
 
-class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWinMixin, VehicleSkinMixin,
-                      VehicleStoriesMixin, VehicleDriveMixin, VehicleToolbarMixin, VehicleLayoutMixin,
-                      VehicleLogicMixin, GUIWorkshop): #vers 11
+class CurrentOnlyTabWidget(QTabWidget): #vers 2
+    """Sizes to the current tab only, so the Vehicle Data dock can shrink."""
+    def minimumSizeHint(self): #vers 1
+        w = self.currentWidget()
+        if w is None:
+            return super().minimumSizeHint()
+        tb, cw = self.tabBar().sizeHint(), w.minimumSizeHint()
+        return QSize(max(tb.width(), cw.width()), tb.height() + cw.height())
+
+    def sizeHint(self): #vers 1
+        w = self.currentWidget()
+        if w is None:
+            return super().sizeHint()
+        tb, cw = self.tabBar().sizeHint(), w.sizeHint()
+        return QSize(max(tb.width(), cw.width()), tb.height() + cw.height())
+
+    def addScrolledTab(self, page, title): #vers 1
+        """Page inside a scroll area so fixed sizes never lock the dock; page stays the key."""
+        sa = QScrollArea()
+        sa.setWidgetResizable(True)
+        sa.setFrameShape(QFrame.Shape.NoFrame)
+        sa.setWidget(page)
+        sa._page = page
+        return self.addTab(sa, title)
+
+    def currentWidget(self): #vers 1
+        w = super().currentWidget()
+        return getattr(w, '_page', w)
+
+    def setCurrentWidget(self, page): #vers 1
+        for i in range(self.count()):
+            w = self.widget(i)
+            if getattr(w, '_page', w) is page:
+                self.setCurrentIndex(i)
+                return
+
+
+class VehicleWorkshop(RibbonMixin, VehicleWinMixin, VehicleSkinMixin,
+                      VehicleStoriesMixin, VehicleDriveMixin, VehicleToolbarMixin,
+                      VehicleLogicMixin, VehicleLayoutMixin, ModelWorkshop): #vers 14
+    # RibbonIconsMixin not listed - already in ModelWorkshop's own MRO (duplicate base = MRO conflict)
+    """Model Workshop (dock panels, viewport) + vehicle data tabs and ribbons - same pattern as Ped Workshop."""
     _ribbon_name = "vehicle_workshop"
     config_key = "vehicle_workshop"
     WS_DEFAULTS = dict(VehicleWinMixin.WS_DEFAULTS, slots_root='', stories_img='')   # one set
-    _OUTER_LAYOUT_VERSION = 2      # 4 asset docks + Tools
+    _VIEWPORT_CLASS = VehicleViewport   # wheels / doors / paint / assembly / LOD
     # Bump when the set of ribbons changes (1 = File ribbon, 3 = + Drive)
     _RIBBON_LAYOUT_VERSION = 3
+    _OUTER_LAYOUT_VERSION = 4   # own dock layout (Vehicle Data / Vehicle Model)
 
-    def __init__(self, main_window=None, parent=None): #vers 7
-        super().__init__(parent, main_window=main_window)   # docked: no corner handles
+    def __init__(self, main_window=None, parent=None): #vers 8
+        self.WS = WorkshopSettings(self.config_key, self.WS_DEFAULTS)   # GUIWorkshop no longer in MRO
+        super().__init__(parent, main_window=main_window)   # ModelWorkshop.__init__ calls setup_ui()
         self.main_window = main_window
-        self.viewport._show_wheels = True                   # wheels on by default
         self.__dict__.setdefault('_dff_model', None)        # set on DFF load
         self.__dict__.setdefault('_current_dff_path', None)
         self._handling_path: Optional[str] = None
@@ -157,65 +201,98 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         # Docked mode: no FramelessWindowHint, widget is embedded in tab
         if parent is None and main_window is None:
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        # setup_ui() already called by GUIWorkshop.__init__ via super().__init__()
+        # setup_ui() already called by ModelWorkshop.__init__ via super().__init__()
 
-    def _create_centre_panel(self): #vers 2
+    def _create_centre_panel(self): #vers 6
         from PyQt6.QtWidgets import QFrame, QVBoxLayout
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
         lay = QVBoxLayout(panel); lay.setContentsMargins(0,0,0,0); lay.setSpacing(0)
-        self._tabs = QTabWidget()
-        self._tab_handling = HandlingTab()
-        self._tab_carcols  = CarColoursTab()
-        self._tab_carmods  = CarModsTab()
-        self._tab_preview = self._create_preview_tab() #TODO this seems bugged, does not show self.viewport
+        self._tabs = CurrentOnlyTabWidget()
+        _f, _ic = self.panel_font, self._get_icon_color()
+        self._tab_handling = HandlingTab(font=_f, icon_color=_ic)
+        self._tab_carcols  = CarColoursTab(font=_f, icon_color=_ic)
+        self._tab_carmods  = CarModsTab(font=_f, icon_color=_ic)
+        self._create_preview_tab()   # sets _vw_viewport/_vw_status; no tab - central viewport covers it
         self._tabs.setCurrentIndex(0)
-        self._tabs.addTab(self._tab_preview, "3D Preview")
-        self._tabs.addTab(self._tab_handling, "Handling")
-        self._tabs.addTab(self._tab_carcols,  "Car Colours")
-        self._tabs.addTab(self._tab_carmods,  "Car Mods (SA)")
+        self._tabs.addScrolledTab(self._tab_handling, "Handling")
+        self._tabs.addScrolledTab(self._tab_carcols,  "Car Colours")
+        self._tabs.addScrolledTab(self._tab_carmods,  "Car Mods (SA)")
         self._tab_slots = VehicleSlotsTab(self.WS, self._get_game_root)
+        self._tab_slots.setFont(self.panel_font)
+        for _w in self._tab_slots.findChildren(QWidget):
+            _w.setFont(self.panel_font)
         self._tabs.addTab(self._tab_slots, "Slots")
         lay.addWidget(self._tabs)
         return panel
 
-    def setup_ui(self): #vers 9
-        """Titlebar / asset docks + Tools docks around ribbons and tabs / status bar."""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(*self.get_content_margins())
-        main_layout.setSpacing(self.setspacing)
-        # Viewport must exist before the toolbar (toolbar buttons reference it)
-        self.viewport = VehicleViewport()
+    def setup_ui(self): #vers 15
+        """Model Workshop dock layout (viewport + Files/Hierarchy/Textures),
+        then Vehicle's File/Drive ribbons hosted on the same inner QMainWindow,
+        plus a Vehicle Data dock (Handling/Car Colours/Car Mods/Slots) and a
+        Vehicle Model dock (IMG Entries/Geometries/Textures/Frame Visibility)
+        - same pattern as Ped Workshop's extra docks."""
+        super().setup_ui()
+        self.viewport = self.preview_widget      # alias: existing vehicle code uses self.viewport
+        self.viewport._show_wheels = True        # wheels on by default
         self.viewport.app_settings = self.app_settings
-        main_layout.addWidget(self._create_toolbar())
-        for name in ("open_btn", "save_btn"):           # the File ribbon replaces these
+        for name in ("open_btn", "save_btn"):    # the File ribbon replaces these
             b = getattr(self, name, None)
             if b:
                 b.setVisible(False)
-        left, right = self._create_left_panel(), self._create_right_panel()
-        L = Qt.DockWidgetArea.LeftDockWidgetArea
-        main_layout.addWidget(self.ribbon_host(self._dock_layout(self._create_centre_panel(),
-            [(t, w, 180, L) for t, w in left] +
-            [("Tools", right, 155, Qt.DockWidgetArea.RightDockWidgetArea)])), 1)
-        ld = self._outer_docks[:len(left)]                   # stacked, each detachable
-        for a, b in zip(ld, ld[1:]):
-            self._outer_mw.splitDockWidget(a, b, Qt.Orientation.Vertical)
-        self._outer_mw.resizeDocks(ld, [300, 160, 180, 200], Qt.Orientation.Vertical)
+        self._ribbon_mw = self._inner_mw         # host Vehicle ribbons alongside ModelWorkshop's own
         self._build_ribbons()
-        self._status_widget = self._create_status_bar()
-        main_layout.addWidget(self._status_widget)
-        register_statusbar(self, self._status_widget)
         self.ribbon_restore_state()
-        self._inner_mw = self._ribbon_mw      # Ribbon Manager target
+        from PyQt6.QtWidgets import QDockWidget
+        dock = QDockWidget("Vehicle Data", self)
+        dock.setObjectName("VehicleDataDock")
+        dock.setWidget(self._create_centre_panel())
+        self._outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        model_dock = self._create_vehicle_model_dock()
+        self._outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, model_dock)
+        self._outer_mw.splitDockWidget(dock, model_dock, Qt.Orientation.Vertical)
+        tools_dock = self._create_vehicle_tools_dock()
+        self._outer_mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, tools_dock)
+        self._outer_mw.splitDockWidget(model_dock, tools_dock, Qt.Orientation.Vertical)
+        for d, title in ((dock, "Vehicle Data"), (model_dock, "Vehicle Model"), (tools_dock, "Vehicle Tools")):
+            self._make_dock_collapsible(d, title)    # title bar: collapse, close, panel menu
+            if isinstance(getattr(self, '_outer_docks', None), list):
+                self._outer_docks.append(d)
+        old = [getattr(self, n, None) for n in ('_left_dock', '_middle_dock', '_frame_hierarchy_dock', '_texture_dock')]
+        if isinstance(getattr(self, '_outer_docks', None), list):
+            self._outer_docks[:] = [d for d in self._outer_docks if d not in old]   # not forced visible
+        for d in old:                                # ped-style panes; Vehicle Model has its own Textures tab
+            if d is not None:
+                d.hide()
+        for d in (dock, model_dock, tools_dock):     # save the layout after each move
+            d.dockLocationChanged.connect(lambda *_: self._queue_layout_save())
+            d.topLevelChanged.connect(lambda *_: self._queue_layout_save())
+        self._vehicle_data_dock = dock
         self._apply_ribbon_layout()
+        self.setWindowTitle(self.App_name)   # ModelWorkshop's own __init__ sets "Model Editor"
 
-    def _refresh_icons(self): #vers 1
+    def _queue_layout_save(self): #vers 1
+        """Save the dock layout 600 ms after the last move."""
+        t = getattr(self, '_layout_timer', None)
+        if t is None:
+            t = self._layout_timer = QTimer(self)
+            t.setSingleShot(True)
+            t.timeout.connect(self._save_outer_layout)
+        t.start(600)
+
+    def _undo(self): #vers 1
+        """Titlebar Undo button; no vehicle-data undo stack yet."""
+        self._set_status("Undo — not implemented for Vehicle Workshop")
+
+    def _refresh_icons(self): #vers 2
         """Theme change: skin and Open buttons recoloured too."""
         super()._refresh_icons()
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
         self._skin_recolour()
         col = self._get_icon_color()
-        for b in (self._vw_open_dff_btn, self._vw_open_txd_btn):
-            b.setIcon(SVGIconFactory.open_icon(14, col))
+        for name in ("_vw_open_dff_btn", "_vw_open_txd_btn"):   # left-panel buttons, pending dock migration
+            b = getattr(self, name, None)
+            if b is not None:
+                b.setIcon(SVGIconFactory.open_icon(14, col))
 
     def _build_ribbons(self): #vers 3
         B = self.ribbon_button
@@ -227,25 +304,14 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         B(tb, "import_icon", "Extract LCS / VCS vehicles as DFF + TXD", self._stories_extract, text="LCS/VCS")
         self._build_drive_ribbon()
 
-    def _create_preview_tab(self): #vers 1
-        """Build the 3D Preview tab with DFFViewport and vehicle controls."""
-        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
-                                     QPushButton, QLabel, QComboBox, QSplitter)
-        from PyQt6.QtCore import Qt
-        tab = QWidget()
-        lay = QVBoxLayout(tab); lay.setContentsMargins(4,4,4,4); lay.setSpacing(4)
-
-        # No toolbar bar in 3D Preview tab — controls are in right panel
-        # Open DFF/TXD are in the left panel; Render/Assembly/Paint in right panel
-
-        # GL Viewport — use the shared self.viewport created in setup_ui
+    def _create_preview_tab(self): #vers 2
+        """No tab: self.viewport is already the central 3D view (ModelWorkshop),
+        can't be reparented into a dock tab too. Keeps _vw_viewport/_vw_status
+        for existing code that reads them."""
+        from PyQt6.QtWidgets import QLabel
         self._vw_viewport = self.viewport
-        lay.addWidget(self._vw_viewport, 1)
-
-        # Status
         self._vw_status = QLabel('Open a DFF to preview')
-        lay.addWidget(self._vw_status)
-        return tab
+        return None
 
 
     # Methods from model_viewer
@@ -379,10 +445,6 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         lay.addLayout(btn_row)
         dlg.exec()
 
-    def _vw_set_mode(self, mode): #vers 1
-        vp = getattr(self,'_vw_viewport',None)
-        if vp and hasattr(vp,'set_render_mode'): vp.set_render_mode(mode)
-
     def _vw_pick_dff(self): #vers 1
         from PyQt6.QtWidgets import QFileDialog
         path,_=QFileDialog.getOpenFileName(self,'Open DFF','','DFF (*.dff);;All (*)')
@@ -443,42 +505,6 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         except Exception as e:
             self._vw_status.setText(f'TXD error: {e}')
 
-    def _vw_toggle_assembly(self, enabled: bool): #vers 1
-        m = getattr(self,'_vw_model',None)
-        vp = getattr(self,'_vw_viewport',None)
-        if not m or not vp or not hasattr(vp,'set_assembly_mode'): return
-        vp.set_assembly_mode(enabled)
-        if enabled:
-            vp.load_all_geometries(m.geometries,[g.materials for g in m.geometries],
-                                   m.frames,m.atomics,
-                                   damaged=getattr(self,'_damage_mode',False))
-        elif m.geometries:
-            vp.load_geometry(m.geometries[0],m.geometries[0].materials)
-
-    def _vw_pick_paint1(self): #vers 1
-        from PyQt6.QtWidgets import QColorDialog
-        from PyQt6.QtGui import QColor
-        vp=getattr(self,'_vw_viewport',None)
-        if not vp or not hasattr(vp,'_paint1'): return
-        p=vp._paint1
-        col=QColorDialog.getColor(QColor(int(p[0]*255),int(p[1]*255),int(p[2]*255)),self)
-        if col.isValid():
-            vp._paint1=(col.redF(),col.greenF(),col.blueF())
-            self._vw_paint1.setStyleSheet(f'background:{col.name()}')
-            vp.update()
-
-    def _vw_pick_paint2(self): #vers 1
-        from PyQt6.QtWidgets import QColorDialog
-        from PyQt6.QtGui import QColor
-        vp=getattr(self,'_vw_viewport',None)
-        if not vp or not hasattr(vp,'_paint2'): return
-        p=vp._paint2
-        col=QColorDialog.getColor(QColor(int(p[0]*255),int(p[1]*255),int(p[2]*255)),self)
-        if col.isValid():
-            vp._paint2=(col.redF(),col.greenF(),col.blueF())
-            self._vw_paint2.setStyleSheet(f'background:{col.name()}')
-            vp.update()
-
     def _open_file(self, path=None): #vers 4
         """Open button — shows dialog when no path given.
         When path is provided, loads directly without any dialog."""
@@ -489,10 +515,8 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
             name = os.path.basename(path).lower()
             if name.endswith('.dff'):
                 self._vw_load_dff(path)
-                self._tabs.setCurrentIndex(0)
             elif name.endswith('.txd'):
                 self._vw_load_txd(path)
-                self._tabs.setCurrentIndex(0)
             elif 'handling' in name:
                 if self._tab_handling.load_file(path):
                     self._handling_path = path
@@ -526,10 +550,6 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
                 self._set_status(f"Car Groups: {os.path.basename(path)}")
             return
         # No path — show dialog based on active tab
-        active_tab = self._tabs.currentIndex() if hasattr(self, '_tabs') else -1
-        if active_tab == 0:
-            self._vw_pick_dff()
-            return
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Vehicle Data File", "",
             "All supported (*.dff *.cfg *.dat *.txd);;"
@@ -540,10 +560,8 @@ class VehicleWorkshop(RibbonIconsMixin, RibbonMixin, GLViewportMixin, VehicleWin
         name = os.path.basename(path).lower()
         if name.endswith('.dff'):
             self._vw_load_dff(path)
-            self._tabs.setCurrentIndex(0)
         elif name.endswith('.txd'):
             self._vw_load_txd(path)
-            self._tabs.setCurrentIndex(0)
         elif "handling" in name:
             if self._tab_handling.load_file(path):
                 self._handling_path = path

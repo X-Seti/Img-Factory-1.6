@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 109
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 113
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -1682,6 +1682,145 @@ class SVGIconFactory: #vers 8
     
 
     @staticmethod
+    def tag_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Name tag with +/- - prefix/suffix rename"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 10.5 L10.5 3 H19 a2 2 0 0 1 2 2 v8.5 L13.5 21 Z"
+                stroke="currentColor" stroke-width="2.3" fill="none" stroke-linejoin="round"/>
+            <circle cx="15.3" cy="8.7" r="1.6" fill="currentColor"/>
+            <path d="M4 16.5h4M6 14.5v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def renumber_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Renumber - small struck 4, larger 6"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="4" y="17" font-size="10" font-weight="700" fill="currentColor" font-family="sans-serif">4</text>
+            <line x1="5" y1="16" x2="10" y2="9" stroke="#e53935" stroke-width="1.4" stroke-linecap="round"/>
+            <text x="10" y="17.5" font-size="16" font-weight="700" fill="currentColor" font-family="sans-serif">6</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def sort_bins_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Sort - 3 bins, colour dots falling in from above"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="3" y="2" width="4" height="19" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/>
+            <rect x="10" y="2" width="4" height="19" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/>
+            <rect x="17" y="2" width="4" height="19" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/>
+            <line x1="5" y1="0.5" x2="5" y2="3" stroke="#e53935" stroke-width="1.2" stroke-linecap="round"/>
+            <circle cx="5" cy="7" r="2" fill="#e53935"/>
+            <line x1="12" y1="0.5" x2="12" y2="6" stroke="#43a047" stroke-width="1.2" stroke-linecap="round"/>
+            <circle cx="12" cy="13" r="2" fill="#43a047"/>
+            <line x1="19" y1="0.5" x2="19" y2="4" stroke="#1e88e5" stroke-width="1.2" stroke-linecap="round"/>
+            <circle cx="19" cy="9" r="2" fill="#1e88e5"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def move_xyz_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Move - 8-direction compass with small colour X/Y/Z"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <g stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none">
+                <path d="M12 2 V22 M2 12 H22"/>
+                <path d="M5 5 L19 19 M19 5 L5 19"/>
+                <path d="M12 2 L10.3 4.3 M12 2 L13.7 4.3"/>
+                <path d="M12 22 L10.3 19.7 M12 22 L13.7 19.7"/>
+                <path d="M2 12 L4.3 10.3 M2 12 L4.3 13.7"/>
+                <path d="M22 12 L19.7 10.3 M22 12 L19.7 13.7"/>
+            </g>
+            <path d="M8.25 10.6 L10.05 12.4 M10.05 10.6 L8.25 12.4" stroke="#e53935" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <path d="M10.75 10.6 L11.75 12.1 L12.75 10.6 M11.75 12.1 L11.75 13.4" stroke="#43a047" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M13.75 10.8 H15.75 L13.75 12.4 H15.75" stroke="#1e88e5" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def set_column_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Set column - one faded column band over row lines"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="6" y="2" width="5" height="20" fill="#1976d2" opacity="0.3"/>
+            <g stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                <line x1="2" y1="6"  x2="22" y2="6"/>
+                <line x1="2" y1="11" x2="22" y2="11"/>
+                <line x1="2" y1="16" x2="22" y2="16"/>
+                <line x1="2" y1="21" x2="22" y2="21"/>
+            </g>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def set_model_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Set model ID/name - overlapping Set/ID text, faded red M behind"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="12" y="18" font-size="20" font-weight="700" fill="#e53935" opacity="0.3" font-family="sans-serif" text-anchor="middle">M</text>
+            <text x="-1" y="12" font-size="11" font-weight="700" fill="currentColor" font-family="sans-serif">Set</text>
+            <text x="9" y="22.5" font-size="13" font-weight="700" fill="currentColor" font-family="sans-serif">ID</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def check_ide_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Check IDE - faded red checkmark behind IDE text, centred"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M2.5 12.5 L9 20 L22 3" stroke="#e53935" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.3"/>
+            <text x="12" y="15" font-size="9.5" font-weight="700" text-anchor="middle" fill="currentColor" font-family="sans-serif">IDE</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def check_ipl_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """Check IPL - faded green checkmark behind IPL text, centred"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M2.5 12.5 L9 20 L22 3" stroke="#43a047" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.3"/>
+            <text x="12" y="15" font-size="9.5" font-weight="700" text-anchor="middle" fill="currentColor" font-family="sans-serif">IPL</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def merge_ipl_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Merge IPL - two bracketed ipl sources, arrow into one IPL"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="1" y="7" font-size="6" font-weight="700" fill="#e53935" opacity="0.85" font-family="sans-serif">{ipl</text>
+            <text x="4.5" y="9.5" font-size="6" font-weight="700" fill="#43a047" opacity="0.85" font-family="sans-serif">ipl}</text>
+            <path d="M10.3 11.3 L13.2 14.2 M11.2 14.2 H13.2 V12.2" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <text x="12" y="21.5" font-size="9" font-weight="800" fill="#1976d2" font-family="sans-serif" text-anchor="middle">IPL</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def merge_ide_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Merge IDE - two bracketed ide sources, arrow into one IDE"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="0.5" y="7" font-size="6" font-weight="700" fill="#e53935" opacity="0.85" font-family="sans-serif">{ide</text>
+            <text x="4" y="9.5" font-size="6" font-weight="700" fill="#43a047" opacity="0.85" font-family="sans-serif">ide}</text>
+            <path d="M10.3 11.3 L13.2 14.2 M11.2 14.2 H13.2 V12.2" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <text x="12" y="21.5" font-size="9" font-weight="800" fill="#1976d2" font-family="sans-serif" text-anchor="middle">IDE</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
+    def generics_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Generics - Gen with blue arrow underline, objs in red below"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <text x="1.5" y="13" font-size="10" font-weight="800" fill="currentColor" font-family="sans-serif">Gen</text>
+            <path d="M5 13.5 H23 M21 12 L23.3 13.5 L21 15" stroke="#1976d2" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <text x="9.5" y="18" font-size="6" font-weight="700" fill="#e53935" font-family="sans-serif">objs</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
+    @staticmethod
     def copy_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Copy icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
@@ -2136,11 +2275,17 @@ class SVGIconFactory: #vers 8
     
 
     @staticmethod
-    def convert_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
-        """Convert/transform icon"""
+    def convert_icon(size: int = 20, color: str = None) -> QIcon: #vers 12
+        """Convert - A/B boxes overlap, matching swap arrows"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M21 10c0-1.1-.9-2-2-2h-6.3L15 5.7C15.4 5.3 15.4 4.7 15 4.3L13.7 3 9 7.7V5c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-2.7l4.7 4.7 1.3-1.3c.4-.4.4-1 0-1.4L12.7 16H19c1.1 0 2-.9 2-2v-4z"
-                fill="currentColor"/>
+            <rect x="2" y="3" width="11" height="11" rx="1.5" fill="none" stroke="#43a047" stroke-width="1.6"/>
+            <text x="7.5" y="12.5" font-size="8" font-weight="800" text-anchor="middle" fill="#43a047" font-family="sans-serif">A</text>
+            <rect x="11" y="10" width="11" height="11" rx="1.5" fill="none" stroke="#ff4433" stroke-width="1.6"/>
+            <text x="16.5" y="19.5" font-size="8" font-weight="800" text-anchor="middle" fill="#ff4433" font-family="sans-serif">B</text>
+            <path d="M14.5 4.5 Q18 4.5 18 8" stroke="#ff4433" stroke-width="1.0" fill="none" stroke-linecap="round"/>
+            <path d="M16.3 6.3 L18 8 L19.3 6.1" stroke="#ff4433" stroke-width="1.0" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9.5 19.5 Q6 19.5 6 16" stroke="#43a047" stroke-width="1.0" fill="none" stroke-linecap="round"/>
+            <path d="M7.7 17.7 L6 16 L4.7 17.9" stroke="#43a047" stroke-width="1.0" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2991,6 +3136,133 @@ class SVGIconFactory: #vers 8
             <rect x="19.5" y="0.5" width="4" height="4" fill="#40c8d8"/>
             <rect x="0.5" y="19.5" width="4" height="4" fill="#40c8d8"/>
             <rect x="19.5" y="19.5" width="4" height="4" fill="#40c8d8"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_select_ellipse_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Ellipse select - cyan dashed ellipse with solid handles, same selection family as select."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="12" cy="12" rx="10" ry="10" fill="none" stroke="#40c8d8" stroke-width="2" stroke-dasharray="4 3"/>
+            <rect x="9.8" y="0.3" width="4.4" height="4.4" fill="#40c8d8"/>
+            <rect x="9.8" y="19.3" width="4.4" height="4.4" fill="#40c8d8"/>
+            <rect x="0.3" y="9.8" width="4.4" height="4.4" fill="#40c8d8"/>
+            <rect x="19.3" y="9.8" width="4.4" height="4.4" fill="#40c8d8"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_drape_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Drape - blue cloth with a round hole to work in."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path fill-rule="evenodd" fill="#2f4fb8" fill-opacity="0.85" d="M2 2h20v20H2z M12 6a6 6 0 1 0 0.01 0z"/>
+            <circle cx="12" cy="12" r="6" fill="none" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_drape_invert_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Invert drape - holes become cloth patches, cloth becomes open."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="20" height="20" fill="none" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+            <circle cx="12" cy="12" r="6" fill="#2f4fb8" fill-opacity="0.85"/>
+            <path d="M4 9a8 8 0 0 1 8-6" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M20 15a8 8 0 0 1-8 6" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_drape_lock_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Lock editing - cloth with padlock over the closed area."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="20" height="20" rx="2" fill="#2f4fb8" fill-opacity="0.85"/>
+            <rect x="7" y="11" width="10" height="8" rx="1.5" fill="#ffffff"/>
+            <path d="M9 11V8.5a3 3 0 0 1 6 0V11" fill="none" stroke="#ffffff" stroke-width="2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_recolour_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Recolour selection - three tinted discs inside a dashed hole."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+            <circle cx="9.5" cy="10" r="4.2" fill="#e8403a" fill-opacity="0.85"/>
+            <circle cx="14.5" cy="10" r="4.2" fill="#3acb55" fill-opacity="0.85"/>
+            <circle cx="12" cy="14.5" r="4.2" fill="#3a6be8" fill-opacity="0.85"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_hole_fill_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Fill hole - solid colour in a round hole."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="9" fill="#e8a23a" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_hole_clear_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Clear hole to transparent - checkerboard disc."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <clipPath id="hc"><circle cx="12" cy="12" r="9"/></clipPath>
+            <g clip-path="url(#hc)"><rect x="2" y="2" width="20" height="20" fill="#ffffff"/>
+            <rect x="2" y="2" width="5" height="5" fill="#9aa0aa"/><rect x="12" y="2" width="5" height="5" fill="#9aa0aa"/>
+            <rect x="7" y="7" width="5" height="5" fill="#9aa0aa"/><rect x="17" y="7" width="5" height="5" fill="#9aa0aa"/>
+            <rect x="2" y="12" width="5" height="5" fill="#9aa0aa"/><rect x="12" y="12" width="5" height="5" fill="#9aa0aa"/>
+            <rect x="7" y="17" width="5" height="5" fill="#9aa0aa"/><rect x="17" y="17" width="5" height="5" fill="#9aa0aa"/></g>
+            <circle cx="12" cy="12" r="9" fill="none" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_hole_alpha_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Set alpha in hole - disc fading to transparent."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs><linearGradient id="ha" x1="0" x2="1"><stop offset="0" stop-color="#e8a23a" stop-opacity="1"/><stop offset="1" stop-color="#e8a23a" stop-opacity="0.1"/></linearGradient></defs>
+            <circle cx="12" cy="12" r="9" fill="url(#ha)" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_hole_invert_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Invert colours in hole - disc half light, half dark."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 3a9 9 0 0 0 0 18z" fill="#f2f2f2"/>
+            <path d="M12 3a9 9 0 0 1 0 18z" fill="#1c1c1c"/>
+            <circle cx="12" cy="12" r="9" fill="none" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_hole_toalpha_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Colour to alpha - picked colour in the hole becomes transparent."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs><clipPath id="ta"><circle cx="12" cy="12" r="9"/></clipPath></defs>
+            <g clip-path="url(#ta)"><rect x="2" y="2" width="10" height="20" fill="#e8a23a"/>
+            <rect x="12" y="2" width="10" height="20" fill="#ffffff"/>
+            <rect x="12" y="2" width="5" height="5" fill="#9aa0aa"/><rect x="17" y="7" width="5" height="5" fill="#9aa0aa"/>
+            <rect x="12" y="12" width="5" height="5" fill="#9aa0aa"/><rect x="17" y="17" width="5" height="5" fill="#9aa0aa"/></g>
+            <circle cx="12" cy="12" r="9" fill="none" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_hole_fillalpha_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Add colour to alpha - transparent pixels in the hole take the colour."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs><clipPath id="fa"><circle cx="12" cy="12" r="9"/></clipPath></defs>
+            <g clip-path="url(#fa)"><rect x="2" y="2" width="20" height="20" fill="#9aa0aa"/>
+            <rect x="7" y="7" width="10" height="10" fill="#3a6be8"/>
+            <rect x="2" y="2" width="5" height="5" fill="#ffffff"/><rect x="12" y="2" width="5" height="5" fill="#ffffff"/>
+            <rect x="2" y="12" width="5" height="5" fill="#ffffff"/><rect x="17" y="17" width="5" height="5" fill="#ffffff"/></g>
+            <circle cx="12" cy="12" r="9" fill="none" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_drape_colour_add_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Pick colour, add it to the open area - pipette with plus."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 20l1-4 9-9 3 3-9 9z" fill="#40c8d8" stroke="#40c8d8" stroke-width="1" stroke-linejoin="round"/>
+            <path d="M13 6l2-2a2.2 2.2 0 0 1 3 0l2 2a2.2 2.2 0 0 1 0 3l-2 2z" fill="#40c8d8"/>
+            <circle cx="18" cy="18" r="5" fill="#2f4fb8"/><path d="M18 15.5v5M15.5 18h5" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_drape_colour_sub_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Pick colour, cut it out of the open area - pipette with minus."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 20l1-4 9-9 3 3-9 9z" fill="#40c8d8" stroke="#40c8d8" stroke-width="1" stroke-linejoin="round"/>
+            <path d="M13 6l2-2a2.2 2.2 0 0 1 3 0l2 2a2.2 2.2 0 0 1 0 3l-2 2z" fill="#40c8d8"/>
+            <circle cx="18" cy="18" r="5" fill="#2f4fb8"/><path d="M15.5 18h5" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/>
         </svg>''', size, color)
 
     @staticmethod

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_win_func.py - Version: 8
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_win_func.py - Version: 9
 # X-Seti - October 28 2026 - IMG Factory 1.6 - Vehicle Workshop window
 
 """
@@ -7,7 +7,7 @@ identity, settings keys and Vehicle settings tab, game IMG on show, timers stopp
 """
 
 ##class VehicleWinMixin: -
-# _extra_settings_tab
+# _extra_settings_tabs
 # _load_game_vehicle_img
 # _vw_grid_button
 # _vw_grid_cfg
@@ -29,8 +29,8 @@ class VehicleWinMixin: #vers 1
     tabmerginsa = tabmerginsb = tabmerginsc = tabmerginsd = 2   # status bar inner margins
     panelspacing, titlebarheight = 4, 36
 
-    def _extra_settings_tab(self, tabs): #vers 2
-        """Vehicle tab: game root, viewport start options; returns the OK action."""
+    def _extra_settings_tabs(self, tabs): #vers 1
+        """Vehicle tab: game root, viewport start options, applied live (ModelWorkshop hook - no OK-apply return)."""
         ws = self.WS
         vt = QWidget()
         vl = QVBoxLayout(vt)
@@ -45,7 +45,9 @@ class VehicleWinMixin: #vers 1
             d = QFileDialog.getExistingDirectory(vt, "Select GTA Game Root", game_edit.text())
             if d:
                 game_edit.setText(d)
+                ws.set("game_root", d)
         browse_btn.clicked.connect(_browse_game)
+        game_edit.editingFinished.connect(lambda: ws.set("game_root", game_edit.text()))
         gl.addWidget(game_edit, 1)
         gl.addWidget(browse_btn)
         vl.addWidget(game_grp)
@@ -53,8 +55,10 @@ class VehicleWinMixin: #vers 1
         vpl = QVBoxLayout(vp_grp)
         grid_cb = QCheckBox("Show grid on startup")
         grid_cb.setChecked(ws.get("viewport_grid", True))
+        grid_cb.toggled.connect(lambda v: ws.set("viewport_grid", v))
         cull_cb = QCheckBox("Backface culling on startup")
         cull_cb.setChecked(ws.get("viewport_cull", True))
+        cull_cb.toggled.connect(lambda v: ws.set("viewport_cull", v))
         vpl.addWidget(grid_cb)
         vpl.addWidget(cull_cb)
         vl.addWidget(vp_grp)
@@ -65,12 +69,6 @@ class VehicleWinMixin: #vers 1
         def grid_apply(cfg):  #vers 1
             self._vw_set_grid('custom', cfg=cfg)
         tabs.addTab(grid_settings_page(self, self._vw_grid_cfg(), grid_apply), "Grid")
-
-        def apply(): #vers 1
-            ws.set("game_root", game_edit.text())
-            ws.set("viewport_grid", grid_cb.isChecked())
-            ws.set("viewport_cull", cull_cb.isChecked())
-        return apply
 
     def _vw_grid_cfg(self) -> dict: #vers 1
         """Saved custom grid (pattern, colours, thickness, cell size)."""
@@ -119,11 +117,12 @@ class VehicleWinMixin: #vers 1
             self._vw_set_grid(saved['kind'], saved.get('path', ''))
         return b
 
-    def showEvent(self, event): #vers 7
-        """In IMG Factory: list vehicles from the open IMG tab or the game's models IMG."""
+    def showEvent(self, event): #vers 8
+        """Defer IMG listing until the window has painted."""
         super().showEvent(event)
         if not self.standalone_mode:
-            self._load_game_vehicle_img()
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(50, self._load_game_vehicle_img)
 
     def _load_game_vehicle_img(self): #vers 4
         """Open vehicles.img / gta3.img tab first, else <game>/models IMG (IMG Factory or Map Workshop root)."""

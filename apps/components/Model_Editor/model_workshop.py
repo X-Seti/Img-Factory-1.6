@@ -114,9 +114,10 @@ from apps.components.Model_Editor.depends.model_list_func import _DFFGeometryAda
 
 
 class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, ModelListMixin, ModelViewportMixin, ModelEditMixin, ModelTextureMixin,
-                    ModelSettingsMixin, DocTabsMixin, DockPanelsMixin, GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 9
+                    ModelSettingsMixin, DocTabsMixin, DockPanelsMixin, GLViewportMixin, RibbonIconsMixin, ToolMenuMixin, QWidget): #vers 10
     """Model Workshop - Main window"""
     _LIST_EXTS = ('.dff', '.txd', '.col')     # Files panel types
+    _VIEWPORT_CLASS = DFFViewport   # subclass override: own preview widget (e.g. VehicleViewport)
 
     # - ToolMenuMixin implementation
 

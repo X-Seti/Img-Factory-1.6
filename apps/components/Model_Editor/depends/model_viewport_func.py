@@ -527,7 +527,7 @@ class ModelViewportMixin: #vers 1
         ]
         self._quad_panes = []
         for label, yaw, pitch, proj in presets:
-            pane = DFFViewport()
+            pane = self._VIEWPORT_CLASS()
             pane.app_settings = getattr(self.preview_widget, 'app_settings', None)
             pane._workshop_ref = self
             pane.set_view_lock(proj == 'ortho', label, yaw=yaw, pitch=pitch, projection=proj)

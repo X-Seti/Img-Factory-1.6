@@ -18,6 +18,7 @@ Standalone tools import from their own methods/dff_viewport.py.
 # DFFViewport._brush_tick
 # DFFViewport._build_gizmo_chips
 # DFFViewport._calc_world_matrix
+# DFFViewport._door_rotate
 # DFFViewport._closest_point_on_ray
 # DFFViewport._constraint_axis
 # DFFViewport._cycle_constraint
@@ -2702,7 +2703,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._radar_grid_half_extent = half_extent
         self.update()
 
-    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 6
+    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 8
         self._all_geoms = []
         self._vertices  = []  # clear single-geom data
         self._assembly_args = (geometries, materials_list, frames, atomics, damaged)   # steer rebuilds
@@ -2723,8 +2724,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if is_ok  and damaged: continue
             # Skip frames hidden by the frame tree
             if name and name in getattr(self, '_hidden_frames', set()): continue
-            (lods if is_lod and not getattr(self, '_show_lod', False) else shown).append((geom, fi))
-        for geom, fi in shown or lods:          # LOD-only model (e.g. air_vlo): show its LOD
+            (lods if is_lod else shown).append((geom, fi))
+        use = lods if getattr(self, '_show_lod', False) and lods else (shown or lods)   # LOD shows alone
+        for geom, fi in use:                    # LOD-only model (e.g. air_vlo): show its LOD
             rot, tx, ty, tz = self._calc_world_matrix(frames, fi)
             verts = [(rot[0]*v.x+rot[1]*v.y+rot[2]*v.z+tx,
                       rot[3]*v.x+rot[4]*v.y+rot[5]*v.z+ty,
@@ -2733,6 +2735,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                       rot[3]*n.x+rot[4]*n.y+rot[5]*n.z,
                       rot[6]*n.x+rot[7]*n.y+rot[8]*n.z) for n in geom.normals] if geom.normals else []
             uvs   = [(u.u,u.v) for u in geom.uv_layers[0]] if geom.uv_layers else []
+            verts, norms = self._door_rotate(frames, fi, verts, norms)
             tris  = [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles]
             prelit= [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
             geom_flags = getattr(geom, 'flags', 0)
@@ -2787,17 +2790,59 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             try: self._on_geometry_loaded()
             except Exception: pass
 
-    def _calc_world_matrix(self, frames, frame_idx): #vers 1
+    _DOOR_KEYS = (('door_lf', 70), ('door_rf', 70), ('door_lr', 70), ('door_rr', 70),
+                  ('bonnet', 50), ('boot', 50))
+
+    def _door_rotate(self, frames, fi, verts, norms): #vers 1
+        """Swing door / bonnet / boot parts open about their dummy hinge."""
+        opened = getattr(self, '_anim_door_open', None)
+        if not opened:
+            return verts, norms
+        idx, seen = fi, set()
+        while 0 <= idx < len(frames) and idx not in seen:
+            seen.add(idx)
+            nm = (frames[idx].name or '').lower()
+            hit = next(((k, a) for k, a in self._DOOR_KEYS if nm.startswith(k)), None)
+            if hit and opened.get(hit[0]):
+                key, deg = hit
+                _r, px, py, pz = self._calc_world_matrix(frames, idx)
+                th = math.radians(deg)
+                if key.startswith('door'):                      # about Z, outward
+                    th = th if px > 0 else -th
+                    ax = 2
+                else:                                           # about X: bonnet up, boot up
+                    th = th if key == 'bonnet' else -th
+                    ax = 0
+                c, sn = math.cos(th), math.sin(th)
+                def _rot(x, y, z, off=True):  #vers 1
+                    if off:
+                        x, y, z = x - px, y - py, z - pz
+                    if ax == 2:
+                        x, y = x*c - y*sn, x*sn + y*c
+                    else:
+                        y, z = y*c - z*sn, y*sn + z*c
+                    return (x + px, y + py, z + pz) if off else (x, y, z)
+                verts = [_rot(*v) for v in verts]
+                norms = [_rot(*n, off=False) for n in norms]
+                break
+            idx = frames[idx].parent_index
+        return verts, norms
+
+    def _calc_world_matrix(self, frames, frame_idx): #vers 2
+        """World rotation (column form) and position; RW stores right/up/at rows."""
         r=[1,0,0,0,1,0,0,0,1]; tx=ty=tz=0.0
         visited=set(); idx=frame_idx; chain=[]
         while 0<=idx<len(frames) and idx not in visited:
             visited.add(idx); chain.append(frames[idx]); idx=frames[idx].parent_index
         for frame in reversed(chain):
-            fr=frame.rotation; fp=frame.position
-            nr=[r[0]*fr[0]+r[1]*fr[3]+r[2]*fr[6],r[0]*fr[1]+r[1]*fr[4]+r[2]*fr[7],r[0]*fr[2]+r[1]*fr[5]+r[2]*fr[8],
-                r[3]*fr[0]+r[4]*fr[3]+r[5]*fr[6],r[3]*fr[1]+r[4]*fr[4]+r[5]*fr[7],r[3]*fr[2]+r[4]*fr[5]+r[5]*fr[8],
-                r[6]*fr[0]+r[7]*fr[3]+r[8]*fr[6],r[6]*fr[1]+r[7]*fr[4]+r[8]*fr[7],r[6]*fr[2]+r[7]*fr[5]+r[8]*fr[8]]
-            r=nr; tx+=fp.x; ty+=fp.y; tz+=fp.z
+            f=frame.rotation; fp=frame.position
+            m=[f[0],f[3],f[6], f[1],f[4],f[7], f[2],f[5],f[8]]     # transpose: columns = right/up/at
+            tx+=r[0]*fp.x+r[1]*fp.y+r[2]*fp.z                      # child offset turned by parent
+            ty+=r[3]*fp.x+r[4]*fp.y+r[5]*fp.z
+            tz+=r[6]*fp.x+r[7]*fp.y+r[8]*fp.z
+            r=[r[0]*m[0]+r[1]*m[3]+r[2]*m[6],r[0]*m[1]+r[1]*m[4]+r[2]*m[7],r[0]*m[2]+r[1]*m[5]+r[2]*m[8],
+               r[3]*m[0]+r[4]*m[3]+r[5]*m[6],r[3]*m[1]+r[4]*m[4]+r[5]*m[7],r[3]*m[2]+r[4]*m[5]+r[5]*m[8],
+               r[6]*m[0]+r[7]*m[3]+r[8]*m[6],r[6]*m[1]+r[7]*m[4]+r[8]*m[7],r[6]*m[2]+r[7]*m[5]+r[8]*m[8]]
         return r, tx, ty, tz
 
     def load_wheels_dff(self, path: str, wheel_type: str = 'wheel_saloon_l0'): #vers 1

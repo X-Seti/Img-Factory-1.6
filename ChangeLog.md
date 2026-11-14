@@ -1,43 +1,26 @@
-#this belongs in root /ChangeLog.md - Version: 505
+#this belongs in root /ChangeLog.md - Version: 480
 
 
-- Nov 12 2026 - Data Workshop: stale "IDE Editor" menu label renamed; new hexagon+brackets app icon.
-- Nov 11 2026 - IPL Workshop + IDE Editor renamed Data Workshop: apps/components/Data_Workshop (data_workshop.py, depends/ide_panel.py); all callers, menus and welcome tile updated. Move Ipl_Editor + Ide_Editor folders to _to_delete.
-- Nov 11 2026 - Dat File Workshop: Generics button splits each IPL by IDE file / selected IDE rows / generic.ide into x_generics.ipl beside it, added to the .dat after the source line.
-- Nov 11 2026 - Ped Workshop GTA IV: Save writes edited .wad bone tracks back in place (loose .wad or anim.img entry, unedited tracks unchanged, backup first).
-- Nov 11 2026 - Ped Workshop GTA IV anims: .wad mover track played (turn anims rotate the ped; walk/run slide the grid, or move the ped with In place off).
-- Nov 11 2026 - Ped Workshop skinning: weight brush ring shown on the mesh under the mouse, facing the camera (red while removing).
-- Nov 11 2026 - Ped Workshop data files table: pedstats / pedgrp column names, pedgrp // group names as row labels, unknown ped models in red, pedstats flags tooltip.
-- Nov 11 2026 - Map Workshop waterpro: Water Levels dialog paints grid cells in the view (level / Shift dry / Ctrl pick, brush size, both layers, undo); saves to waterpro.dat or GAME.DTZ.
-- Nov 11 2026 - LCS/VCS PS2 world: sector meshes built on first use, load cached (LCS 31 s -> 10 s first, 0.5 s cached).
-- Nov 11 2026 - Path Workshop SA: roadblocks follow node add / delete (dropped with their node), undo restores them, ROADBLOX.DAT saved at its fixed size.
-- Nov 11 2026 - Older App Settings copies (Paths, Radar, AI, Capture, DP5, Hex, Resbio, Timecyc, Water, Zon): combo down arrow added (v102).
-- Nov 11 2026 - Ped Workshop GTA IV: twist / roll bones (ForeTwist, ArmRoll, Calf_Roll, Neck_Roll) turn with their driver bone; arms no longer stretch to hips.
-- Nov 11 2026 - Cutscene Workshop: game change finds IV pc/anim/cuts.img; no SA fallback when the new game has none. DAT Browser shares game root before xref listeners.
-- Nov 11 2026 - GTA IV world cache: loaded world pickled per .dat (~/.cache/imgfactory/world); reused when every source file's time and size match.
-- Nov 11 2026 - IMG Factory session resume: open file tabs and current tab saved on close, reopened on start (QSettings resume_session, default on).
-- Nov 11 2026 - IPL/IDE merged: IDE editing only in IPL Workshop (old IDE dialog removed); IMG IDE entry, DAT Browser, dir tree, Map Workshop open IPL/IDE there.
-- Nov 11 2026 - gta_file_editors.py no longer used (3rd IDE editor, duplicate open_ide_editor); move to _to_delete. IPL Workshop: select_instance added.
-- Nov 11 2026 - Vehicle Workshop: IMG Entries, Geometries, Textures, Frame Hierarchy are separate docks (move, float, collapse each); layout version 2.
-- Nov 11 2026 - dff_skin: atomics with embedded geometry (mobile LCS peds) get their own geometry index; fixes KeyError crash in Ped / Cutscene.
-- Nov 11 2026 - Cutscene Workshop: model IMGs found case-insensitively (iOS Models/, ANIM/); LCS iOS cutscene models now load.
-- Nov 11 2026 - Model Workshop: switching models in the Files list loads that model's TXD; was stuck on the first opened model's name.
-- Nov 11 2026 - Cutscene Workshop: Open / model import / export dialogs start in the game root (DAT Browser), not KDE's last folder.
-- Nov 11 2026 - DAT Browser load sets app game root; open Cutscene Workshop reopens that game's cuts (kept old path before). Unsaved edits block switch.
-- Nov 11 2026 - Ped Workshop: crash fixed - read_skeleton drops atomics with bad frame/geometry index (KeyError in mesh_points aborted on bone click).
-- Nov 11 2026 - Vehicle Workshop: single click / Enter on IMG Entries loads the vehicle into the viewport (was double-click only).
-- Nov 11 2026 - Path Workshop: Load Paths accepts III .ide (game .dat found for IPL placement); IDE path nodes parsed indented or not.
-- Nov 11 2026 - Ped Workshop: Files panel lists .ifp entries; IFP always in type filter; click opens it in Animation dock.
-- Nov 11 2026 - Combo boxes: themed SVG down arrow added (App Settings stylesheet and dialog theme); arrow was missing.
-- Nov 11 2026 - Path Workshop docked: radar and nodesN.dat auto-load from IMG Factory's open gta3.img (or game root); III/VC load gta3.dat / gta_vc.dat paths.
-- Nov 11 2026 - Vehicle Workshop: IMG Entries filled from open gta3.img/vehicles.img tabs (tab file_object; open_files was empty).
-- Nov 11 2026 - Radar docked: standalone titlebar hidden; taskbar duplicate (Radar/Water) removed via register_tool sync.
-- Nov 11 2026 - Model/Ped/Map Files dock: header elides, type combo shrinks, search box gets left magnifier; fold_widgets ElidedLabel added.
-- Nov 11 2026 - Vehicle Workshop: fold_widgets.py added to repo. Car Colours: car3/car4 vehicles listed and saved, set colours via palette double-click, rename vehicles.
-- Nov 11 2026 - App Settings Fonts: Browse... per font row loads a .ttf/.otf (starts in apps/fonts); remembered and listed in the system font dropdown.
-- Nov 11 2026 - COL Workshop: COL Files count and search button moved into the dock title bar; duplicate header removed.
-- Nov 11 2026 - COL Workshop: Surface Data tab scrolls, so Col Controls no longer needs 480px and stops overlapping the COL Files dock.
-- Nov 11 2026 - COL Workshop docked: COL Files panel min height so header and search button are not clipped; search icon theme coloured.
+- Nov 12 2026 - Data Workshop icons: Generics own icon, convert icon redrawn (A/B swap arrows), Check IDE/IPL ticks enlarged.
+- Nov 12 2026 - Vehicle Workshop now built on Model Workshop (Ped-style docks): Vehicle Data, Vehicle Model, Vehicle Tools. Old Files/Models/Frame/Textures panes hidden; dock layout saved on move.
+- Nov 12 2026 - Vehicle Workshop: door/bonnet/boot toggles open parts; LOD shows alone; rotated LOD frames fixed (dff_viewport world matrix); Slots buttons become icons, path elided.
+- Nov 12 2026 - Vehicle Workshop tabs: theme colours/fonts, alternating rows, no fixed widths, collapsible panes; Car Colours palette/sets splitter, cells shrink with width; Add/Del icon buttons restored.
+- Nov 14 2026 - DP5: Edit > Recolour selection - hue shift, shift to colour, colourise, blend, multiply, screen on the selected region only; live preview; suggests a mode for black / white / grey areas.
+- Nov 14 2026 - DP5: dark blue drape outside the wand, lasso, rectangle or edit lock; every tool, move and undo is blocked from changing outside it.
+- Nov 14 2026 - DP5: several open areas in one drape - Shift adds, Alt cuts a hole out (wand, lasso, rectangle); Invert drape (Edit menu, Ctrl+I) flips holes and covered patches, rectangles included; nothing open left opens the whole image.
+- Nov 14 2026 - DP5: Select ellipse tool (N, cyan icon) for round holes; Shift adds, Alt cuts out, Ctrl keeps it a circle.
+- Nov 14 2026 - DP5: GIF frames - Ctrl/Shift+click frame thumbnails to select (orange); Recolour can apply to selected frames; drape no longer reverts on frame, tab or playback change.
+- Nov 14 2026 - DP5: Edit > Holes - fill (FG colour with alpha), clear, set alpha, invert colours inside the open area, on all selected frames. New SVG icons (svg v111): drape, invert drape, lock, recolour, hole fill/clear/alpha/invert, shown on the Edit menu.
+- Nov 14 2026 - DP5: rectangle and ellipse holes stay adjustable - 8 handles resize, drag inside moves, Enter or OK keeps, Esc or Cancel restores; Ctrl+drag inside cuts/moves pixels; Lock with no hole switches to Select.
+- Nov 14 2026 - DP5: hole HUD - OK, + (keep and add another), X cancel, shape buttons (rect, circle, lasso, wand) and Invert drape.
+- Nov 14 2026 - DP5: Drape ribbon - lock, recolour, fill, clear, alpha, invert colours; enabled only while a hole, open area or lock exists.
+- Nov 14 2026 - DP5: Recolour colour filter - only or exclude pixels near a picked colour (keeps white areas); Shift to colour hue maths fixed; Colour to alpha and Add colour to alpha on the Drape ribbon and Edit > Holes.
+- Nov 14 2026 - DP5: drape colour pick - HUD pipette +/- adds or cuts out every pixel near the clicked colour (Wand tolerance); Drape editing with nothing selected opens the HUD.
+- Nov 14 2026 - DP5: animation tools (depends/dp5_anim_tools.py) - per-frame delays honoured in playback, colour cycle frames from the open area, move brush across frames with fade; File > Animation menu.
+- Nov 14 2026 - DP5: perspective for the open area (Picture menu, depends/dp5_perspective.py); camera move, anim brush grab / paste, per-frame palette remap and fade in File > Animation.
+- Nov 14 2026 - DP5: natural media brushes (chalk, watercolour, oil), freehand smoothing and tablet pen pressure (size / opacity) - Edit > Brush media; depends/dp5_brush_media.py. DPaint V list covered.
+- Nov 13 2026 - Map Workshop IPL object editor: X/Y/Z rows one line, plain value boxes (_NudgeEdit) replace clipped spin boxes; wrap logic removed.
+- TODO - Vehicle Workshop: retest docking/heights, duplicate Render buttons vs ribbon. Next GUIWorkshop tools to move to Model Workshop: Data, Capture, Disc, Handling, Hex, Timecyc, Water.
 - Nov 11 2026 - Txd-Workshop / App-Settings-System: missing methods/app_fonts.py added (Settings stylesheet error); App-Settings-System also gets edge_cursor.py, ribbon_align.py.
 - Nov 10 2026 - Exit segfault (sip cleanup) fixed: windows freed on aboutToQuit; DP5 joins. Model Workshop icon: wireframe M (Model Viewer keeps mesh icon).
 - Nov 10 2026 - DP5: palette height back to All now removes the old row cap. Headless test of Nov 9 work: 23/23 pass.
@@ -429,15 +412,6 @@
 
 ## Oct 14 2026 - Radar save format
 - Radar Workshop: PC/Xbox tiles saved in their own format (DXT1/3/5, PAL8, 888) via shared TXD rebuild; was always DXT1.
-
-## Oct 14 2026 - ShaderManager.xml
-- ShaderManager.xml
-
-## Oct 14 2026 - retrevnoCnoneXvi.exe
-- retrevnoCnoneXvi.exe
-
-## Oct 14 2026 - Testing bug tracker
-- Testing bug tracker
 
 ## Oct 14 2026 - Map docks shared
 - Map Workshop uses methods/dock_panels.py (collapsible dock titles, save/restore layout); own copies removed.

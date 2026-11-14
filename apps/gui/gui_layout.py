@@ -417,7 +417,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
         self.method_mappings = self._create_method_mappings()
 
 
-    def _create_method_mappings(self): #vers 8
+    def _create_method_mappings(self): #vers 9
         """Create centralized method mappings for all buttons"""
         method_mappings = {
             # Nav Operations - Keep hidden unless custom theme requires these 3 buttons.
@@ -485,7 +485,6 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             'edit_txd_file': lambda: edit_txd_file(self.main_window),
             'edit_dff_file': lambda: edit_dff_file(self.main_window),
             'edit_ipf_file': lambda: getattr(self.main_window, 'open_ped_workshop_docked', lambda: None)(),   # IFP: Ped Workshop
-            'edit_ide_file': lambda: getattr(self.main_window, 'open_ide_editor_docked', lambda: getattr(self.main_window, 'open_ide_editor', lambda: None)())(),
             'edit_ipl_file': lambda: self._open_ipl_workshop(),
             'edit_handling': lambda: getattr(self.main_window, 'open_handling_editor', lambda: None)(),
             'edit_carcols':  lambda: getattr(self.main_window, 'open_carcols_editor', lambda: None)(),
@@ -759,7 +758,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
         colors = self._get_button_theme_template()
         return [b for b in self._options_buttons_all(colors) if option_available(b[4])]
 
-    def _options_buttons_all(self, colors): #vers 2
+    def _options_buttons_all(self, colors): #vers 3
         """Every Editing Options button (label, attr, icon, colour, method)."""
         return [
             ("Dir Tree",   "dir_tree",   "dir-tree",   colors['editor_data'],    "toggle_dir_tree"), #Dir_tree
@@ -774,7 +773,6 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             ("Waterpro",   "water_edit", "water-edit", colors['editor_data'],    "edit_waterpro"),
             ("Paint",      "paint_edit", "paint-edit", colors['editor_txd'],     "open_dp5_workshop_docked"),
 
-            ("IDE Edit",   "ide_edit",   "ide-edit",   colors['editor_data'],    "edit_ide_file"),
             ("IPL Edit",   "ipl_edit",   "ipl-edit",   colors['editor_data'],    "edit_ipl_file"),
             ("Objects",    "ojs_breakble","ojs-breakble",colors['editor_data'],  "edit_objects"),
 
@@ -1578,7 +1576,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             return color
 
 
-    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 9
+    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 10
         """Get SVG icon based on icon name identifier"""
         icon_map = {
             # IMG file actions
@@ -1627,7 +1625,6 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             # Editor buttons (same icons as the Intro tiles)
             "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.model_workshop_icon(size, '#4a9fd4'),
             "ipf-edit": get_ipf_anim_icon,
-            "ide-edit": get_ide_editor_icon,
             "ipl-edit": lambda size=24, color=None, bg_color=None: get_data_workshop_icon(size),
             "dat-edit": get_dat_browser_icon,
             "dir-tree": lambda size=24, color=None, bg_color=None: get_tree_icon(size, color),

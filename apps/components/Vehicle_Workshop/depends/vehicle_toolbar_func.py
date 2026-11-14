@@ -36,6 +36,7 @@ Toolbar, file loading, paint, animation and overlay actions.
 # _toggle_assembly_mode
 # _toggle_bounds
 # _toggle_com_indicator
+# _rebuild_view
 # _toggle_damage_mode
 # _toggle_door
 # _toggle_dummy_overlay
@@ -96,10 +97,21 @@ class VehicleToolbarMixin: #vers 1
                 m.frames, m.atomics, damaged=enabled)
             self.viewport.update()
 
-    def _toggle_lod_mode(self, enabled: bool): #vers 1
+    def _rebuild_view(self): #vers 1
+        """Rebuild the assembled model, camera kept."""
+        vp = self.viewport
+        args = getattr(vp, '_assembly_args', None)
+        if args:
+            keep, vp._keep_camera = getattr(vp, '_keep_camera', False), True
+            try:
+                vp.load_all_geometries(*args)
+            finally:
+                vp._keep_camera = keep
+        vp.update()
+
+    def _toggle_lod_mode(self, enabled: bool): #vers 2
         self.viewport.set_show_lod(enabled)
-        if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
-            self._toggle_assembly_mode(True)
+        self._rebuild_view()
 
     def _toggle_animation(self, enabled: bool): #vers 2
         """Toggle door open/close animation cycle."""
@@ -130,12 +142,16 @@ class VehicleToolbarMixin: #vers 1
         """Set animation speed from slider."""
         self._anim_speed = value / 10.0
 
-    def _toggle_door(self, name: str, open: bool): #vers 1
-        """Track which doors are toggled open."""
+    def _toggle_door(self, name: str, open: bool): #vers 3
+        """Open or close a door part in the viewport."""
         self._door_open = getattr(self, '_door_open', set())
         if open: self._door_open.add(name)
         else:    self._door_open.discard(name)
-        self.viewport.update()
+        vp = self.viewport
+        if not isinstance(getattr(vp, '_anim_door_open', None), dict):
+            vp._anim_door_open = {}
+        vp._anim_door_open[name] = open
+        self._rebuild_view()
 
     def _set_wheel_steer(self, angle: int): #vers 1
         """Set front wheel steering angle in viewport."""
@@ -568,7 +584,7 @@ class VehicleToolbarMixin: #vers 1
                 f"Loaded: {os.path.basename(path)} — "
                 f"{len(model.geometries)} geometries, {len(model.frames)} frames")
             # Populate frame hierarchy tree
-            self._populate_frame_tree()
+            self._populate_frame_visibility()
             # Load vehicles.ide info (wheel type) + carcols colours
             stem = os.path.splitext(os.path.basename(path))[0]
             from PyQt6.QtCore import QTimer
@@ -1179,9 +1195,6 @@ class VehicleToolbarMixin: #vers 1
             # Step 2: Parse + load DFF, switch to 3D Preview tab first
             self._set_status(f"Parsing {name}…")
             QApplication.processEvents()
-            if hasattr(self, '_tabs'):
-                self._tabs.setCurrentIndex(0)
-                QApplication.processEvents()
             self.load_dff(dff_path)
             QApplication.processEvents()
 

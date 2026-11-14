@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_tabs_func.py - Version: 2
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_tabs_func.py - Version: 3
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop data tabs
 
 """
@@ -73,8 +73,8 @@ Handling, Car Colours and Car Mods tabs.
 
 from typing import Dict, List
 
-from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen
+from PyQt6.QtCore import QEvent, QSize, Qt
+from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFormLayout,
     QFrame, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
@@ -105,6 +105,39 @@ class CarColsParser(CarColsFile): #vers 2
 CarModsParser = CarModsFile
 
 
+# Shared helpers
+
+def _shrinkable(w, *panes): #vers 1
+    """Let splitter panes shrink/collapse below content size."""
+    for p in panes:
+        p.setMinimumWidth(1)
+    return w
+
+
+def _splitter_collapsible(sp): #vers 1
+    """All splitter panes collapsible."""
+    for i in range(sp.count()):
+        sp.setCollapsible(i, True)
+
+
+def _theme_tab(tab, font, icon_color): #vers 1
+    """Store workshop font/icon colour; apply font to the tab."""
+    tab._icon_color = icon_color or '#ffffff'
+    tab._wfont = font
+    if font is not None:
+        tab.setFont(font)
+
+
+def apply_workshop_font(tab): #vers 1
+    """Set workshop font on every child; theme stylesheets override inherited fonts."""
+    f = getattr(tab, '_wfont', None)
+    if f is None:
+        return
+    tab.setFont(f)
+    for w in tab.findChildren(QWidget):
+        w.setFont(f)
+
+
 # Colour swatch grid
 
 class ColourSwatchGrid(QWidget): #vers 1
@@ -114,13 +147,33 @@ class ColourSwatchGrid(QWidget): #vers 1
         self._selected: int = -1
         self._cols      = 16
         self._cell      = 24
-        self.setMinimumHeight(80)
+        self.setMinimumSize(16, 40)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def _relayout(self, width: int): #vers 1
+        """Cell size follows width; 12 px minimum."""
+        cols = 16 if width >= 16 * 12 else max(1, width // 12)
+        self._cols = cols
+        self._cell = max(12, min(28, max(1, width) // cols))
+
+    def hasHeightForWidth(self): #vers 1
+        return True
+
+    def heightForWidth(self, w): #vers 1
+        self._relayout(w)
+        rows = max(1, (len(self._palette) + self._cols - 1) // self._cols)
+        return rows * self._cell + 4
+
+    def resizeEvent(self, event): #vers 1
+        self._relayout(event.size().width())
+        self.updateGeometry()
+        super().resizeEvent(event)
 
     def set_palette(self, palette: List[CarColour]): #vers 1
         self._palette = palette
-        rows = max(1, (len(palette) + self._cols - 1) // self._cols)
-        self.setMinimumHeight(rows * self._cell + 4)
+        self._relayout(self.width() or 16 * 24)
+        self.updateGeometry()
         self.update()
 
     def paintEvent(self, event): #vers 1
@@ -131,13 +184,13 @@ class ColourSwatchGrid(QWidget): #vers 1
             y = (i // self._cols) * cs
             p.fillRect(x, y, cs, cs, col.to_qcolor())
             if i == self._selected:
-                p.setPen(QPen(QColor(255, 255, 255), 2))
+                p.setPen(QPen(self.palette().highlightedText().color(), 2))
                 p.drawRect(x+1, y+1, cs-2, cs-2)
             else:
-                p.setPen(QPen(QColor(0, 0, 0, 60), 1))
+                p.setPen(QPen(self.palette().mid().color(), 1))
                 p.drawRect(x, y, cs, cs)
         if not self._palette:
-            p.setPen(QColor(120, 120, 120))
+            p.setPen(self.palette().placeholderText().color())
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No palette loaded")
 
     def mousePressEvent(self, event): #vers 1
@@ -153,9 +206,10 @@ class ColourSwatchGrid(QWidget): #vers 1
 
 # Tab 1 — Handling
 
-class HandlingTab(QWidget): #vers 1
-    def __init__(self, parent=None):  #vers 1
+class HandlingTab(QWidget): #vers 2
+    def __init__(self, parent=None, font=None, icon_color=None):  #vers 2
         super().__init__(parent)
+        _theme_tab(self, font, icon_color)
         self._parser   = HandlingParser() if _HANDLING_AVAILABLE else None
         self._cur_idx  = -1
         self._blocking = False
@@ -171,7 +225,7 @@ class HandlingTab(QWidget): #vers 1
             self._form.removeRow(0)
         self._field_widgets.clear()
         for fname, ftype, fmin, fmax, tip in fields:
-            lbl = QLabel(fname); lbl.setToolTip(tip); lbl.setFixedWidth(200)
+            lbl = QLabel(fname); lbl.setToolTip(tip); lbl.setMinimumWidth(1)
             if ftype == "float":
                 w = QDoubleSpinBox(); w.setRange(float(fmin), float(fmax)); w.setDecimals(4); w.setSingleStep(0.01)
                 w.valueChanged.connect(lambda v, n=fname: self._changed(n, v))
@@ -188,9 +242,11 @@ class HandlingTab(QWidget): #vers 1
             else:
                 w = QLineEdit()
                 w.textChanged.connect(lambda v, n=fname: self._changed(n, v))
-            w.setToolTip(tip)
+            w.setToolTip(tip); w.setMinimumWidth(1)
+            w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self._field_widgets[fname] = w
             self._form.addRow(lbl, w)
+        apply_workshop_font(self)
 
     def _build_ui(self): #vers 1
         root = QHBoxLayout(self); root.setContentsMargins(4, 4, 4, 4)
@@ -204,7 +260,7 @@ class HandlingTab(QWidget): #vers 1
         self._search = QLineEdit(); self._search.setPlaceholderText("Search…")
         self._search.textChanged.connect(lambda t: self._refresh_list(t))
         ll.addWidget(self._search)
-        self._veh_list = QListWidget()
+        self._veh_list = QListWidget(); self._veh_list.setAlternatingRowColors(True)
         self._veh_list.currentRowChanged.connect(self._on_select)
         ll.addWidget(self._veh_list)
         br = QHBoxLayout()
@@ -218,7 +274,7 @@ class HandlingTab(QWidget): #vers 1
             try:
                 ico = getattr(SVGIconFactory, f'{iname}_icon', None)
                 if ico:
-                    b.setIcon(ico(16, '#ffffff'))
+                    b.setIcon(ico(16, self._icon_color))
                     b.setIconSize(QSize(14,14))
                     b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             except Exception:
@@ -232,6 +288,10 @@ class HandlingTab(QWidget): #vers 1
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         ctr = QWidget(); scroll.setWidget(ctr)
         self._form = QFormLayout(ctr); self._form.setSpacing(3); self._form.setContentsMargins(6,6,6,6)
+        self._form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+        self._form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self._form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self._fill_form(VC_FIELDS)
         sp.addWidget(scroll)
 
@@ -241,19 +301,20 @@ class HandlingTab(QWidget): #vers 1
         for label, fn, mx in [("Top Speed","MaxVelocity",200),("Mass","Mass",5000),
                                ("Braking","BrakeDeceleration",30),("Traction","TractionMultiplier",3),
                                ("Engine","EngineAcceleration",20),("Suspension","SuspensionForceLevel",5)]:
-            row = QHBoxLayout(); l2 = QLabel(label); l2.setFixedWidth(80)
+            row = QHBoxLayout(); l2 = QLabel(label); l2.setMinimumWidth(1)
             bar = QProgressBar(); bar.setRange(0,100); bar.setFixedHeight(18)
             self._stat_bars[fn] = (bar, mx); row.addWidget(l2); row.addWidget(bar); rl.addLayout(row)
         rl.addStretch()
         grp = QGroupBox("Active Flags"); fl = QVBoxLayout(grp)
         for bit, name in list(HANDLING_FLAGS.items())[:16]:
-            lbl2 = QLabel(name); lbl2.setStyleSheet("color:#888;")
-            lbl2.setFont(QFont("Monospace",8))
+            lbl2 = QLabel(name); lbl2.setEnabled(False)
             self._flag_labels[bit] = lbl2; fl.addWidget(lbl2)
         rl.addWidget(grp)
         sp.addWidget(right)
+        _shrinkable(sp, left, scroll, right); _splitter_collapsible(sp)
         sp.setSizes([200, 600, 220])
         root.addWidget(sp)
+        apply_workshop_font(self)
 
     def load_file(self, path: str) -> bool: #vers 1
         if not self._parser: return False
@@ -327,7 +388,8 @@ class HandlingTab(QWidget): #vers 1
             try:
                 flags = int(entry.values[hf], 16)
                 for bit, lbl in self._flag_labels.items():
-                    lbl.setStyleSheet("color:#50e090;font-weight:bold;" if flags & bit else "color:#888;")
+                    lbl.setEnabled(bool(flags & bit))
+                    f = lbl.font(); f.setBold(bool(flags & bit)); lbl.setFont(f)
             except: pass
 
     def _add(self): #vers 1
@@ -354,15 +416,17 @@ class HandlingTab(QWidget): #vers 1
 
 # Tab 2 — Car Colours
 
-class CarColoursTab(QWidget): #vers 1
-    def __init__(self, parent=None):  #vers 1
+class CarColoursTab(QWidget): #vers 2
+    def __init__(self, parent=None, font=None, icon_color=None):  #vers 2
         super().__init__(parent)
+        _theme_tab(self, font, icon_color)
         self._parser  = CarColsParser()
         self._cur_veh = -1
         self._sel_col = -1
+        self._compact = -1
         self._build_ui()
 
-    def _build_ui(self): #vers 2
+    def _build_ui(self): #vers 3
         root = QVBoxLayout(self); root.setContentsMargins(4,4,4,4)
         sp = QSplitter(Qt.Orientation.Horizontal)
 
@@ -372,7 +436,7 @@ class CarColoursTab(QWidget): #vers 1
         self._search = QLineEdit(); self._search.setPlaceholderText("Search…")
         self._search.textChanged.connect(lambda t: self._refresh_veh_list(t))
         ll.addWidget(self._search)
-        self._veh_list = QListWidget()
+        self._veh_list = QListWidget(); self._veh_list.setAlternatingRowColors(True)
         self._veh_list.currentRowChanged.connect(self._on_vehicle_selected)
         self._veh_list.itemDoubleClicked.connect(self._rename_vehicle)
         self._veh_list.setToolTip("Double-click to rename")
@@ -383,48 +447,76 @@ class CarColoursTab(QWidget): #vers 1
             b=QToolButton(); b.setFixedHeight(28); b.setToolTip(tip); b.setText(lbl)
             try:
                 ico=getattr(SVGIconFactory,f'{iname}_icon',None)
-                if ico: b.setIcon(ico(14,'#ffffff')); b.setIconSize(QSize(14,14)); b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+                if ico: b.setIcon(ico(14,self._icon_color)); b.setIconSize(QSize(14,14)); b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             except Exception: pass
             b.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
 
-            b=QPushButton(lbl); b.setFixedHeight(26); b.clicked.connect(fn); br.addWidget(b)
+            b.clicked.connect(fn); br.addWidget(b)
         ll.addLayout(br)
         sp.addWidget(left)
 
-        # Centre
-        centre = QWidget(); cl = QVBoxLayout(centre); cl.setContentsMargins(4,4,4,4)
-        cl.addWidget(QLabel("Global Colour Palette  (click to select / double-click to edit)"))
+        # Centre: palette above, colour sets below, vertical splitter
+        centre = QSplitter(Qt.Orientation.Vertical)
+        top = QWidget(); tl = QVBoxLayout(top); tl.setContentsMargins(4,4,4,4)
+        lbl_p = QLabel("Global Colour Palette  (click to select / double-click to edit)")
+        lbl_p.setMinimumWidth(1); tl.addWidget(lbl_p)
         self._pal_grid = ColourSwatchGrid()
         self._pal_grid.colour_clicked = self._on_colour_index_clicked
         pal_scroll = QScrollArea(); pal_scroll.setWidgetResizable(True)
-        pal_scroll.setWidget(self._pal_grid); pal_scroll.setFixedHeight(160)
-        cl.addWidget(pal_scroll)
-        cl.addWidget(QLabel("Vehicle Colour Sets  (pick a palette colour, double-click a cell to set it)"))
+        pal_scroll.setWidget(self._pal_grid)
+        pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        tl.addWidget(pal_scroll, 1)
+        centre.addWidget(top)
+        bot = QWidget(); cl = QVBoxLayout(bot); cl.setContentsMargins(4,4,4,4)
+        lbl_s = QLabel("Vehicle Colour Sets  (pick a palette colour, double-click a cell to set it)")
+        lbl_s.setMinimumWidth(1); cl.addWidget(lbl_s)
         self._pairs = QTableWidget(0, 3)
         self._pairs.setHorizontalHeaderLabels(["#","Primary","Secondary"])
         self._pairs.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._pairs.horizontalHeader().setMinimumSectionSize(8)
+        self._pairs.setAlternatingRowColors(True)
         self._pairs.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._pairs.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._pairs.cellDoubleClicked.connect(self._on_pair_cell_double_clicked)
-        cl.addWidget(self._pairs)
+        self._pairs.viewport().installEventFilter(self)
+        cl.addWidget(self._pairs, 1)
         pr = QHBoxLayout()
         for lbl, fn in [("Add Pair",self._add_pair),("Remove Pair",self._remove_pair)]:
-            b=QPushButton(lbl); b.setFixedHeight(28); b.clicked.connect(fn); pr.addWidget(b)
+            b=QPushButton(lbl); b.setMinimumWidth(1); b.setFixedHeight(28); b.clicked.connect(fn); pr.addWidget(b)
         cl.addLayout(pr)
+        centre.addWidget(bot)
+        centre.setSizes([200, 260]); _splitter_collapsible(centre)
+        top.setMinimumHeight(1); bot.setMinimumHeight(1)
         sp.addWidget(centre)
 
         # Right
         right = QWidget(); rl = QVBoxLayout(right); rl.setContentsMargins(4,4,4,4)
         rl.addWidget(QLabel("Selected Colour"))
-        self._swatch = QFrame(); self._swatch.setFixedSize(80,80)
-        self._swatch.setStyleSheet("background:rgb(0,0,0);border:2px solid #555;")
+        self._swatch = QFrame(); self._swatch.setMinimumSize(16,16); self._swatch.setMaximumSize(80,80)
+        self._swatch.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._swatch.setStyleSheet("background:rgb(0,0,0);border:2px solid palette(mid);")
         rl.addWidget(self._swatch)
-        self._col_info = QLabel("Index: —\nRGB: —"); rl.addWidget(self._col_info)
+        self._col_info = QLabel("Index: -\nRGB: -"); rl.addWidget(self._col_info)
         edit_btn = QPushButton("Edit Colour"); edit_btn.clicked.connect(self._edit_selected_colour)
         rl.addWidget(edit_btn); rl.addStretch()
         self._pal_count = QLabel("0 colours"); rl.addWidget(self._pal_count)
         sp.addWidget(right)
+        _shrinkable(sp, left, centre, right); _splitter_collapsible(sp)
         sp.setSizes([200,560,150]); root.addWidget(sp)
+        apply_workshop_font(self)
+
+    def eventFilter(self, obj, ev): #vers 1
+        """Colour-set cells drop text as the table narrows."""
+        if obj is self._pairs.viewport() and ev.type() == QEvent.Type.Resize and self._cur_veh >= 0:
+            if self._cell_mode() != self._compact:
+                self._populate_vehicle_colours(self._parser.vehicles[self._cur_veh])
+        return super().eventFilter(obj, ev)
+
+    def _cell_mode(self) -> int: #vers 1
+        """2 full text, 1 index only, 0 colour only."""
+        n = max(1, self._pairs.columnCount())
+        w = self._pairs.viewport().width() / n
+        return 2 if w >= 120 else (1 if w >= 44 else 0)
 
     def load_file(self, path: str) -> bool: #vers 1
         ok = self._parser.load(path)
@@ -456,18 +548,21 @@ class CarColoursTab(QWidget): #vers 1
         if idx is None: return
         self._cur_veh = idx; self._populate_vehicle_colours(self._parser.vehicles[idx])
 
-    def _populate_vehicle_colours(self, entry: CarColEntry): #vers 2
+    def _populate_vehicle_colours(self, entry: CarColEntry): #vers 3
         """One row per colour set; 2, 3 or 4 colour columns."""
         names = ["Primary", "Secondary", "Third", "Fourth"][:entry.width]
         self._pairs.setColumnCount(1 + entry.width)
         self._pairs.setHorizontalHeaderLabels(["#"] + names)
         self._pairs.setRowCount(0)
+        mode = self._compact = self._cell_mode()
         for i, st in enumerate(entry.palettes):
             self._pairs.insertRow(i)
             self._pairs.setItem(i, 0, QTableWidgetItem(f"Set {i+1}"))
             for k, ci in enumerate(st):
                 c = self._parser.colours[ci] if ci < len(self._parser.colours) else CarColour()
-                it = QTableWidgetItem(f"{ci}  ({c.r},{c.g},{c.b})")
+                full = f"{ci}  ({c.r},{c.g},{c.b})"
+                it = QTableWidgetItem(full if mode == 2 else (str(ci) if mode == 1 else ""))
+                it.setToolTip(full)
                 it.setBackground(c.to_qcolor())
                 it.setForeground(QColor(255,255,255) if (c.r+c.g+c.b)<384 else QColor(0,0,0))
                 self._pairs.setItem(i, k + 1, it)
@@ -500,7 +595,7 @@ class CarColoursTab(QWidget): #vers 1
         self._sel_col = idx
         if idx < len(self._parser.colours):
             c = self._parser.colours[idx]
-            self._swatch.setStyleSheet(f"background:rgb({c.r},{c.g},{c.b});border:2px solid #555;")
+            self._swatch.setStyleSheet(f"background:rgb({c.r},{c.g},{c.b});border:2px solid palette(mid);")
             self._col_info.setText(f"Index: {idx}\nRGB: {c.r}, {c.g}, {c.b}")
 
     def _edit_selected_colour(self): #vers 1
@@ -539,9 +634,10 @@ class CarColoursTab(QWidget): #vers 1
 
 # Tab 3 — Car Mods (SA only)
 
-class CarModsTab(QWidget): #vers 1
-    def __init__(self, parent=None):  #vers 1
+class CarModsTab(QWidget): #vers 2
+    def __init__(self, parent=None, font=None, icon_color=None):  #vers 2
         super().__init__(parent)
+        _theme_tab(self, font, icon_color)
         self._parser  = CarModsParser()
         self._cur_idx = -1
         self._build_ui()
@@ -553,7 +649,7 @@ class CarModsTab(QWidget): #vers 1
         ll.addWidget(QLabel("Vehicles (SA only)"))
         self._search = QLineEdit(); self._search.setPlaceholderText("Search…")
         self._search.textChanged.connect(lambda t: self._refresh_list(t)); ll.addWidget(self._search)
-        self._veh_list = QListWidget(); self._veh_list.currentRowChanged.connect(self._on_vehicle_selected)
+        self._veh_list = QListWidget(); self._veh_list.setAlternatingRowColors(True); self._veh_list.currentRowChanged.connect(self._on_vehicle_selected)
         ll.addWidget(self._veh_list)
         br = QHBoxLayout()
         for lbl, tip, fn, iname in [("Add",'Add',self._add_vehicle,'add'),("Del",'Delete',self._delete_vehicle,'delete')]:
@@ -561,15 +657,15 @@ class CarModsTab(QWidget): #vers 1
             b=QToolButton(); b.setFixedHeight(28); b.setToolTip(tip); b.setText(lbl)
             try:
                 ico=getattr(SVGIconFactory,f'{iname}_icon',None)
-                if ico: b.setIcon(ico(14,'#ffffff')); b.setIconSize(QSize(14,14)); b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+                if ico: b.setIcon(ico(14,self._icon_color)); b.setIconSize(QSize(14,14)); b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             except Exception: pass
             b.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
 
-            b=QPushButton(lbl); b.setFixedHeight(28); b.clicked.connect(fn); br.addWidget(b)
+            b.clicked.connect(fn); br.addWidget(b)
         ll.addLayout(br); sp.addWidget(left)
         right = QWidget(); rl = QVBoxLayout(right); rl.setContentsMargins(4,4,4,4)
         rl.addWidget(QLabel("Mod Slots"))
-        self._mod_list = QListWidget()
+        self._mod_list = QListWidget(); self._mod_list.setAlternatingRowColors(True)
         self._mod_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         rl.addWidget(self._mod_list)
         mr = QHBoxLayout()
@@ -577,7 +673,9 @@ class CarModsTab(QWidget): #vers 1
         for lbl, fn in [("Add",self._add_mod),("Remove",self._remove_mod)]:
             b=QPushButton(lbl); b.setFixedHeight(28); b.clicked.connect(fn); mr.addWidget(b)
         rl.addLayout(mr); sp.addWidget(right)
+        _shrinkable(sp, left, right); _splitter_collapsible(sp)
         sp.setSizes([250,600]); root.addWidget(sp)
+        apply_workshop_font(self)
 
     def load_file(self, path: str) -> bool: #vers 1
         ok = self._parser.load(path)

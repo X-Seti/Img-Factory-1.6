@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 35
+#this belongs in apps/gui/gui_layout_custom.py - Version: 36
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -202,9 +202,6 @@ def _show_intro_panel(mw): #vers 8
                     ws.open_timecyc_workshop.connect(
                         lambda: mw.open_timecyc_editor()
                         if hasattr(mw, 'open_timecyc_editor') else None)
-                    ws.open_ide_editor.connect(
-                        lambda: mw.open_ide_editor_docked()
-                        if hasattr(mw, 'open_ide_editor_docked') else None)
                     ws.open_ipl_editor.connect(
                         lambda: mw.open_ipl_editor()
                         if hasattr(mw, 'open_ipl_editor') else None)
