@@ -19,6 +19,7 @@
 - Nov 14 2026 - DP5: animation tools (depends/dp5_anim_tools.py) - per-frame delays honoured in playback, colour cycle frames from the open area, move brush across frames with fade; File > Animation menu.
 - Nov 14 2026 - DP5: perspective for the open area (Picture menu, depends/dp5_perspective.py); camera move, anim brush grab / paste, per-frame palette remap and fade in File > Animation.
 - Nov 14 2026 - DP5: natural media brushes (chalk, watercolour, oil), freehand smoothing and tablet pen pressure (size / opacity) - Edit > Brush media; depends/dp5_brush_media.py. DPaint V list covered.
+- Nov 14 2026 - DP5: Plugins > GIF Resize - resize or upscale all frames of the open animation (exact, fit, percent), and batch resize many GIF files into a folder; plugin host gains frames() / set_frames().
 - Nov 13 2026 - Map Workshop IPL object editor: X/Y/Z rows one line, plain value boxes (_NudgeEdit) replace clipped spin boxes; wrap logic removed.
 - TODO - Vehicle Workshop: retest docking/heights, duplicate Render buttons vs ribbon. Next GUIWorkshop tools to move to Model Workshop: Data, Capture, Disc, Handling, Hex, Timecyc, Water.
 - Nov 11 2026 - Txd-Workshop / App-Settings-System: missing methods/app_fonts.py added (Settings stylesheet error); App-Settings-System also gets edge_cursor.py, ribbon_align.py.
@@ -6096,3 +6097,5 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
   definitions, and `self._game_preset` confirmed already in scope at
   both fixed call sites (used extensively elsewhere in the same
   class).
+- Nov 14 2026 - DP5: View > Slideshow (open tabs / folder) - Left/Right step, Space plays or pauses a GIF from one view, F fit, Esc close.
+- Nov 14 2026 - DP5: Edit > Pick colour to alpha and Drape ribbon icon - click colours to make them transparent (Wand tolerance); open area and selected frames respected; Esc ends.

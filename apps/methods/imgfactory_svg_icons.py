@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 113
+#this belongs in apps/methods/imgfactory_svg_icons.py - Version: 114
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -3233,6 +3233,18 @@ class SVGIconFactory: #vers 8
             <rect x="12" y="2" width="5" height="5" fill="#9aa0aa"/><rect x="17" y="7" width="5" height="5" fill="#9aa0aa"/>
             <rect x="12" y="12" width="5" height="5" fill="#9aa0aa"/><rect x="17" y="17" width="5" height="5" fill="#9aa0aa"/></g>
             <circle cx="12" cy="12" r="9" fill="none" stroke="#40c8d8" stroke-width="1.6" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_pick_alpha_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Pick colour to alpha - pipette over a checkered transparent patch."""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="9" width="13" height="13" fill="#ffffff"/>
+            <rect x="2" y="9" width="4" height="4" fill="#9aa0aa"/><rect x="10" y="9" width="4" height="4" fill="#9aa0aa"/>
+            <rect x="6" y="13" width="4" height="4" fill="#9aa0aa"/><rect x="14" y="13" width="1" height="4" fill="#9aa0aa"/>
+            <rect x="2" y="17" width="4" height="4" fill="#9aa0aa"/><rect x="10" y="17" width="4" height="4" fill="#9aa0aa"/>
+            <rect x="2" y="9" width="13" height="13" fill="none" stroke="#40c8d8" stroke-width="1.4" stroke-dasharray="3 2"/>
+            <path d="M20.5 3.5a2.1 2.1 0 0 0-3 0l-3.2 3.2-1-1-1.4 1.4 1 1-5 5 .7 2.2 2.2.7 5-5 1 1 1.4-1.4-1-1 3.3-3.2a2.1 2.1 0 0 0 0-3z" fill="#e8a23a" stroke="#1c1c1c" stroke-width="0.8"/>
         </svg>''', size, color)
 
     @staticmethod

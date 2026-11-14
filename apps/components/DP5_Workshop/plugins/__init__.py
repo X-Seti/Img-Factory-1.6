@@ -20,6 +20,7 @@ to import is reported, the others still load.
 # active_tab
 # image
 # new_tab
+# set_frames
 # set_image
 # status
 # tab_image
@@ -43,6 +44,33 @@ class PluginHost: #vers 1
         """(rgba bytearray copy, w, h) of the active canvas, or None."""
         c = self.ws.dp5_canvas
         return (bytearray(c.rgba), c.tex_w, c.tex_h) if c else None
+
+    def frames(self): #vers 1
+        """(list of rgba bytearray copies, delays ms, w, h) of the open animation, or None."""
+        ws, c = self.ws, self.ws.dp5_canvas
+        if not c:
+            return None
+        ws._anim_save_current_frame()
+        fr = [bytearray(f) for f in ws._frames] if ws._frames else [bytearray(c.rgba)]
+        d = list(ws._frame_delays) + [100] * (len(fr) - len(ws._frame_delays))
+        return fr, d[:len(fr)], c.tex_w, c.tex_h
+
+    def set_frames(self, frames, delays, w, h): #vers 1
+        """Replace every frame (new size allowed); File > Animation > Revert clean-up undoes."""
+        ws, c = self.ws, self.ws.dp5_canvas
+        if not c or any(len(f) != w * h * 4 for f in frames):
+            raise ValueError("Frames do not match the size given")
+        ws._frames_backup = ([bytearray(f) for f in ws._frames], c.tex_w, c.tex_h)
+        ws._frames = [bytearray(f) for f in frames]
+        ws._frame_delays = list(delays)
+        ws._canvas_width, ws._canvas_height = w, h
+        c.tex_w, c.tex_h = w, h
+        ws._current_frame = min(ws._current_frame, len(frames) - 1)
+        c._prot_key = None
+        c.rgba = bytearray(ws._frames[ws._current_frame])
+        ws._anim_refresh_thumbs()
+        c.update()
+        ws._fit_canvas_to_viewport()
 
     def set_image(self, rgba, w=None, h=None, undo=True): #vers 1
         """Replace the active canvas (new size allowed); undoable."""

@@ -2661,7 +2661,7 @@ class DP5Canvas(QWidget):
         ui.show()
         ui.raise_()
 
-    def _colour_pick_set(self, op): #vers 1
+    def _colour_pick_set(self, op): #vers 2
         """Toggle colour picking: clicks add (op 'add') or cut out (op 'sub') every pixel near the clicked colour."""
         self.hole_commit()
         self._colour_pick = None if self._colour_pick == op else op
@@ -2670,6 +2670,7 @@ class DP5Canvas(QWidget):
         if self._editor:
             self._editor._set_status({'add': "Click a colour to add it to the open area (tolerance in Wand settings)",
                                       'sub': "Click a colour to cut it out of the open area",
+                                      'alpha': "Click a colour to make transparent (wand tolerance); Esc ends",
                                       None: "Colour pick off"}[self._colour_pick])
 
     def pick_colour_region(self, tx: int, ty: int): #vers 1
@@ -4055,6 +4056,12 @@ class DP5Canvas(QWidget):
             return
 
         if btn not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
+            return
+
+        if btn == Qt.MouseButton.LeftButton and self._colour_pick == 'alpha':
+            if 0 <= tx < self.tex_w and 0 <= ty < self.tex_h and self._editor:
+                i = (ty * self.tex_w + tx) * 4
+                self._editor._hole_apply('pickalpha', tuple(self.rgba[i:i + 3]))
             return
 
         if btn == Qt.MouseButton.LeftButton and self._colour_pick:
@@ -7735,6 +7742,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 a.triggered.connect(lambda _=False, f=setter, v=val: f(v))
                 grp.addAction(a)
         QTimer.singleShot(0, self._apply_brush_settings)
+        self._menu_icon(em.addAction("Pick colour to alpha", self._pick_to_alpha), 'dp_pick_alpha_icon')
         hm = em.addMenu("Holes (all selected frames)")
         hm.setIcon(self._svg_icon('dp_drape_icon'))
         for _t, _k, _n in (("Fill with FG colour (keeps its alpha)", 'fill', 'dp_hole_fill_icon'),
@@ -7824,6 +7832,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         os_act = vm.addAction("Onion skin")
         os_act.setCheckable(True); os_act.setChecked(False)
         os_act.triggered.connect(self._toggle_onion_skin)
+        vm.addAction("Slideshow (open tabs)").triggered.connect(self._slideshow_tabs)
+        vm.addAction("Slideshow (folder)...").triggered.connect(self._slideshow_folder)
         vm.addSeparator()
         pnl = vm.addMenu("Panels")
         pnl.aboutToShow.connect(lambda m=pnl: self._fill_panels_menu(m))
@@ -9242,12 +9252,13 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 ('fill', 'dp_hole_fill_icon', "Fill the open area with the FG colour, alpha included", lambda: self._hole_apply('fill')),
                 ('clear', 'dp_hole_clear_icon', "Clear the open area to transparent", lambda: self._hole_apply('clear')),
                 ('alpha', 'dp_hole_alpha_icon', "Set alpha in the open area", lambda: self._hole_apply('alpha')),
+                ('pickalpha', 'dp_pick_alpha_icon', "Pick colour to alpha: click a colour to make it transparent (Esc ends)", self._pick_to_alpha),
                 ('toalpha', 'dp_hole_toalpha_icon', "Colour to alpha: pick a colour, it becomes transparent in the open area", lambda: self._hole_apply('toalpha')),
                 ('fillalpha', 'dp_hole_fillalpha_icon', "Add the FG colour to transparent pixels in the open area", lambda: self._hole_apply('fillalpha')),
                 ('invert', 'dp_hole_invert_icon', "Invert colours in the open area", lambda: self._hole_apply('invert'))):
             a = QAction(self._svg_icon(icon, sz), '', tb)
             a.setToolTip(tip)
-            a.setCheckable(name == 'lock')
+            a.setCheckable(name in ('lock', 'pickalpha'))
             a.triggered.connect(lambda _=False, f=fn: f())
             tb.addAction(a)
             self._drape_acts.append((name, a))
@@ -9269,6 +9280,9 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             if name == 'lock':                               # Drape editing starts the drape: always usable
                 a.setEnabled(True)
                 a.setChecked(bool(c and c._edit_lock is not None))
+            elif name == 'pickalpha':                        # works on the whole image: always usable
+                a.setEnabled(True)
+                a.setChecked(bool(c and c._colour_pick == 'alpha'))
             elif a.isEnabled() != on:
                 a.setEnabled(on)
 
@@ -10582,6 +10596,25 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._anim_strip.setVisible(on)
             if on and not self._frames:
                 self._anim_init_frames()
+
+    def _slideshow_tabs(self): #vers 1
+        """Open slideshow of the open canvas tabs."""
+        from apps.components.DP5_Workshop.depends.dp5_slideshow import SlideshowDialog, tab_items
+        items = tab_items(self)
+        if items:
+            self._slideshow = SlideshowDialog(self, items, self._active_canvas_tab_idx)
+
+    def _slideshow_folder(self): #vers 1
+        """Open slideshow of every image in a chosen folder."""
+        from apps.components.DP5_Workshop.depends.dp5_slideshow import SlideshowDialog, folder_items
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Start slideshow at image", "", "Images (*.gif *.png *.jpg *.jpeg *.bmp *.webp *.tga *.tif *.tiff *.iff)")
+        if not path:
+            return
+        items = folder_items(path)
+        names = [i['path'] for i in items]
+        if path in names:
+            self._slideshow = SlideshowDialog(self, items, names.index(path))
 
     def _toggle_onion_skin(self, on: bool): #vers 1
         if self.dp5_canvas:
@@ -12284,7 +12317,12 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         action.setIcon(self._svg_icon(name))
         return action
 
-    def _hole_apply(self, kind: str): #vers 2
+    def _pick_to_alpha(self): #vers 1
+        """Arm / disarm clicking a colour to turn it transparent."""
+        if self.dp5_canvas:
+            self.dp5_canvas._colour_pick_set('alpha')
+
+    def _hole_apply(self, kind: str, pick_rgb=None): #vers 3
         """Fill / clear / set alpha / invert inside the open area, on every selected frame."""
         import numpy as np
         c = self.dp5_canvas
@@ -12303,7 +12341,9 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 return
         col = (c.color.red(), c.color.green(), c.color.blue(), c.color.alpha())
         pick, tol = None, 0
-        if kind == 'toalpha':
+        if kind == 'pickalpha':
+            pick, tol = tuple(pick_rgb), int(c.wand_tolerance)
+        elif kind == 'toalpha':
             from PyQt6.QtWidgets import QColorDialog, QInputDialog
             q = QColorDialog.getColor(QColor(255, 255, 255), self, "Colour to make transparent")
             if not q.isValid():
@@ -12314,7 +12354,10 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             pick = (q.red(), q.green(), q.blue())
         def edit(buf):  #vers 2
             a = np.frombuffer(bytes(buf), np.uint8).reshape(c.tex_h, c.tex_w, 4).copy()
-            if kind == 'toalpha':
+            if kind == 'pickalpha':
+                d = np.abs(a[..., :3].astype(np.int32) - np.array(pick, np.int32)).max(axis=2)
+                a[mask & (d <= tol), 3] = 0
+            elif kind == 'toalpha':
                 d = a[..., :3].astype(np.int32) - np.array(pick, np.int32)
                 a[mask & ((d * d).sum(axis=2) <= (tol / 100.0) ** 2 * (255 * 255 * 3)), 3] = 0
             elif kind == 'fillalpha':
