@@ -1,4 +1,4 @@
-#this belongs in components/rw_unk_snapshot.py - Version: 4
+#this belongs in components/rw_unk_snapshot.py - Version: 5
 # X-Seti - July20 2025 - IMG Factory 1.5 - Unknown RW File Snapshotter
 # Captures unknown RW files for analysis and database expansion
 
@@ -301,10 +301,10 @@ class RWSnapshotManager:
             print(f"[ERROR] Error updating status window: {e}")
             self.print_unknown_files_info(unknown_files)
 
-    def print_unknown_files_info(self, unknown_files: List[UnknownRWFile]): #vers 1
+    def print_unknown_files_info(self, unknown_files: List[UnknownRWFile]): #vers 2
         """Fallback: Print unknown files info to console"""
         print("=" * 50)
-        print("🔍 UNKNOWN RW FILES DETECTED")
+        print("UNKNOWN RW FILES DETECTED")
         print("=" * 50)
         
         for i, unknown_file in enumerate(unknown_files):

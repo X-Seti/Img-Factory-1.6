@@ -1,4 +1,4 @@
-#this belongs in core/advanced_img_tools.py - Version: 1
+#this belongs in core/advanced_img_tools.py - Version: 2
 # X-Seti - December04 2025 - IMG Factory 1.5 - Advanced IMG Tools
 
 """
@@ -194,7 +194,7 @@ class AdvancedAnalysisDialog(QDialog):
         layout = QVBoxLayout(self)
         
         # Title
-        title_label = QLabel("🔍 Advanced IMG Analysis Report")
+        title_label = QLabel("Advanced IMG Analysis Report")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin: 10px;")
         layout.addWidget(title_label)

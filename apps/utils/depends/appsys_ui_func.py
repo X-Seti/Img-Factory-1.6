@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 11
+#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 12
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog UI
 
 """
@@ -1679,7 +1679,7 @@ class AppsysUIMixin: #vers 1
         left_layout.addWidget(controls_group)
 
         # Quick Themes Group
-        quick_group = QGroupBox("🚀 Quick Themes")
+        quick_group = QGroupBox("Quick Themes")
         quick_group.setAutoFillBackground(True)
         quick_layout = QVBoxLayout(quick_group)
 

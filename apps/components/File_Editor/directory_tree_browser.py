@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 12
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 13
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -204,7 +204,7 @@ class DirectoryTreeBrowser(QWidget):
         self.setup_connections()
 
 
-    def setup_ui(self): #vers 3
+    def setup_ui(self): #vers 4
         """Setup complete browser UI - toolbar then single container (address bar + tree)"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -225,13 +225,14 @@ class DirectoryTreeBrowser(QWidget):
 
         addr_layout = QHBoxLayout()
         addr_layout.setContentsMargins(2, 2, 2, 2)
-        self.address_bar = QLineEdit()
+        from apps.methods.short_path import ShortPathEdit
+        self.address_bar = ShortPathEdit()
         self.address_bar.setPlaceholderText("Path...")
         self.address_bar.returnPressed.connect(self.navigate_to_address)
         addr_layout.addWidget(self.address_bar)
         from apps.methods.imgfactory_svg_icons import get_go_icon
         go_btn = QPushButton()
-        go_btn.setIcon(get_go_icon(16))
+        self._tag_icon(go_btn, get_go_icon, 16)
         go_btn.setFixedSize(24, 24)
         go_btn.setToolTip("Go")
         go_btn.clicked.connect(self.navigate_to_address)
@@ -242,6 +243,9 @@ class DirectoryTreeBrowser(QWidget):
         self._setup_tree_columns(self.tree)
         self.setup_tree_view()
         sc_layout.addWidget(self.tree)
+
+        from apps.methods.view_modes import ViewModeController
+        self.view_modes = ViewModeController(self.tree, 'dirtree', self._icon_color())   # buttons live in the DAT Browser header
 
         layout.addWidget(self._single_container)
         layout.setStretchFactor(self._single_container, 1)
@@ -418,12 +422,12 @@ class DirectoryTreeBrowser(QWidget):
     def setup_file_menu(self, menu): #vers 1
         """Setup File menu"""
         new_folder_action = QAction("New Folder", self)
-        new_folder_action.setIcon(get_new_folder_icon())
+        self._tag_icon(new_folder_action, get_new_folder_icon)
         new_folder_action.triggered.connect(self.create_new_folder)
         menu.addAction(new_folder_action)
         menu.addSeparator()
         properties_action = QAction("Properties", self)
-        properties_action.setIcon(get_properties_icon())
+        self._tag_icon(properties_action, get_properties_icon)
         properties_action.triggered.connect(self.show_file_properties)
         menu.addAction(properties_action)
 
@@ -431,24 +435,24 @@ class DirectoryTreeBrowser(QWidget):
     def setup_edit_menu(self, menu): #vers 1
         """Setup Edit menu"""
         cut_action = QAction("Cut", self)
-        cut_action.setIcon(get_cut_icon())
+        self._tag_icon(cut_action, get_cut_icon)
         cut_action.triggered.connect(self.cut_files)
         menu.addAction(cut_action)
         copy_action = QAction("Copy", self)
-        copy_action.setIcon(get_copy_icon())
+        self._tag_icon(copy_action, get_copy_icon)
         copy_action.triggered.connect(self.copy_files)
         menu.addAction(copy_action)
         paste_action = QAction("Paste", self)
-        paste_action.setIcon(get_paste_icon())
+        self._tag_icon(paste_action, get_paste_icon)
         paste_action.triggered.connect(self.paste_files)
         menu.addAction(paste_action)
         menu.addSeparator()
         delete_action = QAction("Delete", self)
-        delete_action.setIcon(get_trash_icon())
+        self._tag_icon(delete_action, get_trash_icon)
         delete_action.triggered.connect(self.delete_selected)
         menu.addAction(delete_action)
         rename_action = QAction("Rename", self)
-        rename_action.setIcon(get_rename_icon())
+        self._tag_icon(rename_action, get_rename_icon)
         rename_action.triggered.connect(self.rename_selected)
         menu.addAction(rename_action)
 
@@ -456,7 +460,7 @@ class DirectoryTreeBrowser(QWidget):
     def setup_tools_menu(self, menu): #vers 1
         """Setup Tools menu"""
         search_action = QAction("Search Files", self)
-        search_action.setIcon(get_search_icon())
+        self._tag_icon(search_action, get_search_icon)
         search_action.triggered.connect(self.show_file_search_dialog)
         menu.addAction(search_action)
 
@@ -464,10 +468,74 @@ class DirectoryTreeBrowser(QWidget):
     def setup_settings_menu(self, menu): #vers 1
         """Setup Settings menu"""
         refresh_action = QAction("Refresh", self)
-        refresh_action.setIcon(get_refresh_icon())
+        self._tag_icon(refresh_action, get_refresh_icon)
         refresh_action.triggered.connect(self._refresh_all_panels)
         menu.addAction(refresh_action)
 
+
+    def _icon_color(self): #vers 1
+        """Icon colour from the host window or the app theme (None = icon default)."""
+        mw = self.main_window
+        fn = getattr(mw, '_get_icon_color', None)
+        if callable(fn):
+            return fn()
+        cs = getattr(getattr(mw, 'app_settings', None), 'get_theme_colors', None)
+        if callable(cs):
+            return (cs() or {}).get('text_primary')
+        return None
+
+    def _themed(self, fn, size: int = 24): #vers 1
+        """Icon from a hub icon function in the theme colour."""
+        return fn(size, self._icon_color())
+
+    def _tag_icon(self, widget, fn, size: int = 24): #vers 1
+        """Set a themed icon and remember it for recolour_icons."""
+        widget.setIcon(self._themed(fn, size))
+        widget._icon_fn, widget._icon_size = fn, size
+        if not hasattr(self, '_icon_widgets'):
+            self._icon_widgets = []
+        if widget not in self._icon_widgets:
+            self._icon_widgets.append(widget)
+
+    def recolour_icons(self): #vers 1
+        """Theme change: give the tagged buttons their icons in the new colour."""
+        for w in getattr(self, '_icon_widgets', []):
+            try:
+                w.setIcon(self._themed(w._icon_fn, w._icon_size))
+            except RuntimeError:
+                pass
+        if hasattr(self, 'view_modes'):
+            self.view_modes.recolour(self._icon_color())
+
+    def adopt_toolbar(self, ribbon): #vers 1
+        """Move every toolbar button into a ribbon QToolBar; the old bar row is hidden."""
+        from PyQt6.QtWidgets import QSizePolicy
+        lay = self.toolbar.layout()
+        parts = []                                    # snapshot: moving a widget edits the layout
+        for i in range(lay.count()):
+            item = lay.itemAt(i)
+            if item.widget() is not None:
+                parts.append(item.widget())
+            elif item.spacerItem() is not None:
+                expanding = item.spacerItem().sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding
+                parts.append(None if expanding else 'sep')
+        for part in parts:
+            if part == 'sep':
+                ribbon.addSeparator()
+            elif part is not None:
+                act = ribbon.addWidget(part)
+                if part is self.layout_cycle_btn:
+                    self._cycle_act = act
+                    act.setVisible(False)
+        self.toolbar.hide()
+
+    def _set_cycle_visible(self, on: bool): #vers 1
+        """Show the twin-layout cycle button (a ribbon action once adopted)."""
+        act = getattr(self, '_cycle_act', None)
+        if act is not None:
+            act.setVisible(on)
+        else:
+            self.layout_cycle_btn.setVisible(on)
 
     def create_toolbar(self): #vers 1
         """Create toolbar - ICONS ONLY"""
@@ -477,28 +545,28 @@ class DirectoryTreeBrowser(QWidget):
         layout.setSpacing(2)
 
         back_btn = QPushButton()
-        back_btn.setIcon(get_back_icon())
+        self._tag_icon(back_btn, get_back_icon)
         back_btn.setToolTip("Back")
         back_btn.setMaximumSize(32, 32)
         back_btn.clicked.connect(self.navigate_back)
         layout.addWidget(back_btn)
 
         forward_btn = QPushButton()
-        forward_btn.setIcon(get_forward_icon())
+        self._tag_icon(forward_btn, get_forward_icon)
         forward_btn.setToolTip("Forward")
         forward_btn.setMaximumSize(32, 32)
         forward_btn.clicked.connect(self.navigate_forward)
         layout.addWidget(forward_btn)
 
         up_btn = QPushButton()
-        up_btn.setIcon(get_up_icon())
+        self._tag_icon(up_btn, get_up_icon)
         up_btn.setToolTip("Up")
         up_btn.setMaximumSize(32, 32)
         up_btn.clicked.connect(self.navigate_up)
         layout.addWidget(up_btn)
 
         home_btn = QPushButton()
-        home_btn.setIcon(get_home_icon())
+        self._tag_icon(home_btn, get_home_icon)
         home_btn.setToolTip("Home")
         home_btn.setMaximumSize(32, 32)
         home_btn.clicked.connect(self.navigate_home)
@@ -507,56 +575,56 @@ class DirectoryTreeBrowser(QWidget):
         layout.addSpacing(10)
 
         new_folder_btn = QPushButton()
-        new_folder_btn.setIcon(get_new_folder_icon())
+        self._tag_icon(new_folder_btn, get_new_folder_icon)
         new_folder_btn.setToolTip("New Folder")
         new_folder_btn.setMaximumSize(32, 32)
         new_folder_btn.clicked.connect(self.create_new_folder)
         layout.addWidget(new_folder_btn)
 
         cut_btn = QPushButton()
-        cut_btn.setIcon(get_cut_icon())
+        self._tag_icon(cut_btn, get_cut_icon)
         cut_btn.setToolTip("Cut")
         cut_btn.setMaximumSize(32, 32)
         cut_btn.clicked.connect(self.cut_files)
         layout.addWidget(cut_btn)
 
         copy_btn = QPushButton()
-        copy_btn.setIcon(get_copy_icon())
+        self._tag_icon(copy_btn, get_copy_icon)
         copy_btn.setToolTip("Copy")
         copy_btn.setMaximumSize(32, 32)
         copy_btn.clicked.connect(self.copy_files)
         layout.addWidget(copy_btn)
 
         paste_btn = QPushButton()
-        paste_btn.setIcon(get_paste_icon())
+        self._tag_icon(paste_btn, get_paste_icon)
         paste_btn.setToolTip("Paste")
         paste_btn.setMaximumSize(32, 32)
         paste_btn.clicked.connect(self.paste_files)
         layout.addWidget(paste_btn)
 
         rename_btn = QPushButton()
-        rename_btn.setIcon(get_rename_icon())
+        self._tag_icon(rename_btn, get_rename_icon)
         rename_btn.setToolTip("Rename")
         rename_btn.setMaximumSize(32, 32)
         rename_btn.clicked.connect(self.rename_selected)
         layout.addWidget(rename_btn)
 
         delete_btn = QPushButton()
-        delete_btn.setIcon(get_trash_icon())
+        self._tag_icon(delete_btn, get_trash_icon)
         delete_btn.setToolTip("Delete")
         delete_btn.setMaximumSize(32, 32)
         delete_btn.clicked.connect(self.delete_selected)
         layout.addWidget(delete_btn)
 
         undo_btn = QPushButton()
-        undo_btn.setIcon(get_undo_icon())
+        self._tag_icon(undo_btn, get_undo_icon)
         undo_btn.setToolTip("Undo")
         undo_btn.setMaximumSize(32, 32)
         undo_btn.clicked.connect(self.undo_selected)
         layout.addWidget(undo_btn)
 
         redo_btn = QPushButton()
-        redo_btn.setIcon(get_redo_icon())
+        self._tag_icon(redo_btn, get_redo_icon)
         redo_btn.setToolTip("Redo")
         redo_btn.setMaximumSize(32, 32)
         redo_btn.clicked.connect(self.redo_selected)
@@ -565,14 +633,14 @@ class DirectoryTreeBrowser(QWidget):
         layout.addStretch()
 
         search_btn = QPushButton()
-        search_btn.setIcon(get_search_icon())
+        self._tag_icon(search_btn, get_search_icon)
         search_btn.setToolTip("Search")
         search_btn.setMaximumSize(32, 32)
         search_btn.clicked.connect(self.show_file_search_dialog)
         layout.addWidget(search_btn)
 
         refresh_btn = QPushButton()
-        refresh_btn.setIcon(get_refresh_icon())
+        self._tag_icon(refresh_btn, get_refresh_icon)
         refresh_btn.setToolTip("Refresh")
         refresh_btn.setMaximumSize(32, 32)
         refresh_btn.clicked.connect(self._refresh_all_panels)
@@ -581,7 +649,7 @@ class DirectoryTreeBrowser(QWidget):
         layout.addSpacing(6)
 
         self.panel_toggle_btn = QPushButton()
-        self.panel_toggle_btn.setIcon(get_twin_panel_icon())
+        self._tag_icon(self.panel_toggle_btn, get_twin_panel_icon)
         self.panel_toggle_btn.setToolTip("Switch to twin panel view")
         self.panel_toggle_btn.setMaximumSize(32, 32)
         self.panel_toggle_btn.clicked.connect(self._toggle_panel_mode)
@@ -589,18 +657,18 @@ class DirectoryTreeBrowser(QWidget):
 
         from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
         self.layout_cycle_btn = QPushButton()
-        self.layout_cycle_btn.setIcon(get_layout_w1left_icon())
+        self._tag_icon(self.layout_cycle_btn, get_layout_w1left_icon)
         self.layout_cycle_btn.setToolTip("W1 left | W2 right")
         self.layout_cycle_btn.setMaximumSize(32, 32)
         self.layout_cycle_btn.clicked.connect(self._cycle_layout)
-        self.layout_cycle_btn.hide()  # only visible in twin mode
+        self.layout_cycle_btn.hide()  # only visible in twin mode (see _set_cycle_visible)
         self._layout_state = 0
         layout.addWidget(self.layout_cycle_btn)
 
         # Panel toggle button - cycles tabs-full / split / tree-full
         from apps.methods.imgfactory_svg_icons import get_panel_toggle_icon
         self.maximise_btn = QPushButton()
-        self.maximise_btn.setIcon(get_panel_toggle_icon(20))
+        self._tag_icon(self.maximise_btn, get_panel_toggle_icon, 20)
         self.maximise_btn.setToolTip("Toggle: tabs full / split / tree full")
         self.maximise_btn.setMaximumSize(32, 32)
         self.maximise_btn.clicked.connect(self._toggle_tree_maximise)
@@ -663,34 +731,37 @@ class DirectoryTreeBrowser(QWidget):
             self._twin_splitter.setOrientation(Qt.Orientation.Horizontal)
             self._twin_splitter.insertWidget(0, self._left_panel)
             self._twin_splitter.insertWidget(1, self._right_panel)
-            self.layout_cycle_btn.setIcon(get_layout_w1left_icon())
+            self._tag_icon(self.layout_cycle_btn, get_layout_w1left_icon)
             self.layout_cycle_btn.setToolTip("W1 left | W2 right → click: W1 top / W2 bottom")
         elif state == 1:  # W1 top / W2 bottom
             self._twin_splitter.setOrientation(Qt.Orientation.Vertical)
             self._twin_splitter.insertWidget(0, self._left_panel)
             self._twin_splitter.insertWidget(1, self._right_panel)
-            self.layout_cycle_btn.setIcon(get_layout_w1top_icon())
+            self._tag_icon(self.layout_cycle_btn, get_layout_w1top_icon)
             self.layout_cycle_btn.setToolTip("W1 top / W2 bottom → click: W2 left | W1 right")
         elif state == 2:  # W2 left | W1 right
             self._twin_splitter.setOrientation(Qt.Orientation.Horizontal)
             self._twin_splitter.insertWidget(0, self._right_panel)
             self._twin_splitter.insertWidget(1, self._left_panel)
-            self.layout_cycle_btn.setIcon(get_layout_w2left_icon())
+            self._tag_icon(self.layout_cycle_btn, get_layout_w2left_icon)
             self.layout_cycle_btn.setToolTip("W2 left | W1 right → click: W2 top / W1 bottom")
         elif state == 3:  # W2 top / W1 bottom
             self._twin_splitter.setOrientation(Qt.Orientation.Vertical)
             self._twin_splitter.insertWidget(0, self._right_panel)
             self._twin_splitter.insertWidget(1, self._left_panel)
-            self.layout_cycle_btn.setIcon(get_layout_w2top_icon())
+            self._tag_icon(self.layout_cycle_btn, get_layout_w2top_icon)
             self.layout_cycle_btn.setToolTip("W2 top / W1 bottom → click: W1 left | W2 right")
 
-        self._twin_splitter.setSizes([500, 500])
+        self._twin_splitter.insertWidget(1, self._copy_col)
+        self._copy_col.set_horizontal(self._twin_splitter.orientation() == Qt.Orientation.Horizontal)
+        self._twin_splitter.setSizes([500, 96, 500])
 
-    def _enable_twin_panel(self): #vers 3
+    def _enable_twin_panel(self): #vers 4
         """Split into two independent panels - each with own address bar and tree"""
         try:
             if hasattr(self, '_twin_container') and self._twin_container:
                 return
+            self.view_modes.set_mode('detailed', save=False)   # twin panels need the tree
 
             from apps.methods.imgfactory_svg_icons import get_arrow_right_icon, get_go_icon, get_single_panel_icon
             layout = self.layout()
@@ -712,26 +783,12 @@ class DirectoryTreeBrowser(QWidget):
             self._left_addr.returnPressed.connect(lambda: self._twin_navigate(self._left_addr.text(), 'left'))
             left_addr_layout.addWidget(self._left_addr)
             left_go = QPushButton()
-            left_go.setIcon(get_go_icon(16))
+            self._tag_icon(left_go, get_go_icon, 16)
             left_go.setFixedSize(24, 24)
             left_go.setToolTip("Go")
             left_go.clicked.connect(lambda: self._twin_navigate(self._left_addr.text(), 'left'))
             left_addr_layout.addWidget(left_go)
 
-            self._copy_dir_btn = QPushButton()
-            self._copy_dir_btn.setIcon(get_arrow_right_icon(16))
-            self._copy_dir_btn.setFixedSize(24, 24)
-            self._copy_dir_btn.setToolTip("Copy direction: Left → Right (click to reverse)")
-            self._copy_dir_btn._direction = 'LR'
-            self._copy_dir_btn.clicked.connect(self._toggle_copy_direction)
-            left_addr_layout.addWidget(self._copy_dir_btn)
-
-            copy_btn = QPushButton()
-            copy_btn.setIcon(get_go_icon(16))
-            copy_btn.setFixedSize(24, 24)
-            copy_btn.setToolTip("Copy selected files")
-            copy_btn.clicked.connect(self._copy_selected_files)
-            left_addr_layout.addWidget(copy_btn)
             left_layout.addLayout(left_addr_layout)
 
             self.tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
@@ -752,7 +809,7 @@ class DirectoryTreeBrowser(QWidget):
             self._right_addr.returnPressed.connect(lambda: self._twin_navigate(self._right_addr.text(), 'right'))
             right_addr_layout.addWidget(self._right_addr)
             right_go = QPushButton()
-            right_go.setIcon(get_go_icon(16))
+            self._tag_icon(right_go, get_go_icon, 16)
             right_go.setFixedSize(24, 24)
             right_go.setToolTip("Go")
             right_go.clicked.connect(lambda: self._twin_navigate(self._right_addr.text(), 'right'))
@@ -791,7 +848,17 @@ class DirectoryTreeBrowser(QWidget):
             self._twin_splitter = QSplitter(Qt.Orientation.Horizontal)
             self._twin_splitter.addWidget(left_panel)
             self._twin_splitter.addWidget(right_panel)
-            self._twin_splitter.setSizes([500, 500])
+            from apps.methods.twin_copy_column import CopyColumn
+            self._copy_col = CopyColumn()
+            self._copy_col.copy_fwd.connect(lambda: self._twin_copy(True))
+            self._copy_col.copy_back.connect(lambda: self._twin_copy(False))
+            self._copy_col.mirror_fwd.connect(lambda: self._twin_sync('mirror'))
+            self._copy_col.clone_fwd.connect(lambda: self._twin_sync('clone'))
+            self._copy_col.open_item.connect(self._twin_open_item)
+            self._copy_col.eject_item.connect(self._twin_eject)
+            self._twin_splitter.insertWidget(1, self._copy_col)
+            self._twin_splitter.setCollapsible(1, False)
+            self._twin_splitter.setSizes([500, 96, 500])
             twin_layout.addWidget(self._twin_splitter)
 
             layout.addWidget(self._twin_container)
@@ -803,40 +870,52 @@ class DirectoryTreeBrowser(QWidget):
                 self._right_addr.setText(self.current_path)
 
             from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
-            self.panel_toggle_btn.setIcon(get_single_panel_icon())
+            self._tag_icon(self.panel_toggle_btn, get_single_panel_icon)
             self.panel_toggle_btn.setToolTip("Switch to single panel view")
-            self.layout_cycle_btn.setIcon(get_layout_w1left_icon())
+            self._tag_icon(self.layout_cycle_btn, get_layout_w1left_icon)
             self.layout_cycle_btn.setToolTip("W1 left | W2 right → click: W1 top / W2 bottom")
-            self.layout_cycle_btn.show()
+            self._set_cycle_visible(True)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
 
-    def _toggle_copy_direction(self): #vers 2
-        """Toggle copy direction arrow between → and ←"""
-        from apps.methods.imgfactory_svg_icons import get_arrow_right_icon, get_arrow_left_icon
-        btn = self._copy_dir_btn
-        if btn._direction == 'LR':
-            btn._direction = 'RL'
-            btn.setIcon(get_arrow_left_icon(16))
-            btn.setToolTip("Copy direction: Right → Left (click to reverse)")
+    def _twin_sides(self): #vers 1
+        """(first, second) panel sides by position: 'left' = W1, 'right' = W2."""
+        sp = self._twin_splitter
+        if sp.indexOf(self._left_panel) < sp.indexOf(self._right_panel):
+            return 'left', 'right'
+        return 'right', 'left'
+
+    def _side_tree(self, side: str): #vers 1
+        """Tree widget of a panel side."""
+        return self.tree if side == 'left' else self._second_tree
+
+    def _side_path(self, side: str) -> str: #vers 1
+        """Address text of a panel side."""
+        return (self._left_addr if side == 'left' else self._right_addr).text()
+
+    def _refresh_side(self, side: str): #vers 1
+        """Reload one panel from its address."""
+        path = self._side_path(side)
+        if side == 'left':
+            self.browse_directory(path)
         else:
-            btn._direction = 'LR'
-            btn.setIcon(get_arrow_right_icon(16))
-            btn.setToolTip("Copy direction: Left → Right (click to reverse)")
+            self._populate_second_tree(path)
 
-    def _copy_selected_files(self): #vers 2
-        """Copy selected files in the active direction"""
+    def _twin_copy(self, forward: bool): #vers 1
+        """Copy selected items first to second panel, or back."""
+        first, second = self._twin_sides()
+        if forward:
+            self._copy_selected_files(first, second)
+        else:
+            self._copy_selected_files(second, first)
+
+    def _copy_selected_files(self, src_side: str = 'left', dst_side: str = 'right'): #vers 3
+        """Copy selected files from one panel to the other."""
         try:
-            direction = getattr(self._copy_dir_btn, '_direction', 'LR')
-            if direction == 'LR':
-                src_tree = self.tree
-                dst_path = self._right_addr.text()
-            else:
-                src_tree = self._second_tree
-                dst_path = self._left_addr.text()
-
+            src_tree = self._side_tree(src_side)
+            dst_path = self._side_path(dst_side)
             selected = src_tree.selectedItems()
             if not selected:
                 return
@@ -860,15 +939,218 @@ class DirectoryTreeBrowser(QWidget):
                 self.undo_stack.append({'action': 'copy', 'paths': copied_dests})
                 self.redo_stack.clear()
                 self.log_message(f"Copied {len(copied_dests)} item(s) → {dst_path}")
-
-            # Refresh destination panel
-            if direction == 'LR':
-                self._populate_second_tree(dst_path)
-            else:
-                self.browse_directory(dst_path)
+            self._refresh_side(dst_side)
 
         except Exception as e:
             print(f"Copy error: {e}")
+
+    def _twin_paths_ok(self, title: str): #vers 1
+        """(src, dst, second side) of the two panels, or None after a warning."""
+        from PyQt6.QtWidgets import QMessageBox
+        first, second = self._twin_sides()
+        src, dst = self._side_path(first), self._side_path(second)
+        if not os.path.isdir(src) or not os.path.isdir(dst):
+            QMessageBox.warning(self, title, "Both panels need a valid folder.")
+            return None
+        rs, rd = os.path.realpath(src), os.path.realpath(dst)
+        if rs == rd or rd.startswith(rs + os.sep) or rs.startswith(rd + os.sep):
+            QMessageBox.warning(self, title, "Panels must be separate folders, not inside each other.")
+            return None
+        return src, dst, second
+
+    def _ask_remove(self, title: str, text: str): #vers 1
+        """Trash / Delete / Cancel: None = cancel, True = delete permanently."""
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setText(text)
+        trash = box.addButton("Move to Trash", QMessageBox.ButtonRole.AcceptRole)
+        perm = box.addButton("Delete permanently", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        if box.clickedButton() is trash:
+            return False
+        if box.clickedButton() is perm:
+            return True
+        return None
+
+    def _run_job(self, cmd, label: str, done_cb): #vers 1
+        """Run a command in a thread with a cancellable busy dialog."""
+        from PyQt6.QtWidgets import QProgressDialog
+        from apps.methods.dir_sync import SyncJob
+        dlg = QProgressDialog(label, "Cancel", 0, 0, self)
+        dlg.setWindowTitle("Working")
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        job = SyncJob(cmd, self)
+        job.line.connect(lambda t: dlg.setLabelText(f"{label}\n{t[:90]}"))
+        dlg.canceled.connect(job.cancel)
+
+        def fin(rc, err, lines):
+            dlg.canceled.disconnect()
+            dlg.close()
+            done_cb(rc, err, lines)
+        job.done.connect(fin)
+        self._sync_job = job
+        dlg.show()
+        job.start()
+
+    def _twin_sync(self, mode: str): #vers 1
+        """Mirror or Clone first panel folder to second panel through rsync."""
+        from PyQt6.QtWidgets import QMessageBox
+        from apps.methods.dir_sync import rsync_path
+        if rsync_path() is None:
+            QMessageBox.warning(self, mode.title(), "rsync is not installed.")
+            return
+        ok = self._twin_paths_ok(mode.title())
+        if not ok:
+            return
+        src, dst, second = ok
+        self._sync = {'mode': mode, 'src': src, 'dst': dst, 'second': second,
+                      'root': False, 'delete': False}
+        self._sync_step('plan')
+
+    def _sync_step(self, step: str): #vers 1
+        """Run the dry run ('plan') or the real rsync ('run')."""
+        from apps.methods.dir_sync import rsync_cmd
+        c = self._sync
+        cmd = rsync_cmd(c['src'], c['dst'], c['mode'], dry=(step == 'plan'),
+                        delete=c['delete'], root=c['root'])
+        label = "Scanning folders..." if step == 'plan' else f"{c['mode'].title()} in progress..."
+        self._run_job(cmd, label, lambda rc, err, lines: self._sync_done(step, rc, err, lines))
+
+    def _sync_done(self, step: str, rc: int, err: str, lines: list): #vers 2
+        """Dry run result asks the user; real run result refreshes the panel."""
+        from PyQt6.QtWidgets import QMessageBox
+        from apps.methods.dir_sync import parse_plan, top_level, remove_paths
+        c = self._sync
+        title = c['mode'].title()
+        if rc == -1:
+            return
+        if rc != 0:
+            if not c['root'] and rc not in (126, 127) and 'ermission denied' in (err + ''.join(lines)):
+                if QMessageBox.question(self, title, "Permission denied.\nRetry as root (pkexec)?") \
+                        == QMessageBox.StandardButton.Yes:
+                    c['root'] = True
+                    self._sync_step(step)
+                return
+            QMessageBox.warning(self, title, f"rsync failed ({rc}):\n{err}")
+            return
+        if step == 'run':
+            self.log_message(f"{title}: {c['src']} → {c['dst']}")
+            self._refresh_side(c['second'])
+            return
+        copies, new, extras = parse_plan(lines, c['dst'])
+        if not copies and not extras:
+            QMessageBox.information(self, title, "Already up to date.")
+            return
+        over = len(copies) - new
+        if self._copy_col.dry_run():
+            box = QMessageBox(self)
+            box.setWindowTitle(title + " - dry run")
+            box.setText(f"Nothing changed.\n{new} new, {over} overwritten, {len(extras)} extra item(s) would be removed.")
+            lines = [f"+ {n}" for n in copies[:400]] + [f"- {os.path.relpath(x, c['dst'])}" for x in extras[:400]]
+            box.setDetailedText("\n".join(lines))
+            box.exec()
+            return
+        if c['mode'] == 'clone':
+            head = f"{c['dst']}\nbecomes an exact copy of\n{c['src']}\n"
+        else:
+            head = f"Update older files in\n{c['dst']}\nfrom\n{c['src']}\n"
+        head += f"{new} new, {over} overwritten, {len(extras)} extra item(s) removed."
+        if extras:
+            permanent = self._ask_remove(title, head)
+            if permanent is None:
+                return
+            if permanent:
+                c['delete'] = True
+            else:
+                tops = top_level(extras)
+                if remove_paths(tops, False) < len(tops):
+                    QMessageBox.warning(self, title, "Some extras could not be moved to Trash.\nUse Delete permanently.")
+                    return
+        elif c['mode'] == 'clone' and over:
+            if QMessageBox.question(self, title, head + "\nContinue?") != QMessageBox.StandardButton.Yes:
+                return
+        self._sync_step('run')
+
+    def _twin_open_item(self): #vers 1
+        """Open the selected archive (extracted copy) or mount the selected ISO / IMG."""
+        from PyQt6.QtWidgets import QMessageBox
+        from apps.methods import archive_open
+        first, second = self._twin_sides()
+        side, path = None, None
+        for sd in (first, second):
+            items = self._side_tree(sd).selectedItems()
+            if items:
+                side, path = sd, items[0].data(0, Qt.ItemDataRole.UserRole)
+                break
+        k = archive_open.kind(path) if path else None
+        if k is None:
+            QMessageBox.information(self, "Open", "Select an archive (zip, 7z, rar, tar) or an ISO / IMG image.")
+            return
+        prev = self._side_path(side)
+        if k == 'archive':
+            got = archive_open.extract_cmd(path)
+            if got is None:
+                QMessageBox.warning(self, "Open", "7z is not installed.")
+                return
+            cmd, dest = got
+
+            def fin(rc, err, lines):
+                if rc != 0:
+                    QMessageBox.warning(self, "Open", f"Extract failed:\n{err}")
+                    return
+                inner = [n for n in os.listdir(dest)]
+                if len(inner) == 1 and inner[0].lower().endswith('.tar'):
+                    tar = os.path.join(dest, inner[0])
+                    self._run_job([cmd[0], 'x', '-y', '-o' + dest, tar], "Extracting...",
+                                  lambda r, e, l: (os.remove(tar), self._opened(side, prev, dest, 'cache'))
+                                  if r == 0 else QMessageBox.warning(self, "Open", f"Extract failed:\n{e}"))
+                    return
+                self._opened(side, prev, dest, 'cache')
+            self._run_job(cmd, f"Extracting {os.path.basename(path)}...", fin)
+            return
+        try:
+            info = archive_open.mount_image(path)
+        except RuntimeError as e:
+            if 'ermission denied' in str(e) or 'ot authorized' in str(e) or 'not installed' in str(e):
+                if QMessageBox.question(self, "Open", f"{e}\nRetry as root (pkexec)?") \
+                        != QMessageBox.StandardButton.Yes:
+                    return
+                try:
+                    info = archive_open.mount_image(path, root=True)
+                except RuntimeError as e2:
+                    QMessageBox.warning(self, "Open", f"Mount failed:\n{e2}")
+                    return
+            else:
+                QMessageBox.warning(self, "Open", f"Mount failed:\n{e}")
+                return
+        self._opened(side, prev, info['path'], info['method'], info.get('dev'))
+
+    def _opened(self, side: str, prev: str, folder: str, method: str, dev=None): #vers 1
+        """Remember what was opened and show it in the panel."""
+        self._opened_items = getattr(self, '_opened_items', [])
+        self._opened_items.append({'side': side, 'prev': prev, 'path': folder, 'method': method, 'dev': dev})
+        self._twin_navigate(folder, side)
+        self.log_message(f"Opened {folder}")
+
+    def _twin_eject(self): #vers 1
+        """Unmount opened images, remove extracted archives, return panels to earlier folders."""
+        from PyQt6.QtWidgets import QMessageBox
+        from apps.methods import archive_open
+        items = getattr(self, '_opened_items', [])
+        if not items:
+            QMessageBox.information(self, "Eject", "Nothing opened.")
+            return
+        for info in list(items):
+            try:
+                self._twin_navigate(info['prev'], info['side'])
+                archive_open.eject(info)
+                items.remove(info)
+            except Exception as e:
+                QMessageBox.warning(self, "Eject", f"{info['path']}\n{e}")
+        self.log_message("Ejected")
 
     def _twin_navigate(self, path: str, side: str): #vers 1
         """Navigate a specific twin panel side to a path"""
@@ -906,9 +1188,9 @@ class DirectoryTreeBrowser(QWidget):
             layout = self.layout()
             layout.setStretchFactor(self._single_container, 1)
 
-            self.panel_toggle_btn.setIcon(get_twin_panel_icon())
+            self._tag_icon(self.panel_toggle_btn, get_twin_panel_icon)
             self.panel_toggle_btn.setToolTip("Switch to twin panel view")
-            self.layout_cycle_btn.hide()
+            self._set_cycle_visible(False)
             self._left_panel = None
             self._right_panel = None
 
@@ -1010,7 +1292,7 @@ class DirectoryTreeBrowser(QWidget):
             root_item = QTreeWidgetItem(self.tree)
             root_item.setText(0, os.path.basename(root_path) or root_path)
             root_item.setData(0, Qt.ItemDataRole.UserRole, root_path)
-            root_item.setIcon(0, get_folder_icon())
+            root_item.setIcon(0, self._themed(get_folder_icon))
             self.populate_tree_recursive(root_item, root_path)
             #  fix (Aug 20 2026,  "the other bug with dir
             # tree is all the folders are open, they need to start
@@ -1129,7 +1411,7 @@ class DirectoryTreeBrowser(QWidget):
                 tree_item = QTreeWidgetItem(parent_item)
                 tree_item.setText(0, directory)
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, item_path)
-                tree_item.setIcon(0, get_folder_icon())
+                tree_item.setIcon(0, self._themed(get_folder_icon))
                 tree_item.setText(self.COL_TYPE, 'Folder')
                 try:
                     st = os.stat(item_path)
@@ -1191,7 +1473,7 @@ class DirectoryTreeBrowser(QWidget):
             '.lvz': get_file_icon,
         }
         if file_ext in icon_map:
-            return icon_map[file_ext]()
+            return self._themed(icon_map[file_ext])
         # Fall back to system icon provider for everything else
         try:
             from PyQt6.QtWidgets import QFileIconProvider
@@ -1200,7 +1482,7 @@ class DirectoryTreeBrowser(QWidget):
             # We only have the extension, use a dummy filename
             return provider.icon(QFileInfo(f'dummy{file_ext}'))
         except Exception:
-            return get_file_icon()
+            return self._themed(get_file_icon)
 
 
     def get_file_type_display(self, file_ext: str) -> str: #vers 2
@@ -1267,7 +1549,7 @@ class DirectoryTreeBrowser(QWidget):
             self.file_opened.emit(file_path)
 
 
-    def show_context_menu(self, position): #vers 7
+    def show_context_menu(self, position): #vers 8
         """Show context menu - tracks which tree triggered it"""
         # Identify which tree sent the signal
         sender = self.sender()
@@ -1281,7 +1563,7 @@ class DirectoryTreeBrowser(QWidget):
         file_path = item.data(0, Qt.ItemDataRole.UserRole)
         if os.path.isfile(file_path):
             open_action = QAction("Open", self)
-            open_action.setIcon(get_folder_icon())
+            self._tag_icon(open_action, get_folder_icon)
             open_action.triggered.connect(lambda: self.file_opened.emit(file_path))
             menu.addAction(open_action)
 
@@ -1408,7 +1690,7 @@ class DirectoryTreeBrowser(QWidget):
             elif file_ext == '.img':
                 from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
                 asset_action = QAction("Asset Checker", self)
-                asset_action.setIcon(get_asset_checker_icon(16))
+                self._tag_icon(asset_action, get_asset_checker_icon, 16)
                 asset_action.triggered.connect(
                     lambda _=False, p=file_path: self._show_asset_checker(p))
                 menu.addAction(asset_action)
@@ -1419,18 +1701,18 @@ class DirectoryTreeBrowser(QWidget):
                 # at all before this.
                 from apps.methods.imgfactory_svg_icons import get_col_file_icon, get_list_view_icon
                 open_col_action = QAction("Open in COL Workshop", self)
-                open_col_action.setIcon(get_col_file_icon(16))
+                self._tag_icon(open_col_action, get_col_file_icon, 16)
                 open_col_action.triggered.connect(
                     lambda _=False, p=file_path: self._open_col_in_workshop(p))
                 menu.addAction(open_col_action)
                 imglist_action = QAction("Show COL as ImgList", self)
-                imglist_action.setIcon(get_list_view_icon(16))
+                self._tag_icon(imglist_action, get_list_view_icon, 16)
                 imglist_action.triggered.connect(
                     lambda _=False, p=file_path: self._show_col_as_imglist(p))
                 menu.addAction(imglist_action)
                 from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
                 asset_action = QAction("Asset Checker", self)
-                asset_action.setIcon(get_asset_checker_icon(16))
+                self._tag_icon(asset_action, get_asset_checker_icon, 16)
                 asset_action.triggered.connect(
                     lambda _=False, p=file_path: self._show_asset_checker(p))
                 menu.addAction(asset_action)
@@ -1455,11 +1737,11 @@ class DirectoryTreeBrowser(QWidget):
                 except Exception:
                     editor_label = ""
                 if editor_label:
-                    smart_action = QAction(f"⚙  Open in {editor_label}", self)
+                    smart_action = QAction(f" Open in {editor_label}", self)
                     smart_action.triggered.connect(
                         lambda _=False, p=file_path: self._open_smart_editor(p))
                     menu.addAction(smart_action)
-                edit_action = QAction(f"✏  Edit  {os.path.basename(file_path)}", self)
+                edit_action = QAction(f" Edit  {os.path.basename(file_path)}", self)
                 edit_action.triggered.connect(
                     lambda _=False, p=file_path: self._edit_text_file(p))
                 menu.addAction(edit_action)
@@ -1475,13 +1757,13 @@ class DirectoryTreeBrowser(QWidget):
                     menu.addAction(ide_action)
                     from apps.methods.imgfactory_svg_icons import get_list_view_icon
                     imglist_action = QAction("Show IDE as List", self)
-                    imglist_action.setIcon(get_list_view_icon(16))
+                    self._tag_icon(imglist_action, get_list_view_icon, 16)
                     imglist_action.triggered.connect(
                         lambda _=False, p=file_path: self._show_ide_as_list(p))
                     menu.addAction(imglist_action)
                     from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
                     asset_action = QAction("Asset Checker", self)
-                    asset_action.setIcon(get_asset_checker_icon(16))
+                    self._tag_icon(asset_action, get_asset_checker_icon, 16)
                     asset_action.triggered.connect(
                         lambda _=False, p=file_path: self._show_asset_checker(p))
                     menu.addAction(asset_action)
@@ -1496,22 +1778,22 @@ class DirectoryTreeBrowser(QWidget):
                     menu.addAction(master_ide_dat_action)
                     from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
                     asset_dat_action = QAction("Asset Checker", self)
-                    asset_dat_action.setIcon(get_asset_checker_icon(16))
+                    self._tag_icon(asset_dat_action, get_asset_checker_icon, 16)
                     asset_dat_action.triggered.connect(
                         lambda _=False, p=file_path: self._show_asset_checker_from_dat(p))
                     menu.addAction(asset_dat_action)
 
             menu.addSeparator()
         copy_action = QAction("Copy", self)
-        copy_action.setIcon(get_copy_icon())
+        self._tag_icon(copy_action, get_copy_icon)
         copy_action.triggered.connect(self.copy_files)
         menu.addAction(copy_action)
         cut_action = QAction("Cut", self)
-        cut_action.setIcon(get_cut_icon())
+        self._tag_icon(cut_action, get_cut_icon)
         cut_action.triggered.connect(self.cut_files)
         menu.addAction(cut_action)
         paste_action = QAction("Paste", self)
-        paste_action.setIcon(get_paste_icon())
+        self._tag_icon(paste_action, get_paste_icon)
         paste_action.triggered.connect(self.paste_files)
         menu.addAction(paste_action)
         menu.addSeparator()
@@ -1520,31 +1802,31 @@ class DirectoryTreeBrowser(QWidget):
             parent_dir = os.path.dirname(os.path.dirname(file_path))
             if parent_dir and os.path.isdir(parent_dir):
                 move_up_action = QAction(f"Move to /{os.path.basename(parent_dir) or '..'}", self)
-                move_up_action.setIcon(get_folder_icon())
+                self._tag_icon(move_up_action, get_folder_icon)
                 move_up_action.triggered.connect(
                     lambda: self._move_selected_to_parent(file_path))
                 menu.addAction(move_up_action)
         menu.addSeparator()
         delete_action = QAction("Delete", self)
-        delete_action.setIcon(get_trash_icon())
+        self._tag_icon(delete_action, get_trash_icon)
         delete_action.triggered.connect(self.delete_selected)
         menu.addAction(delete_action)
         rename_action = QAction("Rename", self)
-        rename_action.setIcon(get_rename_icon())
+        self._tag_icon(rename_action, get_rename_icon)
         rename_action.triggered.connect(self.rename_selected)
         menu.addAction(rename_action)
         menu.addSeparator()
         copy_path_action = QAction("Copy Path", self)
-        copy_path_action.setIcon(get_copy_icon())
+        self._tag_icon(copy_path_action, get_copy_icon)
         copy_path_action.triggered.connect(lambda: self.copy_path_to_clipboard(file_path))
         menu.addAction(copy_path_action)
         explorer_action = QAction("Open in File Manager", self)
-        explorer_action.setIcon(get_folder_icon())
+        self._tag_icon(explorer_action, get_folder_icon)
         explorer_action.triggered.connect(lambda: self.open_in_explorer(file_path))
         menu.addAction(explorer_action)
         menu.addSeparator()
         props_action = QAction("Properties", self)
-        props_action.setIcon(get_properties_icon())
+        self._tag_icon(props_action, get_properties_icon)
         props_action.triggered.connect(self.show_file_properties)
         menu.addAction(props_action)
         menu.exec(self.tree.mapToGlobal(position))
@@ -2328,7 +2610,7 @@ class DirectoryTreeBrowser(QWidget):
         layout.addWidget(results_list)
         button_layout = QHBoxLayout()
         search_btn = QPushButton("Search")
-        search_btn.setIcon(get_search_icon())
+        self._tag_icon(search_btn, get_search_icon)
         button_layout.addWidget(search_btn)
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dialog.accept)

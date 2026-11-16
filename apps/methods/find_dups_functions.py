@@ -1,4 +1,4 @@
-#this belongs in methods/find_duplicates.py - Version: 1
+#this belongs in methods/find_duplicates.py - Version: 2
 # X-Seti - August27 2025 - IMG Factory 1.5 - Duplicate Detection Functions
 # Moved from apps.components.img_manager.py
 
@@ -46,7 +46,7 @@ class DuplicateFinderDialog(QDialog): #vers 1
         layout = QVBoxLayout(self)
         
         # Title
-        title_label = QLabel("🔍 Duplicate Files Analysis")
+        title_label = QLabel("Duplicate Files Analysis")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin: 10px;")
         layout.addWidget(title_label)
@@ -236,7 +236,7 @@ def find_duplicates_by_size(img_file) -> Dict[int, List[str]]: #vers 1
         return {}
 
 
-def show_duplicates_dialog(main_window) -> Optional[List[str]]: #vers 1
+def show_duplicates_dialog(main_window) -> Optional[List[str]]: #vers 2
     """Show duplicates dialog and return files to remove"""
     try:
         if not hasattr(main_window, 'current_img') or not main_window.current_img:
@@ -244,7 +244,7 @@ def show_duplicates_dialog(main_window) -> Optional[List[str]]: #vers 1
             return None
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("🔍 Scanning for duplicates...")
+            main_window.log_message("Scanning for duplicates...")
         
         # Find duplicates by hash (most accurate)
         def progress_callback(current, total, message):
@@ -268,12 +268,12 @@ def show_duplicates_dialog(main_window) -> Optional[List[str]]: #vers 1
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Duplicate detection failed: {str(e)}")
+            main_window.log_message(f"Duplicate detection failed: {str(e)}")
         QMessageBox.critical(main_window, "Detection Failed", f"Failed to detect duplicates:\n{str(e)}")
         return None
 
 
-def remove_duplicates_dialog(main_window) -> bool: #vers 1
+def remove_duplicates_dialog(main_window) -> bool: #vers 2
     """Show duplicates dialog and remove selected duplicates"""
     try:
         files_to_remove = show_duplicates_dialog(main_window)
@@ -295,7 +295,7 @@ def remove_duplicates_dialog(main_window) -> bool: #vers 1
         
         if removed_count > 0:
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"✅ Removed {removed_count} duplicate files")
+                main_window.log_message(f"Removed {removed_count} duplicate files")
             
             # Refresh table
             if hasattr(main_window, 'refresh_table'):
@@ -311,7 +311,7 @@ def remove_duplicates_dialog(main_window) -> bool: #vers 1
             
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Duplicate removal failed: {str(e)}")
+            main_window.log_message(f"Duplicate removal failed: {str(e)}")
         QMessageBox.critical(main_window, "Removal Failed", f"Failed to remove duplicates:\n{str(e)}")
         return False
 

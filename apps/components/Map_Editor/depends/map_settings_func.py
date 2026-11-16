@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_settings_func.py - Version: 9
+#this belongs in apps/components/Map_Editor/depends/map_settings_func.py - Version: 10
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop settings
 
 """
@@ -1922,7 +1922,7 @@ class MapSettingsMixin: #vers 1
         if hasattr(self, 'title_font'):
             # Find all title labels
             for label in self.findChildren(QLabel):
-                if label.objectName() == "title_label" or "🗺️" in label.text():
+                if label.objectName() == "title_label":
                     label.setFont(self.title_font)
 
 

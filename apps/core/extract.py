@@ -567,7 +567,7 @@ class ExtractDialog(QDialog):
                 extracted_count += len(textures)
                 self.external_log_area.append(f"  Found {len(textures)} textures in {dff_name}")
             
-            self.external_log_area.append(f"\n✅ Extraction complete! Total textures found: {extracted_count}")
+            self.external_log_area.append(f"\nExtraction complete! Total textures found: {extracted_count}")
             QMessageBox.information(
                 self, 
                 "Success", 

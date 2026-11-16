@@ -194,7 +194,7 @@ class IMGCreator:
             # Extract required data from template
             output_path = template_data.get('output_path')
             if not output_path:
-                print("❌ No output path in template data")
+                print("No output path in template data")
                 return False
             
             game_type_str = template_data.get('game_type', 'gtasa')
@@ -203,12 +203,12 @@ class IMGCreator:
             try:
                 game_type = GameType(game_type_str)
             except ValueError:
-                print(f"❌ Unknown game type: {game_type_str}")
+                print(f"Unknown game type: {game_type_str}")
                 return False
             
             config = GameConfigurations.get_configuration(game_type)
             if not config:
-                print(f"❌ No configuration for game type: {game_type}")
+                print(f"No configuration for game type: {game_type}")
                 return False
             
             # Extract settings
@@ -231,14 +231,14 @@ class IMGCreator:
                         img.add_entry(entry_name, b'')
                 
                 success = img.rebuild() if entries else True
-                print(f"✅ Template applied: {template_data.get('name', 'Unknown')}")
+                print(f"Template applied: {template_data.get('name', 'Unknown')}")
                 return success
             else:
-                print("❌ Failed to create IMG file")
+                print("Failed to create IMG file")
                 return False
             
         except Exception as e:
-            print(f"❌ Error creating from template: {e}")
+            print(f"Error creating from template: {e}")
             return False
     
     @staticmethod
@@ -262,7 +262,7 @@ class IMGCreator:
             return img.create_new(output_path, config.img_version, **creation_options)
             
         except Exception as e:
-            print(f"❌ Error creating game-specific IMG: {e}")
+            print(f"Error creating game-specific IMG: {e}")
             return False
     
     @staticmethod

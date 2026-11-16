@@ -1,4 +1,4 @@
-#this belongs in methods/mirror_tab_shared.py - Version: 1
+#this belongs in methods/mirror_tab_shared.py - Version: 2
 # X-Seti - August19 2025 - IMG Factory 1.5 - Shared Mirror Tab Selection System
 
 """
@@ -419,7 +419,7 @@ class MirrorTabDialog(QDialog): #vers 1
         return options
 
 
-def collect_all_open_tabs(main_window) -> List[Dict[str, Any]]: #vers 1
+def collect_all_open_tabs(main_window) -> List[Dict[str, Any]]: #vers 2
     """Collect information about all currently open tabs"""
     available_tabs = []
     
@@ -440,7 +440,7 @@ def collect_all_open_tabs(main_window) -> List[Dict[str, Any]]: #vers 1
                 
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error collecting tabs: {str(e)}")
+            main_window.log_message(f"Error collecting tabs: {str(e)}")
             
     return available_tabs
 
@@ -527,7 +527,7 @@ def get_file_size_display(file_path: str) -> str: #vers 1
     return "Unknown"
 
 
-def show_mirror_tab_selection(main_window, operation_type: str) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]: #vers 1
+def show_mirror_tab_selection(main_window, operation_type: str) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]: #vers 2
     """
     Show mirror tab selection dialog for any operation
     
@@ -553,7 +553,7 @@ def show_mirror_tab_selection(main_window, operation_type: str) -> Tuple[Optiona
             
             # Validate tab for operation
             if validate_tab_for_operation(tab_data, operation_type):
-                main_window.log_message(f"📋 Single tab {operation_type}: {tab_data['name']}")
+                main_window.log_message(f"Single tab {operation_type}: {tab_data['name']}")
                 return tab_data, {}
             else:
                 QMessageBox.warning(main_window, "Invalid Tab", 
@@ -561,7 +561,7 @@ def show_mirror_tab_selection(main_window, operation_type: str) -> Tuple[Optiona
                 return None, {}
             
         # Multiple tabs - show mirror selection dialog
-        main_window.log_message(f"📋 Multiple tabs detected ({len(available_tabs)}), showing {operation_type} selection dialog")
+        main_window.log_message(f"Multiple tabs detected ({len(available_tabs)}), showing {operation_type} selection dialog")
         
         dialog = MirrorTabDialog(main_window, available_tabs, operation_type)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -569,15 +569,15 @@ def show_mirror_tab_selection(main_window, operation_type: str) -> Tuple[Optiona
             selected_tab = dialog.selected_tab_data
             operation_options = dialog.operation_options
             
-            main_window.log_message(f"🚀 {operation_type.title()} selected tab: {selected_tab['name']}")
+            main_window.log_message(f"{operation_type.title()} selected tab: {selected_tab['name']}")
             return selected_tab, operation_options
             
         else:
-            main_window.log_message(f"🚫 {operation_type.title()} cancelled by user")
+            main_window.log_message(f"{operation_type.title()} cancelled by user")
             return None, {}
             
     except Exception as e:
-        main_window.log_message(f"❌ Mirror tab selection error: {str(e)}")
+        main_window.log_message(f"Mirror tab selection error: {str(e)}")
         QMessageBox.critical(main_window, "Selection Error", f"Tab selection failed: {str(e)}")
         return None, {}
 

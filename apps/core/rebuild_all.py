@@ -1,4 +1,4 @@
-#this belongs in apps/core/rebuild_all.py - Version: 7
+#this belongs in apps/core/rebuild_all.py - Version: 8
 # X-Seti - August26 2025 - IMG Factory 1.5 - Batch Rebuild All Functions
 
 import os
@@ -315,9 +315,9 @@ class BatchRebuildDialog(QDialog):
         try:
             from apps.methods.imgfactory_svg_icons import get_success_icon, get_error_icon
             if success:
-                status = "✅ Completed"  # Using emoji as a simple visual indicator since full SVG integration would require more complex code
+                status = "Completed"  # Using emoji as a simple visual indicator since full SVG integration would require more complex code
             else:
-                status = "❌ Failed"  # Using emoji as a simple visual indicator
+                status = "Failed"  # Using emoji as a simple visual indicator
         except:
             # Fallback to text-only if icon handling fails
             status = "Completed" if success else "Failed"

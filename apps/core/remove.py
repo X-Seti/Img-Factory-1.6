@@ -1,4 +1,4 @@
-#this belongs in core/remove.py - Version: 7
+#this belongs in core/remove.py - Version: 8
 # X-Seti - November19 2025 - IMG Factory 1.5 - Remove Functions with Proper Modification Tracking
 """
 Remove Functions - Remove entries with proper modification tracking for Save Entry detection
@@ -253,7 +253,7 @@ def _refresh_after_removal(main_window): #vers 2
         main_window.log_message("UI refreshed after removal")
 
 
-def integrate_remove_functions(main_window) -> bool: #vers 3
+def integrate_remove_functions(main_window) -> bool: #vers 4
     """Integrate remove functions with proper modification tracking - TAB AWARE"""
     try:
         # Main remove functions
@@ -270,7 +270,7 @@ def integrate_remove_functions(main_window) -> bool: #vers 3
             main_window.log_message("   • Tracks deleted entries for Save Entry detection")
             main_window.log_message("   • Sets modified flag properly")
             main_window.log_message("   • Supports selected entries, by name, and multiple entry removal")
-            main_window.log_message("   ✅ Tab-aware file detection")
+            main_window.log_message("   Tab-aware file detection")
         return True
     except Exception as e:
         if hasattr(main_window, 'log_message'):

@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout.py - Version: 55
+#this belongs in apps/gui/gui_layout.py - Version: 60
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -758,10 +758,9 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
         colors = self._get_button_theme_template()
         return [b for b in self._options_buttons_all(colors) if option_available(b[4])]
 
-    def _options_buttons_all(self, colors): #vers 3
+    def _options_buttons_all(self, colors): #vers 4
         """Every Editing Options button (label, attr, icon, colour, method)."""
         return [
-            ("Dir Tree",   "dir_tree",   "dir-tree",   colors['editor_data'],    "toggle_dir_tree"), #Dir_tree
             ("Dat Browser","dat_edit",   "dat-edit",   colors['editor_data'],    "edit_dat_file"), #dat_browser
             ("Hex",        "hex_edit",   "hex-edit",   colors['editor_data'],    "edit_hex"),
 
@@ -1614,37 +1613,37 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
             # Workshops: their own app (window) icons
             "col-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.col_workshop_icon(size),
             "txd-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.txd_workshop_icon(size),
-            "paint-edit": lambda size=24, color=None, bg_color=None: get_dp5_workshop_icon(size),
+            "paint-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.dp5_app_icon(size),
             "hybrid-load": get_hybrid_load_icon,
             "scan-folder": get_scan_folder_icon,
             "recent-scans": get_recent_scans_icon,
             "tba": get_tba_icon,
             "dat-browser": get_dat_browser_icon,
-            "ide-editor": get_ide_editor_icon,
+            "ide-editor": lambda size=24, color=None, bg_color=None: SVGIconFactory.ide_app_icon(size),
 
             # Editor buttons (same icons as the Intro tiles)
-            "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.model_workshop_icon(size, '#4a9fd4'),
-            "ipf-edit": get_ipf_anim_icon,
-            "ipl-edit": lambda size=24, color=None, bg_color=None: get_data_workshop_icon(size),
-            "dat-edit": get_dat_browser_icon,
-            "dir-tree": lambda size=24, color=None, bg_color=None: get_tree_icon(size, color),
+            "dff-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.model_app_icon(size),
+            "ipf-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.ifp_app_icon(size),
+            "ipl-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.data_app_icon(size),
+            "dat-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.dat_app_icon(size),
+            "dir-tree": lambda size=24, color=None, bg_color=None: SVGIconFactory.tree_app_icon(size),
             "water-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.water_workshop_icon(size),
-            "zones-cull": lambda size=24, color=None, bg_color=None: get_cull_zone_icon(size, color),
-            "weap-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.weapon_app_icon(size, color),
-            "cuts-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.cutscene_app_icon(size, color),
+            "zones-cull": lambda size=24, color=None, bg_color=None: SVGIconFactory.cull_app_icon(size),
+            "weap-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.weapon_app_icon(size),
+            "cuts-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.cutscene_app_icon(size),
             "vehi-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.vehicle_app_icon(size),
             "peds-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.ped_app_icon(size),
-            "carcols": get_carcols_icon,
-            "radar-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.radar_workshop_icon(size),
+            "carcols": lambda size=24, color=None, bg_color=None: SVGIconFactory.carcols_app_icon(size),
+            "radar-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.radar_app_icon(size),
             "paths-map": lambda size=24, color=None, bg_color=None: SVGIconFactory.path_app_icon(size),
             "timecyc": lambda size=24, color=None, bg_color=None: SVGIconFactory.timecyc_app_icon(size),
             "hex-edit": lambda size=24, color=None, bg_color=None: SVGIconFactory.hex_app_icon(size),
-            "weather": get_weather_icon,
+            "weather": lambda size=24, color=None, bg_color=None: SVGIconFactory.weather_app_icon(size),
             "handling": lambda size=24, color=None, bg_color=None: SVGIconFactory.handling_app_icon(size),
             "ojs-breakble": lambda size=24, color=None, bg_color=None: SVGIconFactory.breakable_app_icon(size),
             "scm-code": lambda size=24, color=None, bg_color=None: SVGIconFactory.scm_app_icon(size),
-            "gxt-font": get_gxt_icon,
-            "menu-font": get_menu_edit_icon,
+            "gxt-font": lambda size=24, color=None, bg_color=None: SVGIconFactory.gxt_app_icon(size),
+            "menu-font": lambda size=24, color=None, bg_color=None: SVGIconFactory.menu_app_icon(size),
         }
 
         fn = icon_map.get(icon_name, get_tba_icon)
@@ -2385,64 +2384,10 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
 
 
 
-    def _switch_to_directory_tree(self): #vers 14
-        """Cycle tree visibility: hidden → split → tree-full → hidden"""
-        try:
-            mw = self.main_window
-            splitter = getattr(self, 'content_splitter', None)
-
-            # First time setup
-            if not hasattr(mw, '_dirtree_setup_complete') or not mw._dirtree_setup_complete:
-                if not hasattr(mw, 'game_root') or not mw.game_root:
-                    from PyQt6.QtWidgets import QMessageBox
-                    reply = QMessageBox.question(
-                        mw, "No Project Configured",
-                        "No project is currently configured.\n\nOpen Project Manager?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                    )
-                    if reply == QMessageBox.StandardButton.Yes:
-                        from apps.components.Project_Manager.project_manager import show_project_manager_dialog
-                        show_project_manager_dialog(mw)
-                    return
-                if not hasattr(mw, 'directory_tree'):
-                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                    if not integrate_directory_tree_browser(mw):
-                        mw.log_message("Failed to load Directory Tree")
-                        return
-                if splitter:
-                    splitter.addWidget(mw.directory_tree)
-                if hasattr(mw.directory_tree, 'browse_directory'):
-                    mw.directory_tree.browse_directory(mw.game_root)
-                mw._dirtree_setup_complete = True
-                mw._dirtree_state = 0  # will advance below
-
-            if not splitter or splitter.count() < 2:
-                return
-
-            total = sum(splitter.sizes()) or 10000
-            # Cycle: 0=hidden → 1=split → 2=tree-full → 0=hidden
-            state = (getattr(mw, '_dirtree_state', 0) + 1) % 3
-            mw._dirtree_state = state
-
-            tab_widget = getattr(mw, 'main_tab_widget', None)
-
-            if state == 0:  # hidden - files full
-                if tab_widget: tab_widget.show()
-                splitter.setSizes([total, 0])
-                mw.log_message("→ Files only")
-            elif state == 1:  # split
-                if tab_widget: tab_widget.show()
-                splitter.setSizes([total // 2, total // 2])
-                mw.log_message("→ Split view")
-            elif state == 2:  # tree full
-                if tab_widget: tab_widget.show()  # keep tabs visible
-                splitter.setSizes([0, total])
-                mw.log_message("→ Tree full")
-
-        except Exception as e:
-            self.main_window.log_message(f"Dir tree error: {str(e)}")
-            import traceback
-            traceback.print_exc()
+    def _switch_to_directory_tree(self): #vers 15
+        """Open the DAT Browser in its Dir list display order."""
+        from apps.gui.gui_layout_custom import _show_dir_tree
+        _show_dir_tree(self.main_window)
 
 
     def _ensure_tab_0_for_directory_tree(self): #vers 1
@@ -3713,7 +3658,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
                 # Add pin icon, colour row, set is_pinned, save to .pin file
                 from PyQt6.QtGui import QBrush
                 from apps.core.undo_system import get_pin_row_colours, set_entry_date
-                pin_icon = "📌"
+                pin_icon = "[pin]"
                 pin_colour, pin_fg = get_pin_row_colours(self.main_window)
                 pinned_count = 0
 
@@ -3814,7 +3759,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
 
                 # Remove pin icon, restore normal colours, clear is_pinned, update .pin file
                 from PyQt6.QtGui import QBrush
-                pin_icon = "📌"
+                pin_icon = "[pin]"
                 unpinned_count = 0
 
                 file_object = getattr(self.main_window, 'current_img', None)
@@ -3910,7 +3855,7 @@ class IMGFactoryGUILayout(ButtonGroupsMixin, DockPanelsMixin):
                     entry_map[getattr(entry, 'name', '')] = entry
 
             from apps.core.undo_system import get_pin_row_colours
-            pin_icon = "📌"
+            pin_icon = "[pin]"
             pin_colour, pin_fg = get_pin_row_colours(self.main_window)
             pins_applied = 0
 

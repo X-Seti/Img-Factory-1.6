@@ -1,4 +1,4 @@
-#this belongs in methods/export_overwrite_check.py - Version: 1
+#this belongs in methods/export_overwrite_check.py - Version: 2
 # X-Seti - September09 2025 - IMG Factory 1.5 - Shared Export Overwrite Check Functions
 
 """
@@ -178,7 +178,7 @@ def handle_overwrite_check(main_window, entries: List[Any], export_folder: str,
         if user_choice == 'cancel':
             # User cancelled
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"🚫 {operation_name.title()} cancelled by user")
+                main_window.log_message(f"{operation_name.title()} cancelled by user")
             return [], False
             
         elif user_choice == 'skip':
@@ -191,7 +191,7 @@ def handle_overwrite_check(main_window, entries: List[Any], export_folder: str,
                 return [], False
             
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"📝 Skipping {len(existing_files)} existing files, "
+                main_window.log_message(f"Skipping {len(existing_files)} existing files, "
                                       f"{operation_name}ing {len(filtered_entries)} new files")
             
             return filtered_entries, True
@@ -199,13 +199,13 @@ def handle_overwrite_check(main_window, entries: List[Any], export_folder: str,
         else:  # user_choice == 'overwrite'
             # Overwrite existing files, proceed with all entries
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"🔄 Overwriting {len(existing_files)} existing files")
+                main_window.log_message(f"Overwriting {len(existing_files)} existing files")
             
             return entries, True
             
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error in overwrite check: {str(e)}")
+            main_window.log_message(f"Error in overwrite check: {str(e)}")
         # On error, ask user to decide
         reply = QMessageBox.question(main_window, "Error Checking Files", 
             f"Error checking for existing files: {str(e)}\n\nContinue anyway?")

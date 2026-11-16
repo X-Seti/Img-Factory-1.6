@@ -37,7 +37,7 @@
 - Nov 07 2026 - Workshop fonts: bundled PT Sans Narrow default; Settings picks any bundled compact font for all workshops. Ped Bones value boxes narrower, no overlap.
 - Nov 07 2026 - Bugs: viewport crash on mouse move (_mesh_drag unset). Wire chip on the viewport; no wire in Texture only. Cutscene cast Send keeps the window open.
 
-- Nov 06 2026 - TODO: Cutscene new scene (SA). GXT editor. Icons v108 sync to all repos; remove duplicate get_radar_workshop_icon. VC ID patch awaits source.
+- Nov 06 2026 - TODO: Cutscene new scene (SA). GXT editor. Icons v108 sync to all repos;. VC ID patch awaits source.
 
 - Nov 06 2026 - Cutscene Workshop Shots panel: shot list from the camera .dat; change length, add hold or follow-actor shot, split, delete, reorder (III / VC / SA).
 
@@ -6105,3 +6105,26 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 - Nov 16 2026 - DP5: View > Brush bar - on-canvas size, opacity and strength sliders. New depends/dp5_brush_bar.py.
 - Nov 16 2026 - DP5: Ctrl+click with Stamp floats it with scale/rotate handles; click away or OK places it.
 - Nov 16 2026 - DP5: Perspective corner pins, Camera move start/end boxes, anim brush paste box on canvas; dialogs now stay open. New depends/dp5_dialog_handles.py.
+- Nov 16 2026 - Emojis removed from all code outside DP5 Workshop (324 in 50 files); buttons now use SVG icons, tags use text. Unicode arrows and the Map Editor favourite star kept.
+- Nov 16 2026 - App icons in the coloured-tile style for Model, DP5, Radar, Data, Cutscene and Weapon (welcome screen, window icons). Old line icons kept as cutscene_line_icon, weapon_line_icon. Icon sets later.
+- Nov 16 2026 - Right panel buttons use the tile app icons (DP5, Model, Data, Radar, Weapon, Cutscene). New tile icons: Model Viewer, IMG Browser, AI Workshop. Old AI circle icon kept as ai_circle_icon.
+- Nov 16 2026 - Right panel: tile icons for IFP, DAT, IDE, Dir tree, Cull zones, Carcols, Weather, GXT and Menu so every tool matches.
+- Nov 16 2026 - DP5: dock separators now 8px grip (resizable); user palette cell size default 8px; wrap-to-area toggles for user and image palettes in Settings.
+- Nov 16 2026 - DP5 Bitmaps panel: seven icon buttons in one row incl. DP5 Settings; full dock width.
+- Nov 16 2026 - DP5: right-click on docks now opens the shared ribbon menu, replacing Qt default panel list.
+- Nov 16 2026 - DP5: right-column docks can narrow (min width 100); panels clip instead of locking width.
+- Nov 16 2026 - DP5: ribbons back to native toolbars round the canvas (inner window) like Model Workshop; menu moves them to window edge.
+- Nov 16 2026 - DP5: Image and User palette views keep a 56px minimum so a tabbed or squeezed palette never vanishes.
+- Nov 16 2026 - Icons: removed shadowed duplicate get_radar_workshop_icon (later coloured version kept).
+- Nov 16 2026 - Dir Tree merged into DAT Browser as 'Dir list' order; Dir Tree button opens it. Detailed/Icons/Compact view toggle added to both (methods/view_modes.py).
+- Nov 16 2026 - Dir Tree button removed from right panel; intro card now 'Dir List' (tile icon) opens DAT Browser Dir list.
+- Nov 16 2026 - DAT Browser: Dir list buttons now a movable 'Dir' ribbon; sort and view buttons moved onto Load Order title bar; filter rows hide in Dir list.
+- Nov 16 2026 - DAT Browser: status line and Filter row now 'Info' and 'Filter' ribbons; Load Order title bar sized for sort and view buttons.
+- Nov 16 2026 - Icon view: files show a coloured page icon with extension letters (ext_file_icon); folders keep the folder icon. DAT Browser and Dir list.
+- Nov 16 2026 - DAT Browser: Dir List is its own side dock (default right, movable, Tools ribbon toggle); Dir list sort entry removed. Path fields click-toggle short/full; sort box shrinks when narrow. New methods/short_path.py.
+- Nov 16 2026 - Icons: added tc_app_icon ([TC] dual-pane Total Commander style) to the SVG hub. DAT Browser Tools ribbon [TC] button opens Dir List with two panes.
+- Nov 16 2026 - DAT Browser: Dir List / [TC] dock gets a Full page button; hides load order and tabs, restores on untoggle or close.
+- Nov 16 2026 - Dir List twin panels: middle copy column [-->] [<--] [Mirror] [Clone]; Mirror updates older files, extras to Trash or deleted; Clone replaces right with exact copy. New methods/dir_sync.py, twin_copy_column.py.
+- Nov 16 2026 - Dir List twin panels: Mirror and Clone run through rsync with progress; retry as root via pkexec on permission errors. Open / Eject buttons extract archives, mount ISO / IMG. Added methods/archive_open.py.
+- Nov 16 2026 - Dir List / DAT Browser: panel, tree, menu and view-button icons use the theme colour and update on theme change.
+- Nov 16 2026 - Copy column: Dry run toggle; Mirror and Clone only list what they would do.

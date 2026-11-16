@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 45
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 47
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
@@ -1638,7 +1638,7 @@ class RadarWorkshop(TitlebarMixin, RibbonIconsMixin, RibbonMixin, DockPanelsMixi
 
         self.setWindowTitle(App_name)
         try:
-            self.setWindowIcon(SVGIconFactory.radar_workshop_icon(64))
+            self.setWindowIcon(SVGIconFactory.radar_app_icon(64))
         except Exception:
             pass
         self.resize(1400, 800)
@@ -4301,7 +4301,7 @@ class RadarWorkshop(TitlebarMixin, RibbonIconsMixin, RibbonMixin, DockPanelsMixi
         dlg = _BoredomPuzzle(self._tile_rgba, cols, rows, TILE_W, TILE_H, self)
         dlg.exec()
 
-    def _show_about(self): #vers 2
+    def _show_about(self): #vers 3
         """Show Radar Workshop instructions and info dialog."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget,
                                      QWidget, QTextEdit, QPushButton, QHBoxLayout)
@@ -4366,7 +4366,7 @@ class RadarWorkshop(TitlebarMixin, RibbonIconsMixin, RibbonMixin, DockPanelsMixi
 </ul>
 <h3>Right Sidebar</h3>
 <ul>
-<li><b>🔍+ / 🔍−</b> — Zoom in / Zoom out on the grid.</li>
+<li><b>+ / −</b> — Zoom in / Zoom out on the grid.</li>
 <li><b>Fit / Jump</b> — fit grid to window / scroll to selected tile.</li>
 <li><b>Pencil / Line / Fill / Dropper</b> — draw tools (also P/L/F/K keys).</li>
 <li><b>Edit tile</b> — open zoomed 512px popup for detailed editing.</li>

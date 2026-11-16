@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 136
+#this belongs in apps/components/Img_Factory/imgfactory.py - Version: 137
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -3122,7 +3122,7 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()
 
 
-    def _load_col_file_in_new_tab(self, file_path):  # vers 4
+    def _load_col_file_in_new_tab(self, file_path):  # vers 5
         """Load COL file into a new tab with correct single-tab creation.
 
         Flow: parse COL -> create one tab -> populate tab's COL workshop widget.
@@ -3163,7 +3163,7 @@ class IMGFactory(QMainWindow):
 
             #  Switch to the new tab
             self.main_tab_widget.setCurrentIndex(tab_index)
-            self.log_message(f"✅ COL loaded: {file_name} ({model_count} models)")
+            self.log_message(f"COL loaded: {file_name} ({model_count} models)")
 
         except Exception as e:
             self.log_message(f"Error loading COL: {str(e)}")
@@ -5446,13 +5446,13 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Failed to save settings: {str(e)}")
 
 
-    def _show_search_dialog(self): #vers 1
+    def _show_search_dialog(self): #vers 2
         """Show advanced search dialog"""
         try:
             if hasattr(self, 'search_manager'):
                 self.search_manager.show_search_dialog()
             else:
-                self.log_message("⚠️ Search manager not available")
+                self.log_message("Search manager not available")
         except Exception as e:
             self.log_message(f"Show search dialog error: {e}")
 

@@ -1,4 +1,4 @@
-#this belongs in gui/ imgcol_tearoff.py - Version: 2
+#this belongs in gui/ imgcol_tearoff.py - Version: 4
 # X-Seti - September26 2025 - Img Factory 1.5
 
 """
@@ -85,7 +85,7 @@ def _setup_table_widget(table): #vers 1
     table.verticalHeader().setVisible(False)
     table.horizontalHeader().setStretchLastSection(True)
 
-def _setup_button_panel(parent, window_type): #vers 1
+def _setup_button_panel(parent, window_type): #vers 2
     """Create button panel based on window type"""
     button_frame = QFrame()
     button_layout = QHBoxLayout(button_frame)
@@ -96,23 +96,23 @@ def _setup_button_panel(parent, window_type): #vers 1
     if window_type == "img":
         button_configs = [
             ("Import", "import_files", "Import files into archive"),
-            ("📤 Export", "export_selected", "Export selected entries"),
-            ("🗑️ Remove", "remove_selected", "Remove selected entries"),
-            ("🔄 Rebuild", "rebuild_archive", "Rebuild archive")
+            ("Export", "export_selected", "Export selected entries"),
+            ("Remove", "remove_selected", "Remove selected entries"),
+            ("Rebuild", "rebuild_archive", "Rebuild archive")
         ]
     elif window_type == "col":
         button_configs = [
             ("Import", "import_files", "Import COL files"),
-            ("📤 Export", "export_selected", "Export selected COL data"),
-            ("✏️ Edit", "edit_collision", "Edit collision data"),
-            ("🔍 Analyze", "analyze_collision", "Analyze collision")
+            ("Export", "export_selected", "Export selected COL data"),
+            ("Edit", "edit_collision", "Edit collision data"),
+            ("Analyze", "analyze_collision", "Analyze collision")
         ]
     else:
         button_configs = [
             ("Import", "import_files", "Import files"),
-            ("📤 Export", "export_selected", "Export selected"),
-            ("🗑️ Remove", "remove_selected", "Remove selected"),
-            ("🔄 Refresh", "refresh_table", "Refresh table")
+            ("Export", "export_selected", "Export selected"),
+            ("Remove", "remove_selected", "Remove selected"),
+            ("Refresh", "refresh_table", "Refresh table")
         ]
 
     for text, action, tooltip in button_configs:
@@ -155,7 +155,7 @@ def integrate_tearoff_with_ide_editor(main_window): #vers 1
         # Add tear-off functionality to existing IDE editor
         pass
 
-def integrate_tearoff_with_txd_editor(main_window): #vers 2
+def integrate_tearoff_with_txd_editor(main_window): #vers 3
     """Add tear-off button to TXD Workshop"""
     try:
         # Check if TXD Workshop is open
@@ -172,15 +172,15 @@ def integrate_tearoff_with_txd_editor(main_window): #vers 2
                     toolbar_layout.addWidget(tearoff_btn)
 
             if hasattr(main_window, 'log_message'):
-                main_window.log_message("✅ TXD Workshop tearoff button added")
+                main_window.log_message("TXD Workshop tearoff button added")
             return True
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ TXD Workshop tearoff error: {str(e)}")
+            main_window.log_message(f"TXD Workshop tearoff error: {str(e)}")
 
     return False
 
-def _tearoff_txd_workshop(main_window): #vers 1
+def _tearoff_txd_workshop(main_window): #vers 2
     """Tearoff TXD Workshop to separate window"""
     try:
         if hasattr(main_window, 'txd_workshop') and main_window.txd_workshop:
@@ -189,10 +189,10 @@ def _tearoff_txd_workshop(main_window): #vers 1
             main_window.txd_workshop.activateWindow()
 
             if hasattr(main_window, 'log_message'):
-                main_window.log_message("📱 TXD Workshop is already a separate window")
+                main_window.log_message("TXD Workshop is already a separate window")
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ TXD Workshop tearoff error: {str(e)}")
+            main_window.log_message(f"TXD Workshop tearoff error: {str(e)}")
 
 
 class IMGCOLTearOffWindow(QWidget): #vers 1
@@ -278,32 +278,32 @@ class IMGCOLTearOffWindow(QWidget): #vers 1
             elif action == "analyze_collision":
                 btn.clicked.connect(self._analyze_collision)
 
-    def _import_files(self): #vers 1
+    def _import_files(self): #vers 2
         """Import files"""
         self.log_message("Import files")
         if hasattr(self.parent_window, 'import_files'):
             self.parent_window.import_files()
         else:
-            self.log_message("❌ Import function not available in parent")
+            self.log_message("Import function not available in parent")
 
-    def _export_selected(self): #vers 1
+    def _export_selected(self): #vers 2
         """Export selected entries"""
         selected = self.get_selected_entries()
         if not selected:
-            self.log_message("❌ No entries selected")
+            self.log_message("No entries selected")
             return
 
-        self.log_message(f"📤 Exporting {len(selected)} entries")
+        self.log_message(f"Exporting {len(selected)} entries")
         if hasattr(self.parent_window, 'export_selected'):
             self.parent_window.export_selected()
         else:
-            self.log_message("❌ Export function not available in parent")
+            self.log_message("Export function not available in parent")
 
-    def _remove_selected(self): #vers 1
+    def _remove_selected(self): #vers 2
         """Remove selected entries"""
         selected = self.get_selected_entries()
         if not selected:
-            self.log_message("❌ No entries selected")
+            self.log_message("No entries selected")
             return
 
         reply = QMessageBox.question(
@@ -314,53 +314,53 @@ class IMGCOLTearOffWindow(QWidget): #vers 1
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.log_message(f"🗑️ Removing {len(selected)} entries")
+            self.log_message(f"Removing {len(selected)} entries")
             if hasattr(self.parent_window, 'remove_selected'):
                 self.parent_window.remove_selected()
             else:
-                self.log_message("❌ Remove function not available in parent")
+                self.log_message("Remove function not available in parent")
 
-    def _rebuild_archive(self): #vers 1
+    def _rebuild_archive(self): #vers 2
         """Rebuild archive"""
-        self.log_message("🔄 Rebuilding archive")
+        self.log_message("Rebuilding archive")
         if hasattr(self.parent_window, 'rebuild_img'):
             self.parent_window.rebuild_img()
         else:
-            self.log_message("❌ Rebuild function not available in parent")
+            self.log_message("Rebuild function not available in parent")
 
-    def _refresh_table(self): #vers 1
+    def _refresh_table(self): #vers 2
         """Refresh table data"""
-        self.log_message("🔄 Refreshing table")
+        self.log_message("Refreshing table")
         if hasattr(self.parent_window, 'refresh_table'):
             self.parent_window.refresh_table()
         elif hasattr(self.parent_window, 'reload_current_file'):
             self.parent_window.reload_current_file()
         else:
-            self.log_message("❌ Refresh function not available in parent")
+            self.log_message("Refresh function not available in parent")
 
-    def _close_window(self): #vers 1
+    def _close_window(self): #vers 2
         """Close tear-off window"""
-        self.log_message("❌ Closing tear-off window")
+        self.log_message("Closing tear-off window")
         self.close()
 
-    def _edit_collision(self): #vers 1
+    def _edit_collision(self): #vers 2
         """Edit collision data (COL specific)"""
         if self.window_type != "col":
             return
 
-        self.log_message("✏️ Opening COL editor")
+        self.log_message("Opening COL editor")
         try:
             from apps.gui.gui_context import open_col_editor_dialog
             open_col_editor_dialog(self.parent_window)
         except Exception as e:
-            self.log_message(f"❌ COL editor error: {str(e)}")
+            self.log_message(f"COL editor error: {str(e)}")
 
-    def _analyze_collision(self): #vers 1
+    def _analyze_collision(self): #vers 2
         """Analyze collision data (COL specific)"""
         if self.window_type != "col":
             return
 
-        self.log_message("🔍 Analyzing collision")
+        self.log_message("Analyzing collision")
         # Add collision analysis logic here
 
     def update_table_data(self, entries_data): #vers 1
@@ -380,7 +380,7 @@ class IMGCOLTearOffWindow(QWidget): #vers 1
         """Log message to log panel"""
         self.log_text.append(message)
         self.log_text.moveCursor(self.log_text.textCursor().End)
-        self.status_label.setText(message.replace('📋 ', '').replace('❌ ', '').replace('✅ ', ''))
+        self.status_label.setText(message)
 
     def get_selected_entries(self): #vers 1
         """Get list of selected entries"""
@@ -392,17 +392,17 @@ class IMGCOLTearOffWindow(QWidget): #vers 1
 
         return [self.current_entries[row] for row in selected_rows if row < len(self.current_entries)]
 
-    def _apply_theme(self): #vers 1
+    def _apply_theme(self): #vers 2
         """Apply theme from parent window"""
         try:
             if hasattr(self.parent_window, 'app_settings'):
                 theme_name = self.parent_window.app_settings.current_settings.get("theme", "default")
                 # Apply theme styling here if needed
-                self.log_message(f"🎨 Applied theme: {theme_name}")
+                self.log_message(f"Applied theme: {theme_name}")
         except Exception as e:
-            self.log_message(f"❌ Theme error: {str(e)}")
+            self.log_message(f"Theme error: {str(e)}")
 
-    def closeEvent(self, event): #vers 1
+    def closeEvent(self, event): #vers 2
         """Handle window close event"""
-        self.log_message("👋 Tear-off window closing")
+        self.log_message("Tear-off window closing")
         event.accept()

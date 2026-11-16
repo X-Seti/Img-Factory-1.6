@@ -1,4 +1,4 @@
-#this belongs in core/remove_via.py - Version: 8
+#this belongs in core/remove_via.py - Version: 9
 # X-Seti - November19 2025 - IMG Factory 1.5 - Remove Via Functions with Proper Modification Tracking
 """
 Remove Via Functions - Remove entries via IDE/text files with proper modification tracking
@@ -306,7 +306,7 @@ def _refresh_after_removal_via(main_window): #vers 2
     if hasattr(main_window, 'log_message'):
         main_window.log_message("UI refreshed after removal via")
 
-def integrate_remove_via_functions(main_window) -> bool: #vers 4
+def integrate_remove_via_functions(main_window) -> bool: #vers 5
     """Integrate remove via functions with proper modification tracking - TAB AWARE"""
     try:
         main_window.remove_via_function = lambda: remove_via_function(main_window)
@@ -321,8 +321,8 @@ def integrate_remove_via_functions(main_window) -> bool: #vers 4
             main_window.log_message("   • Tracks deleted entries for Save Entry detection")
             main_window.log_message("   • Supports IDE and text file removal lists")
             main_window.log_message("   • Sets modified flag properly")
-            main_window.log_message("   • ✅ Accurate missing file reporting")
-            main_window.log_message("   • ✅ Tab-aware file detection")
+            main_window.log_message("   • Accurate missing file reporting")
+            main_window.log_message("   • Tab-aware file detection")
         return True
     except Exception as e:
         if hasattr(main_window, 'log_message'):

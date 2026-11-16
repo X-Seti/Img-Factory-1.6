@@ -1,4 +1,4 @@
-#this belongs in methods/img_export_entry.py - Version: 3
+#this belongs in methods/img_export_entry.py - Version: 4
 # X-Seti - November19 2025 - IMG Factory 1.5 - IMG Export Entry Helper
 """
 IMG Export Entry Helper - Single entry export function
@@ -11,7 +11,7 @@ from typing import Optional
 ##Methods list -
 # export_entry
 
-def export_entry(img_archive, entry, output_path: Optional[str] = None, output_dir: Optional[str] = None) -> str: #vers 2
+def export_entry(img_archive, entry, output_path: Optional[str] = None, output_dir: Optional[str] = None) -> str: #vers 3
     """Export an entry from an IMG archive to a file
     Args:
         img_archive: IMG archive object
@@ -67,7 +67,7 @@ def export_entry(img_archive, entry, output_path: Optional[str] = None, output_d
             img_debugger.error(f"Failed to export entry {entry.name}: {str(e)}")
         except:
             print(f"[ERROR] export_entry failed: {e}")
-        return None  # ✅ Return None on failure, don't raise
+        return None  # Return None on failure, don't raise
 
 # Export functions
 __all__ = ['export_entry']

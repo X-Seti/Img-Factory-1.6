@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 10
+#this belongs in apps/components/Model_Editor/depends/model_settings_func.py - Version: 11
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Model Workshop settings
 
 """
@@ -462,7 +462,7 @@ class ModelSettingsMixin: #vers 1
         if hasattr(self, 'title_font'):
             # Find all title labels
             for label in self.findChildren(QLabel):
-                if label.objectName() == "title_label" or "🗺️" in label.text():
+                if label.objectName() == "title_label":
                     label.setFont(self.title_font)
 
 

@@ -39,7 +39,7 @@ def create_brush_colors_dock(owner): #vers 1
     dock = QDockWidget("Brush & Colors", owner)
     dock.setObjectName("Brush & Colors")
     dock.setWidget(panel)
-    dock.setMinimumWidth(180)
+    dock.setMinimumWidth(100)
     dock.setFeatures(
         QDockWidget.DockWidgetFeature.DockWidgetMovable |
         QDockWidget.DockWidgetFeature.DockWidgetFloatable)
@@ -68,7 +68,8 @@ def _create_content_panel(owner): #vers 2
     from apps.components.DP5_Workshop.dp5_workshop import (
         FGBGSwatch, BrushThumbnail, SVGIconFactory)
 
-    panel = QFrame()
+    from apps.components.DP5_Workshop.depends.dock_helper import ShrinkFrame
+    panel = ShrinkFrame()
     panel.setObjectName("dp5_brushcolors_panel")
     panel.setFrameStyle(QFrame.Shape.StyledPanel)
     _apply_panel_stylesheet(owner, panel)

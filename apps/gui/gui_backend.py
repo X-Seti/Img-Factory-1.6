@@ -1,4 +1,4 @@
-#this belongs in gui/gui_backend.py - Version: 23
+#this belongs in gui/gui_backend.py - Version: 24
 # X-Seti - August07 2025 - IMG Factory 1.5 - Clean GUI Backend - No Fallbacks
 
 """
@@ -73,15 +73,15 @@ class GUIBackend:
                 btn.setIcon(QIcon.fromTheme(btn.icon_name))
 
 
-    def _open_col_editor(self): #vers 1
+    def _open_col_editor(self): #vers 2
         """Open COL editor using working implementation"""
         try:
             from apps.gui.gui_context import open_col_editor_dialog
             return open_col_editor_dialog(self.main_window)
         except Exception as e:
-            self.main_window.log_message(f"❌ COL editor error: {str(e)}")
+            self.main_window.log_message(f"COL editor error: {str(e)}")
 
-    def _show_table_context_menu(self, position): #vers 1
+    def _show_table_context_menu(self, position): #vers 2
         """Show context menu for table"""
         try:
             if hasattr(self.main_window, 'table'):
@@ -93,7 +93,7 @@ class GUIBackend:
                     menu = self.main_window.create_file_info_popup(current_type, current_file.get('path', ''), current_file.get('object'))
                     menu.exec(self.main_window.table.mapToGlobal(position))
         except Exception as e:
-            self.log_message(f"❌ Error showing context menu: {str(e)}")
+            self.log_message(f"Error showing context menu: {str(e)}")
 
     def _get_current_file_type(self): #vers 1
         """Get currently selected file type"""

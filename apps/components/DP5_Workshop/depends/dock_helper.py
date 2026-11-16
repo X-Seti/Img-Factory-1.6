@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/dock_helper.py - Version: 1
+#this belongs in apps/components/DP5_Workshop/depends/dock_helper.py - Version: 2
 # X-Seti - October 27 2026 - IMG Factory 1.6 - DP5 shared dock builder.
 
 """
@@ -9,10 +9,20 @@ Used by the History, Layers and Palette Editor docks.
 """
 
 ##Methods list -
+# ShrinkFrame
 # make_dock
 # refresh_dock_theme
 
-from PyQt6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QToolButton, QWidget
+from PyQt6.QtCore import QSize
+from PyQt6.QtWidgets import QDockWidget, QFrame, QHBoxLayout, QLabel, QToolButton, QWidget
+
+
+class ShrinkFrame(QFrame): #vers 1
+    """Dock panel that can be narrowed below its content width."""
+
+    def minimumSizeHint(self): #vers 1
+        """Small width floor; content clips instead of locking the dock."""
+        return QSize(100, super().minimumSizeHint().height())
 
 
 def refresh_dock_theme(owner, dock): #vers 1

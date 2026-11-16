@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_model_func.py - Version: 6
+#this belongs in apps/components/Map_Editor/depends/map_model_func.py - Version: 7
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop models
 
 """
@@ -5041,7 +5041,7 @@ class MapModelMixin: #vers 1
             print(f"Failed to save settings: {e}")
 
 
-    def open_col_file(self, file_path): #vers 3
+    def open_col_file(self, file_path): #vers 4
         """Open standalone COL file - supports COL1, COL2, COL3"""
         self._dff_adapters = []   # clear DFF mode
         try:
@@ -5128,7 +5128,7 @@ class MapModelMixin: #vers 1
 
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"✅ Loaded COL: {os.path.basename(file_path)} ({model_count} models)")
+                self.main_window.log_message(f"Loaded COL: {os.path.basename(file_path)} ({model_count} models)")
 
             print(f"Opened COL file: {file_path} with {model_count} models")
             return True
@@ -5328,7 +5328,7 @@ class MapModelMixin: #vers 1
             return False
 
 
-    def _analyze_collision(self): #vers 1
+    def _analyze_collision(self): #vers 2
         """Analyze current COL file"""
         try:
             if not self.current_col_file or not self.current_file_path:
@@ -5350,7 +5350,7 @@ class MapModelMixin: #vers 1
             show_col_analysis_dialog(self, analysis_data, os.path.basename(self.current_file_path))
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"✅ Analyzed COL: {os.path.basename(self.current_file_path)}")
+                self.main_window.log_message(f"Analyzed COL: {os.path.basename(self.current_file_path)}")
 
         except Exception as e:
             print(f"Error analyzing file: {str(e)}")
@@ -5699,7 +5699,7 @@ class MapModelMixin: #vers 1
             print(f"_select_model_by_row error: {e}")
 
 
-    def _show_collision_context_menu(self, position): #vers 5
+    def _show_collision_context_menu(self, position): #vers 6
         """Right-click on mod_compact_list — DFF material/texture mode or COL mode."""
         sender = self.sender()
         source_list = self.mod_compact_list if sender is self.mod_compact_list else self.collision_list
@@ -5746,7 +5746,7 @@ class MapModelMixin: #vers 1
             menu.addSeparator()
             is_pinned = self._is_model_pinned(row)
             menu.addAction(
-                "📌 Unpin" if is_pinned else "📌 Pin").triggered.connect(
+                "Unpin" if is_pinned else "Pin").triggered.connect(
                     self._toggle_pin_selected)
 
         menu.addSeparator()

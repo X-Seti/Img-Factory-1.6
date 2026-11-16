@@ -1,4 +1,4 @@
-#this belongs in gui/ log_panel.py - Version: 3
+#this belongs in gui/ log_panel.py - Version: 4
 from apps.app_info import App_name, App_build
 # X-Seti - JULY04 2025 - IMG Factory 1.5 - Enhanced Log Panel with Copy Button
 
@@ -211,20 +211,20 @@ class LogControlPanel(QWidget):
         layout.addStretch()
         
         # Control buttons
-        clear_btn = QPushButton("🗑️ Clear")
+        clear_btn = QPushButton("Clear")
         clear_btn.setToolTip("Clear all log messages")
         clear_btn.setMaximumWidth(80)
         clear_btn.clicked.connect(self.clear_requested.emit)
         layout.addWidget(clear_btn)
         
         # Copy Last 2 Lines button
-        copy_btn = QPushButton("📋 Copy")
+        copy_btn = QPushButton("Copy")
         copy_btn.setToolTip("Copy last 2 lines to clipboard")
         copy_btn.setMaximumWidth(80)
         copy_btn.clicked.connect(self.copy_last_lines_requested.emit)
         layout.addWidget(copy_btn)
         
-        save_btn = QPushButton("💾 Save")
+        save_btn = QPushButton("Save")
         save_btn.setToolTip("Save log to file")
         save_btn.setMaximumWidth(80)
         save_btn.clicked.connect(self.save_requested.emit)
@@ -306,7 +306,7 @@ class ProgressLogger:
 
 def create_log_panel(main_window):
     """Create the complete log panel"""
-    group = QGroupBox("📜 Activity Log")
+    group = QGroupBox("Activity Log")
     layout = QVBoxLayout(group)
     layout.setSpacing(5)
     
@@ -326,9 +326,9 @@ def create_log_panel(main_window):
     # Connect copy signal
     def copy_last_lines():
         if main_window.log_widget.copy_last_lines_to_clipboard(2):
-            main_window.log_widget.add_message("📋 Last 2 lines copied to clipboard", LogLevel.INFO)
+            main_window.log_widget.add_message("Last 2 lines copied to clipboard", LogLevel.INFO)
         else:
-            main_window.log_widget.add_message("❌ No lines to copy", LogLevel.WARNING)
+            main_window.log_widget.add_message("No lines to copy", LogLevel.WARNING)
     
     control_panel.copy_last_lines_requested.connect(copy_last_lines)
     

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 11
+#this belongs in apps/components/Model_Viewer/model_viewer.py - Version: 12
 # X-Seti - May10 2026 - IMG Factory 1.6 - DFF Model Viewer
 """
 DFF Model Viewer - OpenGL hardware 3D viewer for GTA RenderWare DFF files.
@@ -739,7 +739,7 @@ class ModelViewer(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 2
             if self.app_settings:
                 _colors = self.app_settings.get_theme_colors()
                 _ic = _colors.get('bg_panel', _colors.get('accent_primary', '#4a9fd4'))
-            self.setWindowIcon(SVGIconFactory.mesh_icon(32, _ic))
+            self.setWindowIcon(SVGIconFactory.viewer_app_icon(32))
         except Exception:
             pass
 

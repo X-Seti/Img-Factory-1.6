@@ -1,4 +1,4 @@
-#this belongs in apps/components/Map_Editor/depends/map_edit_func.py - Version: 1
+#this belongs in apps/components/Map_Editor/depends/map_edit_func.py - Version: 2
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Map Workshop instance editing
 
 """
@@ -137,7 +137,7 @@ class MapEditMixin: #vers 1
         model_width = max(80, available - other_width)
         view.setColumnWidth(2, model_width)
 
-    def _create_object_browser_dock(self): #vers 2
+    def _create_object_browser_dock(self): #vers 3
         """Object Browser dock - Add/Delete/Rename icon row, search +
         filter (All/Most Used/Favourites/Generic) over the loaded
         object catalog. Double-click a row to toggle its favourite
@@ -270,7 +270,7 @@ class MapEditMixin: #vers 1
         )
         header = view.horizontalHeader()
         header.setFixedHeight(QFontMetrics(header.font()).height() + 2)
-        header.setMinimumSectionSize(16)   # Qt's own default was silently clamping the narrow ★/ID widths upward
+        header.setMinimumSectionSize(16)   # Qt's own default was silently clamping the narrow /ID widths upward
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         # Model (col 2) used to be QHeaderView.ResizeMode.Stretch, but
@@ -294,7 +294,7 @@ class MapEditMixin: #vers 1
         view.installEventFilter(self)
         model = _ObjectBrowserModel()
         view.setModel(model)
-        # Narrow defaults for ★/ID
+        # Narrow defaults for /ID
         view.setColumnWidth(0, 20)
         view.setColumnWidth(1, 45)
         saved_widths = self.map_settings.get('object_browser_column_widths') or []

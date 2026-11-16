@@ -1,4 +1,4 @@
-#this belongs in core/notepad.py - Version: 1
+#this belongs in core/notepad.py - Version: 2
 # X-Seti - August10 2025 - IMG Factory 1.5 - Integrated Text Editor
 
 """
@@ -318,12 +318,12 @@ class IMGFactoryTextEditor(QMainWindow):
         # If no tabs, show welcome message
         self.show_welcome_tab()
         
-    def setup_menus(self): #vers 1
+    def setup_menus(self): #vers 2
         """Setup menu bar"""
         menubar = self.menuBar()
         
         # File menu
-        file_menu = menubar.addMenu("📁 &File")
+        file_menu = menubar.addMenu("&File")
         
         new_action = QAction("&New", self)
         new_action.setShortcut("Ctrl+N")
@@ -337,25 +337,25 @@ class IMGFactoryTextEditor(QMainWindow):
         
         file_menu.addSeparator()
         
-        save_action = QAction("💾 &Save", self)
+        save_action = QAction("&Save", self)
         save_action.setShortcut("Ctrl+S")
         save_action.triggered.connect(self.save_current_file)
         file_menu.addAction(save_action)
         
-        save_as_action = QAction("💾 Save &As...", self)
+        save_as_action = QAction("Save &As...", self)
         save_as_action.setShortcut("Ctrl+Shift+S")
         save_as_action.triggered.connect(self.save_as)
         file_menu.addAction(save_as_action)
         
         file_menu.addSeparator()
         
-        close_action = QAction("❌ &Close", self)
+        close_action = QAction("&Close", self)
         close_action.setShortcut("Ctrl+W")
         close_action.triggered.connect(self.close_current_tab)
         file_menu.addAction(close_action)
         
         # Edit menu
-        edit_menu = menubar.addMenu("✏️ &Edit")
+        edit_menu = menubar.addMenu("&Edit")
         
         undo_action = QAction("⤴️ &Undo", self)
         undo_action.setShortcut("Ctrl+Z")
@@ -369,41 +369,41 @@ class IMGFactoryTextEditor(QMainWindow):
         
         edit_menu.addSeparator()
         
-        find_action = QAction("🔍 &Find...", self)
+        find_action = QAction("&Find...", self)
         find_action.setShortcut("Ctrl+F")
         find_action.triggered.connect(self.show_find_dialog)
         edit_menu.addAction(find_action)
         
-        goto_action = QAction("🎯 &Go to Line...", self)
+        goto_action = QAction("&Go to Line...", self)
         goto_action.setShortcut("Ctrl+G")
         goto_action.triggered.connect(self.show_goto_dialog)
         edit_menu.addAction(goto_action)
         
         # View menu
-        view_menu = menubar.addMenu("👁️ &View")
+        view_menu = menubar.addMenu("&View")
         
-        zoom_in_action = QAction("🔍+ Zoom &In", self)
+        zoom_in_action = QAction("+ Zoom &In", self)
         zoom_in_action.setShortcut("Ctrl++")
         zoom_in_action.triggered.connect(self.zoom_in)
         view_menu.addAction(zoom_in_action)
         
-        zoom_out_action = QAction("🔍- Zoom &Out", self)
+        zoom_out_action = QAction("- Zoom &Out", self)
         zoom_out_action.setShortcut("Ctrl+-")
         zoom_out_action.triggered.connect(self.zoom_out)
         view_menu.addAction(zoom_out_action)
         
         # Tools menu
-        tools_menu = menubar.addMenu("🔧 &Tools")
+        tools_menu = menubar.addMenu("&Tools")
         
-        validate_action = QAction("✅ &Validate GTA Syntax", self)
+        validate_action = QAction("&Validate GTA Syntax", self)
         validate_action.triggered.connect(self.validate_syntax)
         tools_menu.addAction(validate_action)
         
-        format_action = QAction("📐 &Format Document", self)
+        format_action = QAction("&Format Document", self)
         format_action.triggered.connect(self.format_document)
         tools_menu.addAction(format_action)
         
-    def setup_toolbar(self): #vers 1
+    def setup_toolbar(self): #vers 2
         """Setup toolbar"""
         toolbar = self.addToolBar("Main")
         toolbar.setMovable(False)
@@ -417,21 +417,21 @@ class IMGFactoryTextEditor(QMainWindow):
         open_btn.clicked.connect(self.open_file)
         toolbar.addWidget(open_btn)
         
-        save_btn = QPushButton("💾 Save")
+        save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save_current_file)
         toolbar.addWidget(save_btn)
         
         toolbar.addSeparator()
         
         # Text operations
-        find_btn = QPushButton("🔍 Find")
+        find_btn = QPushButton("Find")
         find_btn.clicked.connect(self.show_find_dialog)
         toolbar.addWidget(find_btn)
         
         toolbar.addSeparator()
         
         # GTA tools
-        validate_btn = QPushButton("✅ Validate")
+        validate_btn = QPushButton("Validate")
         validate_btn.clicked.connect(self.validate_syntax)
         toolbar.addWidget(validate_btn)
         
@@ -447,25 +447,25 @@ class IMGFactoryTextEditor(QMainWindow):
         self.file_type_label = QLabel("Plain Text")
         self.status_bar.addPermanentWidget(self.file_type_label)
         
-    def show_welcome_tab(self): #vers 1
+    def show_welcome_tab(self): #vers 2
         """Show welcome tab when no files are open"""
         if self.tab_widget.count() == 0:
             welcome_widget = QTextBrowser()
             welcome_widget.setHtml("""
-                <h2>🎮 IMG Factory Text Editor</h2>
+                <h2>IMG Factory Text Editor</h2>
                 <p>Specialized text editor for GTA modding files</p>
                 <ul>
-                    <li><b>📝 IDE Files:</b> Item definitions with syntax highlighting</li>
-                    <li><b>📍 IPL Files:</b> Item placement files</li>
+                    <li><b>IDE Files:</b> Item definitions with syntax highlighting</li>
+                    <li><b>IPL Files:</b> Item placement files</li>
                     <li><b>DAT Files:</b> Data files and configurations</li>
-                    <li><b>⚙️ CFG Files:</b> Configuration files</li>
+                    <li><b>CFG Files:</b> Configuration files</li>
                 </ul>
                 <p><b>Quick Start:</b></p>
                 <ul>
                     <li>Open a file (Ctrl+O)</li>
                     <li>Create new file (Ctrl+N)</li>
-                    <li>🔍 Find text (Ctrl+F)</li>
-                    <li>✅ Validate syntax (F7)</li>
+                    <li>Find text (Ctrl+F)</li>
+                    <li>Validate syntax (F7)</li>
                 </ul>
             """)
             
@@ -745,7 +745,7 @@ class IMGFactoryTextEditor(QMainWindow):
                 editor.setTextCursor(cursor)
                 editor.ensureCursorVisible()
                 
-    def validate_syntax(self): #vers 1
+    def validate_syntax(self): #vers 2
         """Validate GTA file syntax"""
         current_index = self.tab_widget.currentIndex()
         if current_index not in self.current_files:
@@ -770,7 +770,7 @@ class IMGFactoryTextEditor(QMainWindow):
                     
                 QMessageBox.warning(self, "Syntax Errors", f"Found {len(errors)} syntax errors:\n\n{error_text}")
             else:
-                QMessageBox.information(self, "Validation", "✅ No syntax errors found!")
+                QMessageBox.information(self, "Validation", "No syntax errors found!")
                 
     def validate_gta_syntax(self, content: str, file_type: str) -> List[Tuple[int, str]]: #vers 1
         """Validate GTA file syntax and return list of errors"""
@@ -965,7 +965,7 @@ def create_gta_text_editor(parent_window=None): #vers 1
     return editor
 
 
-def open_text_file_in_editor(file_path: str, parent_window=None): #vers 1
+def open_text_file_in_editor(file_path: str, parent_window=None): #vers 2
     """Open text file in IMG Factory text editor"""
     try:
         # Check if editor window already exists
@@ -989,13 +989,13 @@ def open_text_file_in_editor(file_path: str, parent_window=None): #vers 1
         
     except Exception as e:
         if parent_window and hasattr(parent_window, 'log_message'):
-            parent_window.log_message(f"❌ Error opening text editor: {str(e)}")
+            parent_window.log_message(f"Error opening text editor: {str(e)}")
         else:
             print(f"Error opening text editor: {str(e)}")
         return None
 
 
-def integrate_text_editor_with_browser(browser_widget): #vers 1
+def integrate_text_editor_with_browser(browser_widget): #vers 2
     """Integrate text editor with file browser"""
     try:
         # Replace the edit_file method in browser
@@ -1024,7 +1024,7 @@ def integrate_text_editor_with_browser(browser_widget): #vers 1
         
     except Exception as e:
         if hasattr(browser_widget, 'log_message'):
-            browser_widget.log_message(f"❌ Error integrating text editor: {str(e)}")
+            browser_widget.log_message(f"Error integrating text editor: {str(e)}")
         return False
 
 

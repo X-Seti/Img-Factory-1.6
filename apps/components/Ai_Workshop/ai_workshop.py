@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 10
+#this belongs in apps/components/Ai_Workshop/ai_workshop.py - Version: 13
 # X-Seti - March 2026 - AI Workshop: Ollama chat interface
 # Based on COL Workshop template (col_workshop.py)
 
@@ -44,6 +44,7 @@ from PyQt6.QtGui import QFont, QIcon, QColor, QPainter, QPen, QBrush, QPainterPa
 from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.titlebar_func import TitlebarMixin
 from apps.methods.dock_panels import DockPanelsMixin
+from apps.methods.imgfactory_svg_icons import get_file_icon, get_link_icon
 
 App_name = "AI Workshop"
 DEBUG_STANDALONE = False
@@ -278,7 +279,7 @@ class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
 
         self.setWindowTitle(App_name)
         if ICONS_AVAILABLE:
-            self.setWindowIcon(SVGIconFactory.ai_app_icon())
+            self.setWindowIcon(SVGIconFactory.ai_app_icon(64))
         self.resize(1400, 800)
         self.setMinimumSize(800, 500)
 
@@ -497,7 +498,8 @@ class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
         btn_col.addWidget(self.stop_btn)
 
         # Attach local file
-        attach_btn = QPushButton("📎")
+        attach_btn = QPushButton()
+        attach_btn.setIcon(get_file_icon(16))
         attach_btn.setFixedWidth(70)
         attach_btn.setFont(self.button_font)
         attach_btn.setToolTip("Attach local file")
@@ -505,7 +507,8 @@ class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
         btn_col.addWidget(attach_btn)
 
         # Attach via SSH
-        ssh_btn = QPushButton("🔗")
+        ssh_btn = QPushButton()
+        ssh_btn.setIcon(get_link_icon(16))
         ssh_btn.setFixedWidth(70)
         ssh_btn.setFont(self.button_font)
         ssh_btn.setToolTip("Attach file via SSH")
@@ -706,7 +709,7 @@ class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
         self.session_list.blockSignals(True)
         self.session_list.clear()
         for s in visible:
-            pin  = "⭐ " if s.get("pinned") else ""
+            pin  = "[pinned] " if s.get("pinned") else ""
             name = s.get("name", "Unnamed")
             msgs = len(s.get("messages", []))
             item = QListWidgetItem(f"{pin}{name}  ({msgs})")
@@ -758,7 +761,7 @@ class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
 
         menu = QMenu(self)
         rename_a  = menu.addAction("Rename")
-        pin_a     = menu.addAction("Unpin ⭐" if self.sessions[row].get("pinned") else "Pin ⭐")
+        pin_a     = menu.addAction("Unpin" if self.sessions[row].get("pinned") else "Pin")
         menu.addSeparator()
         export_txt_a = menu.addAction("Export as .txt")
         export_md_a  = menu.addAction("Export as .md")
@@ -931,11 +934,11 @@ class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
                 return
             # Add parent dir entry
             if path != "/":
-                up = QListWidgetItem("📁 ..")
+                up = QListWidgetItem("..")
                 up.setData(Qt.ItemDataRole.UserRole, {"path": str(Path(path).parent), "is_dir": True})
                 file_list.addItem(up)
             for e in entries:
-                icon = "📁 " if e["is_dir"] else "📄 "
+                icon = "[dir] " if e["is_dir"] else ""
                 size = f"  ({e['size'] // 1024} KB)" if not e["is_dir"] and e["size"] > 0 else ""
                 item = QListWidgetItem(f"{icon}{e['name']}{size}")
                 item.setData(Qt.ItemDataRole.UserRole, e)
@@ -1162,7 +1165,7 @@ class AIWorkshop(TitlebarMixin, DockPanelsMixin, QWidget): #vers 3
         display_text = text
         if attachments:
             names = ", ".join(a["name"] for a in attachments)
-            display_text = f"[📎 {names}]\n{text}".strip()
+            display_text = f"[{names}]\n{text}".strip()
 
         # Build API content (text + file contents injected)
         try:

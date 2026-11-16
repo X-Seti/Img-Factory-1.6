@@ -310,7 +310,7 @@ class DockPanelsMixin: #vers 3
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2))
 
-    def _restore_outer_layout(self): #vers 5
+    def _restore_outer_layout(self): #vers 6
         """Restore saved dock layout; docks forced visible; width clamped to screen."""
         mw = getattr(self, '_outer_mw', None)
         if mw is None:
@@ -322,6 +322,8 @@ class DockPanelsMixin: #vers 3
             if state_hex and data.get('outer_layout_version') == self._OUTER_LAYOUT_VERSION:
                 mw.restoreState(QByteArray.fromHex(state_hex.encode()), self._OUTER_LAYOUT_VERSION)
         for dock in getattr(self, '_outer_docks', []):
+            if getattr(dock, '_start_hidden', False):
+                continue
             dock.setVisible(True)
             dock.toggleViewAction().setChecked(True)
         if self._panel_flag('panels_locked'):

@@ -1,4 +1,4 @@
-#this belongs in gui/ide_dialog.py - Version: 2
+#this belongs in gui/ide_dialog.py - Version: 3
 # X-Seti - September09 2025 - IMG Factory 1.5 - Universal IDE Selection Dialog
 
 """
@@ -100,7 +100,7 @@ class IDEDialog(QDialog):
         # Set splitter proportions
         splitter.setSizes([150, 200, 150])
         
-    def setup_ide_selection(self, parent): #vers 1
+    def setup_ide_selection(self, parent): #vers 2
         """Setup IDE file selection section"""
         ide_group = QGroupBox("IDE File Selection")
         ide_layout = QVBoxLayout(ide_group)
@@ -121,7 +121,7 @@ class IDEDialog(QDialog):
         # Parse button
         button_layout = QHBoxLayout()
         
-        self.parse_btn = QPushButton("📋 Parse IDE File")
+        self.parse_btn = QPushButton("Parse IDE File")
         self.parse_btn.clicked.connect(self.parse_ide_file)
         self.parse_btn.setEnabled(False)
         button_layout.addWidget(self.parse_btn)
@@ -185,7 +185,7 @@ class IDEDialog(QDialog):
         
         parent.addWidget(relationships_group)
         
-    def setup_buttons(self, layout): #vers 2
+    def setup_buttons(self, layout): #vers 3
         """Setup dialog buttons - FIXED: Properly connect Choose Export Folder button"""
         button_layout = QHBoxLayout()
         
@@ -204,14 +204,14 @@ class IDEDialog(QDialog):
             'export': 'Export with IDE',
             'remove': 'Remove with IDE',
             'split': 'Split with IDE'
-        }.get(self.operation, f'✅ Continue with IDE')
+        }.get(self.operation, f'Continue with IDE')
         
         self.continue_btn = QPushButton(operation_text)
         self.continue_btn.clicked.connect(self.accept)
         self.continue_btn.setEnabled(False)
         self.continue_btn.setDefault(True)
         
-        self.cancel_btn = QPushButton("❌ Cancel")
+        self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.clicked.connect(self.reject)
 
         button_layout.addStretch()
@@ -300,7 +300,7 @@ class IDEDialog(QDialog):
         self.progress_bar.setValue(progress)
         self.status_label.setText(message)
         
-    def parsing_finished(self, success: bool, message: str): #vers 1
+    def parsing_finished(self, success: bool, message: str): #vers 2
         """Handle parsing completion"""
         self.progress_bar.setVisible(False)
         self.parse_btn.setEnabled(True)
@@ -322,11 +322,11 @@ class IDEDialog(QDialog):
             
         else:
             # Show error
-            self.status_label.setText("❌ IDE parsing failed")
+            self.status_label.setText("IDE parsing failed")
             self.status_label.setStyleSheet("color: palette(windowText); font-weight: bold;")
             QMessageBox.critical(self, "Parsing Error", message)
             
-    def update_relationships_view(self): #vers 1
+    def update_relationships_view(self): #vers 2
         """Update the relationships list view"""
         if not self.ide_parser:
             return
@@ -340,7 +340,7 @@ class IDEDialog(QDialog):
             # Show model → texture relationships
             relationships = self.ide_parser.get_model_relationships()
             for model, textures in relationships.items():
-                item_text = f"🎮 {model} → {', '.join(textures)}"
+                item_text = f"{model} → {', '.join(textures)}"
                 item = QListWidgetItem(item_text)
                 item.setData(Qt.ItemDataRole.UserRole, {'type': 'model', 'name': model})
                 self.relationships_list.addItem(item)
@@ -454,7 +454,7 @@ def show_ide_dialog(parent=None, operation: str = "process") -> Optional[IDEPars
     
     return None
 
-def integrate_ide_dialog(main_window): #vers 1
+def integrate_ide_dialog(main_window): #vers 2
     """Integrate IDE dialog functions into main window
     
     Args:
@@ -469,12 +469,12 @@ def integrate_ide_dialog(main_window): #vers 1
         main_window.show_ide_dialog = lambda op="process": show_ide_dialog(main_window, op)
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ IDE dialog functions integrated")
+            main_window.log_message("IDE dialog functions integrated")
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error integrating IDE dialog: {str(e)}")
+            main_window.log_message(f"Error integrating IDE dialog: {str(e)}")
         return False
 
 __all__ = [

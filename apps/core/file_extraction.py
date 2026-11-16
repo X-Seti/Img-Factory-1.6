@@ -23,7 +23,7 @@ from typing import List, Dict
 # setup_extraction_methods
 
 
-def add_extraction_to_menu(main_window): #vers 3
+def add_extraction_to_menu(main_window): #vers 4
     """Add extraction options to main menu"""
     try:
         if not hasattr(main_window, 'menuBar') or not main_window.menuBar():
@@ -42,7 +42,7 @@ def add_extraction_to_menu(main_window): #vers 3
             tools_menu = menubar.addMenu("Tools")
 
         # Add extraction submenu
-        extract_submenu = tools_menu.addMenu("🚀 File Extraction")
+        extract_submenu = tools_menu.addMenu("File Extraction")
 
         # Extract selected
         extract_selected_action = QAction("Extract Selected Files", main_window)
@@ -59,7 +59,7 @@ def add_extraction_to_menu(main_window): #vers 3
         extract_submenu.addSeparator()
 
         # Quick extract by type
-        quick_extract_submenu = extract_submenu.addMenu("📁 Quick Extract by Type")
+        quick_extract_submenu = extract_submenu.addMenu("Quick Extract by Type")
 
         type_actions = [
             ("Models (DFF)", main_window.quick_extract_dff_files),
@@ -76,13 +76,13 @@ def add_extraction_to_menu(main_window): #vers 3
         return True
 
     except Exception as e:
-        main_window.log_message(f"❌ Error adding extraction to menu: {str(e)}")
+        main_window.log_message(f"Error adding extraction to menu: {str(e)}")
         return False
 
 
 
 
-def get_selected_entries_for_extraction(main_window) -> List: #vers 2
+def get_selected_entries_for_extraction(main_window) -> List: #vers 3
     """Get currently selected entries for extraction"""
     try:
         selected_entries = []
@@ -106,11 +106,11 @@ def get_selected_entries_for_extraction(main_window) -> List: #vers 2
         return selected_entries
         
     except Exception as e:
-        main_window.log_message(f"⚠️ Error getting selected entries: {str(e)}")
+        main_window.log_message(f"Error getting selected entries: {str(e)}")
         return []
 
 
-def integrate_extraction_system(main_window): #vers 4
+def integrate_extraction_system(main_window): #vers 5
     """Integrate file extraction system into main window"""
     try:
         from apps.core.file_type_filter import (
@@ -120,7 +120,7 @@ def integrate_extraction_system(main_window): #vers 4
 
         # Setup file filtering
         if integrate_file_filtering(main_window):
-            main_window.log_message("✅ File filtering integrated")
+            main_window.log_message("File filtering integrated")
 
             # Add extraction methods to main window
             setup_extraction_methods(main_window)
@@ -137,11 +137,11 @@ def integrate_extraction_system(main_window): #vers 4
         return False
 
     except Exception as e:
-        main_window.log_message(f"❌ Failed to integrate extraction system: {str(e)}")
+        main_window.log_message(f"Failed to integrate extraction system: {str(e)}")
         return False
 
 
-def open_ide_in_text_editor(main_window, entry): #vers 3
+def open_ide_in_text_editor(main_window, entry): #vers 4
     """Fallback to open IDE in system text editor"""
     import tempfile
     import subprocess
@@ -170,12 +170,12 @@ def open_ide_in_text_editor(main_window, entry): #vers 3
                 QMessageBox.information(main_window, "Editor Not Found", 
                                       f"File extracted to: {temp_file.name}\nPlease open with your preferred text editor.")
         
-        main_window.log_message(f"📝 Opened IDE file for editing: {entry.name}")
+        main_window.log_message(f"Opened IDE file for editing: {entry.name}")
         
     except Exception as e:
         QMessageBox.warning(main_window, "Editor Error", 
                           f"Could not open text editor.\nFile extracted to: {temp_file.name}")
-        main_window.log_message(f"⚠️ Editor error for {entry.name}: {str(e)}")
+        main_window.log_message(f"Editor error for {entry.name}: {str(e)}")
 
 
 def patch_img_loading_for_extraction(main_window): #vers 15
@@ -205,7 +205,7 @@ def patch_img_loading_for_extraction(main_window): #vers 15
 
 
 # Main integration function
-def setup_complete_extraction_integration(main_window): #vers 26
+def setup_complete_extraction_integration(main_window): #vers 27
     """Complete integration of extraction system"""
     try:
         # Integrate extraction system
@@ -213,16 +213,16 @@ def setup_complete_extraction_integration(main_window): #vers 26
             # Patch IMG loading to update filter stats
             patch_img_loading_for_extraction(main_window)
             
-            main_window.log_message("✅ Complete extraction system integration finished")
+            main_window.log_message("Complete extraction system integration finished")
             return True
         
         return False
         
     except Exception as e:
-        main_window.log_message(f"❌ Complete extraction integration failed: {str(e)}")
+        main_window.log_message(f"Complete extraction integration failed: {str(e)}")
         return False
 
-def setup_extraction_methods(main_window): #vers 7
+def setup_extraction_methods(main_window): #vers 8
     """Add extraction methods to main window"""
     try:
         from apps.core.file_type_filter import show_extraction_dialog, update_filter_statistics
@@ -294,7 +294,7 @@ def setup_extraction_methods(main_window): #vers 7
         return True
 
     except Exception as e:
-        main_window.log_message(f"❌ Error setting up extraction methods: {str(e)}")
+        main_window.log_message(f"Error setting up extraction methods: {str(e)}")
         return False
 
 

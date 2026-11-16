@@ -779,17 +779,10 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Shift+S"), self, self.main_widget.save_as_current)
         QShortcut(QKeySequence.StandardKey.Undo, self, self.main_widget.undo)
 
-    def create_icon(self): #vers 1
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setPen(QColor(0, 120, 215))
-        painter.setBrush(QColor(0, 120, 215, 100))
-        painter.drawRect(5, 5, 22, 22)
-        painter.setPen(QColor(255, 255, 255))
-        painter.drawText(QRect(0, 0, 32, 32), Qt.AlignmentFlag.AlignCenter, "IMG")
-        painter.end()
-        return QIcon(pixmap)
+    def create_icon(self): #vers 2
+        """Window icon - IMG Browser tile."""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        return SVGIconFactory.browser_app_icon(32)
 
     def update_status_bar(self, version: int, num_files: int): #vers 1
         self.statusBar().showMessage(f"IMG Version: {version} | {num_files} files")

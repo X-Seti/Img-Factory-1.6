@@ -28,7 +28,7 @@ def create_user_palette_dock(owner): #vers 1
     dock = QDockWidget("User Palette", owner)
     dock.setObjectName("User Palette")
     dock.setWidget(panel)
-    dock.setMinimumWidth(180)
+    dock.setMinimumWidth(100)
     dock.setFeatures(
         QDockWidget.DockWidgetFeature.DockWidgetMovable |
         QDockWidget.DockWidgetFeature.DockWidgetFloatable)
@@ -54,7 +54,8 @@ def _create_content_panel(owner): #vers 3
     """Retro presets + palette grid."""
     from apps.components.DP5_Workshop.dp5_workshop import _AutoCellPaletteGrid
 
-    panel = QFrame()
+    from apps.components.DP5_Workshop.depends.dock_helper import ShrinkFrame
+    panel = ShrinkFrame()
     panel.setObjectName("dp5_userpalette_panel")
     panel.setFrameStyle(QFrame.Shape.StyledPanel)
     _apply_panel_stylesheet(owner, panel)
@@ -81,7 +82,7 @@ def _create_content_panel(owner): #vers 3
     user_pal_scroll.setWidgetResizable(True)
     user_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     user_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-    user_pal_scroll.setMinimumHeight(12)
+    user_pal_scroll.setMinimumHeight(56)
     owner._user_pal_scroll = user_pal_scroll
     layout.addWidget(user_pal_scroll, stretch=1)
 

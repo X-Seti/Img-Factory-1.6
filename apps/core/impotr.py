@@ -1,4 +1,4 @@
-#this belongs in core/impotr.py - Version: 19
+#this belongs in core/impotr.py - Version: 20
 # X-Seti - November22 2025 - IMG Factory 1.5 - NEW IMPORT SYSTEM
 """
 NEW IMPORT SYSTEM - Ground Up Rebuild
@@ -287,7 +287,7 @@ def integrate_import_functions(main_window) -> bool:
         main_window.import_folder = main_window.import_folder_contents
 
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ NEW import system integrated")
+            main_window.log_message("NEW import system integrated")
             main_window.log_message("   • No auto-save crashes")
             main_window.log_message("   • Proper metadata detection")
             main_window.log_message("   • Filename sanitization")

@@ -38,7 +38,7 @@ class FileTypeFilter(QWidget):
         
         # Main filter dropdown
         main_filter_layout = QHBoxLayout()
-        main_filter_layout.addWidget(QLabel("📁 Show:"))
+        main_filter_layout.addWidget(QLabel("Show:"))
         
         self.main_filter_combo = QComboBox()
         self.update_filter_options()
@@ -53,7 +53,7 @@ class FileTypeFilter(QWidget):
         layout.addLayout(main_filter_layout)
         
         # Advanced options (collapsible)
-        self.advanced_group = QGroupBox("🔧 Advanced Filters")
+        self.advanced_group = QGroupBox("Advanced Filters")
         self.advanced_group.setCheckable(True)
         self.advanced_group.setChecked(False)
         self.setup_advanced_options()
@@ -245,7 +245,7 @@ class FileExtractionManager(QThread):
                         self.file_extracted.emit(entry.name, file_type)
                     
                 except Exception as e:
-                    self.main_window.log_message(f"⚠️ Failed to extract {entry.name}: {str(e)}")
+                    self.main_window.log_message(f"Failed to extract {entry.name}: {str(e)}")
             
             self.progress_update.emit(100, "Extraction complete")
             self.extraction_complete.emit(extracted_count, self.output_dir)
@@ -372,7 +372,7 @@ class ExtractionDialog(QWidget):
         # Buttons
         button_layout = QHBoxLayout()
         
-        extract_btn = QPushButton("🚀 Start Extraction")
+        extract_btn = QPushButton("Start Extraction")
         extract_btn.clicked.connect(self.start_extraction)
         button_layout.addWidget(extract_btn)
         
@@ -460,7 +460,7 @@ class ExtractionDialog(QWidget):
     
     def file_extracted(self, filename: str, file_type: str):
         """Handle file extracted signal"""
-        self.main_window.log_message(f"✅ Extracted: {filename} ({file_type})")
+        self.main_window.log_message(f"Extracted: {filename} ({file_type})")
     
     def extraction_finished(self, count: int, output_dir: str):
         """Handle extraction completion"""
@@ -472,7 +472,7 @@ class ExtractionDialog(QWidget):
             f"Successfully extracted {count} files to:\n{output_dir}"
         )
         
-        self.main_window.log_message(f"🎉 Extraction complete: {count} files → {output_dir}")
+        self.main_window.log_message(f"Extraction complete: {count} files → {output_dir}")
         self.close()
     
     def extraction_failed(self, error_msg: str):
@@ -481,7 +481,7 @@ class ExtractionDialog(QWidget):
             self.progress_dialog.close()
         
         QMessageBox.critical(self, "Extraction Failed", error_msg)
-        self.main_window.log_message(f"❌ Extraction failed: {error_msg}")
+        self.main_window.log_message(f"Extraction failed: {error_msg}")
 
 # Integration functions
 def integrate_file_filtering(main_window):
@@ -513,13 +513,13 @@ def integrate_file_filtering(main_window):
                             lambda criteria: apply_file_filter(main_window, criteria)
                         )
                     
-                    main_window.log_message("✅ File filtering enabled")
+                    main_window.log_message("File filtering enabled")
                     return True
         
         return False
         
     except Exception as e:
-        main_window.log_message(f"❌ Failed to integrate file filtering: {str(e)}")
+        main_window.log_message(f"Failed to integrate file filtering: {str(e)}")
         return False
 
 def apply_file_filter(main_window, criteria: Dict[str, Any]):
@@ -541,10 +541,10 @@ def apply_file_filter(main_window, criteria: Dict[str, Any]):
         
         # Update status
         if visible_count != total_rows:
-            main_window.log_message(f"🔍 Filter applied: {visible_count}/{total_rows} files visible")
+            main_window.log_message(f"Filter applied: {visible_count}/{total_rows} files visible")
         
     except Exception as e:
-        main_window.log_message(f"⚠️ Filter error: {str(e)}")
+        main_window.log_message(f"Filter error: {str(e)}")
 
 def check_entry_matches_criteria(table: QTableWidget, row: int, criteria: Dict[str, Any]) -> bool:
     """Check if table entry matches filter criteria"""
@@ -661,7 +661,7 @@ def update_filter_statistics(main_window):
             main_window.file_filter.update_filter_options(type_counts)
         
     except Exception as e:
-        main_window.log_message(f"⚠️ Error updating filter statistics: {str(e)}")
+        main_window.log_message(f"Error updating filter statistics: {str(e)}")
 
 # Export functions
 __all__ = [

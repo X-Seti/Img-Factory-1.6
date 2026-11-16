@@ -1552,7 +1552,9 @@ class DP5Settings:
         'img_pal_rows':      16,       # image palette max visible rows
         'user_pal_cols':     0,        # user palette columns, 0 = preset
         'img_pal_cell':      0,        # image palette cell px, 0 = auto
-        'user_pal_cell':     0,        # user palette cell px, 0 = fit width
+        'user_pal_cell':     8,        # user palette cell px
+        'user_pal_wrap':     True,     # True = fixed cell, wrap; False = size to area
+        'img_pal_wrap':      True,     # image palette: wrap vs size to area
         'snap_size':         8,        # snap to grid step px
         'user_pal_rows':     0,        # user palette visible rows, 0 = all
         'default_zoom':      4,        # startup zoom level
@@ -1578,6 +1580,8 @@ class DP5Settings:
         'menu_bar_font_size':  9,         # topbar menubar font size (pt)
         'menu_bar_height':     22,        # topbar menubar height (px)
         'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
+        'outer_ribbons':        [],            # ribbons moved to the window edge (rest sit round the canvas)
+        'inner_layout_state':   '',            # canvas-side ribbon layout hex
         'outer_layout_state':   '',            # QMainWindow.saveState() hex - dock/ribbon layout
         'outer_layout_version': 0,             # must match _OUTER_LAYOUT_VERSION to restore
         # Icon editor
@@ -1729,10 +1733,18 @@ class DP5SettingsDialog(QDialog):
         self._user_pal_rows_spin.setValue(self.s.get('user_pal_rows'))
         cl.addRow("User palette height (rows):", self._user_pal_rows_spin)
 
-        self._user_pal_cell_spin = QSpinBox(); self._user_pal_cell_spin.setRange(0, 48)
-        self._user_pal_cell_spin.setSuffix(" px"); self._user_pal_cell_spin.setSpecialValueText("Fit width")
+        self._user_pal_cell_spin = QSpinBox(); self._user_pal_cell_spin.setRange(2, 48)
+        self._user_pal_cell_spin.setSuffix(" px")
         self._user_pal_cell_spin.setValue(self.s.get('user_pal_cell'))
         cl.addRow("User palette cell size:", self._user_pal_cell_spin)
+
+        self._user_pal_wrap_chk = QCheckBox("Wrap cells to area (off = size cells to area)")
+        self._user_pal_wrap_chk.setChecked(self.s.get('user_pal_wrap'))
+        cl.addRow("User palette wrap:", self._user_pal_wrap_chk)
+
+        self._img_pal_wrap_chk = QCheckBox("Wrap cells to area (off = size cells to area)")
+        self._img_pal_wrap_chk.setChecked(self.s.get('img_pal_wrap'))
+        cl.addRow("Image palette wrap:", self._img_pal_wrap_chk)
 
         self._platform_combo = QComboBox()
         self._platform_combo.addItems([
@@ -2051,6 +2063,8 @@ class DP5SettingsDialog(QDialog):
         self.s.set('user_pal_rows',      self._user_pal_rows_spin.value())
         self.s.set('img_pal_cell',       self._img_pal_cell_spin.value())
         self.s.set('user_pal_cell',      self._user_pal_cell_spin.value())
+        self.s.set('user_pal_wrap',      self._user_pal_wrap_chk.isChecked())
+        self.s.set('img_pal_wrap',       self._img_pal_wrap_chk.isChecked())
         self.s.set('platform_mode',      self._platform_combo.currentText())
         self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
         self.s.set('grid_color',         self._grid_color_btn._chosen)
@@ -6534,15 +6548,15 @@ class ColorPalPresetsMixin:
         if hasattr(self, '_pal_dither_btn'):
             self._pal_dither_btn.setVisible(len(colors) < 16)
 
-    def _apply_palette_layout(self): #vers 2
+    def _apply_palette_layout(self): #vers 3
         """Cell size, height and columns from Settings onto both palettes."""
         st = self.dp5_settings
         if getattr(self, 'pal_bar', None) is not None:
-            self.pal_bar.set_layout(st.get('img_pal_cell'), st.get('img_pal_rows'), st.get('img_pal_cols'))
+            self.pal_bar.set_layout(st.get('img_pal_cell') if st.get('img_pal_wrap') else 0, st.get('img_pal_rows'), st.get('img_pal_cols'))
         grid = getattr(self, '_user_pal_grid', None)
         if grid is not None:
             grid._fixed_cols = max(1, st.get('user_pal_cols') or getattr(self, '_preset_pal_cols', 16))
-            grid.set_layout(st.get('user_pal_cell'), st.get('user_pal_rows'))
+            grid.set_layout(st.get('user_pal_cell') if st.get('user_pal_wrap') else 0, st.get('user_pal_rows'))
             QTimer.singleShot(150, self._fit_user_palette_dock)
 
     def _fit_user_palette_dock(self): #vers 1
@@ -6877,7 +6891,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
     # cleanly rejected instead of Qt silently failing to restore it.
     # History: 1 = Tools/Image Ops ribbons + Bitmaps/Brush & Colors/
     # Image Palette/User Palette dock widgets (initial ribbon rebuild).
-    _OUTER_LAYOUT_VERSION = 1
+    _OUTER_LAYOUT_VERSION = 2
 
     # Widget registry - each entry describes one dock widget module under
     # depends/. setup_ui() loops over this instead of hardcoding each
@@ -7071,8 +7085,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
         # Window icon — shows in taskbar, alt-tab, and title bar
         try:
-            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
-            self.setWindowIcon(get_dp5_workshop_icon(64))
+            self.setWindowIcon(SVGIconFactory.dp5_app_icon(64))
         except Exception:
             pass
 
@@ -7166,12 +7179,23 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         outer_mw.setStyleSheet(
             f"QMainWindow {{ background: {hexval}; }} "
             f"QMainWindow::separator {{ {sep_bg_rule}"
-            "width: 1px; height: 1px; } "
+            "width: 8px; height: 8px; } "
             "QMainWindow::separator:hover { background: palette(highlight); }")
         self._outer_mw = outer_mw
+        outer_mw.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        outer_mw.customContextMenuRequested.connect(
+            lambda pos: self._ribbon_context_menu(None, pos, outer_mw))
 
         centre = self._create_centre_panel()
-        outer_mw.setCentralWidget(centre)
+        inner_mw = QMainWindow()                       # ribbons round the canvas, like Model Workshop
+        inner_mw.setWindowFlags(Qt.WindowType.Widget)
+        inner_mw.setStyleSheet(outer_mw.styleSheet())
+        inner_mw.setCentralWidget(centre)
+        inner_mw.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        inner_mw.customContextMenuRequested.connect(
+            lambda pos: self._ribbon_context_menu(None, pos, inner_mw))
+        self._inner_mw = inner_mw
+        outer_mw.setCentralWidget(inner_mw)
         if hasattr(self, '_status_bar'):
             outer_mw.setStatusBar(self._status_bar)
 
@@ -7214,12 +7238,11 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         canvas_tabs_ribbon = self._create_canvas_tabs_ribbon()
         tool_settings_ribbon = self._create_tool_settings_ribbon()
         for tb in dynamic_ribbons.values():
-            outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
-        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, image_ops_ribbon)
-        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, annotate_ribbon)
-        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, drape_ribbon)
-        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, canvas_tabs_ribbon)
-        outer_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tool_settings_ribbon)
+            inner_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
+        for tb in (image_ops_ribbon, annotate_ribbon, drape_ribbon,
+                   canvas_tabs_ribbon, tool_settings_ribbon):
+            inner_mw.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+        self._apply_outer_ribbons()
 
         # (All four docks now build their own collapsible title bars in
         # their respective depends/*_widget.py modules, each with a
@@ -7239,6 +7262,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
         # Restore saved ribbon/dock layout, if any
         QTimer.singleShot(0, self._restore_outer_layout)
+        QTimer.singleShot(50, self._apply_palette_layout)
 
         self._set_status(f"Canvas: {self._canvas_width}×{self._canvas_height}")
 
@@ -7268,6 +7292,10 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             if state_hex and saved_version == self._OUTER_LAYOUT_VERSION:
                 mw.restoreState(QByteArray.fromHex(state_hex.encode()),
                                  self._OUTER_LAYOUT_VERSION)
+            inner_hex = self.dp5_settings.get('inner_layout_state')
+            if inner_hex and saved_version == self._OUTER_LAYOUT_VERSION:
+                self._inner_mw.restoreState(QByteArray.fromHex(inner_hex.encode()),
+                                            self._OUTER_LAYOUT_VERSION)
         except Exception as _e:
             print(f"[DP5Workshop] _restore_outer_layout error: {_e}")
         finally:
@@ -8433,13 +8461,15 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             return
         old_ribbons = getattr(self, '_dynamic_ribbons', {})
         for tb in old_ribbons.values():
-            outer_mw.removeToolBar(tb)
+            host = tb.parentWidget()
+            (host if host in (outer_mw, self._inner_mw) else self._inner_mw).removeToolBar(tb)
             tb.deleteLater()
 
         new_ribbons = self._build_ribbons_from_assignment()
         for tb in new_ribbons.values():
-            outer_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
+            self._inner_mw.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
             tb.show()
+        self._apply_outer_ribbons()
 
         # Re-select the current tool so the new buttons' checked state
         # matches, and refresh the always-visible settings ribbon
@@ -8808,13 +8838,44 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 lambda pos, t=toolbar: self._ribbon_context_menu(t, pos))
             toolbar._ribbon_ctx_menu_wired = True
 
-    def _ribbon_context_menu(self, toolbar, pos): #vers 3
-        """Right-click on any ribbon: shared menu (methods/toolbar_menu.py)."""
+    def _apply_outer_ribbons(self): #vers 1
+        """Put ribbons saved as window-edge ribbons on the outer window."""
+        names = set(self.dp5_settings.get('outer_ribbons') or [])
+        if not names:
+            return
+        from PyQt6.QtWidgets import QToolBar
+        for tb in self._inner_mw.findChildren(QToolBar):
+            if tb.objectName() in names and tb.parentWidget() is self._inner_mw:
+                self._move_ribbon_side(tb, True, save=False)
+
+    def _move_ribbon_side(self, tb, outer, save=True): #vers 1
+        """Move a ribbon between the canvas side and the window edge."""
+        src, dst = (self._inner_mw, self._outer_mw) if outer else (self._outer_mw, self._inner_mw)
+        src.removeToolBar(tb)
+        dst.addToolBar(Qt.ToolBarArea.RightToolBarArea if outer
+                       else Qt.ToolBarArea.LeftToolBarArea, tb)
+        tb.show()
+        if save:
+            names = set(self.dp5_settings.get('outer_ribbons') or [])
+            (names.add if outer else names.discard)(tb.objectName())
+            self.dp5_settings.set('outer_ribbons', sorted(names))
+            self.dp5_settings.save()
+
+    def _ribbon_context_menu(self, toolbar, pos, src=None): #vers 6
+        """Right-click on ribbon or dock area: shared menu (methods/toolbar_menu.py)."""
         from PyQt6.QtWidgets import QToolBar
         from apps.methods.toolbar_menu import standard_toolbar_menu
         outer_mw = getattr(self, '_outer_mw', None)
         toolbars = outer_mw.findChildren(QToolBar) if outer_mw is not None else []
-        standard_toolbar_menu(self, toolbars, tb=toolbar).exec(toolbar.mapToGlobal(pos))
+        menu = standard_toolbar_menu(self, toolbars, tb=toolbar)
+        if toolbar is not None:
+            outer = toolbar.parentWidget() is self._outer_mw
+            first = menu.actions()[0]
+            menu.insertAction(first, menu.addAction(
+                "Move to canvas side" if outer else "Move to window edge",
+                lambda: self._move_ribbon_side(toolbar, not outer)))
+            menu.insertSeparator(first)
+        menu.exec((toolbar or src).mapToGlobal(pos))
 
     def _create_image_ops_ribbon(self): #vers 1
         """Image Ops ribbon - Colour Adjustments/Seamless/Snow/Zoom Lens/
@@ -17242,7 +17303,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                     self._outer_mw.setStyleSheet(
                         f"QMainWindow {{ background: {_hexval}; }} "
                         f"QMainWindow::separator {{ {_sep_bg_rule}"
-                        "width: 1px; height: 1px; } "
+                        "width: 8px; height: 8px; } "
                         "QMainWindow::separator:hover { background: palette(highlight); }")
 
             # Re-apply dock title bar backgrounds too - same "set once,
@@ -17542,6 +17603,9 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 self.dp5_settings.set(
                     'outer_layout_state',
                     self._outer_mw.saveState(self._OUTER_LAYOUT_VERSION).toHex().data().decode())
+                self.dp5_settings.set(
+                    'inner_layout_state',
+                    self._inner_mw.saveState(self._OUTER_LAYOUT_VERSION).toHex().data().decode())
                 self.dp5_settings.set('outer_layout_version', self._OUTER_LAYOUT_VERSION)
                 self.dp5_settings.save()
             except Exception:
@@ -17921,8 +17985,7 @@ def open_dp5_workshop(main_window=None) -> DP5Workshop: #vers 1
         workshop.setWindowTitle(App_name)
         workshop.resize(1400, 800)
         try:
-            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
-            workshop.setWindowIcon(get_dp5_workshop_icon(64))
+            workshop.setWindowIcon(SVGIconFactory.dp5_app_icon(64))
         except Exception:
             pass
         workshop.show()
@@ -20008,10 +20071,10 @@ if __name__ == "__main__": #vers 1
 
         # Set app icon — appears in taskbar, alt-tab, dock
         try:
-            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
             app_icon = QIcon()
             for sz in (16, 32, 48, 64, 128):
-                ico = get_dp5_workshop_icon(sz)
+                ico = SVGIconFactory.dp5_app_icon(sz)
                 app_icon.addPixmap(ico.pixmap(sz, sz))
             app.setWindowIcon(app_icon)
         except Exception:

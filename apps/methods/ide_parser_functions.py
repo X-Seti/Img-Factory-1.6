@@ -1,4 +1,4 @@
-#this belongs in methods/ide_parser.py - Version: 2
+#this belongs in methods/ide_parser.py - Version: 3
 # X-Seti - July31 2025 - IMG Factory 1.5 - Universal IDE Parser
 
 """
@@ -452,7 +452,7 @@ class IDEParser:
         
         return "\n".join(summary)
     
-    def get_status_text(self) -> str: #vers 1
+    def get_status_text(self) -> str: #vers 2
         """Get status text for display in dialogs
         
         Returns:
@@ -461,7 +461,7 @@ class IDEParser:
         ide_lines = self.parse_stats['parsed_lines']
         total_files = len(self.models) * 2  # Each model has DFF + TXD
         
-        return f"📋 {ide_lines} IDE lines, showing {total_files} files"
+        return f"{ide_lines} IDE lines, showing {total_files} files"
     
     def clear(self): #vers 1
         """Clear all parsed data"""
@@ -491,7 +491,7 @@ def parse_ide_file(ide_path: str) -> Optional[IDEParser]: #vers 1
         return parser
     return None
 
-def integrate_ide_parser(main_window): #vers 1
+def integrate_ide_parser(main_window): #vers 2
     """Integrate IDE parser functions into main window
     
     Args:
@@ -506,12 +506,12 @@ def integrate_ide_parser(main_window): #vers 1
         main_window.create_ide_parser = lambda: IDEParser()
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ IDE parser functions integrated")
+            main_window.log_message("IDE parser functions integrated")
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error integrating IDE parser: {str(e)}")
+            main_window.log_message(f"Error integrating IDE parser: {str(e)}")
         return False
 
 __all__ = [

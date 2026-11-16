@@ -1,4 +1,4 @@
-#this belongs in apps/methods/img_validation.py - Version: 2
+#this belongs in apps/methods/img_validation.py - Version: 3
 # X-Seti - September04 2025 - IMG Factory 1.5 - IMG Validation
 
 """
@@ -1217,7 +1217,7 @@ def get_validation_report(img_file) -> Dict[str, Any]: #vers 1
         }
 
 
-def integrate_validation_functions(main_window) -> bool: #vers 1
+def integrate_validation_functions(main_window) -> bool: #vers 2
     """Integrate validation functions into main window"""
     try:
         # Add validation methods
@@ -1234,13 +1234,13 @@ def integrate_validation_functions(main_window) -> bool: #vers 1
         main_window.ValidationLevel = ValidationLevel
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ IMG validation functions integrated")
+            main_window.log_message("IMG validation functions integrated")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Validation integration failed: {e}")
+            main_window.log_message(f"Validation integration failed: {e}")
         return False
 
     def detect_img_version(self, file_path: str) -> IMGVersion:

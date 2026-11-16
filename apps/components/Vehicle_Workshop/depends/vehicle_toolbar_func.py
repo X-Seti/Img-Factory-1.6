@@ -1,4 +1,4 @@
-#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 8
+#this belongs in apps/components/Vehicle_Workshop/depends/vehicle_toolbar_func.py - Version: 9
 # X-Seti - October 14 2026 - IMG Factory 1.6 - Vehicle Workshop toolbar
 
 """
@@ -1219,7 +1219,7 @@ class VehicleToolbarMixin: #vers 1
 
 
     #    Menu button handler
-    #    [ℹ] Info — About dialog
+    #    [] Info — About dialog
 
     def _open_app_settings(self): #vers 1
         try:
@@ -1236,7 +1236,7 @@ class VehicleToolbarMixin: #vers 1
             self._set_status(f'Settings error: {e}')
             self._show_workshop_settings()
 
-    #    [⚙] Cog — Global AppSettings theme dialog
+    #    [] Cog — Global AppSettings theme dialog
 
     #    [Settings] — Workshop-local settings dialog
 

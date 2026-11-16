@@ -1,4 +1,4 @@
-#this belongs in gui/ tearoff_integration.py - Version: 1  
+#this belongs in gui/ tearoff_integration.py - Version: 2  
 # X-Seti - August27 2025 - Img Factory 1.5
 
 """
@@ -20,7 +20,7 @@ from apps.gui.imgcol_tearoff import create_img_tearoff_window, create_col_tearof
 # _copy_col_table_data
 # integrate_tearoff_system
 
-def add_tearoff_button_to_main_window(main_window): #vers 1
+def add_tearoff_button_to_main_window(main_window): #vers 2
     """Add tear-off button to main window (green arrow location)"""
     try:
         # Find the location where the green arrow should go
@@ -49,14 +49,14 @@ def add_tearoff_button_to_main_window(main_window): #vers 1
                     layout.insertWidget(0, button_container)
                     
                     main_window.tearoff_button = tearoff_button
-                    main_window.log_message("✅ Tear-off button added to main window")
+                    main_window.log_message("Tear-off button added to main window")
                     return True
                     
-        main_window.log_message("❌ Could not add tear-off button - table parent not found")
+        main_window.log_message("Could not add tear-off button - table parent not found")
         return False
         
     except Exception as e:
-        main_window.log_message(f"❌ Error adding tear-off button: {str(e)}")
+        main_window.log_message(f"Error adding tear-off button: {str(e)}")
         return False
 
 def create_tearoff_button(main_window): #vers 1
@@ -85,7 +85,7 @@ def create_tearoff_button(main_window): #vers 1
     
     return button
 
-def _on_tearoff_clicked(main_window): #vers 1
+def _on_tearoff_clicked(main_window): #vers 2
     """Handle tear-off button click"""
     try:
         file_type = _get_current_file_type(main_window)
@@ -105,7 +105,7 @@ def _on_tearoff_clicked(main_window): #vers 1
                 
             img_window.show()
             img_window.raise_()
-            main_window.log_message("📱 IMG window torn off")
+            main_window.log_message("IMG window torn off")
             
         elif file_type == "col":
             # Create COL tear-off window  
@@ -119,17 +119,17 @@ def _on_tearoff_clicked(main_window): #vers 1
                 
             col_window.show()
             col_window.raise_()
-            main_window.log_message("🚗 COL window torn off")
+            main_window.log_message("COL window torn off")
             
         else:
             # Generic tear-off window
             generic_window = create_editor_tearoff_window(main_window, "generic", "File Editor")
             generic_window.show()
             generic_window.raise_()
-            main_window.log_message("📋 Generic window torn off")
+            main_window.log_message("Generic window torn off")
             
     except Exception as e:
-        main_window.log_message(f"❌ Tear-off error: {str(e)}")
+        main_window.log_message(f"Tear-off error: {str(e)}")
 
 def _get_current_file_type(main_window): #vers 1
     """Determine current file type (img/col/other)"""
@@ -143,7 +143,7 @@ def _get_current_file_type(main_window): #vers 1
     except:
         return "generic"
 
-def _copy_img_table_data(main_window): #vers 1
+def _copy_img_table_data(main_window): #vers 2
     """Copy IMG table data from main window"""
     entries_data = []
     
@@ -190,11 +190,11 @@ def _copy_img_table_data(main_window): #vers 1
                 
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error copying IMG data: {str(e)}")
+            main_window.log_message(f"Error copying IMG data: {str(e)}")
     
     return entries_data
 
-def _copy_col_table_data(main_window): #vers 1
+def _copy_col_table_data(main_window): #vers 2
     """Copy COL table data from main window"""
     entries_data = []
     
@@ -223,11 +223,11 @@ def _copy_col_table_data(main_window): #vers 1
                 
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error copying COL data: {str(e)}")
+            main_window.log_message(f"Error copying COL data: {str(e)}")
     
     return entries_data
 
-def integrate_tearoff_system(main_window): #vers 1
+def integrate_tearoff_system(main_window): #vers 2
     """Complete integration of tear-off system"""
     try:
         # Add tear-off button to main window
@@ -236,12 +236,12 @@ def integrate_tearoff_system(main_window): #vers 1
         if success:
             # Store reference for later use
             main_window.tearoff_system_active = True
-            main_window.log_message("✅ Tear-off system integrated successfully")
+            main_window.log_message("Tear-off system integrated successfully")
             return True
         else:
-            main_window.log_message("❌ Failed to integrate tear-off system")
+            main_window.log_message("Failed to integrate tear-off system")
             return False
             
     except Exception as e:
-        main_window.log_message(f"❌ Tear-off integration error: {str(e)}")
+        main_window.log_message(f"Tear-off integration error: {str(e)}")
         return False

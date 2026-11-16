@@ -18,6 +18,7 @@ except ImportError:
 from typing import Dict, List, Set, Tuple, Optional
 import re
 import os
+from apps.methods.imgfactory_svg_icons import get_edit_icon, get_search_icon, get_trash_icon
 
 class IDEFileEditor(QDialog):
     """Editor for GTA IDE (Item Definition) files"""
@@ -46,23 +47,23 @@ class IDEFileEditor(QDialog):
         # Toolbar
         toolbar_layout = QHBoxLayout()
         
-        self.save_btn = QPushButton("💾 Save")
+        self.save_btn = QPushButton("Save")
         self.save_btn.clicked.connect(self.save_file)
         toolbar_layout.addWidget(self.save_btn)
         
-        self.reload_btn = QPushButton("🔄 Reload")
+        self.reload_btn = QPushButton("Reload")
         self.reload_btn.clicked.connect(self.reload_file)
         toolbar_layout.addWidget(self.reload_btn)
         
         toolbar_layout.addStretch()
         
         # ID Manager button
-        self.id_manager_btn = QPushButton("🆔 ID Manager")
+        self.id_manager_btn = QPushButton("ID Manager")
         self.id_manager_btn.clicked.connect(self.show_id_manager)
         toolbar_layout.addWidget(self.id_manager_btn)
         
         # Validate button
-        self.validate_btn = QPushButton("✅ Validate")
+        self.validate_btn = QPushButton("Validate")
         self.validate_btn.clicked.connect(self.validate_ide)
         toolbar_layout.addWidget(self.validate_btn)
         
@@ -76,20 +77,20 @@ class IDEFileEditor(QDialog):
         
         # Sections tab
         self.sections_tab = self.create_sections_tab()
-        left_widget.addTab(self.sections_tab, "📋 Sections")
+        left_widget.addTab(self.sections_tab, "Sections")
         
         # Objects tab  
         self.objects_tab = self.create_objects_tab()
-        left_widget.addTab(self.objects_tab, "🏗️ Objects")
+        left_widget.addTab(self.objects_tab, "Objects")
         
         # Vehicles tab
         self.vehicles_tab = self.create_vehicles_tab()
-        left_widget.addTab(self.vehicles_tab, "🚗 Vehicles")
+        left_widget.addTab(self.vehicles_tab, "Vehicles")
         
         splitter.addWidget(left_widget)
         
         # Right side - raw text editor
-        right_widget = QGroupBox("📝 Raw Text Editor")
+        right_widget = QGroupBox("Raw Text Editor")
         right_layout = QVBoxLayout(right_widget)
         
         self.text_editor = QTextEdit()
@@ -105,7 +106,8 @@ class IDEFileEditor(QDialog):
         text_controls.addWidget(QLabel("Find:"))
         text_controls.addWidget(self.find_input)
         
-        find_btn = QPushButton("🔍")
+        find_btn = QPushButton()
+        find_btn.setIcon(get_search_icon(16))
         find_btn.clicked.connect(self.find_text)
         text_controls.addWidget(find_btn)
         
@@ -345,12 +347,14 @@ class IDEFileEditor(QDialog):
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(2, 2, 2, 2)
             
-            edit_btn = QPushButton("✏️")
+            edit_btn = QPushButton()
+            edit_btn.setIcon(get_edit_icon(16))
             edit_btn.setMaximumWidth(25)
             edit_btn.clicked.connect(lambda checked, r=row: self.edit_object(r))
             actions_layout.addWidget(edit_btn)
             
-            delete_btn = QPushButton("🗑️")
+            delete_btn = QPushButton()
+            delete_btn.setIcon(get_trash_icon(16))
             delete_btn.setMaximumWidth(25)
             delete_btn.clicked.connect(lambda checked, r=row: self.delete_object(r))
             actions_layout.addWidget(delete_btn)
@@ -431,7 +435,7 @@ class IDManagerDialog(QDialog):
     def __init__(self, used_ids: Set[int], parent=None):
         super().__init__(parent)
         self.used_ids = used_ids
-        self.setWindowTitle("🆔 Object ID Manager")
+        self.setWindowTitle("Object ID Manager")
         self.setMinimumSize(600, 500)
         self.setup_ui()
         self.analyze_ids()
@@ -458,15 +462,15 @@ class IDManagerDialog(QDialog):
         
         # Used IDs tab
         self.used_ids_tab = self.create_used_ids_tab()
-        tab_widget.addTab(self.used_ids_tab, "📋 Used IDs")
+        tab_widget.addTab(self.used_ids_tab, "Used IDs")
         
         # Free ranges tab
         self.free_ranges_tab = self.create_free_ranges_tab()
-        tab_widget.addTab(self.free_ranges_tab, "🆓 Free Ranges")
+        tab_widget.addTab(self.free_ranges_tab, "Free Ranges")
         
         # ID finder tab
         self.id_finder_tab = self.create_id_finder_tab()
-        tab_widget.addTab(self.id_finder_tab, "🔍 Find IDs")
+        tab_widget.addTab(self.id_finder_tab, "Find IDs")
         
         layout.addWidget(tab_widget)
         
@@ -498,7 +502,7 @@ class IDManagerDialog(QDialog):
         layout = QVBoxLayout(widget)
         
         # Info label
-        info_label = QLabel("🆓 Available ID ranges for new objects:")
+        info_label = QLabel("Available ID ranges for new objects:")
         layout.addWidget(info_label)
         
         # Free ranges table
@@ -535,7 +539,7 @@ class IDManagerDialog(QDialog):
         self.find_start_spin.setValue(1000)
         find_layout.addWidget(self.find_start_spin)
         
-        find_btn = QPushButton("🔍 Find")
+        find_btn = QPushButton("Find")
         find_btn.clicked.connect(self.find_free_ids)
         find_layout.addWidget(find_btn)
         
@@ -549,14 +553,14 @@ class IDManagerDialog(QDialog):
         layout.addWidget(self.find_results)
         
         # Quick suggestions
-        suggestions_group = QGroupBox("💡 Quick Suggestions")
+        suggestions_group = QGroupBox("Quick Suggestions")
         suggestions_layout = QVBoxLayout(suggestions_group)
         
         suggestion_buttons = [
-            ("🏗️ Objects (1000-9999)", lambda: self.suggest_range(1000, 9999, "Objects")),
-            ("🚗 Vehicles (400-611)", lambda: self.suggest_range(400, 611, "Vehicles")),
-            ("🔫 Weapons (300-399)", lambda: self.suggest_range(300, 399, "Weapons")),
-            ("👤 Peds (1-299)", lambda: self.suggest_range(1, 299, "Pedestrians")),
+            ("Objects (1000-9999)", lambda: self.suggest_range(1000, 9999, "Objects")),
+            ("Vehicles (400-611)", lambda: self.suggest_range(400, 611, "Vehicles")),
+            ("Weapons (300-399)", lambda: self.suggest_range(300, 399, "Weapons")),
+            ("Peds (1-299)", lambda: self.suggest_range(1, 299, "Pedestrians")),
         ]
         
         for text, callback in suggestion_buttons:
@@ -662,17 +666,17 @@ class IDManagerDialog(QDialog):
     def get_id_range_recommendation(self, start: int, end: int) -> str:
         """Get recommendation for what to use an ID range for"""
         if start <= 299:
-            return "👤 Pedestrians"
+            return "Pedestrians"
         elif start <= 399:
-            return "🔫 Weapons"
+            return "Weapons"
         elif start <= 611:
-            return "🚗 Vehicles"
+            return "Vehicles"
         elif start <= 999:
-            return "🏗️ Special Objects"
+            return "Special Objects"
         elif start <= 9999:
-            return "🏗️ World Objects"
+            return "World Objects"
         else:
-            return "🎯 Custom Objects"
+            return "Custom Objects"
     
     def find_free_ids(self):
         """Find specified number of free consecutive IDs"""
@@ -833,26 +837,26 @@ def show_object_context_menu(self, position):
     menu = QMenu(self)
     
     # Edit object
-    edit_action = QAction("✏️ Edit Object", self)
+    edit_action = QAction("Edit Object", self)
     edit_action.triggered.connect(lambda: self.edit_object(row))
     menu.addAction(edit_action)
     
     # Duplicate object
-    duplicate_action = QAction("📋 Duplicate Object", self)
+    duplicate_action = QAction("Duplicate Object", self)
     duplicate_action.triggered.connect(lambda: self.duplicate_object(row))
     menu.addAction(duplicate_action)
     
     menu.addSeparator()
     
     # Delete object
-    delete_action = QAction("🗑️ Delete Object", self)
+    delete_action = QAction("Delete Object", self)
     delete_action.triggered.connect(lambda: self.delete_object(row))
     menu.addAction(delete_action)
     
     menu.addSeparator()
     
     # Go to line in text editor
-    goto_action = QAction("🔍 Go to Line in Editor", self)
+    goto_action = QAction("Go to Line in Editor", self)
     goto_action.triggered.connect(lambda: self.goto_object_line(row))
     menu.addAction(goto_action)
     
@@ -1184,7 +1188,7 @@ class ObjectEditDialog(QDialog):
         # Buttons
         button_layout = QHBoxLayout()
         
-        save_btn = QPushButton("💾 Save")
+        save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.accept)
         button_layout.addWidget(save_btn)
         
@@ -1217,10 +1221,10 @@ class ObjectEditDialog(QDialog):
         new_id = self.id_spin.value()
         
         if new_id != self.original_id and new_id in self.used_ids:
-            self.id_status_label.setText("⚠️ ID already used!")
+            self.id_status_label.setText("ID already used!")
             self.id_status_label.setStyleSheet("color: red;")
         else:
-            self.id_status_label.setText("✅ ID available")
+            self.id_status_label.setText("ID available")
             self.id_status_label.setStyleSheet("color: green;")
     
     def update_preview(self):
@@ -1247,7 +1251,7 @@ def open_ide_editor(main_window, file_data: bytes, filename: str):
         editor = IDEFileEditor(main_window, file_data, filename)
         editor.show()
         
-        main_window.log_message(f"📝 Opened IDE editor for {filename}")
+        main_window.log_message(f"Opened IDE editor for {filename}")
         
         return editor
         
@@ -1255,17 +1259,17 @@ def open_ide_editor(main_window, file_data: bytes, filename: str):
         QMessageBox.critical(main_window, "IDE Editor Error", f"Failed to open IDE editor:\n{str(e)}")
         return None
 
-def integrate_gta_file_editors(main_window): #vers 2
+def integrate_gta_file_editors(main_window): #vers 3
     """Integrate GTA file editors into main application"""
     try:
         # Add IDE editor method to main window
         main_window.open_ide_editor_data = lambda data, name: open_ide_editor(main_window, data, name)
         
-        main_window.log_message("✅ GTA file editors integrated")
+        main_window.log_message("GTA file editors integrated")
         return True
         
     except Exception as e:
-        main_window.log_message(f"❌ Failed to integrate GTA file editors: {str(e)}")
+        main_window.log_message(f"Failed to integrate GTA file editors: {str(e)}")
         return False
 
 # Export functions

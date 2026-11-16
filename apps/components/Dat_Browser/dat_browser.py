@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 23
+#this belongs in apps/components/Dat_Browser/dat_browser.py - Version: 25
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -299,7 +299,7 @@ class TXDDumpDialog(QDialog): #vers 1
             from apps.methods.imgfactory_svg_icons import SVGIconFactory
             settings_btn.setIcon(SVGIconFactory.settings_icon(16))
         except Exception:
-            settings_btn.setText("⚙")
+            settings_btn.setText("Settings")
         settings_btn.clicked.connect(self._open_settings)
 
         cancel_btn  = QPushButton("Cancel")
@@ -709,7 +709,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
     """
 
     _ribbon_name = "dat_browser"
-    _RIBBON_LAYOUT_VERSION = 1     # 1 = Game / Tools ribbons
+    _RIBBON_LAYOUT_VERSION = 4     # 4 = Dir List own dock
 
     open_img_requested = pyqtSignal(str)          # emits abs path to .img
     xref_ready         = pyqtSignal(object)        # emits GTAWorldXRef after load
@@ -786,7 +786,8 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
             "Select game, Auto-detect, or use Game Root from Dir Tree")
         self._game_combo.currentIndexChanged.connect(self._on_game_combo_changed)
 
-        self._path_edit = QLineEdit()
+        from apps.methods.short_path import ShortPathEdit
+        self._path_edit = ShortPathEdit()
         self._path_edit.setPlaceholderText("Game root folder (data/gta3.dat, gta_vc.dat, gta.dat; IV: common/ + pc/)")
         self._path_edit.setReadOnly(True)
 
@@ -837,6 +838,25 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         self._db_btn.clicked.connect(self._toggle_db_panel)
         toolbar.addWidget(self._db_btn)
 
+        self._dir_btn = QPushButton()
+        self._dir_btn.setFixedSize(28, 24)
+        self._dir_btn.setIconSize(QSize(18, 18))
+        self._dir_btn.setToolTip("Dir List - show or hide the folder browser panel")
+        self._dir_btn.setCheckable(True)
+        self._dir_btn.toggled.connect(self._toggle_dir_dock)
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGd
+        self._dir_btn.setIcon(_SVGd.tree_app_icon(18))
+        toolbar.addWidget(self._dir_btn)
+
+        self._tc_btn = QPushButton()
+        self._tc_btn.setFixedSize(28, 24)
+        self._tc_btn.setIconSize(QSize(18, 18))
+        self._tc_btn.setToolTip("[TC] Dir List with two panes, like Total Commander")
+        self._tc_btn.setCheckable(True)
+        self._tc_btn.toggled.connect(self._toggle_tc_panes)
+        self._tc_btn.setIcon(_SVGd.tc_app_icon(18))
+        toolbar.addWidget(self._tc_btn)
+
         # Split/full panel toggle — mirrors gui_layout.split_toggle_btn exactly
         self._split_btn = QPushButton()
         self._split_btn.setFixedSize(24, 24)
@@ -857,9 +877,10 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         from PyQt6.QtCore import QTimer as _QT2
         _QT2.singleShot(100, self._load_toolbar_icons)
 
-        self.ribbon_restore_state()
-        self._inner_mw = self._ribbon_mw                 # Ribbon Manager target
-        self._apply_ribbon_layout()
+        self._dir_ribbon = self.ribbon_toolbar("Dir")      # Dir list file buttons (filled on first use)
+        self._dir_ribbon.hide()
+        self._info_ribbon = self.ribbon_toolbar("Info")      # load status
+        self._filter_ribbon = self.ribbon_toolbar("Filter")  # model filter + type
 
         # Progress bar (hidden when idle)
         self._progress = QProgressBar()
@@ -870,7 +891,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         # Status label
         self._status_lbl = QLabel("No game loaded.")
         self._status_lbl.setStyleSheet("font-style: italic;")
-        root.addWidget(self._status_lbl)
+        self._info_ribbon.addWidget(self._status_lbl)
 
         # Asset DB panel built here, inserted into left panel below tree_hdr
         self._db_panel = self._build_db_panel()
@@ -880,9 +901,6 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         self._db_panel.setStyleSheet("background-color: palette(base);")
 
         # Search / filter row
-        search_row = QHBoxLayout()
-        search_row.setSpacing(6)
-
         self._search_edit = QLineEdit()
         self._search_edit.setPlaceholderText("Filter by model name or ID…")
         self._search_edit.textChanged.connect(self._apply_filter)
@@ -895,10 +913,16 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         self._type_filter.setFixedWidth(110)
         self._type_filter.setEnabled(False)
 
-        search_row.addWidget(QLabel("Filter:"))
-        search_row.addWidget(self._search_edit, 1)
-        search_row.addWidget(self._type_filter)
-        root.addLayout(search_row)
+        self._filter_lbl = QLabel("Filter:")
+        self._filter_lbl.setStyleSheet("padding: 0 4px;")
+        self._search_edit.setMinimumWidth(200)
+        self._filter_ribbon.addWidget(self._filter_lbl)
+        self._filter_ribbon.addWidget(self._search_edit)
+        self._filter_ribbon.addWidget(self._type_filter)
+
+        self.ribbon_restore_state()
+        self._inner_mw = self._ribbon_mw                 # Ribbon Manager target
+        self._apply_ribbon_layout()
 
         # Load Order dock (file tree) | data tabs in the centre
         # Left — file load-order tree
@@ -916,7 +940,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
 
         # Sort combo
         self._sort_combo = QComboBox()
-        self._sort_combo.setFixedWidth(110)
+        self._sort_combo.setFixedWidth(88)
         self._sort_combo.setFixedHeight(22)
         self._sort_combo.addItems(["Original", "A → Z", "Z → A",
                                    "Largest first", "Smallest first", "By type"])
@@ -961,14 +985,38 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         self._tree.itemClicked.connect(self._on_tree_click)
         ll.addWidget(self._tree)
 
+        # View modes (detailed / icons / compact) - buttons beside the sort box
+        from apps.methods.view_modes import ViewModeController
+        self._view_modes = ViewModeController(self._tree, 'datbrowser', self._get_icon_color())
+        self._view_btns = self._view_modes.buttons()
+        from apps.methods.view_modes import MODES as _VM
+        for b in self._view_btns:
+            tree_hdr.addWidget(b)
+
+        # Dir list host - the shared Dir Tree browser is placed here
+        self._dir_host = QWidget()
+        QVBoxLayout(self._dir_host).setContentsMargins(0, 0, 0, 0)
+
         # Enable right-click on tree to open source files
         self._setup_tree_context_menu()
+        self._tree_hdr = tree_hdr
 
         # Right — tabbed result tables
         self._tabs = QTabWidget()
         self._tabs.setAutoFillBackground(True)
         root.addWidget(self._dock_layout(self._tabs, [
-            ("Load Order", left, 220, Qt.DockWidgetArea.LeftDockWidgetArea)]), 1)
+            ("Load Order", left, 290, Qt.DockWidgetArea.LeftDockWidgetArea),
+            ("Dir List", self._dir_host, 300, Qt.DockWidgetArea.RightDockWidgetArea)]), 1)
+        self._dir_dock = self._outer_docks[1]
+        self._dir_dock._start_hidden = True
+        self._dir_dock.hide()
+        self._dir_dock.visibilityChanged.connect(self._on_dir_dock_visible)
+
+        # Sort / view buttons use the free space on the Load Order title bar
+        bar_lay = self._outer_docks[0]._title_bar.layout()
+        for w in (self._sort_combo, self._group_btn, self._show_col_in_img_btn, *self._view_btns):
+            bar_lay.insertWidget(bar_lay.count() - 1, w)
+        ll.removeItem(self._tree_hdr)
 
         self._obj_table = self._make_table(
             ["ID", "Model", "TXD", "Type", "Section", "Draw Dist", "Flags", "Source IDE"])
@@ -1280,7 +1328,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         except Exception:
             return '#cccccc'
 
-    def _update_toolbar_compact(self, width: int): #vers 3
+    def _update_toolbar_compact(self, width: int): #vers 4
         """Switch main toolbar buttons between text+icon / icon-only when narrow."""
         from PyQt6.QtGui import QIcon
         from PyQt6.QtCore import QSize
@@ -1290,6 +1338,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         if compact == self._toolbar_compact:
             return
         self._toolbar_compact = compact
+        self._sort_combo.setFixedWidth(56 if compact else 88)
         self._apply_btn_style()
 
     def _apply_btn_style(self): #vers 1
@@ -2003,10 +2052,87 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
             return sorted(log, key=lambda e: (order.get(e[1],9), os.path.basename(e[2]).lower()))
         return log
 
-    def _on_sort_changed(self): #vers 1
+    def _on_sort_changed(self): #vers 3
         """Re-populate tree when sort mode changes."""
         if self.loader and self.loader.load_log:
             self._populate_tree()
+
+    def in_dir_list(self) -> bool: #vers 2
+        """True while the Dir List dock is showing."""
+        return self._dir_dock.isVisible()
+
+    def set_display_mode(self, mode: str): #vers 2
+        """'dir' shows the Dir List dock."""
+        if mode == 'dir':
+            self._dir_dock.setVisible(True)
+
+    def _toggle_dir_dock(self, on: bool): #vers 1
+        """Ribbon button shows or hides the Dir List dock."""
+        self._dir_dock.setVisible(on)
+
+    def _set_dir_full_page(self, on: bool): #vers 1
+        """Dir List fills the whole DAT Browser; other panels hide and come back."""
+        lo = self._outer_docks[0]
+        if on:
+            self._full_prev = (lo.isVisible(), self._tabs.isVisible())
+            lo.hide()
+            self._tabs.hide()
+        else:
+            lo_vis, tabs_vis = getattr(self, '_full_prev', (True, True))
+            lo.setVisible(lo_vis)
+            self._tabs.setVisible(tabs_vis)
+
+    def _toggle_tc_panes(self, on: bool): #vers 1
+        """[TC] button: Dir List dock with two panes, or back to one."""
+        if on:
+            self._dir_dock.setVisible(True)
+            self._fill_dir_dock()
+        dt = getattr(self.main_window, 'directory_tree', None)
+        if dt is not None:
+            dt._enable_twin_panel() if on else dt._enable_single_panel()
+
+    def _on_dir_dock_visible(self, on: bool): #vers 2
+        """Sync the ribbon button; build the Dir List on first show; closing leaves full page."""
+        self._dir_btn.setChecked(on)
+        fb = getattr(self, '_dir_full_btn', None)
+        if not on and fb is not None and fb.isChecked():
+            fb.setChecked(False)
+        if on:
+            self._fill_dir_dock()
+        self._dir_ribbon.setVisible(on and getattr(self, '_dir_ribbon_filled', False))
+
+    def _fill_dir_dock(self): #vers 1
+        """Place the shared Dir Tree browser in the Dir List dock (once)."""
+        mw = self.main_window
+        dt = getattr(mw, 'directory_tree', None)
+        if dt is None:
+            from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+            if not integrate_directory_tree_browser(mw):
+                return
+            dt = mw.directory_tree
+            root = getattr(mw, 'game_root', None)
+            if root:
+                dt.browse_directory(root)
+        lay = self._dir_host.layout()
+        if lay.indexOf(dt) < 0:
+            lay.addWidget(dt)
+        dt.show()
+        if not getattr(self, '_dir_ribbon_filled', False):
+            dt.adopt_toolbar(self._dir_ribbon)
+            self._dir_ribbon_filled = True
+            bar_lay = self._dir_dock._title_bar.layout()
+            for b in dt.view_modes.buttons():
+                bar_lay.insertWidget(bar_lay.count() - 1, b)
+            from PyQt6.QtWidgets import QToolButton
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _S
+            fb = QToolButton()
+            fb.setAutoRaise(True)
+            fb.setCheckable(True)
+            fb.setIcon(_S.maximize_icon(18))
+            fb.setToolTip("Full page - hide the load order and data tabs")
+            fb.toggled.connect(self._set_dir_full_page)
+            bar_lay.insertWidget(bar_lay.count() - 1, fb)
+            self._dir_full_btn = fb
 
     def _ipl_instance_counts(self) -> dict: #vers 1
         """Instances per source IPL, cached per loaded instance list."""
@@ -2983,7 +3109,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
 
     #    Context menu                                                        
 
-    def _table_context_menu(self, table, pos): #vers 3
+    def _table_context_menu(self, table, pos): #vers 4
         """Right-click menu on IDE Objects table.
         Full feature set — replaces IDE Editor:
           Model    : Open in Model Workshop, Export DFF, Replace DFF, Rename
@@ -3024,10 +3150,10 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
 
         #    Show / open                                                      
         if is_ide_table:
-            show_mw_act  = menu.addAction(f"⏎  Show in Model Workshop  [{model_name}]")
-            show_glv_act = menu.addAction(f"⏎  Show in Model Viewer (GL)  [{model_name}]")
+            show_mw_act  = menu.addAction(f" Show in Model Workshop  [{model_name}]")
+            show_glv_act = menu.addAction(f" Show in Model Viewer (GL)  [{model_name}]")
             if txd_name and txd_name not in ('', '—', 'null'):
-                show_txd_act = menu.addAction(f"⏎  Show in TXD Workshop  [{txd_name}]")
+                show_txd_act = menu.addAction(f" Show in TXD Workshop  [{txd_name}]")
             else:
                 show_txd_act = None
             menu.addSeparator()
@@ -3706,11 +3832,15 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         """
         self.setStyleSheet(ss)
 
-    def _on_theme_changed(self): #vers 6
+    def _on_theme_changed(self): #vers 7
         """Refresh DAT-specific row colors when theme switches."""
         self._apply_theme_stylesheet()
         self.setStyleSheet(self.styleSheet())  # force repaint
         self.update()
+        self._view_modes.recolour(self._get_icon_color())
+        dt = getattr(self.main_window, 'directory_tree', None)
+        if dt is not None:
+            dt.recolour_icons()
 
     def _get_txd_names_from_img(self, img_path: str) -> list:
         """Return list of .txd entry names from an IMG archive."""
@@ -3904,7 +4034,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         for i in range(root.childCount()):
             _walk(root.child(i))
 
-    def _on_tree_context_menu(self, pos): #vers 3
+    def _on_tree_context_menu(self, pos): #vers 4
         item = self._tree.itemAt(pos)
         if not item:
             return
@@ -3925,14 +4055,14 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         if entry_type == "DAT":
             dat_abs_path = getattr(self.loader.main_dat, "dat_path", "") if self.loader else ""
             mw = self.main_window
-            load_map_act = menu.addAction("🗺  Load with Map Workshop…")
+            load_map_act = menu.addAction(" Load with Map Workshop…")
             # Second option (Aug 16 2026,  "add another
             # option to open in map workshop, preload img(s) file") -
             # forces Map Workshop's IMG-preload-to-OS-cache behaviour
             # for just this one load, without needing to visit
             # Settings first to turn the persistent option on.
             load_map_preload_act = menu.addAction(
-                "🗺  Load with Map Workshop, preload IMG(s) file…")
+                " Load with Map Workshop, preload IMG(s) file…")
             if dat_abs_path and os.path.isfile(dat_abs_path) and mw:
                 load_map_act.triggered.connect(
                     lambda _=False, p=dat_abs_path: self._load_dat_in_map_workshop(p))
@@ -3965,19 +4095,19 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
                 open_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_single_img_in_factory(p))
                 menu.addSeparator()
-                vw_act = menu.addAction("🚗  Open in Vehicle Workshop")
+                vw_act = menu.addAction(" Open in Vehicle Workshop")
                 vw_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_img_in_vehicle_workshop(p))
-                mw_act = menu.addAction("🔧  Open in Model Workshop")
+                mw_act = menu.addAction(" Open in Model Workshop")
                 mw_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_img_in_model_workshop(p))
-                txw_act = menu.addAction("🖼  Open in TXD Workshop")
+                txw_act = menu.addAction(" Open in TXD Workshop")
                 txw_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_img_in_txd_workshop(p))
-                cw_act = menu.addAction("🧱  Open in COL Workshop")
+                cw_act = menu.addAction(" Open in COL Workshop")
                 cw_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_img_in_col_workshop(p))
-                mv_act = menu.addAction("👁  Open in Model Viewer")
+                mv_act = menu.addAction(" Open in Model Viewer")
                 mv_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_img_in_model_viewer(p))
                 from apps.methods.imgfactory_svg_icons import get_asset_checker_icon
@@ -3988,7 +4118,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
             load_all_act = menu.addAction("⊞  Load ALL game IMGs into IMG Factory")
             load_all_act.triggered.connect(self._load_all_game_imgs)
             menu.addSeparator()
-            dump_act = menu.addAction("📦  Dump all TXDs from this IMG…")
+            dump_act = menu.addAction(" Dump all TXDs from this IMG…")
             if abs_path and os.path.isfile(abs_path):
                 dump_act.triggered.connect(
                     lambda _=False, p=abs_path: self._dump_single_img_txds(p))
@@ -3999,7 +4129,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
         elif entry_type == "COL":
             abs_path = item.data(0, Qt.ItemDataRole.UserRole) or abs_path
             if abs_path and os.path.isfile(abs_path):
-                open_col_act = menu.addAction("⬛  Open in COL Workshop")
+                open_col_act = menu.addAction(" Open in COL Workshop")
                 open_col_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_col_in_workshop_path(p))
                 imglist_act = menu.addAction("Show COL as ImgList")
@@ -4016,14 +4146,14 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
 
         elif entry_type == "COL▾":
             # Embedded COL inside IMG
-            menu.addAction("⬛  Extract & open in COL Workshop").triggered.connect(
+            menu.addAction(" Extract & open in COL Workshop").triggered.connect(
                 lambda _=False, it=item: self._open_embedded_col(it))
             menu.addSeparator()
 
         elif abs_path and os.path.isfile(abs_path):
             ext = os.path.splitext(abs_path)[1].lower()
             if ext == ".ide":
-                menu.addAction(f"📋  Filter Objects to  {bname}").triggered.connect(
+                menu.addAction(f" Filter Objects to  {bname}").triggered.connect(
                     lambda _=False, b=bname: (
                         self._search_edit.blockSignals(True),
                         self._search_edit.setText(""),
@@ -4034,7 +4164,7 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
                 ide_list_act.setIcon(get_list_view_icon(16))
                 ide_list_act.triggered.connect(
                     lambda _=False, p=abs_path: self._show_ide_as_list(p))
-                menu.addAction(f"✏  Edit  {bname}").triggered.connect(
+                menu.addAction(f" Edit  {bname}").triggered.connect(
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addAction("Open in Data Workshop (IDE)").triggered.connect(
                     lambda _=False, p=abs_path: self._open_in_ide_editor(p))
@@ -4048,11 +4178,11 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
                     lambda _=False, p=abs_path: self._show_master_ide(p))
                 menu.addSeparator()
             elif ext == ".ipl":
-                menu.addAction(f"📋  Filter Instances to  {bname}").triggered.connect(
+                menu.addAction(f" Filter Instances to  {bname}").triggered.connect(
                     lambda _=False, b=bname: (
                         self._tabs.setCurrentIndex(1),
                         self._populate_instances_for_ipl(b)))
-                menu.addAction(f"✏  Edit  {bname}").triggered.connect(
+                menu.addAction(f" Edit  {bname}").triggered.connect(
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addAction("Open in Data Workshop").triggered.connect(
                     lambda _=False, p=abs_path: self._open_in_ipl_workshop(p))
@@ -4065,12 +4195,12 @@ class DATBrowserWidget(RibbonIconsMixin, RibbonMixin, DockPanelsMixin, QWidget):
                 except Exception:
                     editor_label = ""
                 if editor_label:
-                    menu.addAction(f"⚙  Open in {editor_label}").triggered.connect(
+                    menu.addAction(f" Open in {editor_label}").triggered.connect(
                         lambda _=False, p=abs_path: self._open_smart_editor(p))
-                    menu.addAction(f"✏  Edit as text  {bname}").triggered.connect(
+                    menu.addAction(f" Edit as text  {bname}").triggered.connect(
                         lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 else:
-                    menu.addAction(f"✏  Edit  {bname}").triggered.connect(
+                    menu.addAction(f" Edit  {bname}").triggered.connect(
                         lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addSeparator()
 

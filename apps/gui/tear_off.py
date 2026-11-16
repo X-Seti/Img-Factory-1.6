@@ -1,4 +1,4 @@
-#this belongs in gui/ tear_off.py - Version: 2
+#this belongs in gui/ tear_off.py - Version: 4
 # X-Seti - July12 2025 - Img Factory 1.5
 # Credit MexUK 2007 Img Factory 1.2
 
@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QRect, QTimer
 from PyQt6.QtGui import QDrag, QPixmap, QPainter, QCursor, QIcon
+from apps.methods.imgfactory_svg_icons import get_link_icon, get_pin_icon, get_settings_icon
 try:
     from PyQt6.QtGui import QAction
 except ImportError:
@@ -86,14 +87,16 @@ class TearOffPanel(QFrame):
         title_layout.addStretch()
         
         # Customize button
-        self.customize_btn = QPushButton("⚙")
+        self.customize_btn = QPushButton()
+        self.customize_btn.setIcon(get_settings_icon(12))
         self.customize_btn.setFixedSize(16, 16)
         self.customize_btn.setToolTip("Customize panel")
         self.customize_btn.clicked.connect(self._show_customize_menu)
         title_layout.addWidget(self.customize_btn)
         
         # Tear off button
-        self.tear_off_btn = QPushButton("📌" if not self.is_torn_off else "🔗")
+        self.tear_off_btn = QPushButton()
+        self.tear_off_btn.setIcon(self._tear_icon(self.is_torn_off))
         self.tear_off_btn.setFixedSize(16, 16)
         self.tear_off_btn.setToolTip("Tear off panel")
         self.tear_off_btn.clicked.connect(self.toggle_tear_off)
@@ -109,6 +112,10 @@ class TearOffPanel(QFrame):
         
         self.main_layout.addWidget(self.title_bar)
     
+    def _tear_icon(self, torn_off: bool): #vers 1
+        """Pin icon when docked, link icon when torn off."""
+        return get_link_icon(12) if torn_off else get_pin_icon(12)
+
     def _show_customize_menu(self):
         """Show customization menu"""
         menu = QMenu(self)
@@ -169,7 +176,7 @@ class TearOffPanel(QFrame):
         
         # Update UI
         self.is_torn_off = True
-        self.tear_off_btn.setText("🔗")
+        self.tear_off_btn.setIcon(self._tear_icon(True))
         self.tear_off_btn.setToolTip("Dock panel")
         self.close_btn.setVisible(True)
         
@@ -202,7 +209,7 @@ class TearOffPanel(QFrame):
         
         # Update UI
         self.is_torn_off = False
-        self.tear_off_btn.setText("📌")
+        self.tear_off_btn.setIcon(self._tear_icon(False))
         self.tear_off_btn.setToolTip("Tear off panel")
         self.close_btn.setVisible(False)
         
@@ -509,13 +516,13 @@ def setup_tear_off_system(main_window):
         # This can be expanded later when panel creation is implemented
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ Tear-off system setup complete")
+            main_window.log_message("Tear-off system setup complete")
         
         return tearoff_manager
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error setting up tear-off system: {str(e)}")
+            main_window.log_message(f"Error setting up tear-off system: {str(e)}")
         return None
 
 

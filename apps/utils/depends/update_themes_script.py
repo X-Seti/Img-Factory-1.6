@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/utils/depends/update_themes_script.py - Version: 3
+#this belongs in apps/utils/depends/update_themes_script.py - Version: 4
 """
 X-Seti - October23 2025 - Complete Theme Updater
 Add scrollbar, selection, menu, and button data to all JSON theme files
@@ -389,14 +389,14 @@ def update_theme_file(theme_path: Path) -> bool:
             if fonts_added:
                 summary.append("fonts")
             
-            print(f"✅ Added {', '.join(summary)}")
+            print(f"Added {', '.join(summary)}")
             return True
         else:
-            print(f"✅ No new data needed")
+            print(f"No new data needed")
             return False
             
     except Exception as e:
-        print(f"❌ Error processing {theme_path.name}: {str(e)}")
+        print(f"Error processing {theme_path.name}: {str(e)}")
         return False
 
 def backup_themes_folder():
@@ -412,10 +412,10 @@ def backup_themes_folder():
             
             import shutil
             shutil.copytree(themes_dir, backup_dir)
-            print(f"✅ Backup created: {backup_dir}")
+            print(f"Backup created: {backup_dir}")
             return True
         except Exception as e:
-            print(f"⚠️  Backup failed: {str(e)}")
+            print(f" Backup failed: {str(e)}")
             return False
     return False
 
@@ -429,7 +429,7 @@ def main():
     # Find themes directory
     themes_dir = Path("themes")
     if not themes_dir.exists():
-        print("❌ themes/ directory not found!")
+        print("themes/ directory not found!")
         print("   Make sure you're running this script from the IMG Factory root folder")
         return
     
@@ -440,10 +440,10 @@ def main():
     # Find all JSON files in themes directory
     theme_files = list(themes_dir.glob("*.json"))
     if not theme_files:
-        print("❌ No JSON theme files found in themes/ directory")
+        print("No JSON theme files found in themes/ directory")
         return
     
-    print(f"\n🎨 Found {len(theme_files)} theme files")
+    print(f"\nFound {len(theme_files)} theme files")
     print("-" * 60)
     
     # Process each theme file
@@ -454,15 +454,15 @@ def main():
     
     # Summary
     print("=" * 60)
-    print(f"📊 Summary:")
+    print(f"Summary:")
     print(f"   • Files processed: {len(theme_files)}")
     print(f"   • Files updated: {updated_count}")
     print(f"   • Files unchanged: {len(theme_files) - updated_count}")
     
     if updated_count > 0:
-        print(f"\n✅ Successfully updated {updated_count} theme files!")
-        print(f"💾 Original files backed up to: themes_backup/")
-        print(f"\n📋 New data added to themes:")
+        print(f"\nSuccessfully updated {updated_count} theme files!")
+        print(f"Original files backed up to: themes_backup/")
+        print(f"\nNew data added to themes:")
         print(f"   COLORS:")
         print(f"      • Base colors (bg_primary, bg_secondary, bg_tertiary, panel_bg)")
         print(f"      • Text colors (text_primary, text_secondary, text_accent)")
@@ -487,9 +487,9 @@ def main():
         print(f"      • Infobar, Table, and Tooltip fonts")
         print(f"      • Font family, size, and weight for each type")
     else:
-        print(f"\n✅ All theme files already have the required data!")
+        print(f"\nAll theme files already have the required data!")
 
-    print(f"\n🔄 Restart IMG Factory to see the updated theme data.")
+    print(f"\nRestart IMG Factory to see the updated theme data.")
     print("=" * 60)
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/Ai_Workshop/depends/file_attachments.py - Version: 1
+# apps/components/Ai_Workshop/depends/file_attachments.py - Version: 2
 # AI Workshop - File attachment handling (images, code, text, SSH remote files)
 
 import os
@@ -188,10 +188,10 @@ def create_attachment_chip(attachment: dict, on_remove=None, parent=None):
     from PyQt6.QtCore import Qt
 
     TYPE_ICONS = {
-        "image":   "🖼",
-        "text":    "📄",
-        "project": "🗂",
-        "binary":  "📦",
+        "image":   "IMG",
+        "text":    "TXT",
+        "project": "PRJ",
+        "binary":  "BIN",
     }
 
     chip = QFrame()
@@ -209,7 +209,7 @@ def create_attachment_chip(attachment: dict, on_remove=None, parent=None):
     layout.setContentsMargins(4, 2, 4, 2)
     layout.setSpacing(4)
 
-    icon  = TYPE_ICONS.get(attachment.get("type", "binary"), "📎")
+    icon  = TYPE_ICONS.get(attachment.get("type", "binary"), "FILE")
     name  = attachment.get("name", "file")
     label = QLabel(f"{icon} {name}")
     label.setStyleSheet("font-size: 10px; color: palette(placeholderText); background: transparent; border: none;")

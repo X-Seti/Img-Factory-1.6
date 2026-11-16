@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 11
+#this belongs in apps/components/Model_Editor/depends/model_core_logic_func.py - Version: 12
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop file logic
 
 """
@@ -443,7 +443,7 @@ class ModelCoreLogicMixin: #vers 1
     def _show_surface_info(self, *a, **kw): pass  #vers 1
 
 
-    def _load_img_col_list(self): #vers 2
+    def _load_img_col_list(self): #vers 3
         """Load COL files from IMG archive"""
         try:
             # Safety check for standalone mode
@@ -466,7 +466,7 @@ class ModelCoreLogicMixin: #vers 1
                     self.col_list_widget.addItem(item)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"📋 Found {len(self.txd_list)} COL files")
+                self.main_window.log_message(f"Found {len(self.txd_list)} COL files")
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error loading COL list: {str(e)}")
@@ -1766,7 +1766,7 @@ class ModelCoreLogicMixin: #vers 1
             return False
 
 
-    def _analyze_collision(self): #vers 1
+    def _analyze_collision(self): #vers 2
         """Analyze current COL file"""
         try:
             if not self.current_col_file or not self.current_file_path:
@@ -1788,7 +1788,7 @@ class ModelCoreLogicMixin: #vers 1
             show_col_analysis_dialog(self, analysis_data, os.path.basename(self.current_file_path))
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"✅ Analyzed COL: {os.path.basename(self.current_file_path)}")
+                self.main_window.log_message(f"Analyzed COL: {os.path.basename(self.current_file_path)}")
 
         except Exception as e:
             print(f"Error analyzing file: {str(e)}")

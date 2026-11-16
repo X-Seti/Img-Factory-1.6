@@ -421,8 +421,8 @@ class WelcomeScreen(QWidget):
              "Load a GTA gta.dat / gta3.dat / gta_vc.dat to index every IMG, "
              "IDE and IPL in the game. Explore 13 000+ objects by name or type.",
              self.open_dat_browser, 'Dat_Browser'),
-            (_SVG.folder_icon(36, _ic), "File Browser",
-             "Navigate your disk, preview textures, and drag files into an open IMG "
+            (_SVG.tree_app_icon(36), "Dir List",
+             "Navigate your disk in the DAT Browser, preview textures, and drag files into an open IMG "
              "or export entries to a folder.",
              self.open_dir_tree, 'File_Editor'),
         ]
@@ -445,11 +445,11 @@ class WelcomeScreen(QWidget):
              "Inspect and edit collision data — spheres, boxes and mesh faces. "
              "Paint surface materials, export as OBJ or COL.",
              self.open_col_workshop, 'Col_Editor'),
-            (_SVG.model_workshop_icon(36, '#4a9fd4'), "Model Workshop",
+            (_SVG.model_app_icon(36), "Model Workshop",
              "View DFF geometry and frame hierarchy. Load the linked TXD automatically "
              "via the DAT Browser IDE entry. Textured 3D preview.",
              self.open_model_workshop, 'Model_Editor'),
-            (_TI.get_dp5_workshop_icon(36, _ic), "DP5 Paint",
+            (_SVG.dp5_app_icon(36), "DP5 Paint",
              "Deluxe Paint-style bitmap editor. Draw, spray, clone and edit textures "
              "directly — works on any IMG entry or standalone image.",
              self.open_dp5_workshop, 'DP5_Workshop'),
@@ -457,7 +457,7 @@ class WelcomeScreen(QWidget):
              "Edit GTA water planes — adjust water zones, opacity and flow "
              "for SA, VC and III water.dat files.",
              self.open_water_workshop, 'Water_Editor'),
-            (_SVG.radar_workshop_icon(36), "Radar Workshop",
+            (_SVG.radar_app_icon(36), "Radar Workshop",
              "Browse, export and replace GTA radar tile textures. "
              "Supports SA 12×12 radar grid and VC/III formats.",
              self.open_radar_workshop, 'Radar_Editor'),
@@ -512,7 +512,7 @@ class WelcomeScreen(QWidget):
         g3 = QGridLayout(); g3.setSpacing(12)
         g3.setColumnStretch(0, 1); g3.setColumnStretch(1, 1); g3.setColumnStretch(2, 1)
         tools = [
-            (_TI.get_data_workshop_icon(36), "Data Workshop",
+            (_SVG.data_app_icon(36), "Data Workshop",
              "Edit IDE object definitions, IPL placements and the game .dat — "
              "model names, flags, positions, rotations and interiors.",
              self.open_ipl_editor, 'Data_Workshop'),

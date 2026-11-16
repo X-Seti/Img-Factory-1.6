@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/ img_creator.py - Version: 2
+#this belongs in apps/components/ img_creator.py - Version: 3
 # X-Seti - July16 2025 - Img Factory 1.5
 
 """
@@ -136,7 +136,7 @@ class NewIMGDialog(QDialog):
         path_layout.addLayout(path_row)
         
         # Project folder info label
-        self.project_info_label = QLabel("📁 Using project folder from settings")
+        self.project_info_label = QLabel("Using project folder from settings")
         self.project_info_label.setStyleSheet("color: #666; font-size: 9pt;")
         path_layout.addWidget(self.project_info_label)
         
@@ -204,23 +204,23 @@ class NewIMGDialog(QDialog):
                 assists_folder = getattr(self.main_window.settings, 'assists_folder', None)
                 if assists_folder and os.path.exists(assists_folder):
                     self.path_edit.setText(assists_folder)
-                    self.project_info_label.setText(f"📁 Using project folder: {assists_folder}")
+                    self.project_info_label.setText(f"Using project folder: {assists_folder}")
                     return
                 
                 # Fallback to project_folder for compatibility
                 project_folder = self.main_window.settings.get('project_folder')
                 if project_folder and os.path.exists(project_folder):
                     self.path_edit.setText(project_folder)
-                    self.project_info_label.setText(f"📁 Using project folder: {project_folder}")
+                    self.project_info_label.setText(f"Using project folder: {project_folder}")
                     return
             
             # No project folder set
-            self.project_info_label.setText("⚠️ No project folder set in settings")
+            self.project_info_label.setText("No project folder set in settings")
             self.project_info_label.setStyleSheet("color: palette(windowText); font-size: 9pt;")
             
         except Exception as e:
-            print(f"❌ Error loading project folder: {e}")
-            self.project_info_label.setText("❌ Error loading project folder")
+            print(f"Error loading project folder: {e}")
+            self.project_info_label.setText("Error loading project folder")
             self.project_info_label.setStyleSheet("color: palette(windowText); font-size: 9pt;")
     
     def _browse_output_path(self):
@@ -237,7 +237,7 @@ class NewIMGDialog(QDialog):
         if file_path:
             self.path_edit.setText(file_path)
             # Update project info to show custom path
-            self.project_info_label.setText("📁 Using custom output path")
+            self.project_info_label.setText("Using custom output path")
             self.project_info_label.setStyleSheet("color: #666; font-size: 9pt;")
     
     def _on_preset_changed(self):
@@ -405,7 +405,7 @@ class BasicIMGCreator:
         try:
             return create_version_2_img(output_path, size_mb)
         except Exception as e:
-            print(f"❌ Error creating simple IMG: {e}")
+            print(f"Error creating simple IMG: {e}")
             return False
     
     @staticmethod
@@ -422,7 +422,7 @@ class BasicIMGCreator:
                 return create_version_2_img(output_path, preset['default_size'], 
                                           preset['compression'], preset)
         except Exception as e:
-            print(f"❌ Error creating with preset: {e}")
+            print(f"Error creating with preset: {e}")
             return False
 
 

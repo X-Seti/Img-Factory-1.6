@@ -1,4 +1,4 @@
-#this belongs in apps/methods/txd_dialogs.py - Version: 7
+#this belongs in apps/methods/txd_dialogs.py - Version: 8
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD dialogs
 
 """
@@ -757,7 +757,7 @@ class TexturePropertiesDialog(QDialog): #vers 1
         return tab
 
 
-    def _apply_changes(self): #vers 1
+    def _apply_changes(self): #vers 2
         """Apply changes to texture"""
         # Update name
         new_name = self.name_edit.text().strip()
@@ -782,7 +782,7 @@ class TexturePropertiesDialog(QDialog): #vers 1
             self.changes_made = True
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"ℹ️ Format change queued: {new_format}")
+                self.main_window.log_message(f"Format change queued: {new_format}")
 
         if self.changes_made:
             # Notify parent workshop

@@ -1,4 +1,4 @@
-#this belongs in apps/gui/gui_layout_custom.py - Version: 36
+#this belongs in apps/gui/gui_layout_custom.py - Version: 38
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -67,54 +67,27 @@ def _ensure_left_panel_visible(mw, splitter, left_stack, wide=False): #vers 2
     splitter.update()
 
 
-def _show_dir_tree(mw): #vers 3
-    """Show dir tree in left stack — toggle collapse if already active."""
+def _show_dir_tree(mw): #vers 4
+    """Dir Tree is the DAT Browser's Dir list display order: open it there."""
     try:
+        widget = getattr(mw, 'dat_browser', None)
+        if widget is None:
+            if hasattr(mw, 'log_message'):
+                mw.log_message("DAT Browser not yet initialised")
+            return
         left_stack, splitter = _get_left_stack(mw)
         if left_stack is None or splitter is None:
             return
-
-        # Build dir tree first time
-        if not getattr(mw, 'directory_tree', None):
-            from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-            integrate_directory_tree_browser(mw)
-            root = getattr(mw, 'game_root', None)
-            if root and hasattr(mw.directory_tree, 'browse_directory'):
-                mw.directory_tree.browse_directory(root)
-
-        dt = getattr(mw, 'directory_tree', None)
-        if dt is None:
-            return
-
-        # Insert dir tree into page 0 of left_stack
-        if left_stack.widget(0) is not dt:
-            old = left_stack.widget(0)
-            left_stack.removeWidget(old)
-            left_stack.insertWidget(0, dt)
-
-        # Toggle: if already showing dir tree — collapse; else show it
-        currently_dir = (left_stack.currentIndex() == 0 and left_stack.isVisible()
-                         and splitter.sizes()[0] > 20)
-        if currently_dir:
-            # Collapse
-            total = sum(splitter.sizes()) or 10000
-            splitter.setSizes([0, total])
-            left_stack.hide()
-            if hasattr(mw, 'tool_taskbar'):
-                mw.tool_taskbar.set_active('dirtree', False)
-            if hasattr(mw, 'log_message'):
-                mw.log_message("Dir Tree hidden")
-        else:
-            left_stack.setCurrentIndex(0)
-            left_stack.repaint()
-            _ensure_left_panel_visible(mw, splitter, left_stack)
-            if hasattr(mw, 'tool_taskbar'):
-                mw.tool_taskbar._set_exclusive_active('dirtree')
-            if hasattr(mw, 'log_message'):
-                mw.log_message("Dir Tree")
+        showing = (left_stack.currentIndex() == 1 and left_stack.isVisible()
+                   and splitter.sizes()[0] > 20)
+        was_dir = widget.in_dir_list()
+        widget.set_display_mode('dir')
+        if showing and not was_dir:
+            return                                     # already open: just switch order
+        _show_dat_browser(mw)                          # open, or collapse if already Dir list
     except Exception as e:
         if hasattr(mw, 'log_message'):
-            mw.log_message(f"Dir tree show error: {e}")
+            mw.log_message(f"Dir list show error: {e}")
 
 
 def _show_dat_browser(mw): #vers 5
@@ -1548,7 +1521,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             except Exception:
                 pass
 
-    def _show_rw_reference(self): #vers 5
+    def _show_rw_reference(self): #vers 6
         """Show comprehensive GTA/RenderWare format reference — all researched binary layouts."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QTextEdit, QLabel, QSplitter)
@@ -2193,7 +2166,7 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 <h3>Future Features</h3>
 <table>
 <tr><th>Feature</th><th>Notes</th></tr>
-<tr><td>🧩 Sliding Puzzle mini-game</td><td>Radar tiles make a perfect sliding puzzle. Add "Boredom!" entry to Radar Workshop menu — shuffles tiles into a sliding puzzle, solve to reassemble the map. Track moves/time.</td></tr>
+<tr><td>Sliding Puzzle mini-game</td><td>Radar tiles make a perfect sliding puzzle. Add "Boredom!" entry to Radar Workshop menu — shuffles tiles into a sliding puzzle, solve to reassemble the map. Track moves/time.</td></tr>
 </table>
 </body>"""
 

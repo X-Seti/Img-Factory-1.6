@@ -1,4 +1,4 @@
-#this belongs in apps/components/DP5_Workshop/depends/bitmaps_widget.py - Version: 4
+#this belongs in apps/components/DP5_Workshop/depends/bitmaps_widget.py - Version: 5
 # X-Seti - Jul 2026 - DP5 Workshop - Bitmaps dock widget
 """
 Self-contained Bitmaps dock widget: dock container, collapsible title
@@ -11,9 +11,9 @@ to its existing callback methods (_on_bitmap_selected etc.).
 
 from PyQt6.QtWidgets import (
     QDockWidget, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QToolButton, QListWidget,
+    QLabel, QPushButton, QToolButton, QListWidget, QSizePolicy,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 
 
 def create_bitmaps_dock(owner): #vers 1
@@ -25,7 +25,7 @@ def create_bitmaps_dock(owner): #vers 1
     dock = QDockWidget("Bitmaps", owner)
     dock.setObjectName("Bitmaps")
     dock.setWidget(panel)
-    dock.setMinimumWidth(150)
+    dock.setMinimumWidth(100)
     dock.setFeatures(
         QDockWidget.DockWidgetFeature.DockWidgetMovable |
         QDockWidget.DockWidgetFeature.DockWidgetFloatable)
@@ -47,12 +47,12 @@ def _apply_panel_stylesheet(owner, panel): #vers 1
         panel.setStyleSheet(ss)
 
 
-def _create_content_panel(owner): #vers 4
-    panel = QFrame()
+def _create_content_panel(owner): #vers 5
+    from apps.components.DP5_Workshop.depends.dock_helper import ShrinkFrame
+    panel = ShrinkFrame()
     panel.setObjectName("dp5_bitmaps_panel")
     panel.setFrameStyle(QFrame.Shape.StyledPanel)
-    panel.setMinimumWidth(150)
-    panel.setMaximumWidth(240)
+    panel.setMinimumWidth(100)
     _apply_panel_stylesheet(owner, panel)
 
     layout = QVBoxLayout(panel)
@@ -65,47 +65,38 @@ def _create_content_panel(owner): #vers 4
     owner._bitmap_lw.currentRowChanged.connect(owner._on_bitmap_selected)
     layout.addWidget(owner._bitmap_lw, 1)
 
-    # Bottom button row — define all buttons BEFORE connecting signals
-    import_btn = QPushButton("Import")
-    import_btn.setFont(owner.button_font)
-    import_btn.setToolTip("Import Bitmap")
+    # Bottom icon row - one row of seven icon buttons
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+    tc = {}
+    if owner.app_settings and hasattr(owner.app_settings, 'get_theme_colors'):
+        tc = owner.app_settings.get_theme_colors() or {}
+    _col = tc.get('text_primary')
 
-    export_btn = QPushButton("Export")
-    export_btn.setFont(owner.button_font)
-    export_btn.setToolTip("Export current bitmap")
+    def _ib(icon_fn, tip, slot, enabled=True):  #vers 1
+        b = QToolButton()
+        b.setIcon(icon_fn(20, _col))
+        b.setIconSize(QSize(20, 20))
+        b.setToolTip(tip)
+        b.setAutoRaise(True)
+        b.setEnabled(enabled)
+        b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        b.setFixedHeight(28)
+        b.clicked.connect(slot)
+        return b
 
-    del_btn = QPushButton("Delete")
-    del_btn.setFont(owner.button_font)
-    del_btn.setToolTip("Remove from list")
-
-    # Connect signals after all three are defined
-    import_btn.clicked.connect(owner._import_bitmap)
-    export_btn.clicked.connect(owner._export_bitmap)
-    del_btn.clicked.connect(owner._delete_bitmap)
-
+    owner._bitmap_back_btn = _ib(_SVG.arrow_left_icon,
+        "Send the painted bitmap back to the editor that sent it",
+        owner._send_bitmap_back, False)
     btn_row = QHBoxLayout()
-    btn_row.addWidget(import_btn)
-    btn_row.addWidget(export_btn)
-    btn_row.addWidget(del_btn)
+    btn_row.setSpacing(2)
+    btn_row.addWidget(_ib(_SVG.import_icon, "Import Bitmap", owner._import_bitmap))
+    btn_row.addWidget(_ib(_SVG.export_icon, "Export current bitmap", owner._export_bitmap))
+    btn_row.addWidget(_ib(_SVG.delete_icon, "Remove from list", owner._delete_bitmap))
+    btn_row.addWidget(owner._bitmap_back_btn)
+    btn_row.addWidget(_ib(_SVG.save_icon, "Save to the file it was opened from (Ctrl+S)", owner._save_image))
+    btn_row.addWidget(_ib(_SVG.saveas_icon, "Save under a new name or format (Ctrl+Shift+S)", owner._save_image_as))
+    btn_row.addWidget(_ib(_SVG.settings_icon, "DP5 Settings", owner._show_workshop_settings))
     layout.addLayout(btn_row)
-    owner._bitmap_back_btn = QPushButton("Send back")      # to the editor that sent it
-    owner._bitmap_back_btn.setFont(owner.button_font)
-    owner._bitmap_back_btn.setToolTip("Send the painted bitmap back to the editor that sent it")
-    owner._bitmap_back_btn.setEnabled(False)
-    owner._bitmap_back_btn.clicked.connect(owner._send_bitmap_back)
-    save_btn = QPushButton("Save")
-    save_btn.setFont(owner.button_font)
-    save_btn.setToolTip("Save to the file it was opened from (Ctrl+S)")
-    save_btn.clicked.connect(owner._save_image)
-    save_as_btn = QPushButton("Save As")
-    save_as_btn.setFont(owner.button_font)
-    save_as_btn.setToolTip("Save under a new name or format (Ctrl+Shift+S)")
-    save_as_btn.clicked.connect(owner._save_image_as)
-    back_row = QHBoxLayout()
-    back_row.addWidget(owner._bitmap_back_btn)
-    back_row.addWidget(save_btn)
-    back_row.addWidget(save_as_btn)
-    layout.addLayout(back_row)
 
     return panel
 

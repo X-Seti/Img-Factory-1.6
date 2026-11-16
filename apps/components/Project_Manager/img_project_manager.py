@@ -136,11 +136,11 @@ class IMGProjectManager:
             self.projects.append(project)
             self._save_projects()
             
-            print(f"✅ Created {target_game.upper()} project: {name} at {project_path}")
+            print(f"Created {target_game.upper()} project: {name} at {project_path}")
             return project
             
         except Exception as e:
-            print(f"❌ Error creating project: {e}")
+            print(f"Error creating project: {e}")
             return None
     
     def _create_project_structure(self, project_path: Path, target_game: str):
@@ -503,11 +503,11 @@ Use the project manager to maintain a clean workflow.
             # Update project statistics
             self._update_project_stats(project)
             
-            print(f"✅ Organized {source_path.name} → {target_dir}")
+            print(f"Organized {source_path.name} → {target_dir}")
             return True
             
         except Exception as e:
-            print(f"❌ Error organizing file: {e}")
+            print(f"Error organizing file: {e}")
             return False
     
     def create_backup(self, project: IMGProject, file_path: str) -> bool:
@@ -529,11 +529,11 @@ Use the project manager to maintain a clean workflow.
             backup_path = backup_dir / backup_name
             
             shutil.copy2(source_path, backup_path)
-            print(f"✅ Backup created: {backup_name}")
+            print(f"Backup created: {backup_name}")
             return True
             
         except Exception as e:
-            print(f"❌ Error creating backup: {e}")
+            print(f"Error creating backup: {e}")
             return False
     
     def _update_project_stats(self, project: IMGProject):
@@ -558,7 +558,7 @@ Use the project manager to maintain a clean workflow.
             self._save_projects()
             
         except Exception as e:
-            print(f"❌ Error updating project stats: {e}")
+            print(f"Error updating project stats: {e}")
     
     def _load_projects(self):
         """Load projects from JSON file"""
@@ -572,12 +572,12 @@ Use the project manager to maintain a clean workflow.
                     for proj_data in projects_data.get('projects', [])
                 ]
                 
-                print(f"✅ Loaded {len(self.projects)} projects")
+                print(f"Loaded {len(self.projects)} projects")
             else:
                 self.projects = []
                 
         except Exception as e:
-            print(f"❌ Error loading projects: {e}")
+            print(f"Error loading projects: {e}")
             self.projects = []
     
     def _save_projects(self):
@@ -593,7 +593,7 @@ Use the project manager to maintain a clean workflow.
                 json.dump(projects_data, f, indent=2, ensure_ascii=False)
                 
         except Exception as e:
-            print(f"❌ Error saving projects: {e}")
+            print(f"Error saving projects: {e}")
     
     def get_all_projects(self) -> List[IMGProject]:
         """Get all available projects"""
@@ -609,7 +609,7 @@ Use the project manager to maintain a clean workflow.
     def set_current_project(self, project: IMGProject):
         """Set current active project"""
         self.current_project = project
-        print(f"✅ Active project: {project.name}")
+        print(f"Active project: {project.name}")
     
     def get_current_project(self) -> Optional[IMGProject]:
         """Get current active project"""
@@ -636,7 +636,7 @@ class ProjectManagerDialog(QDialog):
         layout = QVBoxLayout(self)
         
         # Title
-        title = QLabel("🗂️ IMG Project Manager")
+        title = QLabel("IMG Project Manager")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: palette(windowText); margin: 10px;")
         layout.addWidget(title)
@@ -657,7 +657,7 @@ class ProjectManagerDialog(QDialog):
         # Project buttons
         proj_buttons_layout = QHBoxLayout()
         
-        self.new_project_btn = QPushButton("📁 New Project")
+        self.new_project_btn = QPushButton("New Project")
         self.new_project_btn.clicked.connect(self._new_project)
         proj_buttons_layout.addWidget(self.new_project_btn)
         
@@ -665,7 +665,7 @@ class ProjectManagerDialog(QDialog):
         self.open_project_btn.clicked.connect(self._open_project)
         proj_buttons_layout.addWidget(self.open_project_btn)
         
-        self.delete_project_btn = QPushButton("🗑️ Delete Project")
+        self.delete_project_btn = QPushButton("Delete Project")
         self.delete_project_btn.clicked.connect(self._delete_project)
         proj_buttons_layout.addWidget(self.delete_project_btn)
         
@@ -717,14 +717,14 @@ class ProjectManagerDialog(QDialog):
         self.projects_list.clear()
         
         for project in self.project_manager.get_all_projects():
-            # Get game emoji for display
-            game_emojis = {
-                'gta3': '🚗', 'gtavc': '🌴', 'gtasa': '🏜️', 
-                'bully': '🏫', 'manhunt': '🔪', 'sol': '🏙️', 'custom': '⚙️'
+            # Game tag for display
+            game_tags = {
+                'gta3': 'III', 'gtavc': 'VC', 'gtasa': 'SA',
+                'bully': 'Bully', 'manhunt': 'Manhunt', 'sol': 'SOL', 'custom': 'Custom'
             }
             
-            game_emoji = game_emojis.get(project.target_game, '❓')
-            project_display = f"{game_emoji} {project.name}"
+            game_tag = game_tags.get(project.target_game, '?')
+            project_display = f"[{game_tag}] {project.name}"
             
             item = QTreeWidgetItem([
                 project_display,
@@ -798,7 +798,7 @@ class NewProjectDialog(QDialog):
         layout = QVBoxLayout(self)
         
         # Title
-        title = QLabel("📁 Create New IMG Project")
+        title = QLabel("Create New IMG Project")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 14px; font-weight: bold; margin: 10px;")
         layout.addWidget(title)
@@ -814,13 +814,13 @@ class NewProjectDialog(QDialog):
         # Target game selection
         self.game_combo = QComboBox()
         game_options = [
-            ("gta3", "🚗 Grand Theft Auto III"),
-            ("gtavc", "🌴 Grand Theft Auto: Vice City"),
-            ("gtasa", "🏜️ Grand Theft Auto: San Andreas"),
-            ("bully", "🏫 Bully"),
-            ("manhunt", "🔪 Manhunt"),
-            ("sol", "🏙️ State of Liberty (Multi-GTA)"),
-            ("custom", "⚙️ Custom/Multi-Game")
+            ("gta3", "Grand Theft Auto III"),
+            ("gtavc", "Grand Theft Auto: Vice City"),
+            ("gtasa", "Grand Theft Auto: San Andreas"),
+            ("bully", "Bully"),
+            ("manhunt", "Manhunt"),
+            ("sol", "State of Liberty (Multi-GTA)"),
+            ("custom", "Custom/Multi-Game")
         ]
         
         for code, name in game_options:

@@ -1,4 +1,4 @@
-#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 8
+#this belongs in apps/components/Model_Editor/depends/model_list_func.py - Version: 9
 # X-Seti - October 12 2026 - IMG Factory 1.6 - Model Workshop model list
 
 """
@@ -1074,7 +1074,7 @@ class ModelListMixin: #vers 1
             print(f"_select_model_by_row error: {e}")
 
 
-    def _show_collision_context_menu(self, position): #vers 5
+    def _show_collision_context_menu(self, position): #vers 6
         """Right-click on mod_compact_list — DFF material/texture mode or COL mode."""
         sender = self.sender()
         source_list = self.mod_compact_list if sender is self.mod_compact_list else self.collision_list
@@ -1121,7 +1121,7 @@ class ModelListMixin: #vers 1
             menu.addSeparator()
             is_pinned = self._is_model_pinned(row)
             menu.addAction(
-                "📌 Unpin" if is_pinned else "📌 Pin").triggered.connect(
+                "Unpin" if is_pinned else "Pin").triggered.connect(
                     self._toggle_pin_selected)
 
         menu.addSeparator()

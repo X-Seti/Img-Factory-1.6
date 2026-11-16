@@ -1,4 +1,4 @@
-#this belongs in core/export_via.py - Version: 10
+#this belongs in core/export_via.py - Version: 11
 # X-Seti - November19 2025 - IMG Factory 1.5 - Export Via Functions
 """
 Export Via Functions - FIXED: No IDE dialog dependency, uses IDEParser directly
@@ -141,7 +141,7 @@ def _export_entries_with_progress(main_window, entries_to_export: List, export_d
             entry_name = getattr(entry, 'name', f"entry_{i}")
 
             try:
-                # ✅ FIXED: Use real export_entry that handles offset/size
+                # FIXED: Use real export_entry that handles offset/size
                 output_path = os.path.join(export_dir, entry_name)
                 result = _export_single_entry(main_window, entry, output_path)
                 if result:

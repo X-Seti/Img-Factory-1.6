@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 228
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 229
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -174,7 +174,7 @@ class ModelWorkshop(ModelWindowMixin, ModelSetupUIMixin, ModelCoreLogicMixin, Mo
         install_edge_cursor_reset()                      # resize arrow never sticks
         self.setWindowTitle(App_name)
         try:
-            self.setWindowIcon(SVGIconFactory.model_workshop_icon(32, '#4a9fd4'))
+            self.setWindowIcon(SVGIconFactory.model_app_icon(32))
         except Exception:
             pass
         self.icon_factory = SVGIconFactory()

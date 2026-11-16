@@ -1,4 +1,4 @@
-#this belongs in methods/imgfactory_ui_settings.py - Version: 9
+#this belongs in methods/imgfactory_ui_settings.py - Version: 10
 # X-Seti - February04 2026 - IMG Factory 1.6 - IMG Factory Settings Dialog
 
 """
@@ -282,7 +282,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         layout.addStretch()
         return widget
 
-    def _create_ui_tab(self): #vers 3
+    def _create_ui_tab(self): #vers 4
         """Create UI mode settings tab with SVG icon previews"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -304,7 +304,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
 
         # Restart required notice
         from PyQt6.QtWidgets import QLabel as _QL
-        self._restart_notice = _QL("⚠  Restart required for UI mode changes to take effect")
+        self._restart_notice = _QL(" Restart required for UI mode changes to take effect")
         self._restart_notice.setStyleSheet("color: #f90; font-size: 10px; padding: 4px;")
         self._restart_notice.setVisible(False)
 

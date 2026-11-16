@@ -78,7 +78,7 @@ class IMGTemplateManager:
                     
                     # Check if file is empty
                     if not content:
-                        print("⚠ Template file is empty, using defaults")
+                        print("Template file is empty, using defaults")
                         return default_templates
                     
                     # Try to parse JSON
@@ -86,7 +86,7 @@ class IMGTemplateManager:
                     
                     # Validate structure
                     if not isinstance(templates, dict):
-                        print("⚠ Invalid template file format, using defaults")
+                        print("Invalid template file format, using defaults")
                         return default_templates
                     
                     # Ensure required keys exist
@@ -101,13 +101,13 @@ class IMGTemplateManager:
                     return templates
                     
             else:
-                print("⚠ No template file found, creating with defaults")
+                print("No template file found, creating with defaults")
                 # Create default file
                 self._save_templates(default_templates)
                 return default_templates
                 
         except json.JSONDecodeError as e:
-            print(f"⚠ Template file corrupted (JSON error: {e}), using defaults")
+            print(f"Template file corrupted (JSON error: {e}), using defaults")
             # Backup corrupted file
             try:
                 backup_path = self.settings_path.with_suffix('.json.backup')
@@ -115,10 +115,10 @@ class IMGTemplateManager:
                     self.settings_path.rename(backup_path)
                     print(f"✓ Corrupted file backed up to {backup_path}")
             except Exception as backup_error:
-                print(f"⚠ Could not backup corrupted file: {backup_error}")
+                print(f"Could not backup corrupted file: {backup_error}")
                 
         except Exception as e:
-            print(f"⚠ Error loading templates: {e}")
+            print(f"Error loading templates: {e}")
         
         # Return defaults and save them
         self._save_templates(default_templates)
@@ -148,7 +148,7 @@ class IMGTemplateManager:
             print(f"✓ Templates saved to {self.settings_path}")
             
         except Exception as e:
-            print(f"⚠ Error saving templates: {e}")
+            print(f"Error saving templates: {e}")
     
     def get_user_templates(self) -> List[Dict]:
         """Get user-defined templates"""
@@ -193,7 +193,7 @@ class IMGTemplateManager:
             return True
             
         except Exception as e:
-            print(f"⚠ Error saving template: {e}")
+            print(f"Error saving template: {e}")
             return False
     
     def delete_template(self, name: str) -> bool:
@@ -213,11 +213,11 @@ class IMGTemplateManager:
                 print(f"✓ Template '{name}' deleted")
                 return True
             else:
-                print(f"⚠ Template '{name}' not found")
+                print(f"Template '{name}' not found")
                 return False
                 
         except Exception as e:
-            print(f"⚠ Error deleting template: {e}")
+            print(f"Error deleting template: {e}")
             return False
     
     def import_templates(self, file_path: str, overwrite_existing: bool = False) -> Dict:
@@ -288,7 +288,7 @@ class IMGTemplateManager:
             return True
             
         except Exception as e:
-            print(f"⚠ Error exporting templates: {e}")
+            print(f"Error exporting templates: {e}")
             return False
 
 

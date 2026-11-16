@@ -1,4 +1,4 @@
-#this belongs in core/export.py - Version: 2
+#this belongs in core/export.py - Version: 3
 # X-Seti - November19 2025 - IMG Factory 1.5 - Export Functions
 """
 Export Functions - Tab-aware export with routing to IMG/COL handlers
@@ -75,7 +75,7 @@ def export_all_function(main_window) -> bool: #vers 2
         return False
 
 
-def integrate_export_functions(main_window) -> bool: #vers 2
+def integrate_export_functions(main_window) -> bool: #vers 3
     """Integrate export functions into main window with all aliases
     Args:
         main_window: Main application window
@@ -97,7 +97,7 @@ def integrate_export_functions(main_window) -> bool: #vers 2
             main_window.log_message("   • Individual file export only")
             main_window.log_message("   • IMG/COL routing support")
             main_window.log_message("   • Overwrite checking")
-            main_window.log_message("   ✅ No global file_object/file_type")
+            main_window.log_message("   No global file_object/file_type")
         return True
     except Exception as e:
         if hasattr(main_window, 'log_message'):

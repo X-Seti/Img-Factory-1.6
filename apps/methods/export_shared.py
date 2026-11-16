@@ -1,4 +1,4 @@
-#this belongs in methods/export_shared.py - Version: 2
+#this belongs in methods/export_shared.py - Version: 3
 # X-Seti - Aug15 2025 - IMG Factory 1.5 - Shared Export Functions
 
 """
@@ -36,7 +36,7 @@ class ExportThread(QThread): #vers 2
         self.stats = {'exported': 0, 'skipped': 0, 'failed': 0}
         self._stop_requested = False
         
-    def run(self): #vers 2
+    def run(self): #vers 3
         """Run export operation in background - FIXED to prevent freezing"""
         try:
             total_entries = len(self.entries_to_export)
@@ -82,7 +82,7 @@ class ExportThread(QThread): #vers 2
                 except Exception as e:
                     self.stats['failed'] += 1
                     if hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message(f"❌ Export error for {entry_name}: {e}")
+                        self.main_window.log_message(f"Export error for {entry_name}: {e}")
             
             # CRITICAL: Emit final progress and completion signals
             self.progress_updated.emit(100, "Export completed!")
@@ -179,7 +179,7 @@ def get_active_table(main_window): #vers 1
     return getattr(getattr(main_window, 'gui_layout', None), 'table', None)
 
 
-def get_selected_entries(main_window) -> List: #vers 2
+def get_selected_entries(main_window) -> List: #vers 3
     """Get currently selected entries from table"""
     selected_entries = []
     
@@ -201,21 +201,21 @@ def get_selected_entries(main_window) -> List: #vers 2
                     
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error getting selected entries: {e}")
+            main_window.log_message(f"Error getting selected entries: {e}")
     
     return selected_entries
 
-def get_export_folder(main_window, title: str = "Select Export Folder") -> Optional[str]: #vers 1
+def get_export_folder(main_window, title: str = "Select Export Folder") -> Optional[str]: #vers 2
     """Get export destination folder"""
     try:
         folder = QFileDialog.getExistingDirectory(main_window, title)
         return folder if folder else None
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error selecting export folder: {e}")
+            main_window.log_message(f"Error selecting export folder: {e}")
         return None
 
-def validate_export_entries(entries: List, main_window) -> bool: #vers 1
+def validate_export_entries(entries: List, main_window) -> bool: #vers 2
     """Validate entries before export"""
     try:
         if not entries:
@@ -234,13 +234,13 @@ def validate_export_entries(entries: List, main_window) -> bool: #vers 1
         
         if valid_entries < len(entries):
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"⚠️ {len(entries) - valid_entries} entries may have issues")
+                main_window.log_message(f"{len(entries) - valid_entries} entries may have issues")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error validating entries: {e}")
+            main_window.log_message(f"Error validating entries: {e}")
         return False
 
 def organize_by_type(entries: List) -> Dict[str, List]: #vers 1

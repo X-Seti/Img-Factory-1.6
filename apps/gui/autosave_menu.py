@@ -1,4 +1,4 @@
-#this belongs in gui/autosave_menu.py - Version: 1
+#this belongs in gui/autosave_menu.py - Version: 2
 # X-Seti - August07 2025 - IMG Factory 1.5 - Auto-Save Menu Option
 
 """
@@ -16,7 +16,7 @@ except ImportError:
     from PyQt6.QtWidgets import QAction
 from PyQt6.QtCore import Qt
 
-def add_autosave_menu_option(main_window): #vers 1
+def add_autosave_menu_option(main_window): #vers 2
     """Add auto-save toggle option to IMG menu"""
     try:
         # Find IMG menu in menubar
@@ -51,14 +51,14 @@ def add_autosave_menu_option(main_window): #vers 1
         main_window.autosave_action = autosave_action
         main_window.autosave_enabled = False
         
-        main_window.log_message("✅ Auto-save menu option added to IMG menu")
+        main_window.log_message("Auto-save menu option added to IMG menu")
         return True
         
     except Exception as e:
-        main_window.log_message(f"❌ Failed to add auto-save menu option: {str(e)}")
+        main_window.log_message(f"Failed to add auto-save menu option: {str(e)}")
         return False
 
-def toggle_autosave(main_window, enabled): #vers 1
+def toggle_autosave(main_window, enabled): #vers 2
     """Toggle auto-save setting"""
     try:
         main_window.autosave_enabled = enabled
@@ -68,7 +68,7 @@ def toggle_autosave(main_window, enabled): #vers 1
             reply = QMessageBox.question(
                 main_window,
                 "Enable Auto-Save?",
-                "⚠️ WARNING: Auto-save may cause crashes during import.\n\n"
+                "WARNING: Auto-save may cause crashes during import.\n\n"
                 "It's recommended to keep auto-save disabled and use the 'Save Entry' button manually after importing.\n\n"
                 "Enable auto-save anyway?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -79,30 +79,30 @@ def toggle_autosave(main_window, enabled): #vers 1
                 # User chose not to enable - revert the setting
                 main_window.autosave_action.setChecked(False)
                 main_window.autosave_enabled = False
-                main_window.log_message("❌ Auto-save disabled (user choice)")
+                main_window.log_message("Auto-save disabled (user choice)")
                 return
             
-            main_window.log_message("⚠️ Auto-save ENABLED - may cause crashes!")
+            main_window.log_message("Auto-save ENABLED - may cause crashes!")
         else:
-            main_window.log_message("✅ Auto-save disabled - manual save required")
+            main_window.log_message("Auto-save disabled - manual save required")
         
     except Exception as e:
-        main_window.log_message(f"❌ Error toggling auto-save: {str(e)}")
+        main_window.log_message(f"Error toggling auto-save: {str(e)}")
 
 def is_autosave_enabled(main_window) -> bool: #vers 1
     """Check if auto-save is enabled"""
     return getattr(main_window, 'autosave_enabled', False)
 
-def integrate_autosave_menu(main_window): #vers 1
+def integrate_autosave_menu(main_window): #vers 2
     """Integrate auto-save menu into main window"""
     try:
         success = add_autosave_menu_option(main_window)
         if success:
-            main_window.log_message("✅ Auto-save menu integrated")
+            main_window.log_message("Auto-save menu integrated")
         return success
         
     except Exception as e:
-        main_window.log_message(f"❌ Auto-save menu integration failed: {str(e)}")
+        main_window.log_message(f"Auto-save menu integration failed: {str(e)}")
         return False
 
 # Export functions

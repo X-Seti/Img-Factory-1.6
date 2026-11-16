@@ -1,4 +1,4 @@
-#this belongs in gui/cross_platform_theme.py - Version: 1
+#this belongs in gui/cross_platform_theme.py - Version: 2
 # X-Seti - July22 2025 - IMG Factory 1.5 - Cross-Platform Theme System
 
 """
@@ -203,13 +203,13 @@ class CrossPlatformThemeSystem:
             
             # Log the applied theme info
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"✅ Enhanced theme applied for {self.platform}/{self.desktop_environment}")
+                main_window.log_message(f"Enhanced theme applied for {self.platform}/{self.desktop_environment}")
             
             return True
             
         except Exception as e:
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"❌ Enhanced theme failed: {e}")
+                main_window.log_message(f"Enhanced theme failed: {e}")
             return False
     
     def _fix_specific_widgets(self, main_window):
@@ -302,7 +302,7 @@ def initialize_cross_platform_theme_system(main_window) -> bool:
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Enhanced theme system failed: {e}")
+            main_window.log_message(f"Enhanced theme system failed: {e}")
         return False
 
 def force_readable_text_colors(main_window) -> bool:
@@ -332,13 +332,13 @@ def force_readable_text_colors(main_window) -> bool:
         main_window.setStyleSheet(main_window.styleSheet() + readable_css)
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ Readable text colors forced")
+            main_window.log_message("Readable text colors forced")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Text color fix failed: {e}")
+            main_window.log_message(f"Text color fix failed: {e}")
         return False
     """Quick fix for grey bleeding issue specifically"""
     try:
@@ -361,13 +361,13 @@ def force_readable_text_colors(main_window) -> bool:
         main_window.setStyleSheet(force_white_css)
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("✅ Grey bleeding fix applied")
+            main_window.log_message("Grey bleeding fix applied")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Grey bleeding fix failed: {e}")
+            main_window.log_message(f"Grey bleeding fix failed: {e}")
         return False
 
 # Quick integration function

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Data_Workshop/data_workshop.py - Version: 12
+#this belongs in apps/components/Data_Workshop/data_workshop.py - Version: 13
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Data Workshop (IDE / IPL / DAT)
 # Item Placement List editor for GTA III / VC / SA / SOL
 # Built on GUIWorkshop base (temp_workshop pattern)
@@ -859,8 +859,8 @@ class DataWorkshop(RibbonIconsMixin, RibbonMixin, GUIWorkshop): #vers 3
         if main_window and hasattr(self, "toolbar"): self.toolbar.hide()
         if main_window: self.setWindowFlags(Qt.WindowType.Widget)
         try:
-            from apps.methods.imgfactory_svg_icons import get_data_workshop_icon
-            self.setWindowIcon(get_data_workshop_icon(64))
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            self.setWindowIcon(SVGIconFactory.data_app_icon(64))
         except Exception:
             pass
 

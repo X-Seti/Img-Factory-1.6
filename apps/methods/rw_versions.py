@@ -1,5 +1,5 @@
 
-#this belongs in methods.rw_versions.py - Version: 8
+#this belongs in methods.rw_versions.py - Version: 9
 # X-Seti - November18 2025 - IMG Factory 1.5 - RenderWare Version Constants
 """
 RenderWare Version Constants - Expanded
@@ -225,8 +225,8 @@ def get_version_info(version_value: int) -> Dict[str, any]: #vers 2
         'patch': version_value & 0xFF
     }
 
-def parse_rw_version(version_bytes: bytes) -> Tuple[int, str]: #vers 3
-    """Parse RenderWare version from 4-byte header - ✅ FIXED"""
+def parse_rw_version(version_bytes: bytes) -> Tuple[int, str]: #vers 4
+    """Parse RenderWare version from 4-byte header - FIXED"""
     if len(version_bytes) < 4:
         return 0, "Invalid"
     try:
@@ -236,8 +236,8 @@ def parse_rw_version(version_bytes: bytes) -> Tuple[int, str]: #vers 3
     except struct.error:
         return 0, "Invalid"
 
-def get_model_format_version(file_extension: str, data: bytes) -> Tuple[str, str]: #vers 2
-    """Get model format and version from file data - ✅ FIXED SYNTAX"""
+def get_model_format_version(file_extension: str, data: bytes) -> Tuple[str, str]: #vers 3
+    """Get model format and version from file data - FIXED SYNTAX"""
     ext = file_extension.lower().lstrip('.')
     if ext == 'dff' and len(data) >= 12:
         try:

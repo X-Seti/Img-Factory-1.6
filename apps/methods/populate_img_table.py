@@ -1,4 +1,4 @@
-#this belongs in methods/populate_img_table.py - Version: 12
+#this belongs in methods/populate_img_table.py - Version: 13
 # X-Seti - November18 2025 - IMG Factory 1.5
 """
 IMG Table Population
@@ -464,7 +464,7 @@ class IMGTablePopulator:
             return 'None'
 
 
-    def get_info_light(self, entry: Any) -> str: #vers 4
+    def get_info_light(self, entry: Any) -> str: #vers 5
         """Get entry info - LIGHT processing, no heavy detection"""
         try:
             info_parts = []
@@ -486,7 +486,7 @@ class IMGTablePopulator:
                 info_parts.append("Texture")
             elif entry_type in ['COL']:
                 info_parts.append("Collision")
-            return " • ".join(info_parts) if info_parts else "Original"  # ✅ CLEAN SEPARATOR
+            return " • ".join(info_parts) if info_parts else "Original"  # CLEAN SEPARATOR
         except Exception:
             return "Original"
 
