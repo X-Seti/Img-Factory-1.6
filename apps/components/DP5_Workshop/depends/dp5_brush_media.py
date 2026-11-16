@@ -25,15 +25,18 @@ def smooth_point(prev, new, amount: float): #vers 1
     return prev[0] + (new[0] - prev[0]) * k, prev[1] + (new[1] - prev[1]) * k
 
 
-def mirror_points(cx: int, cy: int, w: int, h: int, sym: str) -> list: #vers 1
-    """Dab centres including symmetry mirrors."""
+def mirror_points(cx: int, cy: int, w: int, h: int, sym: str, ax=None, ay=None) -> list: #vers 2
+    """Dab centres including symmetry mirrors about the axes (centre by default)."""
+    ax = (w - 1) / 2.0 if ax is None else ax
+    ay = (h - 1) / 2.0 if ay is None else ay
+    mx, my = round(2 * ax - cx), round(2 * ay - cy)
     pts = [(cx, cy)]
     if sym in ('H', 'quad'):
-        pts.append((w - 1 - cx, cy))
+        pts.append((mx, cy))
     if sym in ('V', 'quad'):
-        pts.append((cx, h - 1 - cy))
+        pts.append((cx, my))
     if sym == 'quad':
-        pts.append((w - 1 - cx, h - 1 - cy))
+        pts.append((mx, my))
     return pts
 
 

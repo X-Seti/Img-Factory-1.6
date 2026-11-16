@@ -9,6 +9,8 @@ and put back centred where it was. Live preview, OK is one undo step.
 
 ##Methods list -
 # perspective_brush
+# perspective_quad
+# quad_brush
 # stamp_over
 
 ##class PerspectiveDialog: -
@@ -16,16 +18,18 @@ and put back centred where it was. Live preview, OK is one undo step.
 # _apply
 # _schedule
 # accept
+# done
+# quad_points
 # reject
+# set_corner
 
 import numpy as np
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (QDialog, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSlider, QVBoxLayout)
 
 
-def perspective_brush(brush, rx: float, ry: float, rz: float, depth: float): #vers 1
-    """(out h x w x 4 uint8, centre offset) of brush turned rx, ry, rz degrees; depth = camera distance in brush sizes."""
-    bh, bw = brush.shape[:2]
+def perspective_quad(bw: int, bh: int, rx: float, ry: float, rz: float, depth: float): #vers 1
+    """Corner positions (from the brush centre) of a bw x bh brush turned rx, ry, rz degrees."""
     hw, hh = bw / 2.0, bh / 2.0
     ax, ay, az = np.radians([rx, ry, rz])
     cx, sx, cy, sy, cz, sz = np.cos(ax), np.sin(ax), np.cos(ay), np.sin(ay), np.cos(az), np.sin(az)
@@ -40,7 +44,21 @@ def perspective_brush(brush, rx: float, ry: float, rz: float, depth: float): #ve
         p = R @ np.array([x, y, 0.0])
         k = D / (D + p[2])
         dst.append((p[0] * k, p[1] * k))
-    dst = np.array(dst)
+    return np.array(dst)
+
+
+def perspective_brush(brush, rx: float, ry: float, rz: float, depth: float): #vers 2
+    """(out h x w x 4 uint8, centre offset) of brush turned rx, ry, rz degrees; depth = camera distance in brush sizes."""
+    bh, bw = brush.shape[:2]
+    return quad_brush(brush, perspective_quad(bw, bh, rx, ry, rz, depth))
+
+
+def quad_brush(brush, dst): #vers 1
+    """(out h x w x 4 uint8, centre offset) of brush pinned to the four corners dst (from its centre)."""
+    bh, bw = brush.shape[:2]
+    hw, hh = bw / 2.0, bh / 2.0
+    src = np.array([(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)], np.float64)
+    dst = np.asarray(dst, np.float64)
     x0, y0 = np.floor(dst.min(0)).astype(int)
     x1, y1 = np.ceil(dst.max(0)).astype(int)
     ow, oh = max(1, x1 - x0), max(1, y1 - y0)
@@ -59,7 +77,8 @@ def perspective_brush(brush, rx: float, ry: float, rz: float, depth: float): #ve
     sxp = (H[0, 0] * u + H[0, 1] * v + H[0, 2]) / den + hw
     syp = (H[1, 0] * u + H[1, 1] * v + H[1, 2]) / den + hh
     ix, iy = np.floor(sxp).astype(int), np.floor(syp).astype(int)
-    ok = (ix >= 0) & (ix < bw) & (iy >= 0) & (iy < bh) & (den > 0)
+    dc = H[2, 0] * dst[:, 0].mean() + H[2, 1] * dst[:, 1].mean() + H[2, 2]
+    ok = (ix >= 0) & (ix < bw) & (iy >= 0) & (iy < bh) & (den * dc > 0)
     out = np.zeros((oh, ow, 4), np.uint8)
     out[ok] = brush[iy[ok], ix[ok]]
     return out, (int(x0 + hw), int(y0 + hh))
@@ -81,7 +100,7 @@ def stamp_over(canvas, brush, x: int, y: int): #vers 1
     canvas[y + sy0:y + ey, x + sx0:x + ex] = np.concatenate([rgb, oa * 255], axis=2).round().astype(np.uint8)
 
 
-class PerspectiveDialog(QDialog): #vers 1
+class PerspectiveDialog(QDialog): #vers 2
     """Turn the open area on X, Y and Z with perspective; live preview."""
 
     def __init__(self, editor, canvas, mask): #vers 1
@@ -95,12 +114,13 @@ class PerspectiveDialog(QDialog): #vers 1
         y1, x1 = int(ys.max()) + 1, int(xs.max()) + 1
         self._brush = a[self._y0:y1, self._x0:x1].copy()
         self._brush[~mask[self._y0:y1, self._x0:x1]] = 0
+        self._quad = None                         # corner pins from the canvas handles; None = sliders
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(60)
         self._timer.timeout.connect(self._apply)
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel("Turn the open area in space; the original is removed."))
+        lay.addWidget(QLabel("Turn the open area in space, or drag the corner pins on the picture."))
         form = QFormLayout()
         self._sl = {}
         for key, label, lo, hi, val in (('rx', "Tilt (X axis)", -80, 80, 0), ('ry', "Turn (Y axis)", -80, 80, 0),
@@ -112,7 +132,7 @@ class PerspectiveDialog(QDialog): #vers 1
             lab = QLabel(str(val))
             lab.setMinimumWidth(36)
             s.valueChanged.connect(lambda v, l=lab: l.setText(str(v)))
-            s.valueChanged.connect(self._schedule)
+            s.valueChanged.connect(self._slider_moved)
             row.addWidget(s, 1)
             row.addWidget(lab)
             form.addRow(label, row)
@@ -126,17 +146,42 @@ class PerspectiveDialog(QDialog): #vers 1
         btns.addWidget(ok)
         btns.addWidget(no)
         lay.addLayout(btns)
+        from apps.components.DP5_Workshop.depends.dp5_dialog_handles import PerspectiveHandles
+        canvas._overlay = PerspectiveHandles(self)
         self._apply()
 
-    def _schedule(self, *_): #vers 1
+    def _slider_moved(self, *_): #vers 1
+        """A slider takes over from the corner pins."""
+        self._quad = None
         self._timer.start()
+
+    def _dst(self): #vers 1
+        """Corner offsets from the brush centre: pins when dragged, else from the sliders."""
+        if self._quad is not None:
+            return self._quad
+        bh, bw = self._brush.shape[:2]
+        return perspective_quad(bw, bh, self._sl['rx'].value(), self._sl['ry'].value(),
+                                self._sl['rz'].value(), self._sl['d'].value() / 10.0)
+
+    def quad_points(self) -> list: #vers 1
+        """Corner positions in picture pixels."""
+        bh, bw = self._brush.shape[:2]
+        ox, oy = self._x0 + bw / 2.0, self._y0 + bh / 2.0
+        return [(ox + x, oy + y) for x, y in self._dst()]
+
+    def set_corner(self, i: int, x: float, y: float): #vers 1
+        """Pin corner i to picture pixel (x, y)."""
+        bh, bw = self._brush.shape[:2]
+        q = np.array(self._dst(), np.float64).copy()
+        q[i] = (x - self._x0 - bw / 2.0, y - self._y0 - bh / 2.0)
+        self._quad = q
+        self._apply()
 
     def _apply(self): #vers 1
         c = self._c
         a = np.frombuffer(self._orig, np.uint8).reshape(c.tex_h, c.tex_w, 4).copy()
         a[self._mask] = 0
-        out, (cx, cy) = perspective_brush(self._brush, self._sl['rx'].value(), self._sl['ry'].value(),
-                                          self._sl['rz'].value(), self._sl['d'].value() / 10.0)
+        out, (cx, cy) = quad_brush(self._brush, self._dst())
         stamp_over(a, out, self._x0 + cx, self._y0 + cy)
         c.rgba[:] = a.tobytes()
         c.update()
@@ -157,3 +202,8 @@ class PerspectiveDialog(QDialog): #vers 1
         self._c.rgba[:] = self._orig
         self._c.update()
         super().reject()
+
+    def done(self, r): #vers 1
+        self._c._overlay = None
+        self._c.update()
+        super().done(r)

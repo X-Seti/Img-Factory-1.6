@@ -25,6 +25,7 @@ All work stays inside the open area (drape) of the current frame.
 ##class CameraDialog: -
 # __init__
 # accept
+# done
 ##class CycleDialog: -
 # __init__
 # _build
@@ -357,7 +358,7 @@ def _reload(ed, c): #vers 1
     ed._anim_refresh_thumbs()
 
 
-class CameraDialog(QDialog): #vers 1
+class CameraDialog(QDialog): #vers 2
     """Camera move: scroll and zoom the current frame across the selected frames."""
 
     def __init__(self, editor, idxs, cur): #vers 1
@@ -383,6 +384,18 @@ class CameraDialog(QDialog): #vers 1
         form.addRow(self._wrap)
         lay.addLayout(form)
         _row(lay, "OK", self.accept, self.reject)
+        from apps.components.DP5_Workshop.depends.dp5_dialog_handles import CameraHandles
+        cv = editor.dp5_canvas
+        cv._overlay = CameraHandles(self, cv)
+        for s in (self._dx, self._dy, self._z0, self._z1):
+            s.valueChanged.connect(lambda _v: cv.update())
+        cv.update()
+
+    def done(self, r): #vers 1
+        c = self._ed.dp5_canvas
+        c._overlay = None
+        c.update()
+        super().done(r)
 
     def accept(self): #vers 1
         ed = self._ed
@@ -397,7 +410,7 @@ class CameraDialog(QDialog): #vers 1
         super().accept()
 
 
-class AnimBrushDialog(QDialog): #vers 1
+class AnimBrushDialog(QDialog): #vers 2
     """Paste the grabbed anim brush onto the selected frames, one brush frame per frame."""
 
     def __init__(self, editor, idxs): #vers 1
@@ -418,6 +431,17 @@ class AnimBrushDialog(QDialog): #vers 1
         form.addRow("Y", self._y)
         lay.addLayout(form)
         _row(lay, "OK", self.accept, self.reject)
+        from apps.components.DP5_Workshop.depends.dp5_dialog_handles import PasteHandles
+        c._overlay = PasteHandles(self, c, br[0].shape[1], br[0].shape[0])
+        for s in (self._x, self._y):
+            s.valueChanged.connect(lambda _v: c.update())
+        c.update()
+
+    def done(self, r): #vers 1
+        c = self._ed.dp5_canvas
+        c._overlay = None
+        c.update()
+        super().done(r)
 
     def accept(self): #vers 1
         ed = self._ed

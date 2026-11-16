@@ -6099,3 +6099,9 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
   class).
 - Nov 14 2026 - DP5: View > Slideshow (open tabs / folder) - Left/Right step, Space plays or pauses a GIF from one view, F fit, Esc close.
 - Nov 14 2026 - DP5: Edit > Pick colour to alpha and Drape ribbon icon - click colours to make them transparent (Wand tolerance); open area and selected frames respected; Esc ends.
+- Nov 14 2026 - DP5: shapes, gradients and Crop stay adjustable - two handles, drag inside moves, OK/Enter keeps, X/Esc cancels; gradient Flip swaps colours; Crop shows a dimmed box. New depends/dp5_pending_edit.py.
+- Nov 16 2026 - DP5: floating selection has scale and rotate handles, OK / X / Flip H / Flip V HUD; Shift keeps proportions or snaps 15 degrees. New depends/dp5_float_handles.py.
+- Nov 16 2026 - DP5: symmetry axes draggable by knobs, HUD Off/H/V/Quad/Centre. New depends/dp5_symmetry.py.
+- Nov 16 2026 - DP5: View > Brush bar - on-canvas size, opacity and strength sliders. New depends/dp5_brush_bar.py.
+- Nov 16 2026 - DP5: Ctrl+click with Stamp floats it with scale/rotate handles; click away or OK places it.
+- Nov 16 2026 - DP5: Perspective corner pins, Camera move start/end boxes, anim brush paste box on canvas; dialogs now stay open. New depends/dp5_dialog_handles.py.

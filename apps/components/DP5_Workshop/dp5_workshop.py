@@ -52,6 +52,10 @@ from apps.methods.img_factory_settings import get_user_config_dir
 from apps.methods.doc_tabs import DocTabsMixin
 from apps.components.DP5_Workshop.depends.dp5_mask_tools import clash_cells, gradient, mask_outline, wand_mask
 from apps.components.DP5_Workshop.depends.dp5_recolour import RecolourDialog
+from apps.components.DP5_Workshop.depends import dp5_pending_edit as adj
+from apps.components.DP5_Workshop.depends import dp5_float_handles as flt
+from apps.components.DP5_Workshop.depends import dp5_symmetry as sym
+from apps.components.DP5_Workshop.depends import dp5_brush_bar as bbar
 
 
 ##Methods list -
@@ -1565,6 +1569,7 @@ class DP5Settings:
         'show_anim_strip':   False,    # show animation timeline strip
         'anim_fps':          12,       # default animation FPS
         'brush_media':       'off',    # 'off'|'chalk'|'watercolour'|'oil'
+        'brush_bar':         True,     # on-canvas size / opacity bar
         'brush_smooth':      0.0,      # freehand smoothing 0 - 0.9
         'pen_pressure':      'off',    # 'off'|'size'|'opacity'|'both'
         'zoom_to_fit_resize': False,
@@ -2127,6 +2132,12 @@ class DP5Canvas(QWidget):
         self._prot_key        = None   # region the snapshot was taken for
         self._hole_edit       = None   # hole being adjusted: handles, OK / Cancel
         self._hole_drag       = None   # (mode, start tex pos, box at start)
+        self._adj             = None   # pending shape / gradient with handles
+        self._adj_ui          = None
+        self._fh              = None   # floating selection handle state
+        self._overlay         = None   # canvas handles for an open dialog
+        self._stamp_keep      = None   # original stamp pixels while a stamp floats
+        self._fh_ui           = None
         self._hole_ui         = None   # OK / + / X, shape and invert buttons
         self._hole_add_mode   = False  # next holes add to the open area
         self.media            = 'off'  # natural media brush
@@ -2178,6 +2189,10 @@ class DP5Canvas(QWidget):
         self.snap_guides   = True
         self._guide_drag   = None   # ('v'|'h', pos) while dragging from a ruler
         self.symmetry_mode = 'off'  # 'off' | 'H' | 'V' | 'quad'
+        self.sym_ax = None          # axis positions; None = centre
+        self.sym_ay = None
+        self._sym_drag = None
+        self._sym_ui = None
         self._dither_toggle = False  # alternates per pixel in dither mode
         self.show_grid  = True  # overridden after settings load in _create_centre_panel
         self.show_cell_grid = False
@@ -2333,7 +2348,7 @@ class DP5Canvas(QWidget):
         if ml is not None and (cx - ml[0]) ** 2 + (cy - ml[1]) ** 2 < (size * 0.25) ** 2:
             return
         self._media_last = (cx, cy)
-        for px, py in mirror_points(cx, cy, self.tex_w, self.tex_h, self.symmetry_mode):
+        for px, py in mirror_points(cx, cy, self.tex_w, self.tex_h, self.symmetry_mode, *sym.sym_axes(self)):
             self._oil_carry = paint_dab(self.rgba, self.tex_w, self.tex_h, px, py, (c.red(), c.green(), c.blue()),
                                         self.media, size, op * c.alphaF(), self._oil_carry)
 
@@ -2384,16 +2399,16 @@ class DP5Canvas(QWidget):
                         px_c = c
                     self.set_pixel(cx+dx, cy+dy, px_c)
                     # Symmetry mirroring
-                    sym = self.symmetry_mode
-                    if sym in ('H', 'quad'):
-                        mx = self.tex_w - 1 - (cx+dx)
+                    symm = self.symmetry_mode
+                    if symm in ('H', 'quad'):
+                        mx = sym.mirror_x(self, cx+dx)
                         self.set_pixel(mx, cy+dy, px_c)
-                    if sym in ('V', 'quad'):
-                        my = self.tex_h - 1 - (cy+dy)
+                    if symm in ('V', 'quad'):
+                        my = sym.mirror_y(self, cy+dy)
                         self.set_pixel(cx+dx, my, px_c)
-                    if sym == 'quad':
-                        mx = self.tex_w - 1 - (cx+dx)
-                        my = self.tex_h - 1 - (cy+dy)
+                    if symm == 'quad':
+                        mx = sym.mirror_x(self, cx+dx)
+                        my = sym.mirror_y(self, cy+dy)
                         self.set_pixel(mx, my, px_c)
 
     #    Drawing ops                                                            
@@ -3232,7 +3247,28 @@ class DP5Canvas(QWidget):
             self._selection_rect = QRect(ox, oy, w, h)
         self.update()
 
-    def cancel_sel_move(self):  #vers 2
+    def _stamp_float(self, tx: int, ty: int): #vers 1
+        """Float a copy of the stamp at (tx, ty) so handles and the HUD can adjust it."""
+        self._push_undo_canvas()
+        self._stamp_keep = (bytearray(self._sel_buffer), self._sel_buf_w, self._sel_buf_h)
+        self._sel_float_orig = bytearray(self.rgba)
+        self._sel_float_start = None
+        self._sel_float_pos = (tx, ty)
+        self._sel_floating = True
+        self._sel_active = True
+        self._selection_rect = None
+        if self._editor:
+            self._editor._set_status("Drag the handles, OK / Enter places the stamp, Esc cancels")
+        self.update()
+
+    def stamp_restore(self): #vers 1
+        """Put the original stamp pixels back after a handle-adjusted placement."""
+        if self._stamp_keep is not None:
+            self._sel_buffer, self._sel_buf_w, self._sel_buf_h = self._stamp_keep
+            self._stamp_keep = None
+            self._sel_active = False
+
+    def cancel_sel_move(self):  #vers 3
         """Escape while floating — restore canvas to pre-lift state."""
         if self._sel_floating and self._sel_float_orig:
             if self._sel_float_start is not None:         # drape returns to where it was lifted
@@ -3242,6 +3278,7 @@ class DP5Canvas(QWidget):
             self.rgba[:] = self._sel_float_orig
             self._sel_floating   = False
             self._sel_float_orig = None
+        self.stamp_restore()
         self.update()
 
     def nudge_float(self, dx: int, dy: int):  #vers 1
@@ -3693,8 +3730,11 @@ class DP5Canvas(QWidget):
                 self.rgba[i+3] = max(self.rgba[i+3], a)
 
 
-    def paintEvent(self, event):  #vers 8
+    def paintEvent(self, event):  #vers 9
         self._sync_marching_ants_timer()
+        flt.float_ui(self)
+        sym.sym_ui(self)
+        bbar.bar_ui(self)
         self._enforce_edit_lock()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
@@ -4010,7 +4050,7 @@ class DP5Canvas(QWidget):
             painter.drawLine(wx, wy, wx, wy + max(8, int(12 * z)))
 
         # Stamp ghost — show buffer preview under cursor at 50% opacity
-        if self.tool == TOOL_STAMP and self._sel_buffer and self._sel_buf_w > 0:
+        if self.tool == TOOL_STAMP and self._sel_buffer and self._sel_buf_w > 0 and not self._sel_floating:
             if hasattr(self, '_stamp_cursor_pos'):
                 scx, scy = self._stamp_cursor_pos
                 sw2 = max(1, int(self._sel_buf_w * zx))
@@ -4031,6 +4071,13 @@ class DP5Canvas(QWidget):
 
         if self._hole_edit is not None:
             self._hole_paint(painter)
+        if self._adj is not None:
+            adj.adjust_paint(self, painter)
+        if self._sel_floating:
+            flt.float_paint(self, painter)
+        sym.sym_paint(self, painter)
+        if self._overlay is not None:
+            self._overlay.paint(self, painter)
 
     #    Mouse events                                                           
 
@@ -4056,6 +4103,20 @@ class DP5Canvas(QWidget):
             return
 
         if btn not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
+            return
+
+        if btn == Qt.MouseButton.LeftButton and self._overlay is not None:
+            self._overlay.press(self, e.position().toPoint(), tx, ty)
+            return
+
+        if btn == Qt.MouseButton.LeftButton and sym.sym_press(self, e.position().toPoint(), tx, ty):
+            return
+
+        if btn == Qt.MouseButton.LeftButton and self._sel_floating and flt.float_press(self, e.position().toPoint()):
+            return
+
+        if btn == Qt.MouseButton.LeftButton and self._adj is not None \
+                and adj.adjust_press(self, e.position().toPoint(), tx, ty):
             return
 
         if btn == Qt.MouseButton.LeftButton and self._colour_pick == 'alpha':
@@ -4220,7 +4281,11 @@ class DP5Canvas(QWidget):
 
         elif self.tool == TOOL_STAMP:
             # Stamp the copy buffer at click position (top-left = click point)
-            if self._sel_buffer and self._sel_buf_w > 0:
+            if self._sel_floating and self._editor:
+                self._editor._float_ok()           # click away from the handles places the stamp
+            elif self._sel_buffer and self._sel_buf_w > 0 and e.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                self._stamp_float(tx, ty)          # Ctrl+click: place with scale / rotate handles
+            elif self._sel_buffer and self._sel_buf_w > 0:
                 self._push_undo_canvas()
                 w, h = self._sel_buf_w, self._sel_buf_h
                 for row in range(h):
@@ -4357,6 +4422,18 @@ class DP5Canvas(QWidget):
 
     def mouseMoveEvent(self, e: QMouseEvent):  #vers 3
         tx, ty = self._widget_to_tex(e.position().toPoint())
+        if self._adj is not None and self._adj['drag'] is not None:
+            adj.adjust_move(self, tx, ty)
+            return
+        if self._overlay is not None:
+            self._overlay.move(self, tx, ty)
+            return
+        if self._sym_drag is not None:
+            sym.sym_move(self, tx, ty)
+            return
+        if self._fh is not None and self._fh['drag'] is not None:
+            flt.float_move(self, tx, ty, bool(e.modifiers() & Qt.KeyboardModifier.ShiftModifier))
+            return
         if self._hole_drag is not None:
             self._hole_move(tx, ty)
             return
@@ -4526,6 +4603,22 @@ class DP5Canvas(QWidget):
         if e.button() not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             return
 
+        if self._adj is not None and self._adj['drag'] is not None:
+            self._adj['drag'] = None
+            return
+
+        if self._overlay is not None:
+            self._overlay.release(self)
+            return
+
+        if self._sym_drag is not None:
+            sym.sym_release(self)
+            return
+
+        if self._fh is not None and self._fh['drag'] is not None:
+            flt.float_release(self)
+            return
+
         if self._hole_drag is not None:
             self._hole_drag = None
             return
@@ -4578,58 +4671,8 @@ class DP5Canvas(QWidget):
             self._preview_start  = None
             self._preview_end    = None
 
-        elif self.tool == TOOL_LINE and ps:
-            self._push_undo_canvas()
-            self.draw_line(ps[0], ps[1], tx, ty, self.color)
-
-        elif self.tool == TOOL_ARROW and ps:
-            self._push_undo_canvas()
-            self.draw_arrow(ps[0], ps[1], tx, ty, self.color, thickness=self.brush_size)
-
-        elif self.tool == TOOL_DOUBLE_ARROW and ps:
-            self._push_undo_canvas()
-            self.draw_double_arrow(ps[0], ps[1], tx, ty, self.color, thickness=self.brush_size)
-
-        elif self.tool == TOOL_RECT and ps:
-            self._push_undo_canvas()
-            self.draw_rect(ps[0], ps[1], tx, ty, self.color)
-
-        elif self.tool == TOOL_FILLED_RECT and ps:
-            self._push_undo_canvas()
-            self.draw_filled_rect(ps[0], ps[1], tx, ty, self.color)
-
-        elif self.tool == TOOL_CIRCLE and ps:
-            self._push_undo_canvas()
-            rx = abs(tx - ps[0]); ry = abs(ty - ps[1])
-            self.draw_circle(ps[0], ps[1], max(1,rx), max(1,ry), self.color)
-
-        elif self.tool == TOOL_FILLED_CIRCLE and ps:
-            self._push_undo_canvas()
-            rx = abs(tx - ps[0]); ry = abs(ty - ps[1])
-            self.draw_filled_circle(ps[0], ps[1], max(1,rx), max(1,ry), self.color)
-
-        elif self.tool == TOOL_MARKER_RECT and ps:
-            self._push_undo_canvas()
-            self.draw_marker_rect(ps[0], ps[1], tx, ty, self.color,
-                                   thickness=max(2, self.brush_size))
-
-        elif self.tool == TOOL_MARKER_ELLIPSE and ps:
-            self._push_undo_canvas()
-            rx = abs(tx - ps[0]); ry = abs(ty - ps[1])
-            self.draw_marker_ellipse(ps[0], ps[1], max(1,rx), max(1,ry), self.color,
-                                      thickness=max(2, self.brush_size))
-
-        elif self.tool == TOOL_TRIANGLE and ps:
-            self._push_undo_canvas()
-            mid_x = (ps[0] + tx) // 2
-            self.draw_triangle(mid_x, ps[1], ps[0], ty, tx, ty, self.color)
-
-        elif self.tool == TOOL_FILLED_TRIANGLE and ps:
-            self._push_undo_canvas()
-            mid_x = (ps[0] + tx) // 2
-            # Filled triangle via scanline flood
-            self.draw_triangle(mid_x, ps[1], ps[0], ty, tx, ty, self.color)
-            self.flood_fill(mid_x, (ps[1] + ty) // 2, self.color)
+        elif self.tool in adj.ADJUST_TOOLS and self.tool not in (TOOL_GRADIENT, TOOL_RADIAL_GRADIENT) and ps:
+            adj.adjust_begin(self, self.tool, ps, (tx, ty))
 
         elif self.tool == TOOL_POLYGON and ps:
             # Polygon is committed via double-click; drag just updates preview
@@ -4637,19 +4680,6 @@ class DP5Canvas(QWidget):
 
         elif self.tool == TOOL_FILLED_POLYGON and ps:
             pass
-
-        elif self.tool == TOOL_STAR and ps:
-            self._push_undo_canvas()
-            rx = abs(tx - ps[0]); ry = abs(ty - ps[1])
-            r_outer = max(rx, ry, 2)
-            self.draw_star(ps[0], ps[1], r_outer, r_outer//2, 5, self.color)
-
-        elif self.tool == TOOL_FILLED_STAR and ps:
-            self._push_undo_canvas()
-            rx = abs(tx - ps[0]); ry = abs(ty - ps[1])
-            r_outer = max(rx, ry, 2)
-            self.draw_star(ps[0], ps[1], r_outer, r_outer//2, 5, self.color)
-            self.flood_fill(ps[0], ps[1], self.color)
 
         elif self.tool == TOOL_SELECT_ELLIPSE:
             if ps:
@@ -4699,7 +4729,7 @@ class DP5Canvas(QWidget):
 
         if self.tool in (TOOL_GRADIENT, TOOL_RADIAL_GRADIENT) and ps is not None:
             other = self._fg_color_backup if self._fg_color_backup is not None else self.bg_color
-            self.apply_gradient(ps, (tx, ty), self.tool == TOOL_RADIAL_GRADIENT, self.color, other)
+            adj.adjust_begin(self, self.tool, ps, (tx, ty), push=False, other=QColor(other))
 
         # Restore the real FG colour after a right-click (BG) stroke -
         # runs last so shape tools above finalize with the swapped
@@ -7832,6 +7862,10 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         os_act = vm.addAction("Onion skin")
         os_act.setCheckable(True); os_act.setChecked(False)
         os_act.triggered.connect(self._toggle_onion_skin)
+        bb_act = vm.addAction("Brush bar")
+        bb_act.setCheckable(True)
+        bb_act.setChecked(bool(self.dp5_settings.get('brush_bar')))
+        bb_act.toggled.connect(self._set_brush_bar)
         vm.addAction("Slideshow (open tabs)").triggered.connect(self._slideshow_tabs)
         vm.addAction("Slideshow (folder)...").triggered.connect(self._slideshow_folder)
         vm.addSeparator()
@@ -9480,13 +9514,15 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         state remapping is needed - tool_id is used as-is."""
         if self.dp5_canvas and self.dp5_canvas._hole_edit is not None:
             self.dp5_canvas.hole_commit()
+        if self.dp5_canvas:
+            adj.adjust_commit(self.dp5_canvas)
         if self.dp5_canvas and self.dp5_canvas._colour_pick:
             self.dp5_canvas._colour_pick = None
             self.dp5_canvas.setCursor(Qt.CursorShape.ArrowCursor)
             self.dp5_canvas._hole_ui_update()
         # Crop and resize are immediate actions, not persistent tools
         if tool_id == TOOL_CROP:
-            self._crop_to_selection()
+            self._crop_adjust()
             return
         if tool_id == TOOL_RESIZE:
             self._resize_canvas_dialog()
@@ -9651,12 +9687,17 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         self._dither_mode = 'bayer'                      # next cycle step is 'pattern'
         self._toggle_dither_mode()
 
-    def _toggle_symmetry_mode(self): #vers 2
+    def _toggle_symmetry_mode(self): #vers 3
         """Cycle symmetry: off → H → V → quad → off."""
         cycle = {'off': 'H', 'H': 'V', 'V': 'quad', 'quad': 'off'}
-        self._symmetry_mode = cycle[self._symmetry_mode]
+        self._set_symmetry(cycle[self._symmetry_mode])
+
+    def _set_symmetry(self, mode: str): #vers 1
+        """Set symmetry mode (off / H / V / quad) from the tool button or the HUD."""
+        self._symmetry_mode = mode
         if self.dp5_canvas:
             self.dp5_canvas.symmetry_mode = self._symmetry_mode
+            self.dp5_canvas.update()
         btn = self._tool_btns.get(TOOL_SYMMETRY)
         if btn:
             labels = {'off': 'Sym', 'H': 'Sym H', 'V': 'Sym V', 'quad': 'Sym X'}
@@ -10596,6 +10637,12 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._anim_strip.setVisible(on)
             if on and not self._frames:
                 self._anim_init_frames()
+
+    def _set_brush_bar(self, on: bool): #vers 1
+        """Show or hide the on-canvas brush bar."""
+        self.dp5_settings.set('brush_bar', bool(on))
+        if self.dp5_canvas:
+            self.dp5_canvas.update()
 
     def _slideshow_tabs(self): #vers 1
         """Open slideshow of the open canvas tabs."""
@@ -11936,6 +11983,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
     def _push_undo(self):  #vers 6
         if self.dp5_canvas: #vers 1
             c = self.dp5_canvas
+            adj.adjust_commit(c)
             c._enforce_edit_lock()                       # finish the last locked edit
             snap = bytes(c.rgba)
             if c._lock_snap is not None:
@@ -11957,7 +12005,9 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         t.start(80)
 
 
-    def _undo_canvas(self): #vers 6
+    def _undo_canvas(self): #vers 7
+        if self.dp5_canvas:
+            adj.adjust_commit(self.dp5_canvas)
         if self.dp5_canvas and self._undo_stack:
             self._redo_stack.append(
                 (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height,
@@ -11976,7 +12026,9 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._history_changed()
 
 
-    def _redo_canvas(self): #vers 6
+    def _redo_canvas(self): #vers 7
+        if self.dp5_canvas:
+            adj.adjust_commit(self.dp5_canvas)
         if self.dp5_canvas and self._redo_stack:
             self._undo_stack.append(
                 (bytes(self.dp5_canvas.rgba), self._canvas_width, self._canvas_height,
@@ -12004,6 +12056,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         per-canvas-widget, so they must travel with the tab)."""
         if not self.dp5_canvas:
             return None
+        adj.adjust_commit(self.dp5_canvas)
         return {
             'rgba': bytearray(self.dp5_canvas.rgba),
             'tex_w': self.dp5_canvas.tex_w,
@@ -13193,6 +13246,40 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._set_status(f"Cut {w}\u00d7{h} selection to new canvas tab")
         except Exception as e:
             QMessageBox.warning(self, "Cut to Canvas Error", str(e))
+
+    def _float_ok(self): #vers 1
+        """Stamp the floating selection and deselect."""
+        c = self.dp5_canvas
+        if not (c and c._sel_floating):
+            return
+        c._stamp_selection(keep_floating=False)
+        c._sel_active = False
+        c._sel_buffer = None
+        c._sel_buf_w = 0
+        c._sel_buf_h = 0
+        c._sel_float_pos = None
+        c.stamp_restore()
+        c.update()
+        self._set_status("Object stamped")
+
+    def _crop_adjust(self): #vers 1
+        """Crop tool: adjustable box from the selection (or whole picture); OK crops."""
+        c = self.dp5_canvas
+        if not c:
+            return
+        r = c._selection_rect if c._sel_active and c._selection_rect else None
+        p0, p1 = ((r.left(), r.top()), (r.right() + 1, r.bottom() + 1)) if r else ((0, 0), (c.tex_w, c.tex_h))
+        adj.adjust_begin(c, 'crop', p0, p1, push=False)
+        self._set_status("Drag the crop handles, OK / Enter crops, Esc cancels")
+
+    def _crop_apply(self, x0: int, y0: int, x1: int, y1: int): #vers 1
+        """Crop to the box chosen with the handles."""
+        c = self.dp5_canvas
+        if x1 - x0 < 1 or y1 - y0 < 1:
+            return
+        c._selection_rect = QRect(x0, y0, x1 - x0, y1 - y0)
+        c._sel_active = True
+        self._crop_to_selection()
 
     def _crop_to_selection(self): #vers 2
         """Crop canvas to the current selection rect."""
@@ -16563,6 +16650,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
 
     def _anim_save_current_frame(self): #vers 1
         """Write canvas rgba back into current frame buffer."""
+        if self.dp5_canvas:
+            adj.adjust_commit(self.dp5_canvas)
         if self.dp5_canvas and 0 <= self._current_frame < len(self._frames):
             self._frames[self._current_frame] = bytearray(self.dp5_canvas.rgba)
 
@@ -16810,7 +16899,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         """Scroll / zoom the current frame across the selected frames."""
         from apps.components.DP5_Workshop.depends.dp5_anim_tools import CameraDialog
         if self.dp5_canvas and self._frames:
-            CameraDialog(self, self._anim_sel_idxs(), self._current_frame).exec()
+            self._dlg_open = CameraDialog(self, self._anim_sel_idxs(), self._current_frame)
+            self._dlg_open.show()
 
     def _anim_grab_brush(self): #vers 1
         """Cut the open area from each selected frame as an anim brush."""
@@ -16839,7 +16929,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             self._set_status("Grab an anim brush first")
             return
         if self.dp5_canvas and self._frames:
-            AnimBrushDialog(self, self._anim_sel_idxs()).exec()
+            self._dlg_open = AnimBrushDialog(self, self._anim_sel_idxs())
+            self._dlg_open.show()
 
     def _anim_palette_dialog(self): #vers 1
         """Per-frame palettes: remap to the current frame's colours, or fade."""
@@ -16863,7 +16954,8 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         if not mask.any():
             self._set_status("Open area is empty")
             return
-        PerspectiveDialog(self, c, mask).exec()
+        self._dlg_open = PerspectiveDialog(self, c, mask)
+        self._dlg_open.show()
 
     def _anim_move_dialog(self): #vers 1
         """Move the open-area brush across the selected frames, with fade."""
@@ -17329,6 +17421,13 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
             return
 
         # Escape — exit stamp mode, cancel floating move, or deselect
+        if self.dp5_canvas and self.dp5_canvas._adj is not None:
+            if k == Qt.Key.Key_Escape:
+                adj.adjust_cancel(self.dp5_canvas)
+                return
+            if k in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                adj.adjust_commit(self.dp5_canvas, True)
+                return
         if self.dp5_canvas and self.dp5_canvas._hole_edit is not None:
             if k == Qt.Key.Key_Escape:
                 self.dp5_canvas.hole_cancel()
@@ -17337,7 +17436,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                 self.dp5_canvas.hole_commit(False)
                 return
         if k == Qt.Key.Key_Escape:
-            if self.dp5_canvas and self.dp5_canvas.tool == TOOL_STAMP:
+            if self.dp5_canvas and self.dp5_canvas.tool == TOOL_STAMP and not self.dp5_canvas._sel_floating:
                 # Exit stamp mode → back to select tool
                 self._select_tool(TOOL_SELECT)
                 self._set_status("Stamp mode off")
@@ -17385,14 +17484,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         # Enter/Return — stamp floating object and deselect
         if k in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             if self.dp5_canvas and self.dp5_canvas._sel_floating:
-                self.dp5_canvas._stamp_selection(keep_floating=False)
-                self.dp5_canvas._sel_active  = False
-                self.dp5_canvas._sel_buffer  = None
-                self.dp5_canvas._sel_buf_w   = 0
-                self.dp5_canvas._sel_buf_h   = 0
-                self.dp5_canvas._sel_float_pos = None
-                self.dp5_canvas.update()
-                self._set_status("Object stamped")
+                self._float_ok()
             elif self.dp5_canvas and self.dp5_canvas.tool == TOOL_CURVE and \
                     self.dp5_canvas._curve_phase == 'warp':
                 self.dp5_canvas.commit_curve()
