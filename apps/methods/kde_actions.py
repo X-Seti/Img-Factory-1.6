@@ -152,7 +152,7 @@ def _apps_for(mime: str) -> list:  #vers 1
     return res[:24]
 
 
-def extend_menu(menu: QMenu, paths: list, refresh=None, parent=None):  #vers 2
+def extend_menu(menu: QMenu, paths: list, refresh=None, parent=None):  #vers 3
     """Add Dolphin style entries for the selected paths to a context menu."""
     paths = [p for p in paths if p and os.path.exists(p)]
     if not paths:
@@ -191,7 +191,9 @@ def extend_menu(menu: QMenu, paths: list, refresh=None, parent=None):  #vers 2
         menu.addSeparator()
         subs = {}
         for sub, name, icon, cmd in acts:
-            tgt = subs.setdefault(sub, menu.addMenu(sub)) if sub else menu
+            if sub and sub not in subs:
+                subs[sub] = menu.addMenu(sub)
+            tgt = subs[sub] if sub else menu
             a = QAction(QIcon.fromTheme(icon), name, tgt)
             a.triggered.connect(lambda _c=False, c=cmd, n=name, i=icon: _exec_run(c, paths, n, i))
             tgt.addAction(a)

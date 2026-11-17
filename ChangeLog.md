@@ -6147,3 +6147,4 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 - Nov 17 2026 - app_settings_system: dark themes carrying a near-white toolbar, ribbon or title bar colour use their panel colour; missing bar colours follow the theme.
 - Nov 17 2026 - ui_style: scroll bar arrows are generated SVG (arrow_svg, scroll_arrows_css) instead of PNG files.
 - Nov 17 2026 - File window right-click: Open With, Copy Location, Duplicate, Move to ../, Rotate/Flip, Convert To, Set as Desktop Background, Wastebin, KDE service menus (kde_actions, image_actions). Amiga check box SVG.
+- Nov 17 2026 - Right-click: service-menu submenu (Root Actions) shown once, not repeated.
