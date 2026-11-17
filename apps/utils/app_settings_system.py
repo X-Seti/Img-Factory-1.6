@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/utils/app_settings_system.py - Version: 106
+#this belongs in apps/utils/app_settings_system.py - Version: 107
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3177,7 +3177,7 @@ class AppSettings:
         return {}
 
 
-    def get_theme_colors(self, theme_name=None): #vers 4
+    def get_theme_colors(self, theme_name=None): #vers 5
         """Get colors for specified theme with complete fallback support"""
         if theme_name is None:
             theme_name = self.current_settings.get("theme", "IMG_Factory")
@@ -3237,6 +3237,19 @@ class AppSettings:
                 'handle_color': '#cccccc',
                 'handle_size': '4',
             }
+
+            # Bars a theme does not define follow its own panel colours, not the light defaults
+            for bar, src in (('toolbar_bg', 'bg_secondary'), ('gadgetbar_bg', 'bg_secondary'),
+                             ('gadgetbar_text', 'text_primary')):
+                if bar not in colors and colors.get(src):
+                    colors[bar] = colors[src]
+
+            # Dark theme carrying a near-white bar (light default saved into it): use panel colour
+            from PyQt6.QtGui import QColor as _QC
+            if colors.get('bg_primary') and _QC(colors['bg_primary']).lightness() < 110:
+                for bar in ('toolbar_bg', 'ribbon_bg', 'gadgetbar_bg'):
+                    if colors.get(bar) and _QC(colors[bar]).lightness() > 215:
+                        colors[bar] = colors.get('bg_secondary') or colors['bg_primary']
 
             # Merge defaults with theme colors (theme colors take priority)
             for key, value in defaults.items():

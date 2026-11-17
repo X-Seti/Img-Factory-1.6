@@ -1,4 +1,4 @@
-#this belongs in apps/methods/ui_style.py - Version: 8
+#this belongs in apps/methods/ui_style.py - Version: 11
 # X-Seti - November 17 2026 - IMG Factory 1.6 - UI style presets (Amiga Workbench)
 
 """
@@ -20,14 +20,12 @@ UI style options: bevelled controls and Amiga title bar, set in App Settings > S
 # __init__
 # eventFilter
 
-from pathlib import Path
 
 from PyQt6.QtWidgets import QHBoxLayout
 
 from PyQt6.QtCore import QEvent, QObject, QSize, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 
-GADGET_DIR = Path(__file__).resolve().parent.parent / "icons" / "amiga"
 
 DEFAULTS = {"ui_style": "default", "ui_bevels": False, "ui_amiga_titlebar": False}
 AMIGA_THEME = "amiga_workbench"
@@ -96,13 +94,12 @@ def amiga_title_icon(kind, base, w=30, h=30) -> QIcon: #vers 3
     return ic
 
 
-def amiga_gadget_css(colors: dict, settings) -> str: #vers 4
+def amiga_gadget_css(colors: dict, settings) -> str: #vers 5
     """Workbench checkbox and combo arrow (Amiga preset); bevelled scroll bars with arrow buttons (Amiga or bevels)."""
     st = style_settings(settings)
     amiga = st["ui_style"] == "amiga"
     if not (amiga or st["ui_bevels"]):
         return ""
-    d = GADGET_DIR.as_posix()
     base = QColor(colors.get("window_bg") or colors.get("bg_primary") or "#aaaaaa")
     lite, dark = base.lighter(165).name(), base.darker(215).name()
     track = base.darker(112).name()
@@ -110,9 +107,9 @@ def amiga_gadget_css(colors: dict, settings) -> str: #vers 4
     pre = ""
     if amiga:
         pre = f"""
-QCheckBox::indicator {{ width:12px; height:13px; image:url({d}/check_0.png); }}
-QCheckBox::indicator:checked {{ image:url({d}/check_1.png); }}
-QComboBox::down-arrow {{ image:url({d}/arrow_down_0.png); }}
+QCheckBox::indicator {{ width:12px; height:13px; image:url({check_svg(False)}); }}
+QCheckBox::indicator:checked {{ image:url({check_svg(True)}); }}
+QComboBox::down-arrow {{ image:url({arrow_svg("down", "#000022")}); }}
 QToolTip {{ background:#ffffaa; color:#000000; border:1px solid #000000; padding:2px; }}
 """
     out = pre
@@ -128,10 +125,10 @@ QScrollBar::sub-line:{o} {{ background:{base.name()}; {bev} {sz}:18px; subcontro
 QScrollBar::add-line:{o}:pressed, QScrollBar::sub-line:{o}:pressed {{ border-color:{dark} {lite} {lite} {dark}; }}
 """
     out += f"""
-QScrollBar::up-arrow:vertical {{ image:url({d}/arrow_up_0.png); width:14px; height:15px; }}
-QScrollBar::down-arrow:vertical {{ image:url({d}/arrow_down_0.png); width:14px; height:15px; }}
-QScrollBar::left-arrow:horizontal {{ image:url({d}/arrow_left_0.png); width:14px; height:15px; }}
-QScrollBar::right-arrow:horizontal {{ image:url({d}/arrow_right_0.png); width:14px; height:15px; }}
+QScrollBar::up-arrow:vertical {{ image:url({arrow_svg("up", "#000022")}); width:10px; height:10px; }}
+QScrollBar::down-arrow:vertical {{ image:url({arrow_svg("down", "#000022")}); width:10px; height:10px; }}
+QScrollBar::left-arrow:horizontal {{ image:url({arrow_svg("left", "#000022")}); width:10px; height:10px; }}
+QScrollBar::right-arrow:horizontal {{ image:url({arrow_svg("right", "#000022")}); width:10px; height:10px; }}
 """
     return out
 
@@ -251,3 +248,79 @@ def apply_amiga_titlebar(win) -> None: #vers 4
         if tb is not None:
             tb.setStyleSheet("")
     win._amiga_tb = on
+
+
+def set_preset(app_settings, on: bool): #vers 1
+    """Amiga preset on / off in App Settings: theme, bevels, title bar, fonts; off restores stock."""
+    from apps.methods.app_fonts import FONT_ROLES, workshop_font_family
+    cur = app_settings.current_settings
+    if on:
+        if cur.get("ui_style") != "amiga":
+            cur["theme_before_amiga"] = cur.get("theme")
+            cur["fonts_before_amiga"] = {k: cur.get(f"{k}_font_family") for k, _s in FONT_ROLES.values()}
+        cur.update({"ui_style": "amiga", "ui_bevels": True, "ui_amiga_titlebar": True, "theme": AMIGA_THEME})
+        for k, _s in FONT_ROLES.values():
+            cur[f"{k}_font_family"] = "Topaz New"
+    else:
+        cur.update({"ui_style": "default", "ui_bevels": False, "ui_amiga_titlebar": False})
+        back = cur.pop("theme_before_amiga", None)
+        if cur.get("theme") == AMIGA_THEME and back and back != AMIGA_THEME:
+            cur["theme"] = back
+        old = cur.pop("fonts_before_amiga", {})
+        for k, _s in FONT_ROLES.values():
+            if cur.get(f"{k}_font_family") == "Topaz New":
+                cur[f"{k}_font_family"] = old.get(k) or workshop_font_family()
+    app_settings.save_settings()
+
+
+_ARROW_PTS = {"up": "5,2 9,8 1,8", "down": "5,8 1,2 9,2", "left": "2,5 8,1 8,9", "right": "8,5 2,1 2,9"}
+
+
+def check_svg(on: bool) -> str: #vers 1
+    """Path of a cached SVG Workbench check box, ticked or empty."""
+    import os
+    d = os.path.join(os.path.expanduser("~"), ".cache", "TC-Workshop", "arrows")
+    os.makedirs(d, exist_ok=True)
+    p = os.path.join(d, f"check_{int(on)}.svg")
+    if not os.path.isfile(p):
+        tick = '<polyline points="3,7 5.5,10 10,3" fill="none" stroke="#000022" stroke-width="1.6"/>' if on else ""
+        with open(p, "w") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 13 13">'
+                    '<rect x="0" y="0" width="13" height="13" fill="#ffffff"/>'
+                    '<polygon points="0,0 13,0 12,1 1,1 1,12 0,13" fill="#ffffff"/>'
+                    '<polygon points="13,0 13,13 0,13 1,12 12,12 12,1" fill="#555577"/>'
+                    '<rect x="0.5" y="0.5" width="12" height="12" fill="none" stroke="#000022" stroke-width="1"/>'
+                    + tick + '</svg>')
+    return p.replace("\\", "/")
+
+
+def arrow_svg(kind: str, color: str) -> str: #vers 1
+    """Path of a cached SVG arrow file (up, down, left, right) in a colour."""
+    import os
+    d = os.path.join(os.path.expanduser("~"), ".cache", "TC-Workshop", "arrows")
+    os.makedirs(d, exist_ok=True)
+    p = os.path.join(d, f"{kind}_{color.lstrip('#')}.svg")
+    if not os.path.isfile(p):
+        with open(p, "w") as f:
+            f.write(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+                    f'<polygon points="{_ARROW_PTS[kind]}" fill="{color}"/></svg>')
+    return p.replace("\\", "/")
+
+
+def scroll_arrows_css(colors: dict) -> str: #vers 1
+    """Theme coloured scroll bars with SVG arrow buttons."""
+    fg = QColor(colors.get("button_text_color") or colors.get("text_primary") or "#000000").name()
+    bg = QColor(colors.get("button_normal") or colors.get("bg_secondary") or "#dddddd").name()
+    bd = QColor(colors.get("border") or "#888888").name()
+    out = ""
+    for o, mar, lo, hi, sz in (("vertical", "16px 0 16px 0", "top", "bottom", "height"),
+                               ("horizontal", "0 16px 0 16px", "left", "right", "width")):
+        wh = "width" if o == "vertical" else "height"
+        out += f"""
+QScrollBar:{o} {{ {wh}:16px; margin:{mar}; }}
+QScrollBar::add-line:{o} {{ background:{bg}; border:1px solid {bd}; {sz}:16px; subcontrol-position:{hi}; subcontrol-origin:margin; }}
+QScrollBar::sub-line:{o} {{ background:{bg}; border:1px solid {bd}; {sz}:16px; subcontrol-position:{lo}; subcontrol-origin:margin; }}
+"""
+    for kind, o in (("up", "vertical"), ("down", "vertical"), ("left", "horizontal"), ("right", "horizontal")):
+        out += f"QScrollBar::{kind}-arrow:{o} {{ image:url({arrow_svg(kind, fg)}); width:10px; height:10px; }}\n"
+    return out

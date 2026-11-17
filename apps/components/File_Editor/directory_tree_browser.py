@@ -1,4 +1,4 @@
-#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 13
+#this belongs in apps/components/File_Editor/directory_tree_browser.py - Version: 14
 # X-Seti - January10 2026 - IMG Factory 1.6 - Complete Directory Tree Browser
 """
 COMPLETE DIRECTORY TREE BROWSER
@@ -1634,7 +1634,7 @@ class DirectoryTreeBrowser(QWidget):
             self.file_opened.emit(file_path)
 
 
-    def show_context_menu(self, position): #vers 8
+    def show_context_menu(self, position): #vers 9
         """Show context menu - tracks which tree triggered it"""
         # Identify which tree sent the signal
         sender = self.sender()
@@ -1914,7 +1914,10 @@ class DirectoryTreeBrowser(QWidget):
         self._tag_icon(props_action, get_properties_icon)
         props_action.triggered.connect(self.show_file_properties)
         menu.addAction(props_action)
-        menu.exec(self.tree.mapToGlobal(position))
+        from apps.methods import kde_actions
+        kde_actions.extend_menu(menu, [i.data(0, Qt.ItemDataRole.UserRole) for i in active_tree.selectedItems()] or [file_path],
+                                self._refresh_all_panels, self)
+        menu.exec(active_tree.mapToGlobal(position))
 
     def _get_mini_player(self): #vers 1
         """Get (creating once, first time it's needed) the shared

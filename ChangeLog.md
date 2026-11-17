@@ -6143,3 +6143,7 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 - Nov 17 2026 - Amiga preset: bevelled scroll bars, vertical and horizontal, with Workbench arrow buttons at both ends.
 - Nov 17 2026 - Scroll bar arrow buttons now win over the theme rules that hid them; shown with Amiga preset or bevels on.
 - Nov 17 2026 - Amiga preset: readable tooltips (yellow, black text).
+- Nov 17 2026 - ui_style.set_preset: Amiga preset on / off in App Settings (theme, fonts, bevels, title bar). Used by TC Workshop.
+- Nov 17 2026 - app_settings_system: dark themes carrying a near-white toolbar, ribbon or title bar colour use their panel colour; missing bar colours follow the theme.
+- Nov 17 2026 - ui_style: scroll bar arrows are generated SVG (arrow_svg, scroll_arrows_css) instead of PNG files.
+- Nov 17 2026 - File window right-click: Open With, Copy Location, Duplicate, Move to ../, Rotate/Flip, Convert To, Set as Desktop Background, Wastebin, KDE service menus (kde_actions, image_actions). Amiga check box SVG.
