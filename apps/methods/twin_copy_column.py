@@ -14,6 +14,7 @@ CopyColumn - buttons between the twin Dir List panels: copy, copy back, Mirror, 
 # eventFilter
 # set_horizontal
 # showEvent
+# verify
 
 from PyQt6.QtCore import pyqtSignal, QEvent
 from PyQt6.QtWidgets import QBoxLayout, QPushButton, QWidget
@@ -29,6 +30,8 @@ class CopyColumn(QWidget): #vers 1
     clone_fwd = pyqtSignal()
     open_item = pyqtSignal()
     eject_item = pyqtSignal()
+    archive_fwd = pyqtSignal()
+    connect_remote = pyqtSignal()
 
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
@@ -42,6 +45,9 @@ class CopyColumn(QWidget): #vers 1
                  ("mirror", "Mirror: update missing or older files in the next panel; extras go to Trash or are deleted", self.mirror_fwd),
                  ("clone", "Clone: back up this whole folder; the next panel becomes an exact copy", self.clone_fwd),
                  ("dry", "Dry run: Mirror and Clone only list what they would do", None),
+                 ("verify", "Verify: compare checksums, not size and time (slower, safest for transfers)", None),
+                 ("archive", "Archive the selection (or the whole folder) into the next panel", self.archive_fwd),
+                 ("connect", "Connect to another computer (sshfs, ssh key login) in the next panel", self.connect_remote),
                  ("open", "Open the selected archive or mount the selected ISO / IMG", self.open_item),
                  ("eject", "Eject: unmount opened images and remove extracted archives", self.eject_item)]
         self._btns = {}
@@ -62,6 +68,10 @@ class CopyColumn(QWidget): #vers 1
         """True while the Dry run button is down."""
         return self._btns["dry"].isChecked()
 
+    def verify(self) -> bool: #vers 1
+        """True while the Verify button is down."""
+        return self._btns["verify"].isChecked()
+
     def set_horizontal(self, horiz: bool): #vers 1
         """True when panels sit side by side (buttons stack in a column)."""
         self._horiz = horiz
@@ -72,9 +82,11 @@ class CopyColumn(QWidget): #vers 1
     def _apply(self): #vers 1
         fwd, back = ("-->", "<--") if self._horiz else ("v", "^")
         full = {"fwd": fwd, "back": back, "mirror": "Mirror " + fwd, "clone": "Clone " + fwd,
-                "dry": "Dry run", "open": "Open", "eject": "Eject"}
+                "dry": "Dry run", "verify": "Verify", "archive": "Archive",
+                "connect": "Connect", "open": "Open", "eject": "Eject"}
         tight = {"fwd": fwd, "back": back, "mirror": "M" + fwd, "clone": "C" + fwd,
-                "dry": "Dry", "open": "Open", "eject": "Eject"}
+                "dry": "Dry", "verify": "Ver", "archive": "Arc",
+                "connect": "Conn", "open": "Open", "eject": "Eject"}
         txt = tight if self._tight else full
         w = 54 if self._tight else 92
         for k, b in self._btns.items():

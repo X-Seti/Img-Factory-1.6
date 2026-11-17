@@ -33,10 +33,14 @@ def rsync_path(): #vers 1
     return shutil.which('rsync')
 
 
-def rsync_cmd(src: str, dst: str, mode: str, dry: bool = False,
-              delete: bool = False, root: bool = False) -> list: #vers 1
-    """mode 'mirror' skips files newer on dst; 'clone' makes dst identical to src."""
-    cmd = ['rsync', '-aHAX', '--numeric-ids']
+def rsync_cmd(src: str, dst: str, mode: str, dry: bool = False, delete: bool = False,
+              root: bool = False, remote: bool = False, verify: bool = False) -> list: #vers 2
+    """mode 'mirror' skips files newer on dst; 'clone' makes dst identical to src.
+    remote: an sshfs side, so no ACLs, xattrs or owners. verify: compare checksums."""
+    cmd = ['rsync', '-aH', '--no-owner', '--no-group', '--omit-dir-times'] if remote \
+        else ['rsync', '-aHAX', '--numeric-ids']
+    if verify:
+        cmd.append('--checksum')
     if mode == 'mirror':
         cmd.append('--update')
     if dry:
@@ -96,9 +100,10 @@ class SyncJob(QThread): #vers 1
     line = pyqtSignal(str)
     done = pyqtSignal(int, str, list)
 
-    def __init__(self, cmd, parent=None): #vers 1
+    def __init__(self, cmd, parent=None, cwd=None): #vers 2
         super().__init__(parent)
         self._cmd = cmd
+        self._cwd = cwd
         self._proc = None
         self._cancelled = False
 
@@ -112,7 +117,8 @@ class SyncJob(QThread): #vers 1
         lines = []
         try:
             self._proc = subprocess.Popen(self._cmd, stdout=subprocess.PIPE,
-                                          stderr=subprocess.STDOUT, text=True, bufsize=1)
+                                          stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                          cwd=self._cwd)
             for ln in self._proc.stdout:
                 ln = ln.rstrip('\n')
                 if ln:

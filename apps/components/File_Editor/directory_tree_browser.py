@@ -854,6 +854,8 @@ class DirectoryTreeBrowser(QWidget):
             self._copy_col.copy_back.connect(lambda: self._twin_copy(False))
             self._copy_col.mirror_fwd.connect(lambda: self._twin_sync('mirror'))
             self._copy_col.clone_fwd.connect(lambda: self._twin_sync('clone'))
+            self._copy_col.archive_fwd.connect(self._twin_archive)
+            self._copy_col.connect_remote.connect(self._twin_connect)
             self._copy_col.open_item.connect(self._twin_open_item)
             self._copy_col.eject_item.connect(self._twin_eject)
             self._twin_splitter.insertWidget(1, self._copy_col)
@@ -974,7 +976,7 @@ class DirectoryTreeBrowser(QWidget):
             return True
         return None
 
-    def _run_job(self, cmd, label: str, done_cb): #vers 1
+    def _run_job(self, cmd, label: str, done_cb, cwd=None): #vers 2
         """Run a command in a thread with a cancellable busy dialog."""
         from PyQt6.QtWidgets import QProgressDialog
         from apps.methods.dir_sync import SyncJob
@@ -982,7 +984,7 @@ class DirectoryTreeBrowser(QWidget):
         dlg.setWindowTitle("Working")
         dlg.setWindowModality(Qt.WindowModality.WindowModal)
         dlg.setMinimumDuration(0)
-        job = SyncJob(cmd, self)
+        job = SyncJob(cmd, self, cwd)
         job.line.connect(lambda t: dlg.setLabelText(f"{label}\n{t[:90]}"))
         dlg.canceled.connect(job.cancel)
 
@@ -1014,8 +1016,9 @@ class DirectoryTreeBrowser(QWidget):
         """Run the dry run ('plan') or the real rsync ('run')."""
         from apps.methods.dir_sync import rsync_cmd
         c = self._sync
-        cmd = rsync_cmd(c['src'], c['dst'], c['mode'], dry=(step == 'plan'),
-                        delete=c['delete'], root=c['root'])
+        cmd = rsync_cmd(c['src'], c['dst'], c['mode'], dry=(step == 'plan'), delete=c['delete'],
+                        root=c['root'], remote=self._is_remote(c['src']) or self._is_remote(c['dst']),
+                        verify=self._copy_col.verify())
         label = "Scanning folders..." if step == 'plan' else f"{c['mode'].title()} in progress..."
         self._run_job(cmd, label, lambda rc, err, lines: self._sync_done(step, rc, err, lines))
 
@@ -1073,6 +1076,88 @@ class DirectoryTreeBrowser(QWidget):
             if QMessageBox.question(self, title, head + "\nContinue?") != QMessageBox.StandardButton.Yes:
                 return
         self._sync_step('run')
+
+    def _is_remote(self, path: str) -> bool: #vers 1
+        """True when path is inside an sshfs connection."""
+        return any(i['method'] == 'sshfs' and path.startswith(i['path'])
+                   for i in getattr(self, '_opened_items', []))
+
+    def _twin_archive(self): #vers 1
+        """Archive the first panel's selection, or its whole folder, into the second panel."""
+        from datetime import datetime
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        from apps.methods import archive_open
+        first, second = self._twin_sides()
+        src_dir, dst_dir = self._side_path(first), self._side_path(second)
+        if not os.path.isdir(src_dir) or not os.path.isdir(dst_dir):
+            QMessageBox.warning(self, "Archive", "Both panels need a valid folder.")
+            return
+        paths = [i.data(0, Qt.ItemDataRole.UserRole) for i in self._side_tree(first).selectedItems()]
+        paths = [p for p in paths if p and os.path.exists(p)]
+        if paths:
+            cwd = os.path.dirname(paths[0])
+            names = [os.path.basename(p) for p in paths]
+            base = names[0] if len(names) == 1 else os.path.basename(src_dir.rstrip('/')) or 'archive'
+        else:
+            cwd = os.path.dirname(src_dir.rstrip('/')) or '/'
+            names = [os.path.basename(src_dir.rstrip('/'))]
+            base = names[0] or 'archive'
+        fmt, ok = QInputDialog.getItem(self, "Archive", f"Archive {len(names)} item(s) into\n{dst_dir}\nFormat:",
+                                       list(archive_open.ARCHIVE_FORMATS), 0, False)
+        if not ok:
+            return
+        out = os.path.join(dst_dir, f"{base}-{datetime.now():%Y%m%d-%H%M}.{fmt}")
+        self._archive_run(fmt, out, names, cwd, second, False)
+
+    def _archive_run(self, fmt, out, names, cwd, second, root): #vers 1
+        from PyQt6.QtWidgets import QMessageBox
+        from apps.methods import archive_open
+        from apps.methods.dir_sync import SyncJob
+        cmd = archive_open.archive_cmd(fmt, out, names, root)
+        if cmd is None:
+            QMessageBox.warning(self, "Archive", "7z is not installed.")
+            return
+
+        def fin(rc, err, lines):
+            if rc == -1:
+                return
+            if rc != 0:
+                if not root and rc not in (126, 127) and 'ermission denied' in (err + ''.join(lines)):
+                    if QMessageBox.question(self, "Archive", "Permission denied.\nRetry as root (pkexec)?") \
+                            == QMessageBox.StandardButton.Yes:
+                        self._archive_run(fmt, out, names, cwd, second, True)
+                    return
+                QMessageBox.warning(self, "Archive", f"Archive failed ({rc}):\n{err}")
+                return
+            self.log_message(f"Archived → {out}")
+            self._refresh_side(second)
+        self._run_job(cmd, f"Creating {os.path.basename(out)}...", fin, cwd=cwd)
+
+    def _twin_connect(self): #vers 1
+        """Mount user@host:/path with sshfs in the second panel (ssh key or agent login)."""
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        from apps.methods import archive_open
+        if archive_open.sshfs_cmd('x@x:/') is None:
+            QMessageBox.warning(self, "Connect", "sshfs is not installed.")
+            return
+        st = QSettings("IMG-Factory", "IMG-Factory")
+        recent = st.value("recent_remotes", [], type=list)
+        target, ok = QInputDialog.getItem(
+            self, "Connect", "user@host:/folder   (ssh key or agent login)", recent, 0, True)
+        target = target.strip()
+        if not ok or not target:
+            return
+        cmd, mp = archive_open.sshfs_cmd(target)
+        first, second = self._twin_sides()
+        prev = self._side_path(second)
+
+        def fin(rc, err, lines):
+            if rc != 0:
+                QMessageBox.warning(self, "Connect", f"Could not connect ({rc}):\n{err}")
+                return
+            st.setValue("recent_remotes", [target] + [r for r in recent if r != target][:9])
+            self._opened(second, prev, mp, 'sshfs')
+        self._run_job(cmd, f"Connecting to {target}...", fin)
 
     def _twin_open_item(self): #vers 1
         """Open the selected archive (extracted copy) or mount the selected ISO / IMG."""

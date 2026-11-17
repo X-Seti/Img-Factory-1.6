@@ -6128,3 +6128,4 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 - Nov 16 2026 - Dir List twin panels: Mirror and Clone run through rsync with progress; retry as root via pkexec on permission errors. Open / Eject buttons extract archives, mount ISO / IMG. Added methods/archive_open.py.
 - Nov 16 2026 - Dir List / DAT Browser: panel, tree, menu and view-button icons use the theme colour and update on theme change.
 - Nov 16 2026 - Copy column: Dry run toggle; Mirror and Clone only list what they would do.
+- Nov 16 2026 - Copy column: Archive (tar.gz, tar.xz, tar.zst, zip, 7z), Connect to another computer (sshfs), Verify (rsync checksum). Connect untested here.

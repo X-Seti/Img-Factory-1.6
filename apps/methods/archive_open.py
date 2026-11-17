@@ -6,10 +6,12 @@ Archive Open - extract archives to a cache folder or mount disc images for brows
 """
 
 ##Methods list -
+# archive_cmd
 # eject
 # extract_cmd
 # kind
 # mount_image
+# sshfs_cmd
 
 import os
 import re
@@ -43,6 +45,33 @@ def extract_cmd(path: str):  #vers 1
     return [exe, 'x', '-y', '-o' + dest, path], dest
 
 
+ARCHIVE_FORMATS = ('tar.gz', 'tar.xz', 'tar.zst', 'zip', '7z')
+
+
+def archive_cmd(fmt: str, out: str, names, root: bool = False): #vers 1
+    """Command that archives names (relative to the working folder) into out, or None without 7z."""
+    if fmt.startswith('tar.'):
+        flag = {'tar.gz': '-czf', 'tar.xz': '-cJf', 'tar.zst': '--zstd -cf'}[fmt].split()
+        cmd = ['tar'] + flag + [out] + list(names)
+    else:
+        exe = shutil.which('7z') or shutil.which('7zz')
+        if exe is None:
+            return None
+        cmd = [exe, 'a', '-y', out] + list(names)
+    return (['pkexec'] + cmd) if root else cmd
+
+
+def sshfs_cmd(target: str): #vers 1
+    """(command, mount folder) for user@host:/path, or None without sshfs."""
+    if shutil.which('sshfs') is None:
+        return None
+    safe = re.sub(r'[^A-Za-z0-9_.-]+', '_', target)
+    mp = os.path.join(_CACHE, 'mnt', safe)
+    os.makedirs(mp, exist_ok=True)
+    return ['sshfs', '-o', 'BatchMode=yes,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3',
+            target, mp], mp
+
+
 def mount_image(path: str, root: bool = False): #vers 1
     """Mount read-only; returns {'path', 'method', 'dev'}. Raises RuntimeError with the reason."""
     def run(cmd):
@@ -71,6 +100,10 @@ def eject(info: dict): #vers 1
     """Unmount a mounted image or delete an extracted cache folder."""
     if info['method'] == 'cache':
         shutil.rmtree(info['path'], ignore_errors=True)
+    elif info['method'] == 'sshfs':
+        fm = shutil.which('fusermount3') or shutil.which('fusermount')
+        subprocess.run([fm, '-u', info['path']], check=True, timeout=60)
+        os.rmdir(info['path'])
     elif info['method'] == 'root':
         subprocess.run(['pkexec', 'umount', info['path']], check=True, timeout=60)
         os.rmdir(info['path'])
