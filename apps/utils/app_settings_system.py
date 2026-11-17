@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/utils/app_settings_system.py - Version: 105
+#this belongs in apps/utils/app_settings_system.py - Version: 106
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -3343,11 +3343,13 @@ class AppSettings:
         return fallbacks.get(key, QColor(128, 128, 128))
 
 
-    def get_stylesheet(self): #vers 5
+    def get_stylesheet(self): #vers 8
         """Generate complete stylesheet for current theme; app palette follows it."""
         colors = self.get_theme_colors()
         self._apply_app_palette(colors)
-        return self._generate_stylesheet(colors)
+        from apps.methods.ui_style import amiga_gadget_css, bevel_css
+        cur = getattr(self, 'current_settings', {})
+        return self._generate_stylesheet(colors) + bevel_css(colors, cur) + amiga_gadget_css(colors, cur)
 
     def _apply_app_palette(self, colors): #vers 2
         """App QPalette from the theme, so palette(mid) / palette(base) ... in

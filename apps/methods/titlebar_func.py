@@ -1,4 +1,4 @@
-#this belongs in apps/methods/titlebar_func.py - Version: 8
+#this belongs in apps/methods/titlebar_func.py - Version: 9
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Workshop Titlebar
 
 """
@@ -15,6 +15,8 @@ from apps.methods.input_bindings import InputBindingsMixin
 ##Methods list -
 # _create_toolbar
 # _menu_btn_popup
+# _tb_dims
+# _tb_normalize
 # _refresh_titlebar_icons
 # _tb_button
 # _tb_icon
@@ -36,7 +38,7 @@ class TitlebarMixin(InputBindingsMixin): #vers 2
 
     TITLEBAR_DOCKED_VISIBLE = True                    # False: hidden when docked
 
-    def _create_toolbar(self): #vers 6
+    def _create_toolbar(self): #vers 7
         """Build the titlebar frame; returns it (also self.titlebar)."""
         ic = self._get_icon_color()
         isz = self._titlebar_icon_size()
@@ -63,6 +65,7 @@ class TitlebarMixin(InputBindingsMixin): #vers 2
         self.menu_btn.setText("Menu")
         self.menu_btn.setIcon(SVGIconFactory.menu_m_icon(isz, ic))
         self.menu_btn.setIconSize(QSize(isz, isz))
+        self.menu_btn.setFixedHeight(self._tb_dims()[1])
         self.menu_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         if self._menu_btn_popup():
             self.menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -130,22 +133,33 @@ class TitlebarMixin(InputBindingsMixin): #vers 2
         if not self.TITLEBAR_DOCKED_VISIBLE:
             self.toolbar.setVisible(self.standalone_mode)
         QTimer.singleShot(0, self._bindings_apply)     # buttons/<tool>.json once built
+        from apps.methods.ui_style import apply_amiga_titlebar
+        apply_amiga_titlebar(self)
+        from apps.methods.ui_style import apply_amiga_gadget_icons
+        apply_amiga_gadget_icons(self)
+        self._tb_normalize()
+        QTimer.singleShot(0, self._tb_normalize)       # after later size changes
         return self.toolbar
 
     def _menu_btn_popup(self): #vers 1
         """True: Menu drops down; False: clicked calls _on_menu_btn_clicked."""
         return True
 
-    def _refresh_titlebar_icons(self): #vers 2
+    def _refresh_titlebar_icons(self): #vers 4
         """Recolour titlebar icons after a theme change."""
+        from apps.methods.ui_style import apply_amiga_titlebar
+        apply_amiga_titlebar(self)
         ic = self._get_icon_color()
         for btn, icon_fn, size in getattr(self, '_tb_icon_btns', []):
             try:
                 btn.setIcon(self._tb_icon(icon_fn)(size, ic))
             except RuntimeError:                           # button deleted
                 pass
+        from apps.methods.ui_style import apply_amiga_gadget_icons
+        apply_amiga_gadget_icons(self)
+        self._tb_normalize()
 
-    def _tb_button(self, icon_fn, text, tip, slot, keep_text=False): #vers 5
+    def _tb_button(self, icon_fn, text, tip, slot, keep_text=False): #vers 6
         """Action button: icon (name or function) plus text; icon only when text empty or icons mode."""
         isz = self._titlebar_icon_size()
         b = QPushButton(text)
@@ -154,11 +168,14 @@ class TitlebarMixin(InputBindingsMixin): #vers 2
         b.setIconSize(QSize(isz, isz))
         b.setToolTip(tip)
         b.clicked.connect(lambda _c=False, f=slot: f())   # no checked arg
+        bw, bh = self._tb_dims()
         if not text:
-            b.setFixedSize(35, 35)
+            b.setFixedSize(bw, bh)
         elif not keep_text and getattr(self, 'button_display_mode', 'both') == 'icons':
             b.setText("")
-            b.setFixedSize(40, 40)
+            b.setFixedSize(bw, bh)
+        else:
+            b.setFixedHeight(bh)
         self._tb_icon_btns.append((b, icon_fn, isz))
         return b
 
@@ -166,14 +183,14 @@ class TitlebarMixin(InputBindingsMixin): #vers 2
         """Icon maker: SVGIconFactory name or a (size, color) function."""
         return getattr(SVGIconFactory, icon_fn) if isinstance(icon_fn, str) else icon_fn
 
-    def _tb_window_button(self, icon_fn, tip, slot, size=20, text=""): #vers 2
+    def _tb_window_button(self, icon_fn, tip, slot, size=20, text=""): #vers 3
         """Fixed-width right-side button (info, theme, D, T, window controls)."""
         b = QPushButton(text)
         if icon_fn:
             b.setIcon(self._tb_icon(icon_fn)(size, self._get_icon_color()))
             b.setIconSize(QSize(20, 20))
             self._tb_icon_btns.append((b, icon_fn, size))
-        b.setFixedSize(40, 35)
+        b.setFixedSize(*self._tb_dims())
         b.setToolTip(tip)
         b.clicked.connect(lambda _c=False, f=slot: f())   # no checked arg
         return b
@@ -181,6 +198,30 @@ class TitlebarMixin(InputBindingsMixin): #vers 2
     def _titlebar_actions(self, layout): #vers 1
         """Hook: workshop action buttons (Open, Save, Undo...)."""
         pass
+
+    def _tb_dims(self): #vers 2
+        """(width, height) for every title bar button: App Settings, never shorter than the text."""
+        from apps.utils.app_settings_system import get_titlebar_sizes
+        _as = getattr(self, 'app_settings', None) or getattr(
+              getattr(self, 'main_window', None), 'app_settings', None)
+        sz = get_titlebar_sizes(_as)
+        from PyQt6.QtGui import QFontMetrics
+        fnt = getattr(self, 'button_font', None) or self.font()
+        return sz['btn_size'], max(sz['tb_height'], QFontMetrics(fnt).height() + 10)
+
+    def _tb_normalize(self): #vers 1
+        """Give every title bar button the same height; icon-only ones the same width."""
+        from PyQt6.QtWidgets import QAbstractButton
+        tb = getattr(self, 'toolbar', None)
+        if tb is None:
+            return
+        bw, bh = self._tb_dims()
+        for b in tb.findChildren(QAbstractButton):
+            if b.parent() is not tb:
+                continue
+            b.setFixedHeight(bh)
+            if len(b.text().strip()) <= 1:
+                b.setFixedWidth(bw)
 
     def _titlebar_icon_size(self): #vers 1
         """Icon size from Global App Settings."""

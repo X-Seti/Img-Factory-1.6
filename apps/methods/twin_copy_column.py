@@ -1,4 +1,4 @@
-#this belongs in apps/methods/twin_copy_column.py - Version: 1
+#this belongs in apps/methods/twin_copy_column.py - Version: 3
 # X-Seti - November 16 2026 - IMG Factory 1.6 - Twin panel copy column
 
 """
@@ -13,6 +13,8 @@ CopyColumn - buttons between the twin Dir List panels: copy, copy back, Mirror, 
 # dry_run
 # eventFilter
 # set_horizontal
+# set_suppressed
+# setVisible
 # showEvent
 # verify
 
@@ -37,6 +39,7 @@ class CopyColumn(QWidget): #vers 1
         super().__init__(parent)
         self._horiz = True
         self._tight = False
+        self._suppressed = False
         self._lay = QBoxLayout(QBoxLayout.Direction.TopToBottom, self)
         self._lay.setContentsMargins(2, 2, 2, 2)
         self._lay.setSpacing(4)
@@ -64,6 +67,14 @@ class CopyColumn(QWidget): #vers 1
         self._lay.addStretch()
         self._apply()
 
+    def set_suppressed(self, on: bool): #vers 1
+        """True hides the column (the bottom button bar does its job)."""
+        self._suppressed = bool(on)
+        self.setVisible(not self._suppressed)
+
+    def setVisible(self, visible: bool): #vers 1
+        super().setVisible(bool(visible) and not self._suppressed)
+
     def dry_run(self) -> bool: #vers 1
         """True while the Dry run button is down."""
         return self._btns["dry"].isChecked()
@@ -79,7 +90,7 @@ class CopyColumn(QWidget): #vers 1
                                else QBoxLayout.Direction.LeftToRight)
         self._apply()
 
-    def _apply(self): #vers 1
+    def _apply(self): #vers 2
         fwd, back = ("-->", "<--") if self._horiz else ("v", "^")
         full = {"fwd": fwd, "back": back, "mirror": "Mirror " + fwd, "clone": "Clone " + fwd,
                 "dry": "Dry run", "verify": "Verify", "archive": "Archive",
@@ -88,21 +99,24 @@ class CopyColumn(QWidget): #vers 1
                 "dry": "Dry", "verify": "Ver", "archive": "Arc",
                 "connect": "Conn", "open": "Open", "eject": "Eject"}
         txt = tight if self._tight else full
-        w = 54 if self._tight else 92
+        fm = self.fontMetrics()
+        w = max(54 if self._tight else 92, max(fm.horizontalAdvance(t) for t in txt.values()) + 24)
+        h = max(26, fm.height() + 12)
         for k, b in self._btns.items():
             b.setText(txt[k])
             b.setFixedWidth(w) if self._horiz else b.setMinimumWidth(w)
             b.setMaximumWidth(w if self._horiz else 16777215)
-            b.setFixedHeight(26)
+            b.setFixedHeight(h)
         if self._horiz:
             self.setFixedWidth(w + 4)
             self.setMaximumHeight(16777215)
         else:
             self.setMaximumWidth(16777215)
-            self.setFixedHeight(34)
+            self.setFixedHeight(h + 8)
 
-    def showEvent(self, ev): #vers 1
+    def showEvent(self, ev): #vers 2
         """Watch the parent splitter width for the tight-space rule."""
+        self._apply()
         p = self.parentWidget()
         if p is not None:
             p.installEventFilter(self)

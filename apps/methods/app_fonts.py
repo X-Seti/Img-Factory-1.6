@@ -1,4 +1,4 @@
-#this belongs in apps/methods/app_fonts.py - Version: 6
+#this belongs in apps/methods/app_fonts.py - Version: 9
 # X-Seti - November 07 2026 - IMG Factory 1.6 - Bundled compact fonts
 
 """
@@ -31,6 +31,17 @@ WORKSHOP_FONTS = [
     ("Roboto Condensed", ("RobotoCondensed[wght].ttf",)),
     ("Archivo Narrow", ("ArchivoNarrow[wght].ttf",)),
     ("Fira Sans Condensed", ("FiraSansCondensed-Regular.ttf", "FiraSansCondensed-Bold.ttf")),
+    ("Topaz New", ("Topaznew.ttf",)),
+    ("Topaz a500a1000a2000", ("Topaz_a500_v1.0.ttf",)),
+    ("Topaz a600a1200a400", ("Topaz_a1200_v1.0.ttf",)),
+    ("TopazPlus a500a1000a2000", ("TopazPlus_a500_v1.0.ttf",)),
+    ("TopazPlus a600a1200a4000", ("TopazPlus_a1200_v1.0.ttf",)),
+    ("MicroKnight", ("MicroKnight_v1.0.ttf", "MicroKnightPlus_v1.0.ttf")),
+    ("P0T-NOoDLE", ("P0T-NOoDLE_v1.0.ttf",)),
+    ("mOsOul", ("mO'sOul_v1.0.ttf",)),
+    ("Ruby 8", ("Ruby8.ttf",)),
+    ("Ruby 12", ("Ruby12.ttf",)),
+    ("Ruby 15", ("Ruby15.ttf",)),
 ]
 DEFAULT_FONT = WORKSHOP_FONTS[0][0]
 _CHOICE = os.path.join(os.path.expanduser('~'), '.config', 'imgfactory', 'workshop_font.json')

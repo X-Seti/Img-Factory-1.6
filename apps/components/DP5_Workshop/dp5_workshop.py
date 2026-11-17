@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 126
+#this belongs in apps/components/DP5_Workshop/dp5_workshop.py - Version: 127
 # X-Seti - July 07 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -182,6 +182,7 @@ from apps.components.DP5_Workshop.depends import dp5_brush_bar as bbar
 # DP5Workshop._anim_cleanup_dialog
 # DP5Workshop._anim_camera_dialog
 # DP5Workshop._apply_brush_settings
+# DP5Workshop._convert_amiga_font
 # DP5Workshop._set_brush_media
 # DP5Workshop._set_brush_smooth
 # DP5Workshop._set_pen_pressure
@@ -7751,6 +7752,7 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
         amiga_ic.addAction("MagicWB (8col)…",                 lambda: self._import_amiga_info('magicwb'))
         amiga_ic.addAction("OCS/ECS WB3 (4col)…",            lambda: self._import_amiga_info('ocs'))
         amiga_ic.addAction("User palette…",                   lambda: self._import_amiga_info('user'))
+        ic_menu.addAction("Convert Amiga font to TTF…", self._convert_amiga_font)
         ic_menu.addAction("Import Windows ICO…",   self._import_ico)
         ic_menu.addAction("Import Apple ICNS…",    self._import_icns)
         ic_menu.addAction("Import SVG…",           self._import_svg)
@@ -16031,6 +16033,28 @@ class DP5Workshop(TitlebarMixin, ColorPalPresetsMixin, _ToolMenuMixin, DocTabsMi
                            f"{os.path.basename(path)} [{fmt}]")
         except Exception as e:
             QMessageBox.warning(self, "Amiga Info Import Error", str(e))
+
+
+    def _convert_amiga_font(self): #vers 1
+        """Pick a name.font (all sizes) or one size file; save as TTF."""
+        from apps.methods.amiga_font import convert_font_set, convert_size_file
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Convert Amiga font - pick name.font or one size file", "", "All Files (*)")
+        if not path: return
+        try:
+            if path.lower().endswith('.font'):
+                out = QFileDialog.getExistingDirectory(self, "Save TTF files in")
+                if not out: return
+                made = convert_font_set(path, out)
+                QMessageBox.information(self, "Amiga Font", f"{len(made)} TTF file(s) written to:\n{out}")
+            else:
+                out, _ = QFileDialog.getSaveFileName(self, "Save TTF", os.path.basename(os.path.dirname(path)) + os.path.basename(path) + ".ttf", "TrueType (*.ttf)")
+                if not out: return
+                fam = os.path.splitext(os.path.basename(out))[0]
+                convert_size_file(path, fam, out)
+                QMessageBox.information(self, "Amiga Font", f"Written: {out}")
+        except Exception as e:
+            QMessageBox.warning(self, "Amiga Font Error", str(e))
 
 
     def _amiga_palette(self, palette_mode: str = 'aga_wb'): #vers 2

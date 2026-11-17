@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_logic_func.py - Version: 13
+#this belongs in apps/utils/depends/appsys_logic_func.py - Version: 14
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog Logic
 
 """
@@ -1556,7 +1556,7 @@ class AppsysLogicMixin: #vers 1
             )
 
 
-    def _get_dialog_settings(self): #vers 3
+    def _get_dialog_settings(self): #vers 4
         """Collect all settings from dialog controls"""
         settings = {}
 
@@ -1595,6 +1595,17 @@ class AppsysLogicMixin: #vers 1
             tab_map = {0: "both", 1: "icon", 2: "text"}
             settings["tab_content_mode"] = tab_map.get(
                 self.tab_content_mode_combo.currentIndex(), "both")
+
+        # UI style
+        if hasattr(self, 'style_preset_combo'):
+            from apps.methods.ui_style import AMIGA_THEME, style_settings
+            old = style_settings(self.app_settings.current_settings)["ui_style"]
+            preset = self.style_preset_combo.currentData()
+            settings["ui_style"] = preset
+            settings["ui_bevels"] = self.style_bevels_check.isChecked()
+            settings["ui_amiga_titlebar"] = self.style_titlebar_check.isChecked()
+            if preset == "amiga" and old != "amiga":
+                settings["theme"] = AMIGA_THEME
 
         # Window controls
         if hasattr(self, 'custom_gadgets_check'):

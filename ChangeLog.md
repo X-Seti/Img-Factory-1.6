@@ -6129,3 +6129,17 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 - Nov 16 2026 - Dir List / DAT Browser: panel, tree, menu and view-button icons use the theme colour and update on theme change.
 - Nov 16 2026 - Copy column: Dry run toggle; Mirror and Clone only list what they would do.
 - Nov 16 2026 - Copy column: Archive (tar.gz, tar.xz, tar.zst, zip, 7z), Connect to another computer (sshfs), Verify (rsync checksum). Connect untested here.
+- Nov 17 2026 - App Settings: new Style tab (Default / Amiga Workbench preset, bevelled controls, Amiga title bar). New theme amiga_workbench and methods/ui_style.py.
+- Nov 17 2026 - Amiga Workbench preset sets all fonts to Topaz New (bundled Topaznew.ttf).
+- Nov 17 2026 - Fonts: added Topaz a500 / a1200, TopazPlus, MicroKnight, MicroKnight Plus, P0T-NOoDLE, mOsOul to the font list.
+- Nov 17 2026 - Fonts: Ruby 8 / 12 / 15 converted from AmiKit bitmap fonts to TTF and added to the font list.
+- Nov 17 2026 - DP5 Workshop: Icons > Convert Amiga font to TTF (whole name.font or one size). New methods/amiga_font.py.
+- Nov 17 2026 - Amiga preset: Workbench gadget images (close/depth/zoom title bar, checkbox, scroll/combo arrows) from AmiKit ColdNowee skin in icons/amiga. Check skin licence before release.
+- Nov 17 2026 - Amiga title bar: blue bar, Dopus style close/zoom/depth gadgets drawn in code, header bevels, buttons sized from font; TC bank shows corner mark when right click has an action.
+- Nov 17 2026 - Title bar: every button now uses App Settings title bar height/button size (was fixed 35/40 px). Amiga bar is always Workbench blue.
+- Nov 17 2026 - Title bar: one normalise pass gives every button the same height (settings value, never shorter than the text); icon-only buttons same width.
+- Nov 17 2026 - Amiga gadgets drawn at the full title bar button size, so close, zoom and depth match the other buttons.
+- Nov 17 2026 - Amiga gadgets painted over the whole button (style margins made them short); zoom and depth now touch.
+- Nov 17 2026 - Amiga preset: bevelled scroll bars, vertical and horizontal, with Workbench arrow buttons at both ends.
+- Nov 17 2026 - Scroll bar arrow buttons now win over the theme rules that hid them; shown with Amiga preset or bevels on.
+- Nov 17 2026 - Amiga preset: readable tooltips (yellow, black text).

@@ -1,4 +1,4 @@
-#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 12
+#this belongs in apps/utils/depends/appsys_ui_func.py - Version: 14
 # X-Seti - October 20 2026 - IMG Factory 1.6 - Settings Dialog UI
 
 """
@@ -19,6 +19,7 @@ Mixin for SettingsDialog in apps/utils/app_settings_system.py.
 # _create_gadgets_tab
 # _create_sizes_tab
 # _create_interface_tab
+# _create_style_tab
 # _create_localisation_tab
 # _create_panels_tab
 # _create_shadows_tab
@@ -121,6 +122,9 @@ class AppsysUIMixin: #vers 1
 
         self.interface_tab = self._create_interface_tab()
         self.tabs.addTab(self.interface_tab, "Interface")
+
+        self.style_tab = self._create_style_tab()
+        self.tabs.addTab(self.style_tab, "Style")
 
         self.localisation_tab = self._create_localisation_tab()
         self.tabs.addTab(self.localisation_tab, "Localisation")
@@ -2071,6 +2075,48 @@ Ready for operations..."""
 
         return group
 
+
+    def _create_style_tab(self): #vers 1
+        """Style tab: preset, bevelled controls, Amiga title bar."""
+        from apps.methods.ui_style import style_settings
+        cur = style_settings(self.app_settings.current_settings)
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        group = QGroupBox("UI Style")
+        gl = QVBoxLayout(group)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Preset:"))
+        self.style_preset_combo = QComboBox()
+        self.style_preset_combo.addItem("Default", "default")
+        self.style_preset_combo.addItem("Amiga Workbench", "amiga")
+        self.style_preset_combo.setCurrentIndex(1 if cur["ui_style"] == "amiga" else 0)
+        row.addWidget(self.style_preset_combo)
+        row.addStretch()
+        gl.addLayout(row)
+        self.style_bevels_check = QCheckBox("Bevelled controls (raised buttons, sunken fields)")
+        self.style_bevels_check.setChecked(bool(cur["ui_bevels"]))
+        self.style_titlebar_check = QCheckBox("Amiga title bar (close gadget on the left)")
+        self.style_titlebar_check.setChecked(bool(cur["ui_amiga_titlebar"]))
+        gl.addWidget(self.style_bevels_check)
+        gl.addWidget(self.style_titlebar_check)
+        note = QLabel("Amiga Workbench also sets the theme to Amiga Workbench and all fonts to Topaz New.")
+        gl.addWidget(note)
+        layout.addWidget(group)
+        layout.addStretch()
+
+        def preset_changed(i):
+            amiga = self.style_preset_combo.itemData(i) == "amiga"
+            self.style_bevels_check.setChecked(amiga)
+            self.style_titlebar_check.setChecked(amiga)
+            from PyQt6.QtGui import QFont
+            from apps.methods.app_fonts import workshop_font_family
+            for ctl in getattr(self, 'font_controls', {}).values():
+                if amiga:
+                    ctl['family'].setCurrentFont(QFont("Topaz New"))
+                elif ctl['family'].currentFont().family() == "Topaz New":
+                    ctl['family'].setCurrentFont(QFont(workshop_font_family()))
+        self.style_preset_combo.currentIndexChanged.connect(preset_changed)
+        return widget
 
     def _create_interface_tab(self): #vers 5
         """Create interface settings tab - UI display options"""
