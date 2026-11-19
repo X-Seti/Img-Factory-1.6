@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 24
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 25
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -1670,7 +1670,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
 
         super().keyPressEvent(event)
 
-    def _setup_hotkeys(self): #vers 6
+    def _setup_hotkeys(self): #vers 7
         """Plasma6-style keyboard shortcuts, wired to TXD methods."""
         from PyQt6.QtGui import QShortcut, QKeySequence
 
@@ -1698,7 +1698,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         _key('hotkey_duplicate',  "Ctrl+D",                         self._duplicate_texture)
         _key('hotkey_rename',     "F2",                             self._rename_texture_shortcut)
         # Texture
-        _key('hotkey_import',     "Ctrl+I",                         self._import_normal_texture)
+        _key('hotkey_import',     "Ctrl+I",                         self._import_textures)
         _key('hotkey_export',     "Ctrl+E",                         self.export_selected_texture)
         _key('hotkey_export_all', "Ctrl+Shift+E",                   self.export_all_textures)
         # View

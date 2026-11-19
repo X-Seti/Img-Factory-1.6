@@ -1,4 +1,4 @@
-#this belongs in apps/core/shortcuts.py - Version: 16
+#this belongs in apps/core/shortcuts.py - Version: 17
 # X-Seti - July16 2025 - IMG Factory 1.5 - Keyboard Shortcuts
 
 """
@@ -8,8 +8,11 @@ Centralizes all keyboard shortcut definitions and setup
 
 from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget
 
 ## Methods list
+# _active_txd_workshop
+# _dispatch_txd_or_main
 # create_debug_keyboard_shortcuts
 # get_shortcuts_help_text
 # setup_all_shortcuts
@@ -17,6 +20,33 @@ from PyQt6.QtCore import Qt
 # setup_debug_shortcuts
 # setup_main_shortcuts
 # setup_search_shortcuts
+
+
+def _active_txd_workshop(main_window): #vers 1
+    """Return the TXD workshop shown in the current main tab, or None"""
+    tabs = getattr(main_window, 'main_tab_widget', None)
+    page = tabs.currentWidget() if tabs else None
+    if page is None:
+        return None
+    for w in [page] + page.findChildren(QWidget):
+        if all(hasattr(w, n) for n in ('open_txd_file', '_save_current', '_import_textures')):
+            return w
+    return None
+
+
+def _dispatch_txd_or_main(main_window, txd_method, main_method): #vers 1
+    """Run the TXD method when a TXD tab is active, else the main one"""
+    def run():
+        ws = _active_txd_workshop(main_window)
+        if ws is not None:
+            getattr(ws, txd_method)()
+            return
+        fn = getattr(main_window, main_method, None)
+        if callable(fn):
+            fn()
+        else:
+            main_window.log_message(f"{main_method} - not yet available")
+    return run
 
 
 def create_debug_keyboard_shortcuts(main_window): #vers 3
@@ -61,7 +91,7 @@ def get_shortcuts_help_text(): #vers 10
     <tr><td>Open IMG</td><td>Ctrl+O</td></tr>
     <tr><td>Close IMG</td><td>Ctrl+W</td></tr>
     <tr><td>Save</td><td>Ctrl+S</td></tr>
-    <tr><td>Import Files</td><td>Ctrl+I</td></tr>
+    <tr><td>Import Files / Texture (active editor)</td><td>Ctrl+I</td></tr>
     <tr><td>Export Selected</td><td>Ctrl+E</td></tr>
     <tr><td>Remove Selected</td><td>Delete</td></tr>
     <tr><td>Rename Entry</td><td>F2</td></tr>
@@ -216,7 +246,7 @@ def setup_debug_shortcuts(main_window): #vers 5
         return False
 
 
-def setup_main_shortcuts(main_window): #vers 5
+def setup_main_shortcuts(main_window): #vers 6
     """Setup main application shortcuts"""
     try:
         shortcuts = [
@@ -258,8 +288,15 @@ def setup_main_shortcuts(main_window): #vers 5
 
         created_shortcuts = []
 
+        txd_routes = {"open_img_file": "open_txd_file", "save_img": "_save_current",
+                      "import_files": "_import_textures"}
+        shortcuts.append(("Ctrl+Shift+S", "save_as_txd", "Save TXD as"))
+        txd_routes["save_as_txd"] = "_save_as_txd_file"
+
         for key_sequence, method_name, description in shortcuts:
             method = getattr(main_window, method_name, None)
+            if method_name in txd_routes:
+                method = _dispatch_txd_or_main(main_window, txd_routes[method_name], method_name)
             if method and callable(method):
                 shortcut = QShortcut(QKeySequence(key_sequence), main_window)
                 shortcut.activated.connect(method)

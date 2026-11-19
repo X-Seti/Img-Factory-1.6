@@ -1,5 +1,5 @@
 # X-Seti - October14 2025 - IMG Factory 1.5 - TXD Workshop Context Menu
-# This belongs in gui/ txd_context_menu.py - Version: 3
+# This belongs in gui/ txd_context_menu.py - Version: 4
 """
 TXD Workshop Context Menu System
 Right-click menu for TXD Workshop - works in both docked and standalone modes
@@ -56,7 +56,7 @@ def create_txd_context_menu(workshop, position): #vers 3
     texture_menu = menu.addMenu("Texture")
 
     import_action = texture_menu.addAction("Import Texture...")
-    import_action.triggered.connect(workshop._import_normal_texture)
+    import_action.triggered.connect(workshop._import_textures)
     import_action.setEnabled(has_textures)
 
     export_action = texture_menu.addAction("Export Selected")
