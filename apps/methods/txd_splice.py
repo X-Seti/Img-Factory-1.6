@@ -305,6 +305,9 @@ def build_native_chunk(tex: Dict, rw_ver: int, platform: int = None,
         platform = 9 if rw_ver >= _SA_VER else 8
     if platform not in (8, 9):
         raise ValueError("Only PC (D3D8/D3D9) textures can be encoded")
+    if 'hdr_data' in tex and not tex.get('hdr_preview_stale', False):
+        from apps.methods.hdr_texture_data import prepare_hdr_export_texture
+        tex = prepare_hdr_export_texture(tex)
     fmt = str(tex.get('format') or 'DXT1')
     w, h = int(tex.get('width') or 0), int(tex.get('height') or 0)
     rgba = bytes(tex.get('rgba_data') or b'')

@@ -1,6 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 482
+#this belongs in root /ChangeLog.md - Version: 483
 
 
+- Nov 19 2026 - HDR loader: EXR/TIFF float import, tone mapping dialog, HDR mipmap export, tests (from nebi23 PR 3).
 - Nov 19 2026 - TXD shortcuts: Ctrl+O/S/I and Ctrl+Shift+S act on the active TXD tab; Ctrl+I imports multiple images (from nebi23 PR 3).
 - Nov 19 2026 - TXD alpha: warning samples whole image, skips binary masks; empty alpha name restores old name (from nebi23 PR 2).
 - Nov 12 2026 - Data Workshop icons: Generics own icon, convert icon redrawn (A/B swap arrows), Check IDE/IPL ticks enlarged.

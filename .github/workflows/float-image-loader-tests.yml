@@ -1,0 +1,39 @@
+name: Float Image Loader Tests
+
+on:
+  push:
+    branches:
+      - feature/float-image-loader
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install loader dependencies
+        run: python -m pip install --upgrade pip numpy Pillow OpenEXR tifffile imagecodecs
+
+      - name: Run float image loader tests
+        run: python -m unittest discover -s tests -p "test_float_image_loader.py" -v
+
+      - name: Run HDR texture data tests
+        run: python -m unittest discover -s tests -p "test_hdr_texture_data.py" -v
+
+      - name: Run HDR preview tests
+        run: python -m unittest discover -s tests -p "test_hdr_preview.py" -v
+
+      - name: Run HDR tone mapping tests
+        run: python -m unittest discover -s tests -p "test_hdr_tone_mapping.py" -v
+
+      - name: Run TXD HDR export integration tests
+        run: python -m unittest discover -s tests -p "test_txd_hdr_export_integration.py" -v

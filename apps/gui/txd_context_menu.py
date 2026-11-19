@@ -257,6 +257,11 @@ def create_txd_context_menu(workshop, position): #vers 3
     stats_action.triggered.connect(workshop._texture_statistics)
     stats_action.setEnabled(has_textures)
 
+    if has_selection and 'hdr_data' in workshop.selected_texture:
+        tools_menu.addSeparator()
+        hdr_tone_action = tools_menu.addAction("HDR Tone Mapping...")
+        hdr_tone_action.triggered.connect(workshop._open_hdr_tone_mapping)
+
     tools_menu.addSeparator()
 
     undo_action = tools_menu.addAction("Undo")

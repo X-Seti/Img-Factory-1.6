@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 25
+#this belongs in apps/components/Txd_Editor/depends/txd_ui_func.py - Version: 23
 # X-Seti - September30 2026 - IMG Factory 1.6 - TXD Workshop UI
 
 """
@@ -113,6 +113,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         # Tools
         tools = parent_menu.addMenu("Tools")
         tools.addAction("Colour Adjustments…", self._open_colour_adjust)
+        tools.addAction("HDR Tone Mapping…", self._open_hdr_tone_mapping)
         tools.addAction("Seamless Tool…",       self._open_seamless_tool)
         tools.addAction("Snow Effect…",         self._open_snow_tool)
         tools.addSeparator()
@@ -596,6 +597,8 @@ class TXDUIMixin(TitlebarMixin): #vers 2
              self._build_txd_from_dff,  attr='build_from_dff_btn')
         _act(tb_xform, "Filters", self.icon_factory.filter_icon,
              self._open_filters_dialog, enabled=False, attr='filters_btn')
+        _act(tb_xform, "HDR Tone Mapping", self.icon_factory.settings_icon,
+             self._open_hdr_tone_mapping, enabled=False, attr='hdr_tone_mapping_btn')
         tb_xform.addSeparator()
         _act(tb_xform, "Switch",        self.icon_factory.switch_view_icon,
              self.switch_texture_view,      enabled=False, attr='switch_btn')
@@ -762,7 +765,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         # Apply current icons-vs-text display mode
         self._update_transform_text_panel_visibility()
 
-    def _toolbar_context_menu(self, toolbar, pos): #vers 6
+    def _toolbar_context_menu(self, toolbar, pos): #vers 5
         """Right-click on any toolbar: shared menu (methods/ribbon_system.py)."""
         from PyQt6.QtWidgets import QToolBar
         from apps.methods.toolbar_menu import standard_toolbar_menu
@@ -771,7 +774,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             scale = json.loads(self._ribbon_config_path().read_text()).get('icon_scale', 20)
         except Exception:
             scale = 20
-        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale, toolbar)
+        menu = standard_toolbar_menu(self, self._inner_mw.findChildren(QToolBar), scale)
         menu.exec(toolbar.mapToGlobal(pos))
 
     def _apply_icon_scale(self, px: int): #vers 3
@@ -1185,7 +1188,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             'flip_vert_btn', 'flip_horz_btn', 'rotate_cw_btn', 'rotate_ccw_btn',
             'copy_btn', 'delete_texture_btn', 'duplicate_texture_btn',
             'filters_btn', 'paint_btn', 'switch_btn', 'gen_alpha_btn',
-            'props_btn', 'convert_btn', 'compress_btn', 'uncompress_btn',
+            'props_btn', 'hdr_tone_mapping_btn', 'convert_btn', 'compress_btn', 'uncompress_btn',
             'resize_btn', 'upscale_btn', 'bitdepth_btn',
         ]
         for attr in transform_attrs:
@@ -1670,7 +1673,7 @@ class TXDUIMixin(TitlebarMixin): #vers 2
 
         super().keyPressEvent(event)
 
-    def _setup_hotkeys(self): #vers 7
+    def _setup_hotkeys(self): #vers 6
         """Plasma6-style keyboard shortcuts, wired to TXD methods."""
         from PyQt6.QtGui import QShortcut, QKeySequence
 
@@ -1685,11 +1688,14 @@ class TXDUIMixin(TitlebarMixin): #vers 2
             setattr(self, attr, sc)
 
         # File
-        _key('hotkey_open',       QKeySequence.StandardKey.Open,    self.open_txd_file)
-        _key('hotkey_save',       QKeySequence.StandardKey.Save,    self._save_current)
-        _key('hotkey_force_save', "Alt+Shift+S",                    self._force_save_txd)
-        _key('hotkey_save_as',    QKeySequence.StandardKey.SaveAs,  self._save_as_txd_file)
-        _key('hotkey_close',      QKeySequence.StandardKey.Close,   self.close)
+        # Embedded TXD tabs route Open/Save/Save As through IMG Factory's
+        # main-window dispatcher so these cannot conflict with IMG shortcuts.
+        if not docked:
+            _key('hotkey_open',   QKeySequence.StandardKey.Open,   self.open_txd_file)
+            _key('hotkey_save',   QKeySequence.StandardKey.Save,   self._save_current)
+            _key('hotkey_save_as', QKeySequence.StandardKey.SaveAs, self._save_as_txd_file)
+        _key('hotkey_force_save', "Alt+Shift+S", self._force_save_txd)
+        _key('hotkey_close', QKeySequence.StandardKey.Close, self.close)
         # Edit
         _key('hotkey_undo',       QKeySequence.StandardKey.Undo,    self._undo_last_action)
         _key('hotkey_copy',       QKeySequence.StandardKey.Copy,    self._copy_texture)
@@ -1698,7 +1704,10 @@ class TXDUIMixin(TitlebarMixin): #vers 2
         _key('hotkey_duplicate',  "Ctrl+D",                         self._duplicate_texture)
         _key('hotkey_rename',     "F2",                             self._rename_texture_shortcut)
         # Texture
-        _key('hotkey_import',     "Ctrl+I",                         self._import_textures)
+        # Embedded TXD tabs use the main-window Ctrl+I dispatcher.
+        # Keep a local shortcut only in standalone mode to avoid competing QShortcuts.
+        if not docked:
+            _key('hotkey_import', "Ctrl+I", self._import_textures)
         _key('hotkey_export',     "Ctrl+E",                         self.export_selected_texture)
         _key('hotkey_export_all', "Ctrl+Shift+E",                   self.export_all_textures)
         # View

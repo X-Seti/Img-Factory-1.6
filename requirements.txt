@@ -11,6 +11,10 @@ PyOpenGL
 scipy
 pycryptodome
 python-lzo
+# HDR image import: floating-point EXR and TIFF (including LZW-compressed TIFF)
+OpenEXR
+tifffile
+imagecodecs
 # Capture Workshop: device video, audio input
 opencv-python
 pyaudio

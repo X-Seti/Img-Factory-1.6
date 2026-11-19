@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 18
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 19
 # X-Seti - October 07 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -98,6 +98,7 @@ TXD Workshop logic - TXD load/save, texture edits, import/export, mipmaps, bumpm
 # _open_alpha_coverage
 # _open_colour_adjust
 # _open_filters_dialog
+# _open_hdr_tone_mapping
 # open_img_archive
 # _open_iv_model_textures
 # _open_iv_wtd
@@ -181,7 +182,7 @@ from apps.methods.txd_dialogs import BumpmapManagerWindow, MipmapManagerWindow
 from apps.methods.txd_versions import detect_txd_version, get_game_from_version, get_platform_name, get_version_capabilities, is_bumpmap_supported, validate_txd_format
 from apps.methods.img_factory_settings import get_user_config_dir
 
-_DROP_EXTS = ('.txd', '.wtd', '.wdr', '.wft', '.wdd', '.nft', '.xtx', '.chk', '.pvr', '.img', '.png', '.jpg', '.jpeg', '.bmp', '.tga', '.dds', '.gif', '.tiff', '.webp')
+_DROP_EXTS = ('.txd', '.wtd', '.wdr', '.wft', '.wdd', '.nft', '.xtx', '.chk', '.pvr', '.img', '.png', '.jpg', '.jpeg', '.bmp', '.tga', '.dds', '.gif', '.tif', '.tiff', '.exr', '.webp')
 
 class TXDLogicMixin: #vers 1
     """logic methods for TXDWorkshop."""
@@ -1209,6 +1210,8 @@ class TXDLogicMixin: #vers 1
             self.selected_texture['width'] = width
             self.selected_texture['height'] = height
             self.selected_texture['rgba_data'] = rgba_data
+            from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+            mark_hdr_preview_modified(self.selected_texture)
             self.selected_texture['has_alpha'] = has_alpha
 
             # Update alpha name if texture now has alpha
@@ -1264,6 +1267,8 @@ class TXDLogicMixin: #vers 1
                 self.selected_texture['width'] = tex_width
                 self.selected_texture['height'] = tex_height
                 self.selected_texture['rgba_data'] = bytes(blank_rgba)
+                from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                mark_hdr_preview_modified(self.selected_texture)
 
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Created blank texture {tex_width}x{tex_height} for alpha import")
@@ -1302,6 +1307,8 @@ class TXDLogicMixin: #vers 1
                     rgba_data[i * 4 + 3] = alpha_val  # Set alpha channel
 
             self.selected_texture['rgba_data'] = bytes(rgba_data)
+            from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+            mark_hdr_preview_modified(self.selected_texture)
             self.selected_texture['has_alpha'] = True
 
             # Add alpha name if not present
@@ -2076,6 +2083,8 @@ class TXDLogicMixin: #vers 1
 
             # Enable all transform buttons in BOTH icon and text panels
             self._set_transform_buttons_enabled(True)
+            if hasattr(self, 'hdr_tone_mapping_btn'):
+                self.hdr_tone_mapping_btn.setEnabled('hdr_data' in self.selected_texture)
             if hasattr(self, 'paste_btn'):
                 self.paste_btn.setEnabled(True)
             if hasattr(self, 'paint_btn'):
@@ -2117,10 +2126,13 @@ class TXDLogicMixin: #vers 1
         Args:
             action_name: Description of the action being saved
         """
+        from apps.methods.hdr_texture_data import copy_hdr_fields
+
         texture_list_copy = []
 
         for texture in self.texture_list:
             tex_copy = texture.copy()
+            copy_hdr_fields(texture, tex_copy)
 
             # CRITICAL: Explicitly preserve all binary data fields
             if 'compressed_data' in texture:
@@ -2358,6 +2370,8 @@ class TXDLogicMixin: #vers 1
 
             # Update texture
             self.selected_texture['rgba_data'] = bytes(new_rgba)
+            from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+            mark_hdr_preview_modified(self.selected_texture)
             self.selected_texture['has_alpha'] = True
 
             # Add alpha name if not present
@@ -3867,6 +3881,8 @@ class TXDLogicMixin: #vers 1
             img = Image.frombytes('RGBA', (w, h), bytes(t['rgba_data'])).resize(
                 (tw, th), Image.Resampling.LANCZOS)
             t['rgba_data'] = img.tobytes()
+            from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+            mark_hdr_preview_modified(t)
             t['width'], t['height'] = tw, th
             self._rebuild_mip_levels(t)
         self._update_texture_info(self.selected_texture)
@@ -3903,6 +3919,8 @@ class TXDLogicMixin: #vers 1
 
             # Update texture data
             self.selected_texture['rgba_data'] = new_rgba_data
+            from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+            mark_hdr_preview_modified(self.selected_texture)
             return True
 
         except Exception as e:
@@ -4948,6 +4966,10 @@ class TXDLogicMixin: #vers 1
                 if self.main_window and hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Convert warning: {conv_err}")
 
+            if rgba and w and h:
+                from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                mark_hdr_preview_modified(tex)
+
             tex['format'] = selected_format
             tex['depth']  = bit_depth
 
@@ -5018,6 +5040,8 @@ class TXDLogicMixin: #vers 1
             if result['apply'] and workshop.dp5_canvas:
                 self._save_undo_state("DP5 Paint edit")
                 tex['rgba_data'] = bytes(workshop.dp5_canvas.rgba)
+                from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                mark_hdr_preview_modified(tex)
                 tex['width'] = workshop.dp5_canvas.tex_w
                 tex['height'] = workshop.dp5_canvas.tex_h
                 self._update_texture_info(tex)
@@ -5125,6 +5149,8 @@ class TXDLogicMixin: #vers 1
 
                 self._save_undo_state("Apply filters")
                 tex['rgba_data'] = img.tobytes()
+                from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                mark_hdr_preview_modified(tex)
                 self._update_texture_info(tex)
                 self._update_table_display()
                 self._mark_as_modified()
@@ -5590,6 +5616,8 @@ class TXDLogicMixin: #vers 1
             for t in texs:
                 img = op(Image.frombytes('RGBA', (t['width'], t['height']), bytes(t['rgba_data'])))
                 t['rgba_data'] = img.tobytes()
+                from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                mark_hdr_preview_modified(t)
                 t['width'], t['height'] = img.width, img.height
                 self._rebuild_mip_levels(t)
             self._update_texture_info(self.selected_texture)
@@ -5724,6 +5752,8 @@ class TXDLogicMixin: #vers 1
                 res = compute()
                 if res:
                     t['rgba_data'] = res
+                    from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                    mark_hdr_preview_modified(t)
                     self._rebuild_mip_levels(t)
             self._rebuild_mip_levels(self.selected_texture)
             self._update_table_display()
@@ -5746,6 +5776,8 @@ class TXDLogicMixin: #vers 1
         if not t:
             return
         t['rgba_data'] = rgba
+        from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+        mark_hdr_preview_modified(t)
         t['modified']  = True
         self._mark_as_modified()
         # Refresh preview using the existing display pipeline
@@ -5759,6 +5791,116 @@ class TXDLogicMixin: #vers 1
                 self.preview_widget.setPixmap(QPixmap.fromImage(qi))
             except Exception:
                 pass
+
+    def _open_hdr_tone_mapping(self): #vers 1
+        """Adjust the selected HDR texture's tone-mapped preview and export settings."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QComboBox,
+                                     QDoubleSpinBox, QLabel, QDialogButtonBox, QMessageBox)
+        from PyQt6.QtGui import QImage, QPixmap
+        from PyQt6.QtCore import Qt
+        texture = getattr(self, 'selected_texture', None)
+        if not texture or 'hdr_data' not in texture:
+            QMessageBox.information(self, "HDR Tone Mapping",
+                                    "Select a texture imported from a floating-point EXR or TIFF image.")
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("HDR Tone Mapping")
+        dialog.setMinimumWidth(340)
+        layout = QVBoxLayout(dialog)
+        form = QFormLayout()
+        operator_combo = QComboBox()
+        operator_combo.addItem("Reinhard", "reinhard")
+        operator_combo.addItem("ACES", "aces")
+        current_operator = texture.get('hdr_tone_operator', 'reinhard')
+        operator_index = operator_combo.findData(current_operator)
+        operator_combo.setCurrentIndex(max(0, operator_index))
+        form.addRow("Operator:", operator_combo)
+
+        exposure_spin = QDoubleSpinBox()
+        exposure_spin.setRange(-32.0, 32.0)
+        exposure_spin.setDecimals(2)
+        exposure_spin.setSingleStep(0.25)
+        exposure_spin.setSuffix(" stops")
+        exposure_spin.setValue(float(texture.get('hdr_exposure', 0.0)))
+        form.addRow("Exposure:", exposure_spin)
+        layout.addLayout(form)
+
+        preview_label = QLabel("Generating preview…")
+        preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        preview_label.setMinimumSize(280, 160)
+        preview_label.setMaximumSize(520, 360)
+        layout.addWidget(preview_label)
+
+        from copy import copy
+        from apps.methods.hdr_texture_data import prepare_hdr_export_texture
+
+        def refresh_hdr_preview(*_):
+            candidate_preview = copy(texture)
+            candidate_preview['hdr_tone_operator'] = operator_combo.currentData()
+            candidate_preview['hdr_exposure'] = exposure_spin.value()
+            candidate_preview['hdr_preview_stale'] = False
+            try:
+                prepared_preview = prepare_hdr_export_texture(candidate_preview)
+                preview_width = int(prepared_preview['width'])
+                preview_height = int(prepared_preview['height'])
+                image = QImage(
+                    prepared_preview['rgba_data'], preview_width, preview_height,
+                    preview_width * 4, QImage.Format.Format_RGBA8888
+                ).copy()
+                pixmap = QPixmap.fromImage(image).scaled(
+                    preview_label.size(),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                preview_label.setPixmap(pixmap)
+                preview_label.setText("")
+            except Exception as exc:
+                preview_label.setPixmap(QPixmap())
+                preview_label.setText(f"Preview unavailable: {exc}")
+
+        operator_combo.currentIndexChanged.connect(refresh_hdr_preview)
+        exposure_spin.valueChanged.connect(refresh_hdr_preview)
+        refresh_hdr_preview()
+
+        layout.addWidget(QLabel(
+            "The HDR source remains unchanged. OK applies these settings; "
+            "later manual edits take priority during export."
+        ))
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        candidate = copy(texture)
+        candidate['hdr_tone_operator'] = operator_combo.currentData()
+        candidate['hdr_exposure'] = exposure_spin.value()
+        candidate['hdr_preview_stale'] = False
+        try:
+            prepared = prepare_hdr_export_texture(candidate)
+        except Exception as exc:
+            QMessageBox.warning(self, "HDR Tone Mapping",
+                                f"Could not generate the HDR preview:\\n{exc}")
+            return
+
+        self._save_undo_state("HDR tone mapping")
+        texture['hdr_tone_operator'] = candidate['hdr_tone_operator']
+        texture['hdr_exposure'] = candidate['hdr_exposure']
+        texture['hdr_preview_stale'] = False
+        texture['rgba_data'] = prepared['rgba_data']
+        texture['modified'] = True
+        self._mark_as_modified()
+        self._update_texture_info(texture)
+        self._set_status(
+            f"HDR preview updated: {candidate['hdr_tone_operator'].upper()}, "
+            f"{candidate['hdr_exposure']:+.2f} stops"
+        )
 
     def _open_colour_adjust(self): #vers 2
         """Colour adjustments — brightness/contrast/hue/sat/sharp/opacity."""
@@ -5840,6 +5982,8 @@ class TXDLogicMixin: #vers 1
             self._set_current_rgba(new_rgba)
             for t in others:
                 t['rgba_data'] = scale_alpha_for_coverage(bytes(t['rgba_data']), t['width'], t['height'], target)
+                from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                mark_hdr_preview_modified(t)
             self._update_table_display()
             self._mark_as_modified()
             new_cov = compute_mip0_coverage(new_rgba, w, h)
@@ -6192,7 +6336,7 @@ class TXDLogicMixin: #vers 1
         from PyQt6.QtWidgets import QFileDialog
         file_paths, _ = QFileDialog.getOpenFileNames(
             self, "Import Texture(s)", self._start_dir(),
-            "Image Files (*.png *.jpg *.jpeg *.bmp *.tga *.dds *.gif *.tiff *.webp);;"
+            "Image Files (*.png *.jpg *.jpeg *.bmp *.tga *.dds *.gif *.tif *.tiff *.exr *.webp);;"
             "All Files (*.*)")
         if file_paths:
             self._import_texture_files(file_paths)
@@ -6232,28 +6376,79 @@ class TXDLogicMixin: #vers 1
         for file_path in file_paths:
             try:
                 fname = os.path.basename(file_path)
-                img = Image.open(file_path).convert('RGBA')
-                has_alpha = img.mode == 'RGBA' and any(p[3] < 255 for p in img.getdata())
-                
-                # Auto-detect format from pixel content
-                fmt = 'ARGB8888' if has_alpha else 'RGB888'
+                hdr_result = None
+                extension = os.path.splitext(fname)[1].lower()
+
+                if extension == '.exr':
+                    from apps.methods.float_image_loader import load_float_image
+                    from apps.methods.hdr_texture_data import make_hdr_preview_rgba
+                    hdr_result = load_float_image(file_path)
+                elif extension in ('.tif', '.tiff'):
+                    import tifffile
+                    with tifffile.TiffFile(file_path) as tif:
+                        is_float_tiff = bool(tif.series and tif.series[0].dtype.kind == 'f')
+                    if is_float_tiff:
+                        from apps.methods.float_image_loader import load_float_image
+                        from apps.methods.hdr_texture_data import make_hdr_preview_rgba
+                        hdr_result = load_float_image(file_path)
+
+                if hdr_result is not None:
+                    preview_rgba = make_hdr_preview_rgba(hdr_result)
+                    has_alpha = hdr_result['has_alpha']
+                    image_width = hdr_result['width']
+                    image_height = hdr_result['height']
+                    fmt = 'ARGB8888' if has_alpha else 'RGB888'
+                else:
+                    img = Image.open(file_path).convert('RGBA')
+                    has_alpha = img.mode == 'RGBA' and any(p[3] < 255 for p in img.getdata())
+                    preview_rgba = img.tobytes()
+                    image_width, image_height = img.size
+
+                    # Auto-detect format from pixel content
+                    fmt = 'ARGB8888' if has_alpha else 'RGB888'
 
                 if replace_mode and self.selected_texture:
                     # Replace: resample to original dimensions if different
                     tw, th = self.selected_texture['width'], self.selected_texture['height']
-                    if (img.width, img.height) != (tw, th):
+                    if hdr_result is not None:
+                        if (image_width, image_height) != (tw, th):
+                            preview = Image.frombytes('RGBA', (image_width, image_height), preview_rgba)
+                            preview_rgba = preview.resize((tw, th), Image.Resampling.LANCZOS).tobytes()
+                            if self.main_window and hasattr(self.main_window, 'log_message'):
+                                self.main_window.log_message(
+                                    f"Resized HDR preview for {fname} from "
+                                    f"{image_width}x{image_height} -> {tw}x{th}; original HDR pixels retained")
+                    elif (img.width, img.height) != (tw, th):
                         img = img.resize((tw, th), Image.Resampling.LANCZOS)
+                        preview_rgba = img.tobytes()
                         if self.main_window and hasattr(self.main_window, 'log_message'):
                             self.main_window.log_message(
                                 f"Resampled {fname} from "
-                                f"{img.width}x{img.height} -> {tw}x{th}")
+                                f"{image_width}x{image_height} -> {tw}x{th}")
                     # Keep original format and name
                     fmt  = self.selected_texture.get('format', fmt)
                     name = self.selected_texture.get('name', os.path.splitext(fname)[0])
                     self._save_undo_state(f"Replace texture: {name}")
-                    self.selected_texture['rgba_data'] = img.tobytes()
+                    self.selected_texture['rgba_data'] = preview_rgba
                     self.selected_texture['has_alpha']  = has_alpha
                     self.selected_texture['format']     = fmt
+                    for hdr_field in ('hdr_data', 'hdr_metadata', 'hdr_source', 'hdr_preview_stale'):
+                        self.selected_texture.pop(hdr_field, None)
+                    if hdr_result is not None:
+                        self.selected_texture['hdr_data'] = hdr_result['pixel_data'].copy()
+                        self.selected_texture['hdr_preview_stale'] = False
+                        self.selected_texture['hdr_metadata'] = {
+                            'dtype': hdr_result['dtype'],
+                            'channels': hdr_result['channel_names'],
+                            'color_space': hdr_result['color_space'],
+                            'value_range': hdr_result['value_range'],
+                            'metadata': hdr_result['metadata'],
+                        }
+                        self.selected_texture['hdr_source'] = {
+                            'format': hdr_result['source_format'],
+                            'width': hdr_result['width'],
+                            'height': hdr_result['height'],
+                        }
                     # Keep width/height as original (we resampled)
                     if self.main_window and hasattr(self.main_window, 'log_message'):
                         self.main_window.log_message(
@@ -6267,9 +6462,9 @@ class TXDLogicMixin: #vers 1
                         name = name[:getattr(self, 'max_texture_name_length', 32)]
                     new_tex = {
                         'name':               name,
-                        'width':              img.width,
-                        'height':             img.height,
-                        'rgba_data':          img.tobytes(),
+                        'width':              image_width,
+                        'height':             image_height,
+                        'rgba_data':          preview_rgba,
                         'has_alpha':          has_alpha,
                         'format':             fmt,
                         'alpha_name':         name + 'a' if has_alpha else '',
@@ -6280,10 +6475,25 @@ class TXDLogicMixin: #vers 1
                         'platform_id':        8,
                         'filter_flags':       0x1102,
                     }
+                    if hdr_result is not None:
+                        new_tex['hdr_data'] = hdr_result['pixel_data'].copy()
+                        new_tex['hdr_preview_stale'] = False
+                        new_tex['hdr_metadata'] = {
+                            'dtype': hdr_result['dtype'],
+                            'channels': hdr_result['channel_names'],
+                            'color_space': hdr_result['color_space'],
+                            'value_range': hdr_result['value_range'],
+                            'metadata': hdr_result['metadata'],
+                        }
+                        new_tex['hdr_source'] = {
+                            'format': hdr_result['source_format'],
+                            'width': hdr_result['width'],
+                            'height': hdr_result['height'],
+                        }
                     self.texture_list.append(new_tex)
                     if self.main_window and hasattr(self.main_window, 'log_message'):
                         self.main_window.log_message(
-                            f"Added '{name}' ({img.width}x{img.height}, {fmt})")
+                            f"Added '{name}' ({image_width}x{image_height}, {fmt})")
                     imported += 1
             except Exception as e:
                 failed += 1
@@ -6437,6 +6647,7 @@ class TXDLogicMixin: #vers 1
             has_alpha = self.selected_texture.get('has_alpha', False)
 
             # Create copy preserving ALL binary data
+            from apps.methods.hdr_texture_data import copy_hdr_fields
             new_texture = {
                 'name': self.selected_texture.get('name', 'texture') + "_copy",
                 'width': self.selected_texture.get('width', 0),
@@ -6445,7 +6656,7 @@ class TXDLogicMixin: #vers 1
                 'depth': self.selected_texture.get('depth', 32),
                 'rgba_data': self.selected_texture.get('rgba_data'),
                 'has_alpha': has_alpha,  #  Use the actual has_alpha value
-                'mipmap_levels': self.selected_texture.get('mipmap_levels', []).copy(),
+                'mipmap_levels': [level.copy() for level in self.selected_texture.get('mipmap_levels', [])],
                 'filter_flags': self.selected_texture.get('filter_flags', 0x1102),
                 'platform_id': self.selected_texture.get('platform_id', 8),
                 'raster_format_flags': self.selected_texture.get('raster_format_flags', 0),
@@ -6473,6 +6684,7 @@ class TXDLogicMixin: #vers 1
             if 'fresnel_map' in self.selected_texture:
                 new_texture['fresnel_map'] = self.selected_texture['fresnel_map']
 
+            copy_hdr_fields(self.selected_texture, new_texture)
             self._save_undo_state("Duplicate texture")
             # Add to texture list
             self.texture_list.append(new_texture)
@@ -6498,6 +6710,7 @@ class TXDLogicMixin: #vers 1
 
         try:
             # Copy preserving ALL binary data
+            from apps.methods.hdr_texture_data import copy_hdr_fields
             self.clipboard_texture = {
                 'name': self.selected_texture.get('name', 'texture'),
                 'width': self.selected_texture.get('width', 0),
@@ -6507,7 +6720,7 @@ class TXDLogicMixin: #vers 1
                 'rgba_data': self.selected_texture.get('rgba_data'),
                 'has_alpha': self.selected_texture.get('has_alpha', False),
                 'alpha_name': self.selected_texture.get('alpha_name', ''),
-                'mipmap_levels': self.selected_texture.get('mipmap_levels', []),
+                'mipmap_levels': [level.copy() for level in self.selected_texture.get('mipmap_levels', [])],
                 'filter_flags': self.selected_texture.get('filter_flags', 0x1102),
                 'platform_id': self.selected_texture.get('platform_id', 8),
                 'raster_format_flags': self.selected_texture.get('raster_format_flags', 0),
@@ -6529,6 +6742,7 @@ class TXDLogicMixin: #vers 1
             if 'fresnel_map' in self.selected_texture:
                 self.clipboard_texture['fresnel_map'] = self.selected_texture['fresnel_map']
 
+            copy_hdr_fields(self.selected_texture, self.clipboard_texture)
             self.paste_btn.setEnabled(True)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -6545,7 +6759,12 @@ class TXDLogicMixin: #vers 1
 
         try:
             # Create new texture entry with ALL clipboard data
+            from apps.methods.hdr_texture_data import copy_hdr_fields
             new_texture = self.clipboard_texture.copy()
+            new_texture['mipmap_levels'] = [
+                level.copy() for level in self.clipboard_texture.get('mipmap_levels', [])
+            ]
+            copy_hdr_fields(self.clipboard_texture, new_texture)
             new_texture['name'] = new_texture['name'] + "_copy"
             if new_texture.get('alpha_name'):
                 new_texture['alpha_name'] = new_texture['alpha_name'] + "_copy"
@@ -6925,6 +7144,8 @@ class TXDLogicMixin: #vers 1
                         texture['width'] = width
                         texture['height'] = height
                         texture['rgba_data'] = rgba_data
+                        for hdr_field in ('hdr_data', 'hdr_metadata', 'hdr_source', 'hdr_preview_stale'):
+                            texture.pop(hdr_field, None)
                         texture['has_alpha'] = has_alpha
 
                         if has_alpha:
@@ -7033,7 +7254,7 @@ class TXDLogicMixin: #vers 1
             return False
 
         rgba_data = texture.get('rgba_data', b'')
-        if not rgba_data or len(rgba_data) < 400:  # Need at least 100 pixels
+        if not rgba_data or len(rgba_data) < 400:
             return False
 
         pixel_count = len(rgba_data) // 4

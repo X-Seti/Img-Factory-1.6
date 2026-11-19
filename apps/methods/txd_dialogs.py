@@ -1529,6 +1529,8 @@ class MipmapManagerWindow(QWidget): #vers 2
         lv['compressed_data'] = None
         if level_num == 0:
             self.texture_data['rgba_data'] = lv['rgba_data']
+            from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+            mark_hdr_preview_modified(self.texture_data)
         self.modified_levels[level_num] = True
         self.parent_workshop._mark_as_modified()
         self.close()
