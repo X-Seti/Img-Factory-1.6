@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 17
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 18
 # X-Seti - October 07 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -4590,14 +4590,16 @@ class TXDLogicMixin: #vers 1
 
         self.info_name.setReadOnly(True)
 
-    def _save_alpha_name(self): #vers 2
+    def _save_alpha_name(self): #vers 3
         """Save edited alpha name"""
         if not self.selected_texture or not self.selected_texture.get('has_alpha'):
             return
 
+        old_name = self.selected_texture.get('alpha_name', '')
         new_alpha_name = self.info_alpha_name.text().strip()
-        if new_alpha_name and new_alpha_name != self.selected_texture.get('alpha_name', ''):
-            old_name = self.selected_texture.get('alpha_name', '')
+        if not new_alpha_name:
+            self.info_alpha_name.setText(old_name)  # keep old name when empty
+        elif new_alpha_name != old_name:
             self._save_undo_state(f"Rename alpha: {old_name} -> {new_alpha_name}")
             self.selected_texture['alpha_name'] = new_alpha_name
             self._reload_texture_table()
@@ -7025,8 +7027,8 @@ class TXDLogicMixin: #vers 1
         self.texture_table.setRowHeight(row, 100)
         self.texture_table.setColumnWidth(0, 80)
 
-    def _quick_alpha_check(self, texture): #vers 1
-        """Quick check if alpha might be same as RGB (for warning icon)"""
+    def _quick_alpha_check(self, texture): #vers 2
+        """Flag likely grayscale RGB/alpha duplication (visual hint only)"""
         if not texture.get('has_alpha', False):
             return False
 
@@ -7034,22 +7036,23 @@ class TXDLogicMixin: #vers 1
         if not rgba_data or len(rgba_data) < 400:  # Need at least 100 pixels
             return False
 
-        # Sample first 100 pixels
+        pixel_count = len(rgba_data) // 4
+        samples = min(1024, pixel_count)
         matches = 0
-        samples = min(100, len(rgba_data) // 4)
+        extremes = 0
 
-        for i in range(0, samples * 4, 4):
-            r = rgba_data[i]
-            g = rgba_data[i + 1]
-            b = rgba_data[i + 2]
-            a = rgba_data[i + 3]
-
-            luminosity = int(0.299 * r + 0.587 * g + 0.114 * b)
-
-            if abs(luminosity - a) < 10:
+        for n in range(samples):
+            i = ((n * pixel_count) // samples) * 4  # spread over whole image
+            r, g, b, a = rgba_data[i], rgba_data[i + 1], rgba_data[i + 2], rgba_data[i + 3]
+            if a in (0, 255):
+                extremes += 1
+            if abs(int(0.299 * r + 0.587 * g + 0.114 * b) - a) < 10:
                 matches += 1
 
-        # If more than 90% match, flag as suspicious
+        # Binary or antialiased masks are valid: no warning
+        if extremes / samples > 0.9:
+            return False
+
         return (matches / samples) > 0.9
 
     def _load_settings(self): #vers 3

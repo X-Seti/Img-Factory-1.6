@@ -1,6 +1,7 @@
-#this belongs in root /ChangeLog.md - Version: 480
+#this belongs in root /ChangeLog.md - Version: 481
 
 
+- Nov 19 2026 - TXD alpha: warning samples whole image, skips binary masks; empty alpha name restores old name (from nebi23 PR 2).
 - Nov 12 2026 - Data Workshop icons: Generics own icon, convert icon redrawn (A/B swap arrows), Check IDE/IPL ticks enlarged.
 - Nov 12 2026 - Vehicle Workshop now built on Model Workshop (Ped-style docks): Vehicle Data, Vehicle Model, Vehicle Tools. Old Files/Models/Frame/Textures panes hidden; dock layout saved on move.
 - Nov 12 2026 - Vehicle Workshop: door/bonnet/boot toggles open parts; LOD shows alone; rotated LOD frames fixed (dff_viewport world matrix); Slots buttons become icons, path elided.
