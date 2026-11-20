@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-#this belongs in tools/nightly_push.sh - Version: 1
+#this belongs in tools/nightly_push.sh - Version: 2
 # X-Seti - November 09 2026 - IMG Factory 1.6 - Nightly push of every repo
 
-# Commits and pushes every repo under GIT_ROOT that has changes.
+# Commits and pushes every X-Seti repo (apps + standalone) under GIT_ROOT that has changes.
 # Uses your normal git login (credential helper / SSH key); no tokens here.
 #
 # Run:      tools/nightly_push.sh            (push)
@@ -18,9 +18,13 @@ DRY=0
 [ "$1" = "--dry-run" ] && DRY=1
 STAMP="$(date +%F)"
 
-push_repo() { #vers 1
+push_repo() { #vers 2
     local d="$1" name branch
     name="$(basename "$d")"
+    case "$(git -C "$d" remote get-url origin 2>/dev/null)" in
+        *github.com[:/]X-Seti/*) ;;                          # own repos only
+        *) echo "skip  $name (not X-Seti)"; return ;;
+    esac
     branch="$(git -C "$d" symbolic-ref --short -q HEAD)" || { echo "skip  $name (detached HEAD)"; return; }
     git -C "$d" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 || { echo "skip  $name (no upstream)"; return; }
     local dirty ahead

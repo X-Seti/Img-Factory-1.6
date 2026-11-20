@@ -1,4 +1,4 @@
-#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 19
+#this belongs in apps/components/Txd_Editor/depends/txd_logic_func.py - Version: 20
 # X-Seti - October 07 2026 - IMG Factory 1.6 - TXD Workshop logic
 
 """
@@ -4215,8 +4215,9 @@ class TXDLogicMixin: #vers 1
             # IMG-based TXD save with version selector
             return self._save_txd_to_img_with_version_selector()
 
-    def _save_txd_file(self): #vers 5
+    def _save_txd_file(self): #vers 6
         """Save TXD file with detailed structural logging"""
+        self._style_originals = {}
         if not self.current_txd_path and not self.current_txd_name:
             QMessageBox.warning(self, "No TXD", "No TXD file loaded")
             return
@@ -5053,12 +5054,60 @@ class TXDLogicMixin: #vers 1
             import traceback; traceback.print_exc()
             QMessageBox.warning(self, "Paint Editor Error", str(e))
 
-    def _open_filters_dialog(self): #vers 1
+    def _apply_style_rgba(self, rgba, width, height, style): #vers 1
+        """Convert RGBA bytes to a named style"""
+        import numpy as np
+        a = np.frombuffer(rgba, dtype=np.uint8).reshape(height, width, 4).astype(np.float32) / 255.0
+        rgb = a[..., :3]
+        lum = (rgb * np.array([0.299, 0.587, 0.114], dtype=np.float32)).sum(-1, keepdims=True)
+        if style == "B&W":
+            rgb = np.repeat(lum, 3, axis=-1)
+        elif style == "High-contrast":
+            g = np.repeat(lum, 3, axis=-1)
+            rgb = np.where(g > 0.5, 1.0, 0.0).astype(np.float32)
+        elif style == "Neo-Noir":
+            g = np.clip((lum - 0.5) * 1.6 + 0.45, 0, 1)
+            tint = np.array([0.80, 0.92, 1.10], dtype=np.float32)
+            rgb = np.clip(g * tint * 0.85, 0, 1)
+            rgb = np.where(lum > 0.8, rgb + np.array([0.15, 0.0, 0.05], dtype=np.float32) * (lum - 0.8) * 5, rgb)
+        elif style == "SDR to HDR":
+            lin = np.power(rgb, 2.2)
+            lin = lin * (1.0 + 3.0 * np.power(lum, 4.0))
+            rgb = np.power(lin / (1.0 + lin * 0.25), 1 / 2.2) * 1.15
+        elif style == "Lego":
+            cell = max(1, min(width, height) // 32)
+            gw, gh = max(1, width // cell), max(1, height // cell)
+            from PIL import Image
+            img = Image.fromarray((a * 255).astype(np.uint8), 'RGBA').resize((gw, gh), Image.BOX)
+            pal = np.array([(242,243,243),(27,42,52),(196,40,27),(13,105,171),(245,205,47),
+                            (75,151,75),(218,133,64),(105,64,40),(160,165,169),(99,95,98)], dtype=np.float32) / 255.0
+            small = np.asarray(img).astype(np.float32) / 255.0
+            d = ((small[..., None, :3] - pal) ** 2).sum(-1)
+            small[..., :3] = pal[d.argmin(-1)]
+            big = np.kron(small, np.ones((cell, cell, 1), dtype=np.float32))
+            out = np.zeros_like(a)
+            out[:big.shape[0], :big.shape[1]] = big[:height, :width]
+            out[big.shape[0]:, :] = out[big.shape[0] - 1:big.shape[0], :]
+            out[:, big.shape[1]:] = out[:, big.shape[1] - 1:big.shape[1]]
+            yy, xx = np.mgrid[0:height, 0:width]
+            cy = (yy % cell + 0.5) / cell - 0.5
+            cx = (xx % cell + 0.5) / cell - 0.5
+            r = np.sqrt(cx ** 2 + cy ** 2)
+            hi = np.clip(1 - np.abs(r - 0.3) / 0.08, 0, 1)[..., None] * 0.25
+            edge = ((np.abs(cx) > 0.46) | (np.abs(cy) > 0.46))[..., None] * 0.2
+            out[..., :3] = np.clip(out[..., :3] + hi - edge, 0, 1)
+            out[..., 3] = a[..., 3]
+            a = out
+            rgb = a[..., :3]
+        a[..., :3] = np.clip(rgb, 0, 1)
+        return (a * 255 + 0.5).astype(np.uint8).tobytes()
+
+    def _open_filters_dialog(self): #vers 2
         """Open filters dialog"""
         if not self.selected_texture:
             return
 
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSlider, QPushButton, QHBoxLayout
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QSlider, QPushButton, QHBoxLayout, QComboBox, QCheckBox
 
         dialog = QDialog(self)
         dialog.setWindowTitle("Image Filters")
@@ -5066,6 +5115,14 @@ class TXDLogicMixin: #vers 1
         dialog.resize(400, 400)
 
         layout = QVBoxLayout(dialog)
+
+        # Style
+        layout.addWidget(QLabel("Style:"))
+        style_combo = QComboBox()
+        style_combo.addItems(["None", "Neo-Noir", "B&W", "High-contrast", "Lego", "SDR to HDR"])
+        layout.addWidget(style_combo)
+        all_check = QCheckBox("All textures")
+        layout.addWidget(all_check)
 
         # Brightness
         layout.addWidget(QLabel("Brightness:"))
@@ -5113,6 +5170,7 @@ class TXDLogicMixin: #vers 1
                 from PIL import Image, ImageEnhance, ImageFilter
                 import io
                 tex = self.selected_texture
+                tex_orig = tex['rgba_data']
                 img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
 
                 b_val = brightness_slider.value() / 100.0
@@ -5149,6 +5207,18 @@ class TXDLogicMixin: #vers 1
 
                 self._save_undo_state("Apply filters")
                 tex['rgba_data'] = img.tobytes()
+                style = style_combo.currentText()
+                if style != "None":
+                    if not hasattr(self, '_style_originals'):
+                        self._style_originals = {}
+                    targets = self.texture_list if all_check.isChecked() else [tex]
+                    for t in targets:
+                        if not t.get('rgba_data'):
+                            continue
+                        self._style_originals.setdefault(t['name'], t['rgba_data'] if t is not tex else bytes(tex_orig))
+                        t['rgba_data'] = self._apply_style_rgba(t['rgba_data'], t['width'], t['height'], style)
+                        from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                        mark_hdr_preview_modified(t)
                 from apps.methods.hdr_texture_data import mark_hdr_preview_modified
                 mark_hdr_preview_modified(tex)
                 self._update_texture_info(tex)
@@ -5160,6 +5230,26 @@ class TXDLogicMixin: #vers 1
 
         apply_btn.clicked.connect(_apply_filters)
         button_layout.addWidget(apply_btn)
+
+        def _restore_originals():  #vers 1
+            orig = getattr(self, '_style_originals', {})
+            if not orig:
+                return
+            self._save_undo_state("Restore originals")
+            for t in self.texture_list:
+                if t.get('name') in orig:
+                    t['rgba_data'] = orig[t['name']]
+                    from apps.methods.hdr_texture_data import mark_hdr_preview_modified
+                    mark_hdr_preview_modified(t)
+            self._style_originals = {}
+            self._update_texture_info(self.selected_texture)
+            self._update_table_display()
+            self._mark_as_modified()
+            dialog.accept()
+
+        restore_btn = QPushButton("Restore originals")
+        restore_btn.clicked.connect(_restore_originals)
+        button_layout.addWidget(restore_btn)
 
         reset_btn = QPushButton("Reset")
         reset_btn.clicked.connect(lambda: [
