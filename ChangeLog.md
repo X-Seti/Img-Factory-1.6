@@ -25,6 +25,9 @@
 - Nov 14 2026 - DP5: Plugins > GIF Resize - resize or upscale all frames of the open animation (exact, fit, percent), and batch resize many GIF files into a folder; plugin host gains frames() / set_frames().
 - Nov 13 2026 - Map Workshop IPL object editor: X/Y/Z rows one line, plain value boxes (_NudgeEdit) replace clipped spin boxes; wrap logic removed.
 - TODO - Vehicle Workshop: retest docking/heights, duplicate Render buttons vs ribbon. Next GUIWorkshop tools to move to Model Workshop: Data, Capture, Disc, Handling, Hex, Timecyc, Water.
+- TODO - Method file naming: tool prefix first (txd_w_name.py), e.g. float_pt_img_loader, tex_hdr_parser, txd_hdr_tone_map. Rename remaining apps/methods files; standalone repos copy only their prefix.
+- TODO - Ribbon icons needed (HDR Tone Mapping done): Save TXD As (Ctrl+Shift+S), multi-image import. Draw SVG icons in imgfactory_svg_icons, sync to all repos.
+- TODO - Tools that may need HDR (EXR/TIFF float via float_pt_img_loader): DP5 Workshop open/save, Radar Workshop, Vehicle skins, Model Workshop texture import, Asset Workshop.
 - Nov 11 2026 - Txd-Workshop / App-Settings-System: missing methods/app_fonts.py added (Settings stylesheet error); App-Settings-System also gets edge_cursor.py, ribbon_align.py.
 - Nov 10 2026 - Exit segfault (sip cleanup) fixed: windows freed on aboutToQuit; DP5 joins. Model Workshop icon: wireframe M (Model Viewer keeps mesh icon).
 - Nov 10 2026 - DP5: palette height back to All now removes the old row cap. Headless test of Nov 9 work: 23/23 pass.
